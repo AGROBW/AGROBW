@@ -20,7 +20,7 @@ export const useUserAds = () => {
     const fetchAds = async () => {
       setIsLoading(true)
       const { data, error } = await supabase
-        .from('ads')
+        .from('announcements')
         .select(`
           *,
           categories (name, slug)
@@ -37,7 +37,7 @@ export const useUserAds = () => {
           id: ad.id,
           title: ad.title,
           description: ad.description,
-          price: parseFloat(ad.price),
+          price: parseFloat(ad.unit_price || ad.price),
           location: {
             city: ad.city,
             state: ad.state,
@@ -81,7 +81,7 @@ export const usePublicAds = (filters?: {
       setIsLoading(true)
       
       let query = supabase
-        .from('ads')
+        .from('announcements')
         .select(`
           *,
           categories (name, slug),
@@ -130,7 +130,7 @@ export const usePublicAds = (filters?: {
           id: ad.id,
           title: ad.title,
           description: ad.description,
-          price: parseFloat(ad.price),
+          price: parseFloat(ad.unit_price || ad.price),
           location: {
             city: ad.city,
             state: ad.state,
@@ -157,6 +157,55 @@ export const usePublicAds = (filters?: {
   return { ads, isLoading, error }
 }
 
+// Hook para buscar todos os anúncios (admin)
+export const useAllAds = () => {
+  const [ads, setAds] = useState<Ad[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      setIsLoading(true)
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        setError(error.message)
+        setAds([])
+      } else {
+        const mapped: Ad[] = (data || []).map(ad => ({
+          id: ad.id,
+          title: ad.title,
+          description: ad.description,
+          price: parseFloat(ad.unit_price || ad.price),
+          location: {
+            city: ad.city,
+            state: ad.state,
+            cep: ad.cep
+          },
+          categoryId: ad.category_id,
+          categorySlug: ad.category_slug,
+          images: ad.images || [],
+          userId: ad.user_id,
+          status: ad.status,
+          views: ad.views || 0,
+          isPremium: ad.is_premium || false,
+          createdAt: ad.created_at,
+          whatsapp: ad.whatsapp
+        }))
+        setAds(mapped)
+      }
+      setIsLoading(false)
+    }
+
+    fetchAll()
+  }, [])
+
+  return { ads, isLoading, error }
+}
+
 // Hook para buscar um anúncio específico
 export const useAd = (adId: string | undefined) => {
   const [ad, setAd] = useState<Ad | null>(null)
@@ -169,16 +218,25 @@ export const useAd = (adId: string | undefined) => {
       return
     }
 
+    // Validar UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(adId)) {
+      console.error('[Views] ID inválido:', adId)
+      setError('ID de anúncio inválido')
+      setIsLoading(false)
+      return
+    }
+
     const fetchAd = async () => {
       setIsLoading(true)
       
       const { data, error } = await supabase
-        .from('ads')
+        .from('announcements')
         .select(`
           *,
           categories (name, slug),
           users (name, avatar, phone),
-          ad_technical_details (label, value, icon_name)
+          announcement_technical_details (label, value, icon_name)
         `)
         .eq('id', adId)
         .single()
@@ -187,11 +245,23 @@ export const useAd = (adId: string | undefined) => {
         setError(error.message)
         console.error('Erro ao buscar anúncio:', error)
       } else {
+        // Mapear announcement_technical_details (tabela relacional) para technicalDetails array
+        let technicalDetailsArray: any[] = []
+        if (data.announcement_technical_details && Array.isArray(data.announcement_technical_details)) {
+          technicalDetailsArray = data.announcement_technical_details
+            .filter((detail: any) => detail.value && String(detail.value).trim() !== '')
+            .map((detail: any) => ({
+              label: detail.label,
+              value: String(detail.value),
+              iconName: detail.icon_name || 'Circle'
+            }))
+        }
+
         const mappedAd: Ad = {
           id: data.id,
           title: data.title,
           description: data.description,
-          price: parseFloat(data.price),
+          price: parseFloat(data.unit_price || data.price),
           location: {
             city: data.city,
             state: data.state,
@@ -206,17 +276,31 @@ export const useAd = (adId: string | undefined) => {
           isPremium: data.is_premium || false,
           createdAt: data.created_at,
           whatsapp: data.whatsapp,
-          technicalDetails: data.ad_technical_details?.map((detail: any) => ({
-            label: detail.label,
-            value: detail.value,
-            icon: null // Ícone será renderizado no componente
-          })),
-          healthScore: data.health_score
-        }
+          technicalDetails: technicalDetailsArray.length > 0 ? technicalDetailsArray : undefined,
+          healthScore: data.health_score,
+          users: data.users
+        } as any
         setAd(mappedAd)
 
-        // Incrementar views
-        await supabase.rpc('increment_ad_views', { ad_uuid: adId })
+        // Incrementar views com prevenção de duplicidade
+        const viewKey = `viewed_ad_${adId}`
+        const hasViewed = sessionStorage.getItem(viewKey)
+        
+        if (!hasViewed) {
+          console.log('[Views] Incrementando visualização para:', adId)
+          
+          const { error: viewError } = await supabase.rpc('increment_ad_views', { ad_id: adId })
+          
+          if (viewError) {
+            console.error('[Views] Erro ao incrementar views:', viewError)
+          } else {
+            // Marcar como visualizado na sessão
+            sessionStorage.setItem(viewKey, 'true')
+            console.log('[Views] Visualização incrementada com sucesso')
+          }
+        } else {
+          console.log('[Views] Anúncio já visualizado nesta sessão')
+        }
       }
       setIsLoading(false)
     }

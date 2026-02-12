@@ -1,17 +1,54 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { AlertTriangle, ChevronRight, Clock, DollarSign, Eye, Heart, MessageCircle, Share2, ShieldCheck } from 'lucide-react';
-import { MOCK_ADS } from '../constants';
+import { AlertTriangle, ChevronRight, Clock, DollarSign, Eye, Heart, MessageCircle, Share2, ShieldCheck, Calendar, Gauge, Ruler, Weight, Wrench, Hammer, Cog, Circle, MapPin, Package, Truck, Droplet, Zap, Thermometer, Wind } from 'lucide-react';
+import { useAd } from '../src/hooks/useAds';
+import { useAuth } from '../src/contexts/AuthContext';
+import ContactSellerModal from '../components/ContactSellerModal';
+import toast from 'react-hot-toast';
+
+// Mapa de ícones para renderizar dinamicamente
+const iconMap: Record<string, React.ComponentType<any>> = {
+  Calendar, Gauge, Ruler, Weight, Wrench, Hammer, Cog, Circle, MapPin, Package, Truck, Droplet, Zap, Thermometer, Wind
+};
 
 const AdDetailView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const ad = MOCK_ADS.find((a) => a.id === id);
+  const { ad, isLoading, error } = useAd(id);
+  const { user } = useAuth();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  if (!ad) {
+  const handleContactSeller = () => {
+    if (!user) {
+      toast.error('Para negociar, você precisa estar logado em sua conta.', {
+        duration: 4000,
+        icon: '🔒'
+      });
+      return;
+    }
+    
+    if (user.id === ad?.userId) {
+      toast.error('Você não pode enviar mensagem para o seu próprio anúncio.');
+      return;
+    }
+
+    setIsModalOpen(true);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+        <p className="mt-4 text-slate-600">Carregando anúncio...</p>
+      </div>
+    );
+  }
+
+  if (error || !ad) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-4">
         <h2 className="text-2xl font-bold text-slate-800 mb-4">Anúncio não encontrado</h2>
+        <p className="text-slate-600 mb-4">{error || 'O anúncio pode ter sido removido ou não existe.'}</p>
         <Link to="/" className="text-green-700 font-bold hover:underline">Voltar para a home</Link>
       </div>
     );
@@ -42,48 +79,63 @@ const AdDetailView: React.FC = () => {
           
           {/* Gallery Card */}
           <div className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 p-2">
-            <div className="relative aspect-video rounded-[1.8rem] overflow-hidden">
-              <img 
-                src={ad.images[0]} 
-                alt={ad.title} 
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute top-6 right-6 flex gap-2">
-                 <button className="bg-white/90 backdrop-blur-md p-3 rounded-lg text-slate-700 hover:text-red-500 transition-colors">
-                   <Heart className="w-5 h-5" strokeWidth={1.5} />
-                </button>
-                 <button className="bg-white/90 backdrop-blur-md p-3 rounded-lg text-slate-700 hover:text-blue-500 transition-colors">
-                   <Share2 className="w-5 h-5" strokeWidth={1.5} />
-                </button>
-              </div>
-            </div>
-            {/* Gallery Thumbnails (Placeholder) */}
-            <div className="flex gap-4 p-6 overflow-x-auto custom-scrollbar">
-              {[...ad.images, ...ad.images].map((img, i) => (
-                <div key={i} className={`flex-shrink-0 w-24 h-20 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${i === 0 ? 'border-green-600' : 'border-transparent opacity-70 hover:opacity-100'}`}>
-                  <img src={img} className="w-full h-full object-cover" />
+            {ad.images && ad.images.length > 0 ? (
+              <>
+                <div className="relative aspect-video rounded-[1.8rem] overflow-hidden">
+                  <img 
+                    src={ad.images[0]} 
+                    alt={ad.title} 
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-6 right-6 flex gap-2">
+                     <button className="bg-white/90 backdrop-blur-md p-3 rounded-lg text-slate-700 hover:text-red-500 transition-colors">
+                       <Heart className="w-5 h-5" strokeWidth={1.5} />
+                    </button>
+                     <button className="bg-white/90 backdrop-blur-md p-3 rounded-lg text-slate-700 hover:text-blue-500 transition-colors">
+                       <Share2 className="w-5 h-5" strokeWidth={1.5} />
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </div>
+                {/* Gallery Thumbnails */}
+                {ad.images.length > 1 && (
+                  <div className="flex gap-4 p-6 overflow-x-auto custom-scrollbar">
+                    {ad.images.map((img, i) => (
+                      <div key={i} className={`flex-shrink-0 w-24 h-20 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${i === 0 ? 'border-green-600' : 'border-transparent opacity-70 hover:opacity-100'}`}>
+                        <img src={img} alt={`${ad.title} - ${i + 1}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="relative aspect-video rounded-[1.8rem] overflow-hidden bg-slate-100 flex items-center justify-center">
+                <p className="text-slate-400 text-lg">Sem imagens disponíveis</p>
+              </div>
+            )}
           </div>
 
           {/* Technical Specifications Section */}
-          <div className="space-y-6">
-            <h2 className="text-2xl font-black text-slate-900 font-display px-2">Especificações Técnicas</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-              {ad.technicalDetails?.map((detail, index) => (
-                <div key={index} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-4 hover:shadow-md transition-shadow">
-                  <div className="p-3 bg-green-50 text-green-700 rounded-xl">
-                    {detail.icon}
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{detail.label}</p>
-                    <p className="text-lg font-black text-slate-800">{detail.value}</p>
-                  </div>
-                </div>
-              ))}
+          {ad.technicalDetails && ad.technicalDetails.length > 0 && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-black text-slate-900 font-display px-2">Especificações Técnicas</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                {ad.technicalDetails.map((detail: any, index: number) => {
+                  const IconComponent = iconMap[detail.iconName] || Circle;
+                  return (
+                    <div key={index} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-4 hover:shadow-md transition-shadow">
+                      <div className="p-3 bg-green-50 text-green-700 rounded-xl">
+                        <IconComponent className="w-5 h-5" strokeWidth={1.5} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{detail.label}</p>
+                        <p className="text-lg font-black text-slate-800">{detail.value}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Description Section */}
           <div className="bg-white rounded-3xl p-10 border border-gray-100 shadow-sm space-y-6">
@@ -119,39 +171,49 @@ const AdDetailView: React.FC = () => {
               </div>
 
               <div className="space-y-4">
-                <a 
-                  href={`https://wa.me/${ad.whatsapp}?text=Olá! Tenho interesse no anúncio: ${ad.title}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={handleContactSeller}
                   className="flex items-center justify-center gap-3 w-full py-5 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black text-lg transition-all shadow-lg shadow-green-600/20 active:scale-95"
                 >
                   <MessageCircle className="w-5 h-5" strokeWidth={1.5} />
-                  Conversar agora
-                </a>
-                <button className="w-full py-5 border-2 border-slate-100 hover:border-green-600 hover:text-green-700 text-slate-600 rounded-2xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2">
-                   <DollarSign className="w-5 h-5" strokeWidth={1.5} />
-                   Fazer uma Proposta
+                  Fale com o Vendedor
                 </button>
+                
+                {ad.whatsapp && (
+                  <a 
+                    href={`https://wa.me/${ad.whatsapp.replace(/\D/g, '')}?text=Olá! Tenho interesse no anúncio: ${encodeURIComponent(ad.title)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-3 w-full py-5 border-2 border-green-600 text-green-600 rounded-2xl font-bold transition-all hover:bg-green-50 active:scale-95"
+                  >
+                    <MessageCircle className="w-5 h-5" strokeWidth={1.5} />
+                    Conversar via WhatsApp
+                  </a>
+                )}
               </div>
 
               <div className="pt-8 border-t border-gray-50 space-y-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center text-xl font-bold text-slate-500">
-                    JD
+                  <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center text-xl font-bold text-slate-500 overflow-hidden">
+                    {(ad as any).users?.avatar ? (
+                      <img src={(ad as any).users.avatar} alt={(ad as any).users?.name || 'Vendedor'} className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{((ad as any).users?.name || 'V')[0].toUpperCase()}</span>
+                    )}
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-900">John Deere Authorized</h4>
+                    <h4 className="font-bold text-slate-900">{(ad as any).users?.name || 'Vendedor'}</h4>
                     <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Vendedor Verificado</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                    <div className="bg-slate-50 p-3 rounded-xl text-center">
-                     <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Vendas</p>
-                     <p className="text-sm font-black text-slate-700">+150</p>
+                     <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Local</p>
+                     <p className="text-sm font-black text-slate-700">{ad.location.city}, {ad.location.state}</p>
                    </div>
                    <div className="bg-slate-50 p-3 rounded-xl text-center">
-                     <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Avaliação</p>
-                     <p className="text-sm font-black text-slate-700">4.9/5.0</p>
+                     <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Views</p>
+                     <p className="text-sm font-black text-slate-700">{ad.views}</p>
                    </div>
                 </div>
               </div>
@@ -178,6 +240,17 @@ const AdDetailView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal de Contato */}
+      {ad && (
+        <ContactSellerModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          announcementId={ad.id}
+          announcementTitle={ad.title}
+          sellerId={ad.userId}
+        />
+      )}
     </div>
   );
 };

@@ -94,6 +94,15 @@ export interface User {
   email: string;
   role: UserRole;
   phone: string;
+  document?: string;
+  whatsapp?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
+  cidade?: string;
+  estado?: string;
   location?: string;
   avatar?: string;
   plan?: 'seed' | 'boost' | 'harvest';

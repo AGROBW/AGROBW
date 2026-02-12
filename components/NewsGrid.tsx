@@ -2,9 +2,10 @@
 import React from 'react';
 import { Newspaper } from 'lucide-react';
 import NewsCard from './NewsCard';
-import { MOCK_NEWS } from '../constants';
+import { useNews } from '../src/hooks/useNews';
 
 const NewsGrid: React.FC = () => {
+  const { news, isLoading } = useNews();
   return (
     <section className="py-16 bg-slate-50/50 border-y border-slate-200/40">
       <div className="max-w-7xl mx-auto px-4">
@@ -26,9 +27,19 @@ const NewsGrid: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {MOCK_NEWS.map((news) => (
-            <NewsCard key={news.id} news={news} />
-          ))}
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, index) => (
+              <div key={`news-skeleton-${index}`} className="bg-white rounded-xl h-64 animate-pulse border border-slate-100" />
+            ))
+          ) : news.length === 0 ? (
+            <div className="col-span-full bg-white rounded-xl p-8 text-center border border-slate-100">
+              <p className="text-sm text-slate-500">Nenhuma notícia disponível no momento.</p>
+            </div>
+          ) : (
+            news.map((item) => (
+              <NewsCard key={item.id} news={item} />
+            ))
+          )}
         </div>
       </div>
     </section>

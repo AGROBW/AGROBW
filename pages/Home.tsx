@@ -7,9 +7,54 @@ import HeroSearch from '../components/HeroSearch';
 import AdCard from '../components/AdCard';
 import QuotationTicker from '../components/QuotationTicker';
 import NewsGrid from '../components/NewsGrid';
-import { CATEGORIES, MOCK_ADS } from '../constants';
+import { CATEGORIES } from '../constants';
+import { usePublicAds } from '../src/hooks/useAds';
+
+class AdCardErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
+
+const isAdValid = (ad: any) => {
+  return Boolean(
+    ad &&
+    ad.id &&
+    ad.title &&
+    typeof ad.price === 'number' &&
+    Array.isArray(ad.images) && ad.images[0] &&
+    ad.location && ad.location.city && ad.location.state
+  );
+};
+
+const AdFallbackCard = () => (
+  <div className="bg-white rounded-xl border border-slate-100 p-5 h-full flex flex-col justify-between">
+    <div>
+      <div className="w-full h-36 bg-slate-100 rounded-lg mb-4" />
+      <h3 className="text-sm font-semibold text-slate-700 mb-2">Anúncio indisponível</h3>
+      <p className="text-xs text-slate-500">Estamos atualizando este conteúdo. Tente novamente em instantes.</p>
+    </div>
+    <div className="mt-4">
+      <div className="w-full h-10 bg-slate-100 rounded-lg" />
+    </div>
+  </div>
+);
 
 const Home: React.FC = () => {
+  const { ads, isLoading: adsLoading } = usePublicAds();
+  const premiumAds = ads.filter(ad => ad.isPremium);
   return (
     <div className="flex flex-col min-h-screen">
       {/* Agricultural Quotations Ticker */}
@@ -63,9 +108,25 @@ const Home: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {MOCK_ADS.filter(ad => ad.isPremium).map((ad) => (
-              <AdCard key={ad.id} ad={ad} />
-            ))}
+            {adsLoading ? (
+              Array.from({ length: 4 }).map((_, index) => (
+                <div key={`premium-skeleton-${index}`} className="bg-white rounded-xl h-72 animate-pulse border border-slate-100" />
+              ))
+            ) : premiumAds.length > 0 ? (
+              premiumAds.map((ad) => (
+                isAdValid(ad) ? (
+                  <AdCardErrorBoundary key={ad.id}>
+                    <AdCard ad={ad} />
+                  </AdCardErrorBoundary>
+                ) : (
+                  <AdFallbackCard key={`fallback-${ad?.id ?? Math.random()}`} />
+                )
+              ))
+            ) : (
+              <div className="col-span-full bg-white rounded-xl p-8 text-center border border-slate-100">
+                <p className="text-sm text-slate-500">Nenhum anúncio em destaque no momento.</p>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -91,9 +152,25 @@ const Home: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {MOCK_ADS.map((ad) => (
-            <AdCard key={ad.id} ad={ad} />
-          ))}
+          {adsLoading ? (
+            Array.from({ length: 4 }).map((_, index) => (
+              <div key={`recent-skeleton-${index}`} className="bg-white rounded-xl h-72 animate-pulse border border-slate-100" />
+            ))
+          ) : ads.length > 0 ? (
+            ads.map((ad) => (
+              isAdValid(ad) ? (
+                <AdCardErrorBoundary key={ad.id}>
+                  <AdCard ad={ad} />
+                </AdCardErrorBoundary>
+              ) : (
+                <AdFallbackCard key={`fallback-${ad?.id ?? Math.random()}`} />
+              )
+            ))
+          ) : (
+            <div className="col-span-full bg-white rounded-xl p-8 text-center border border-slate-100">
+              <p className="text-sm text-slate-500">Nenhum anúncio publicado recentemente.</p>
+            </div>
+          )}
         </div>
 
         <div className="mt-10 text-center">

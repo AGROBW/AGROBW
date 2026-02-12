@@ -146,14 +146,14 @@ export const useOpportunities = () => {
     const fetchOpportunities = async () => {
       const { data, error } = await supabase
         .from('opportunities')
-        .select('ad_id')
+        .select('announcement_id')
         .eq('user_id', user.id)
         .gt('expires_at', new Date().toISOString())
 
       if (error) {
         console.error('Erro ao buscar oportunidades:', error)
       } else {
-        const adIds = new Set(data.map(opp => opp.ad_id))
+        const adIds = new Set(data.map(opp => opp.announcement_id))
         setOpportunities(adIds)
       }
     }

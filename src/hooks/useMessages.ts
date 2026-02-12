@@ -30,9 +30,9 @@ export const useChats = () => {
     } else {
       const mappedChats: Chat[] = data.map(chat => ({
         id: chat.id,
-        adId: chat.ad_id,
+        adId: chat.announcement_id,
         adTitle: chat.ad_title,
-        adPrice: parseFloat(chat.ad_price),
+        adPrice: parseFloat(chat.ad_price) || 0,
         adImage: chat.ad_image,
         sellerId: chat.seller_id,
         sellerName: chat.seller_name,
@@ -44,6 +44,14 @@ export const useChats = () => {
         status: chat.status,
         createdAt: chat.created_at
       }))
+      
+      // Debug: Log dos chats mapeados
+      console.log('[useChats] Total de chats:', mappedChats.length);
+      if (mappedChats.length > 0) {
+        console.log('[useChats] Primeiro chat mapeado:', mappedChats[0]);
+        console.log('[useChats] Preço do primeiro chat:', mappedChats[0].adPrice);
+      }
+      
       setChats(mappedChats)
     }
     setIsLoading(false)
@@ -98,12 +106,19 @@ export const useMessages = (chatId: string | null) => {
         }))
         setMessages(mappedMessages)
 
-        // Marcar mensagens como lidas
-        await supabase
-          .from('messages')
-          .update({ is_read: true })
-          .eq('chat_id', chatId)
-          .neq('sender_id', user.id)
+        // Marcar mensagens como lidas (apenas as recebidas)
+        if (mappedMessages.length > 0) {
+          const { error: updateError } = await supabase
+            .from('messages')
+            .update({ is_read: true })
+            .eq('chat_id', chatId)
+            .neq('sender_id', user.id)
+            .eq('is_read', false);
+          
+          if (updateError) {
+            console.error('Erro ao marcar mensagens como lidas:', updateError);
+          }
+        }
       }
       setIsLoading(false)
     }

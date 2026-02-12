@@ -2,17 +2,22 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, Camera, CreditCard, DollarSign, Download, Edit3, FileText, Heart, Inbox, LayoutGrid, LogOut, Map, MapPin, MessageSquare, PauseCircle, ShieldCheck, Trash2, User } from 'lucide-react';
-import { MOCK_INVOICES } from '../constants';
 import { AdStatus, Message, Ad, AdMetrics } from '../types';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useUserAds } from '../src/hooks/useAds';
 import { useChats } from '../src/hooks/useMessages';
 import { useNotifications } from '../src/hooks/useNotifications';
+import { supabase } from '../src/lib/supabaseClient';
+import { useInvoices } from '../src/hooks/useInvoices';
+import PlanGuard from '../components/PlanGuard';
+import MessagesView from '../components/MessagesView';
+import LeadsView from '../components/LeadsView';
 
 const Icons = {
   Dashboard: () => <LayoutGrid className="w-5 h-5" strokeWidth={1.5} />,
   Ads: () => <FileText className="w-5 h-5" strokeWidth={1.5} />,
   Messages: () => <MessageSquare className="w-5 h-5" strokeWidth={1.5} />,
+  Leads: () => <Inbox className="w-5 h-5" strokeWidth={1.5} />,
   Favorites: () => <Heart className="w-5 h-5" strokeWidth={1.5} />,
   Notifications: () => <Bell className="w-5 h-5" strokeWidth={1.5} />,
   Finance: () => <DollarSign className="w-5 h-5" strokeWidth={1.5} />,
@@ -20,22 +25,95 @@ const Icons = {
   Logout: () => <LogOut className="w-5 h-5" strokeWidth={1.5} />,
 };
 
+const AdsSkeletonList = ({ count = 3 }: { count?: number }) => (
+  <div className="space-y-2">
+    {Array.from({ length: count }).map((_, index) => (
+      <div
+        key={`ads-skeleton-${index}`}
+        className="bg-white border border-slate-200 rounded-lg px-4 py-3 flex items-center gap-4 h-20 animate-pulse"
+      >
+        <div className="w-[60px] h-[60px] rounded-lg bg-slate-100 flex-shrink-0" />
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="h-3 w-2/3 bg-slate-100 rounded" />
+          <div className="h-3 w-1/2 bg-slate-100 rounded" />
+          <div className="h-3 w-1/3 bg-slate-100 rounded" />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-16 bg-slate-100 rounded" />
+          <div className="h-6 w-6 bg-slate-100 rounded" />
+          <div className="h-6 w-6 bg-slate-100 rounded" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 const UserDashboardView: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, stats, signOut } = useAuth();
-  const { ads, loading: adsLoading } = useUserAds();
+  const { ads, isLoading: adsLoading } = useUserAds();
   const { chats } = useChats();
-  const { notifications } = useNotifications();
+  const { unreadCount: unreadNotifications } = useNotifications();
+  const [userAds, setUserAds] = useState<Ad[]>([]);
+  const [userAdsLoading, setUserAdsLoading] = useState(false);
+  const { invoices, isLoading: invoicesLoading } = useInvoices();
+  const [newLeadsCount, setNewLeadsCount] = useState(0);
   
   const isPremium = user?.plan && user.plan !== 'seed';
   const unreadMessagesCount = chats.reduce((sum, chat) => sum + chat.unreadCount, 0);
-  const unreadNotifications = notifications.filter(n => !n.is_read).length;
+
+  // Buscar contagem de novos leads
+  useEffect(() => {
+    const fetchNewLeadsCount = async () => {
+      if (!user?.id) return;
+      
+      const { data, error } = await supabase
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('seller_id', user.id)
+        .eq('status', 'new');
+      
+      if (!error && data) {
+        setNewLeadsCount(data.length || 0);
+      }
+    };
+    
+    fetchNewLeadsCount();
+    
+    // Atualizar a cada 30 segundos
+    const interval = setInterval(fetchNewLeadsCount, 30000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
+
+  useEffect(() => {
+    let isActive = true;
+    const loadUserAds = async () => {
+      if (!user?.id) {
+        if (isActive) setUserAds([]);
+        return;
+      }
+      if (isActive) setUserAdsLoading(true);
+      const { data } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('user_id', user.id);
+      if (isActive) {
+        setUserAds((data as Ad[]) || []);
+        setUserAdsLoading(false);
+      }
+    };
+    loadUserAds();
+    return () => {
+      isActive = false;
+    };
+  }, [user?.id]);
 
   const menuItems = [
     { label: 'Visão Geral', path: '/minha-conta', icon: <Icons.Dashboard />, badge: 0 },
     { label: 'Meus Anúncios', path: '/minha-conta/anuncios', icon: <Icons.Ads />, badge: 0 },
-    { label: 'Mensagens', path: '/mensagens', icon: <Icons.Messages />, badge: unreadMessagesCount },
+    { label: 'Mensagens', path: '/minha-conta/mensagens', icon: <Icons.Messages />, badge: unreadMessagesCount },
+    { label: 'Leads', path: '/minha-conta/leads', icon: <Icons.Leads />, badge: newLeadsCount },
     { label: 'Favoritos', path: '/favoritos', icon: <Icons.Favorites />, badge: 0 },
     { label: 'Notificações', path: '/minha-conta/notificacoes', icon: <Icons.Notifications />, badge: unreadNotifications },
     { label: 'Financeiro', path: '/minha-conta/financeiro', icon: <Icons.Finance />, badge: 0 },
@@ -130,6 +208,7 @@ const UserDashboardView: React.FC = () => {
   );
 
   const HomeDashboard = () => {
+    if (!userAds) return null;
     const activeAds = ads.filter(a => a.status === 'active');
     const totalViews = stats?.total_views || 0;
     const totalClicks = stats?.total_clicks || 0;
@@ -164,16 +243,24 @@ const UserDashboardView: React.FC = () => {
           <div className="lg:col-span-4 space-y-6">{activeAds.length > 0 && (
               <PriceThermometer ad={activeAds[0]} metrics={adMetrics} />
             )}
-            <PriceThermometer ad={userAds[0] || MOCK_ADS[0]} metrics={adMetrics} />
+            {activeAds.length > 0 && (
+              <PriceThermometer ad={activeAds[0]} metrics={adMetrics} />
+            )}
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 text-white">
               <h4 className="text-sm font-bold mb-4">Plano Atual: {user?.plan || 'Free'}</h4>
               <div className="flex justify-between text-xs mb-2">
                 <span>Uso de Cota</span>
-                <span>{userAds.length} / 5</span>
+                <span>{userAdsLoading ? 'Carregando...' : `${userAds?.length || 0} / 5`}</span>
               </div>
               <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-green-500" style={{ width: `${(userAds.length / 5) * 100}%` }}></div>
+                <div className="h-full bg-green-500" style={{ width: `${((userAds?.length || 0) / 5) * 100}%` }}></div>
               </div>
+              {userAdsLoading && (
+                <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-green-300 uppercase tracking-wider">
+                  <div className="w-3 h-3 border-2 border-green-300/30 border-t-green-300 rounded-full animate-spin"></div>
+                  Atualizando anúncios
+                </div>
+              )}
               <Link to="/minha-conta/financeiro" className="block text-center mt-6 text-xs font-bold text-green-400 hover:text-green-300 transition-colors uppercase tracking-wider">Fazer Upgrade do Plano</Link>
             </div>
           </div>
@@ -182,18 +269,27 @@ const UserDashboardView: React.FC = () => {
         <div className="bg-white p-6 rounded-xl border border-slate-100">
           <h4 className="text-sm font-bold text-gray-900 mb-6">Mensagens Recentes</h4>
           <div className="divide-y divide-slate-50">
-            {MOCK_MESSAGES.slice(0, 3).map(m => (
-              <div key={m.id} className="py-4 flex justify-between items-center">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-slate-100 rounded-lg"></div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">{m.senderName}</p>
-                    <p className="text-xs text-gray-500 line-clamp-1">{m.content}</p>
-                  </div>
-                </div>
-                <Link to="/minha-conta/mensagens" className="text-[10px] font-bold text-green-700 uppercase">Responder</Link>
+            {(chats?.length ?? 0) === 0 ? (
+              <div className="py-6 text-center">
+                <p className="text-sm text-slate-500">Nenhuma mensagem encontrada</p>
               </div>
-            ))}
+            ) : (
+              chats?.slice(0, 3).map(chat => {
+                const otherPartyName = chat?.sellerId === user?.id ? chat?.buyerName : chat?.sellerName
+                return (
+                  <div key={chat?.id} className="py-4 flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-slate-100 rounded-lg"></div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">{otherPartyName || 'Usuário'}</p>
+                        <p className="text-xs text-gray-500 line-clamp-1">{chat?.lastMessage || 'Sem mensagens'}</p>
+                      </div>
+                    </div>
+                    <Link to="/minha-conta/mensagens" className="text-[10px] font-bold text-green-700 uppercase">Responder</Link>
+                  </div>
+                )
+              })
+            )}
           </div>
         </div>
       </div>
@@ -303,7 +399,9 @@ const UserDashboardView: React.FC = () => {
             transition={{ duration: 0.2 }}
             className="space-y-2"
           >
-            {pagedAds.length === 0 ? (
+            {adsLoading ? (
+              <AdsSkeletonList count={5} />
+            ) : pagedAds.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-lg p-10 text-center">
                 <div className="mx-auto mb-4 w-10 h-10 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center">
                   <Inbox className="w-5 h-5" strokeWidth={1.5} />
@@ -366,7 +464,7 @@ const UserDashboardView: React.FC = () => {
   };
 
   const FinanceDashboard = () => {
-    const nextInvoice = MOCK_INVOICES.find((inv) => inv.status !== 'PAID') || MOCK_INVOICES[0];
+    const nextInvoice = invoices.find((inv) => inv.status !== 'PAID') || invoices[0];
     const currentPlan = user?.plan ? user.plan : 'seed';
     const isBoostPlan = currentPlan === 'boost';
 
@@ -469,53 +567,77 @@ const UserDashboardView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {MOCK_INVOICES.map((inv) => (
-                  <tr key={inv.id} className="text-slate-700">
-                    <td className="px-4 py-3 font-semibold text-slate-900">{inv.planName}</td>
-                    <td className="px-4 py-3 text-slate-500">{inv.date}</td>
-                    <td className="px-4 py-3 text-slate-900">R$ {inv.amount.toLocaleString('pt-BR')}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBadge(inv.status)}`}>
-                        {statusLabel[inv.status]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <a
-                        href={inv.pdfUrl}
-                        className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 hover:text-green-700 hover:bg-slate-50 transition-colors"
-                        title="Baixar PDF"
-                      >
-                        <Download className="w-4 h-4" strokeWidth={1.5} />
-                      </a>
-                    </td>
+                {invoicesLoading ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">Carregando faturas...</td>
                   </tr>
-                ))}
+                ) : invoices.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">Nenhuma fatura encontrada</td>
+                  </tr>
+                ) : (
+                  invoices.map((inv) => (
+                    <tr key={inv.id} className="text-slate-700">
+                      <td className="px-4 py-3 font-semibold text-slate-900">{inv.planName}</td>
+                      <td className="px-4 py-3 text-slate-500">{new Date(inv.date).toLocaleDateString('pt-BR')}</td>
+                      <td className="px-4 py-3 text-slate-900">R$ {inv.amount.toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBadge(inv.status)}`}>
+                          {statusLabel[inv.status]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {inv.pdfUrl ? (
+                          <a
+                            href={inv.pdfUrl}
+                            className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 hover:text-green-700 hover:bg-slate-50 transition-colors"
+                            title="Baixar PDF"
+                          >
+                            <Download className="w-4 h-4" strokeWidth={1.5} />
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
 
           <div className="md:hidden space-y-3">
-            {MOCK_INVOICES.map((inv) => (
-              <div key={inv.id} className="bg-white border border-slate-200 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-slate-900">{inv.planName}</p>
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBadge(inv.status)}`}>
-                    {statusLabel[inv.status]}
-                  </span>
+            {invoicesLoading ? (
+              <div className="text-center text-xs text-slate-500 py-4">Carregando faturas...</div>
+            ) : invoices.length === 0 ? (
+              <div className="text-center text-xs text-slate-500 py-4">Nenhuma fatura encontrada</div>
+            ) : (
+              invoices.map((inv) => (
+                <div key={inv.id} className="bg-white border border-slate-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-slate-900">{inv.planName}</p>
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBadge(inv.status)}`}>
+                      {statusLabel[inv.status]}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">Data: {new Date(inv.date).toLocaleDateString('pt-BR')}</p>
+                  <p className="text-xs text-slate-500">Valor: R$ {inv.amount.toLocaleString('pt-BR')}</p>
+                  <div className="mt-3">
+                    {inv.pdfUrl ? (
+                      <a
+                        href={inv.pdfUrl}
+                        className="inline-flex items-center gap-2 text-sm font-semibold text-green-700"
+                      >
+                        <Download className="w-4 h-4" strokeWidth={1.5} />
+                        Baixar PDF
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-400">PDF indisponível</span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-slate-500">Data: {inv.date}</p>
-                <p className="text-xs text-slate-500">Valor: R$ {inv.amount.toLocaleString('pt-BR')}</p>
-                <div className="mt-3">
-                  <a
-                    href={inv.pdfUrl}
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-green-700"
-                  >
-                    <Download className="w-4 h-4" strokeWidth={1.5} />
-                    Baixar PDF
-                  </a>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -523,8 +645,8 @@ const UserDashboardView: React.FC = () => {
   };
 
   const ProfileDashboard = () => {
-    const userName = user?.name || 'Usuário BWAGRO';
-    const userCity = user?.location || 'São Paulo, SP';
+    const userName = user?.name || user?.email || 'Usuário';
+    const userCity = user?.location || 'Localização não informada';
 
     return (
       <div className="space-y-6">
@@ -560,11 +682,19 @@ const UserDashboardView: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">Nome / Razão Social</label>
-                <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" placeholder="Ex: Agro Tech Ltda" />
+                <input
+                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  value={user?.name || ''}
+                  readOnly
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">CPF / CNPJ</label>
-                <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" placeholder="00.000.000/0001-00" />
+                <input
+                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  value={user?.document || ''}
+                  readOnly
+                />
               </div>
             </div>
             <div className="space-y-1">
@@ -581,16 +711,32 @@ const UserDashboardView: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">CEP</label>
-                <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" placeholder="00000-000" />
+                <input
+                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  value={user?.cep || ''}
+                  readOnly
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">WhatsApp</label>
-                <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" placeholder="(11) 99999-9999" />
+                <input
+                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  value={user?.whatsapp || user?.phone || ''}
+                  readOnly
+                />
               </div>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-500">Endereço Completo</label>
-              <input className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" placeholder="Rua, número, bairro, cidade" />
+              <input
+                className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                value={
+                  user?.logradouro
+                    ? `${user.logradouro}${user.numero ? `, ${user.numero}` : ''}${user.bairro ? ` - ${user.bairro}` : ''}${user.cidade ? `, ${user.cidade}` : ''}${user.estado ? `/${user.estado}` : ''}`
+                    : ''
+                }
+                readOnly
+              />
             </div>
           </div>
         </div>
@@ -626,22 +772,24 @@ const UserDashboardView: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-            <div className="flex items-center gap-2 text-slate-900">
-              <FileText className="w-4 h-4" strokeWidth={1.5} />
-              <h4 className="text-sm font-semibold">Central de Verificação</h4>
+          <PlanGuard requiredFeature="has_verification_badge">
+            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+              <div className="flex items-center gap-2 text-slate-900">
+                <FileText className="w-4 h-4" strokeWidth={1.5} />
+                <h4 className="text-sm font-semibold">Central de Verificação</h4>
+              </div>
+              <div className="border border-dashed border-slate-200 rounded-lg p-5 text-center">
+                <input type="file" className="hidden" id="doc-upload" />
+                <label htmlFor="doc-upload" className="inline-flex items-center gap-2 text-sm font-semibold text-green-700 cursor-pointer">
+                  <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
+                  Enviar Documento (RG/CNH ou Contrato Social)
+                </label>
+                <p className="text-xs text-slate-500 mt-2">
+                  Seus dados são protegidos por criptografia e servem apenas para validar sua identidade na plataforma.
+                </p>
+              </div>
             </div>
-            <div className="border border-dashed border-slate-200 rounded-lg p-5 text-center">
-              <input type="file" className="hidden" id="doc-upload" />
-              <label htmlFor="doc-upload" className="inline-flex items-center gap-2 text-sm font-semibold text-green-700 cursor-pointer">
-                <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
-                Enviar Documento (RG/CNH ou Contrato Social)
-              </label>
-              <p className="text-xs text-slate-500 mt-2">
-                Seus dados são protegidos por criptografia e servem apenas para validar sua identidade na plataforma.
-              </p>
-            </div>
-          </div>
+          </PlanGuard>
         </div>
       </div>
     );
@@ -670,7 +818,9 @@ const UserDashboardView: React.FC = () => {
                 {item.label}
               </div>
               {item.badge > 0 && (
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                <span className="min-w-[20px] h-5 px-2 bg-green-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  {item.badge}
+                </span>
               )}
             </Link>
           ))}
@@ -705,7 +855,8 @@ const UserDashboardView: React.FC = () => {
         <Routes>
           <Route path="/" element={<HomeDashboard />} />
           <Route path="/anuncios" element={<AdsDashboard />} />
-          <Route path="/mensagens" element={<div className="p-10 text-gray-400 font-bold border border-dashed rounded-xl">Módulo de Mensagens</div>} />
+          <Route path="/mensagens" element={<MessagesView />} />
+          <Route path="/leads" element={<LeadsView />} />
           <Route path="/financeiro" element={<FinanceDashboard />} />
           <Route path="/perfil" element={<ProfileDashboard />} />
           <Route path="*" element={<HomeDashboard />} />

@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+html { font-size: 85%; }
+body { font-family: 'Inter', sans-serif; font-size: 0.875rem; }
+h1, h2, h3, .font-display { font-family: 'Inter', sans-serif; }
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #166534; border-radius: 10px; }
+.text-base { font-size: 0.875rem; line-height: 1.25rem; }
+.text-lg { font-size: 0.875rem; line-height: 1.25rem; }
+.text-2xl,
+.text-3xl,
+.text-4xl,
+.text-5xl,
+.text-6xl { font-size: 1.25rem; line-height: 1.75rem; }
+.rounded-2xl,
+.rounded-3xl,
+.rounded-[2.5rem],
+.rounded-[3rem] { border-radius: 12px !important; }
+.shadow-2xl,
+.shadow-xl,
+.shadow-lg,
+.shadow-md { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important; }
+.gap-8 { gap: 1rem !important; }

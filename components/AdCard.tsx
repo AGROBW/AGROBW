@@ -17,35 +17,45 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
   const [isToggling, setIsToggling] = useState(false);
   
   useEffect(() => {
-    if (user) {
-      isFavorited(ad.id).then(setIsFav);
-    }
-  }, [ad.id, user]);
+    let isActive = true;
+    const checkFavorite = async () => {
+      if (!user || !isFavorited) return;
+      try {
+        const result = await Promise.resolve(isFavorited(ad.id));
+        if (isActive) {
+          setIsFav(!!result);
+        }
+      } catch {
+        // silencioso para evitar tela branca por erro isolado
+      }
+    };
+    checkFavorite();
+    return () => {
+      isActive = false;
+    };
+  }, [ad.id, user, isFavorited]);
   
   const handleFavoriteClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    if (!user) {
-      alert('Faça login para favoritar anúncios');
-      return;
-    }
+    if (!user || !toggleFavorite) return;
     
     setIsToggling(true);
     try {
       const result = await toggleFavorite(ad.id);
       setIsFav(result.isFavorited);
-    } catch (error) {
-      console.error('Erro ao favoritar:', error);
     } finally {
       setIsToggling(false);
     }
   };
   
+  // Suporta tanto price quanto unit_price
+  const priceValue = (ad as any).unit_price || ad.price;
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-  }).format(ad.price);
+  }).format(priceValue);
 
   return (
     <div className="group bg-white rounded-xl overflow-hidden transition-all duration-300 border border-slate-100 flex flex-col h-full relative">

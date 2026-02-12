@@ -21,7 +21,7 @@ export const useFavorites = () => {
       .from('favorites')
       .select(`
         *,
-        ads (
+        announcements (
           id,
           title,
           description,
@@ -47,29 +47,29 @@ export const useFavorites = () => {
       console.error('Erro ao buscar favoritos:', error)
     } else {
       const mappedFavorites: Favorite[] = data
-        .filter(fav => fav.ads) // Filtrar favoritos com anúncios deletados
+        .filter(fav => fav.announcements) // Filtrar favoritos com anúncios deletados
         .map(fav => ({
           id: fav.id,
           userId: fav.user_id,
-          adId: fav.ad_id,
+          adId: fav.announcement_id,
           ad: {
-            id: fav.ads.id,
-            title: fav.ads.title,
-            description: fav.ads.description,
-            price: parseFloat(fav.ads.price),
+            id: fav.announcements.id,
+            title: fav.announcements.title,
+            description: fav.announcements.description,
+            price: parseFloat(fav.announcements.price),
             location: {
-              city: fav.ads.city,
-              state: fav.ads.state,
-              cep: fav.ads.cep
+              city: fav.announcements.city,
+              state: fav.announcements.state,
+              cep: fav.announcements.cep
             },
-            categoryId: fav.ads.category_id,
-            images: fav.ads.images || [],
-            userId: fav.ads.user_id,
-            status: fav.ads.status,
-            views: fav.ads.views || 0,
-            isPremium: fav.ads.is_premium || false,
-            createdAt: fav.ads.created_at,
-            whatsapp: fav.ads.whatsapp
+            categoryId: fav.announcements.category_id,
+            images: fav.announcements.images || [],
+            userId: fav.announcements.user_id,
+            status: fav.announcements.status,
+            views: fav.announcements.views || 0,
+            isPremium: fav.announcements.is_premium || false,
+            createdAt: fav.announcements.created_at,
+            whatsapp: fav.announcements.whatsapp
           },
           priceAtFavorite: parseFloat(fav.price_at_favorite),
           favoritedAt: fav.created_at
@@ -108,7 +108,7 @@ export const useFavorites = () => {
         .from('favorites')
         .insert({
           user_id: user.id,
-          ad_id: adId,
+          announcement_id: adId,
           price_at_favorite: currentPrice
         })
 

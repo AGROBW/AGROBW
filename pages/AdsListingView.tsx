@@ -1,13 +1,13 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ChevronRight, Search } from 'lucide-react';
-import { MOCK_ADS, CATEGORIES } from '../constants';
+import { CATEGORIES } from '../constants';
 import AdCard from '../components/AdCard';
+import { usePublicAds } from '../src/hooks/useAds';
 
 const AdsListingView: React.FC = () => {
   const location = useLocation();
-  const [loading, setLoading] = useState(true);
 
   // Extrair filtros da URL
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -20,25 +20,17 @@ const AdsListingView: React.FC = () => {
   );
 
   // Lógica de Filtragem
+  const { ads, isLoading } = usePublicAds({
+    category: catSlug || undefined
+  });
+
   const filteredAds = useMemo(() => {
-    return MOCK_ADS.filter(ad => {
-      // Nota: No MOCK_ADS adicionei categorySlug para este teste, 
-      // mas na realidade buscaríamos por categoryId cruzando com os slugs.
-      const categoryMatch = !catSlug || ad.categoryId === activeCategory?.id;
-      
-      // Filtro de subcategoria (Simulado via descrição para este protótipo)
-      const subMatch = !subSlug || ad.title.toLowerCase().includes(subSlug.replace('-', ' '));
-
-      return categoryMatch && subMatch;
+    const normalizedSub = subSlug?.replace('-', ' ').toLowerCase();
+    return ads.filter(ad => {
+      const subMatch = !normalizedSub || ad.title.toLowerCase().includes(normalizedSub);
+      return subMatch;
     });
-  }, [catSlug, subSlug, activeCategory]);
-
-  // Simulação de loading ao trocar filtros
-  useEffect(() => {
-    setLoading(true);
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, [location.search]);
+  }, [ads, subSlug]);
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20">
@@ -59,7 +51,7 @@ const AdsListingView: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-2xl border border-gray-100">
-               <span className="text-xs font-bold text-slate-500 ml-4">{filteredAds.length} resultados encontrados</span>
+              <span className="text-xs font-bold text-slate-500 ml-4">{filteredAds.length} resultados encontrados</span>
                <select className="bg-white border-none rounded-xl text-sm font-bold text-slate-700 py-2.5 px-4 shadow-sm focus:ring-2 focus:ring-green-500 outline-none">
                  <option>Mais Recentes</option>
                  <option>Menor Preço</option>
@@ -72,7 +64,7 @@ const AdsListingView: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 mt-12">
-        {loading ? (
+        {isLoading ? (
           /* Loading State */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[1,2,3,4].map(i => (

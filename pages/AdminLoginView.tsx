@@ -4,22 +4,22 @@ import { useAuth } from '../src/contexts/AuthContext';
 
 const AdminLoginView: React.FC = () => {
   const navigate = useNavigate();
-  const { signIn, signOut, user, isAdmin, isLoading } = useAuth();
+  const { signIn, signOut, user, isAdmin } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (user && isAdmin && !isLoading && !loading) {
-      navigate('/admin');
+    if (user && isAdmin) {
+      setTimeout(() => navigate('/admin'), 300);
       return;
     }
-    if (user && !isAdmin && !isLoading) {
+    if (user && !isAdmin) {
       setError('Usuário não possui permissão de administrador.');
       signOut();
     }
-  }, [user, isAdmin, isLoading, loading, navigate, signOut]);
+  }, [user, isAdmin, navigate, signOut]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +31,6 @@ const AdminLoginView: React.FC = () => {
       setError(error.message || 'Credenciais inválidas.');
       setLoading(false);
     }
-    // Não chamar navigate aqui - o useEffect vai fazer isso
   };
 
   return (
@@ -57,6 +56,7 @@ const AdminLoginView: React.FC = () => {
             <input 
               type="email" 
               required
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-slate-900 outline-none transition-all font-medium"

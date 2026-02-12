@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
-import { User } from '../types'
+import { User } from '../../types'
+import { toast } from 'sonner'
 
 interface UserStats {
   total_ads: number
@@ -22,7 +23,25 @@ interface AuthContextType {
   isSeller: boolean
   isAdmin: boolean
   signIn: (email: string, password: string) => Promise<{ error: any }>
-  signUp: (email: string, password: string, name: string, phone?: string) => Promise<{ error: any }>
+  sendPasswordResetEmail: (email: string) => Promise<{ error: any }>
+  signUp: (
+    email: string,
+    password: string,
+    name: string,
+    phone?: string,
+    additionalData?: {
+      document?: string;
+      birthDate?: string;
+      website?: string;
+      cep?: string;
+      logradouro?: string;
+      numero?: string;
+      complemento?: string;
+      bairro?: string;
+      cidade?: string;
+      estado?: string;
+    }
+  ) => Promise<{ error: any }>
   signOut: () => Promise<void>
   refreshStats: () => Promise<void>
 }
@@ -34,22 +53,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null)
   const [stats, setStats] = useState<UserStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isFetching, setIsFetching] = useState(false)
+  const fetchingRef = useRef(false)
 
-  // Buscar dados do usuário da VIEW vw_user_status
-  const fetchUserStatus = async (userId: string, signal?: AbortSignal) => {
+  // Buscar dados do usuário
+  const fetchUserStatus = async (userId: string, canSetState?: () => boolean) => {
     try {
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .abortSignal(signal)
         .single()
 
       if (userError) {
-        if (userError.name !== 'AbortError') {
-          console.error('Erro ao buscar usuário:', userError)
-        }
+        console.groupCollapsed('[Auth] Erro ao buscar usuário')
+        console.error('userId:', userId)
+        console.error('erro:', userError)
+        console.groupEnd()
+        toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
+        console.debug('[Auth] fetchUserStatus completou com erro')
         return null
       }
 
@@ -58,131 +79,178 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         email: userData.email,
         name: userData.name || 'Usuário',
         phone: userData.phone,
+        document: userData.document,
+        whatsapp: userData.whatsapp,
+        cep: userData.cep,
+        logradouro: userData.logradouro,
+        numero: userData.numero,
+        complemento: userData.complemento,
+        bairro: userData.bairro,
+        cidade: userData.cidade,
+        estado: userData.estado,
         role: userData.role || 'USER',
-        location: userData.location,
+        location: userData.location || (userData.cidade && userData.estado ? `${userData.cidade}, ${userData.estado}` : userData.cidade),
         avatar: userData.avatar,
         plan: userData.plan,
         isAdmin: userData.is_admin ?? false
       }
 
-      setUser(user)
+      if (!canSetState || canSetState()) {
+        setUser(user)
+      }
+      console.debug('[Auth] fetchUserStatus completou com sucesso')
       return userData
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('Erro inesperado ao buscar usuário:', err)
-      }
+      console.groupCollapsed('[Auth] Erro inesperado ao buscar usuário')
+      console.error('userId:', userId)
+      console.error('erro:', err?.message || err)
+      console.groupEnd()
+      toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
+      console.debug('[Auth] fetchUserStatus completou com erro')
       return null
     }
   }
 
   // Buscar estatísticas via função get_user_stats
-  const fetchStats = async (userId: string, signal?: AbortSignal) => {
+  const fetchStats = async (userId: string, canSetState?: () => boolean) => {
+    const defaultStats = {
+      total_ads: 0,
+      active_ads: 0,
+      total_views: 0,
+      total_clicks: 0,
+      is_seller: false,
+      first_ad_at: null
+    }
+
     try {
       const { data, error } = await supabase.rpc('get_user_stats', {
         user_uuid: userId
-      }, { signal })
+      })
 
       if (error) {
-        if (error.name !== 'AbortError') {
-          console.error('Erro ao buscar estatísticas:', error)
+        console.groupCollapsed('[Auth] Erro ao buscar estatísticas')
+        console.error('userId:', userId)
+        console.error('erro:', error)
+        console.groupEnd()
+        toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
+        console.debug('[Auth] fetchStats completou com erro (retornando defaults)')
+        if (!canSetState || canSetState()) {
+          setStats(defaultStats)
         }
-        setStats({
-          total_ads: 0,
-          active_ads: 0,
-          total_views: 0,
-          total_clicks: 0,
-          is_seller: false,
-          first_ad_at: null
-        })
         return
       }
 
-      setStats(data as UserStats)
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('Erro inesperado ao buscar estatísticas:', err)
+      if (!canSetState || canSetState()) {
+        setStats(data as UserStats)
       }
-      setStats({
-        total_ads: 0,
-        active_ads: 0,
-        total_views: 0,
-        total_clicks: 0,
-        is_seller: false,
-        first_ad_at: null
-      })
+      console.debug('[Auth] fetchStats completou com sucesso')
+    } catch (err: any) {
+      console.groupCollapsed('[Auth] Erro inesperado ao buscar estatísticas')
+      console.error('userId:', userId)
+      console.error('erro:', err?.message || err)
+      console.groupEnd()
+      toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
+      console.debug('[Auth] fetchStats completou com erro (retornando defaults)')
+      if (!canSetState || canSetState()) {
+        setStats(defaultStats)
+      }
     }
   }
 
   const refreshStats = async () => {
-    if (supabaseUser && !isFetching) {
-      setIsFetching(true)
+    if (supabaseUser && !fetchingRef.current) {
+      fetchingRef.current = true
       try {
         await Promise.all([
           fetchUserStatus(supabaseUser.id),
           fetchStats(supabaseUser.id)
         ])
       } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          console.error('Erro ao atualizar dados:', err)
-        }
+        console.error('Erro ao atualizar dados:', err)
       } finally {
-        setIsFetching(false)
+        fetchingRef.current = false
       }
     }
   }
 
   // Configurar listener de autenticação
   useEffect(() => {
-    let abortController: AbortController | null = null
+    let isMounted = true;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Cancelar requisições anteriores
-      if (abortController) {
-        abortController.abort()
+      console.debug('[Auth] onAuthStateChange', {
+        event,
+        hasSession: !!session,
+        userId: session?.user?.id,
+        isMounted
+      })
+      
+      if (isMounted) {
+        setSupabaseUser(session?.user ?? null)
+        if (session?.user) {
+          setUser(prev => prev ?? {
+            id: session.user.id,
+            email: session.user.email || '',
+            name: session.user.email || 'Usuário',
+            phone: null,
+            role: 'USER',
+            location: null,
+            avatar: null,
+            plan: null,
+            isAdmin: false
+          })
+          setIsLoading(false)
+        }
       }
 
-      setSupabaseUser(session?.user ?? null)
-
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-        if (!user && !isFetching) {
-          setIsLoading(true)
-          setIsFetching(true)
-          abortController = new AbortController()
+        // Evita fetches duplicados - se já está buscando, ignora
+        if (fetchingRef.current) {
+          if (event === 'INITIAL_SESSION') {
+            console.debug('[Auth] Ignorando INITIAL_SESSION pois SIGNED_IN já está em andamento')
+            return
+          }
+          console.debug('[Auth] Ignorando evento pois fetches já estão em andamento')
+          return
+        }
+        
+        // Só faz fetch se NÃO temos user carregado ainda
+        if (!user && isMounted) {
+          fetchingRef.current = true
+          console.debug('[Auth] Iniciando fetches', { userId: session.user.id })
           
           try {
-            await Promise.all([
-              fetchUserStatus(session.user.id, abortController.signal),
-              fetchStats(session.user.id, abortController.signal)
-            ])
-          } catch (err: any) {
-            if (err.name !== 'AbortError') {
-              console.error('Erro ao carregar dados do usuário:', err)
-            }
+            fetchUserStatus(session.user.id, () => isMounted)
+            fetchStats(session.user.id, () => isMounted)
+            console.debug('[Auth] Fetches completadas com sucesso')
+          } catch (err) {
+            console.error('[Auth] Erro durante fetches:', err)
           } finally {
-            setIsLoading(false)
-            setIsFetching(false)
+            fetchingRef.current = false
+            if (isMounted) {
+              console.debug('[Auth] Finalizando fetches', { userId: session.user.id })
+            }
           }
-        } else {
+        } else if (isMounted) {
+          console.debug('[Auth] Pulando fetches pois user já está carregado', {user: !!user})
           setIsLoading(false)
         }
       } else if (event === 'SIGNED_OUT') {
-        setUser(null)
-        setStats(null)
+        if (isMounted) {
+          setUser(null)
+          setStats(null)
+          setIsLoading(false)
+        }
+      } else if (!session?.user && isMounted) {
         setIsLoading(false)
-        setIsFetching(false)
-      } else if (!session?.user) {
-        setIsLoading(false)
-        setIsFetching(false)
       }
     })
 
     return () => {
-      if (abortController) {
-        abortController.abort()
-      }
+      isMounted = false
       subscription.unsubscribe()
     }
-  }, [user, isFetching])
+  }, [])
 
   // Função de login
   const signIn = async (email: string, password: string) => {
@@ -193,8 +261,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return { error }
   }
 
+  const sendPasswordResetEmail = async (email: string) => {
+    const baseUrl = (import.meta as any).env?.VITE_SITE_URL || window.location.origin
+    const redirectTo = `${String(baseUrl).replace(/\/$/, '')}/#/redefinir-senha`
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+    return { error }
+  }
+
   // Função de cadastro
-  const signUp = async (email: string, password: string, name: string, phone?: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    name: string,
+    phone?: string,
+    additionalData?: {
+      document?: string;
+      birthDate?: string;
+      website?: string;
+      cep?: string;
+      logradouro?: string;
+      numero?: string;
+      complemento?: string;
+      bairro?: string;
+      cidade?: string;
+      estado?: string;
+    }
+  ) => {
+    const onlyDigits = (value?: string) => (value ?? '').replace(/\D/g, '')
+    const cleanPhone = onlyDigits(phone)
+    const cleanDocument = onlyDigits(additionalData?.document)
     // Criar conta no Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
@@ -202,31 +297,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       options: {
         data: {
           name,
-          phone
+          phone: cleanPhone || undefined,
+          document: cleanDocument || undefined,
+          birth_date: additionalData?.birthDate,
+          website: additionalData?.website,
+          cep: additionalData?.cep,
+          logradouro: additionalData?.logradouro,
+          numero: additionalData?.numero,
+          complemento: additionalData?.complemento,
+          bairro: additionalData?.bairro,
+          cidade: additionalData?.cidade,
+          estado: additionalData?.estado
         }
       }
     })
 
-    if (authError) return { error: authError }
-
-    // Criar registro na tabela users
-    if (authData.user) {
-      const { error: dbError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          email,
-          name,
-          phone,
-          role: 'USER',
-          is_admin: false,
-          credits: 0
+    if (authError) {
+      if ((authError as any)?.status === 429) {
+        toast.error('Muitas tentativas', {
+          description: 'Aguarde um momento antes de tentar cadastrar novamente.'
         })
-
-      if (dbError) {
-        console.error('Erro ao criar usuário no banco:', dbError)
-        return { error: dbError }
       }
+      return { error: authError }
     }
 
     return { error: null }
@@ -249,6 +341,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isSeller: stats?.is_seller ?? false,
         isAdmin: (user?.isAdmin ?? (user?.role === 'ADMIN')) || false,
         signIn,
+        sendPasswordResetEmail,
         signUp,
         signOut,
         refreshStats

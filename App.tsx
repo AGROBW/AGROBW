@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -14,6 +15,7 @@ const PricingView = lazy(() => import('./pages/PricingView'));
 const AdCreationView = lazy(() => import('./pages/AdCreationView'));
 const LoginView = lazy(() => import('./pages/LoginView'));
 const RegisterView = lazy(() => import('./pages/RegisterView'));
+const ResetPasswordView = lazy(() => import('./pages/ResetPasswordView'));
 const ContactView = lazy(() => import('./pages/ContactView'));
 const AboutView = lazy(() => import('./pages/AboutView'));
 const TermsView = lazy(() => import('./pages/TermsView'));
@@ -72,6 +74,31 @@ const PageLoader = () => (
   </div>
 );
 
+class RouteErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-[60vh] flex items-center justify-center p-8">
+          <div className="max-w-md w-full bg-white rounded-2xl border border-slate-100 p-6 text-center">
+            <h2 className="text-xl font-black text-slate-900 mb-2">Ops, algo deu errado</h2>
+            <p className="text-sm text-slate-500">Tente recarregar a página ou volte mais tarde.</p>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const AppContent: React.FC = () => {
   const location = useLocation();
   const isAdminPath = location.pathname.startsWith('/admin');
@@ -95,6 +122,7 @@ const AppContent: React.FC = () => {
             <Route path="/privacidade" element={<PrivacyView />} />
             <Route path="/login" element={<LoginView />} />
             <Route path="/cadastro" element={<RegisterView />} />
+            <Route path="/redefinir-senha" element={<ResetPasswordView />} />
             
             {/* Admin Login */}
             <Route path="/admin/login" element={<AdminLoginView />} />
@@ -132,7 +160,9 @@ const AppContent: React.FC = () => {
               path="/minha-conta/*" 
               element={
                 <RequireAuth>
-                  <UserDashboardView />
+                  <RouteErrorBoundary>
+                    <UserDashboardView />
+                  </RouteErrorBoundary>
                 </RequireAuth>
               } 
             />
@@ -169,6 +199,21 @@ const AppContent: React.FC = () => {
           </a>
         </div>
       )}
+
+      <Toaster
+        position="top-right"
+        expand={false}
+        toastOptions={{
+          classNames: {
+            toast: 'rounded-2xl shadow-lg font-sans border border-slate-100',
+            title: 'text-slate-900 font-bold',
+            description: 'text-slate-600',
+            success: 'bg-green-50 text-green-700 border-green-100',
+            error: 'bg-red-50 text-red-700 border-red-100',
+            info: 'bg-slate-50 text-slate-900 border-slate-200'
+          }
+        }}
+      />
     </div>
   );
 };

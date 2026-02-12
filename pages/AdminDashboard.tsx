@@ -2,8 +2,9 @@
 import React from 'react';
 import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { CreditCard, FileText, Image, LayoutGrid, LogOut, Mail, ShieldCheck, Users } from 'lucide-react';
-import { MOCK_ADS } from '../constants';
+import { useAuth } from '../src/contexts/AuthContext';
 import { SMTPConfigPanel } from '../components/SMTPConfigPanel';
+import { useAllAds } from '../src/hooks/useAds';
 
 const Icons = {
   Dashboard: () => <LayoutGrid className="w-[18px] h-[18px]" strokeWidth={1.5} />,
@@ -19,11 +20,12 @@ const Icons = {
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { signOut } = useAuth();
+  const { ads: allAds, isLoading: adsLoading } = useAllAds();
   const adminData = JSON.parse(localStorage.getItem('bwagro_admin_user') || '{"name": "Admin"}');
 
-  const handleLogout = () => {
-    localStorage.removeItem('bwagro_admin_token');
-    localStorage.removeItem('bwagro_admin_user');
+  const handleLogout = async () => {
+    await signOut();
     navigate('/admin/login');
   };
 
@@ -156,19 +158,29 @@ const AdminDashboard: React.FC = () => {
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-50">
-                    {MOCK_ADS.map(ad => (
-                      <tr key={ad.id} className="hover:bg-slate-50/30">
-                        <td className="py-4 px-6">
-                           <p className="text-xs font-bold text-gray-900">{ad.title}</p>
-                        </td>
-                        <td className="py-4 px-6">
-                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-green-50 text-green-700 uppercase">Ativo</span>
-                        </td>
-                        <td className="py-4 px-6 text-right">
-                           <button className="text-[10px] font-bold text-slate-400 hover:text-gray-900 transition-colors">GERENCIAR</button>
-                        </td>
+                    {adsLoading ? (
+                      <tr>
+                        <td colSpan={3} className="py-8 px-6 text-center text-sm text-slate-500">Carregando anúncios...</td>
                       </tr>
-                    ))}
+                    ) : allAds.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="py-8 px-6 text-center text-sm text-slate-500">Nenhum anúncio encontrado.</td>
+                      </tr>
+                    ) : (
+                      allAds.map(ad => (
+                        <tr key={ad.id} className="hover:bg-slate-50/30">
+                          <td className="py-4 px-6">
+                             <p className="text-xs font-bold text-gray-900">{ad.title}</p>
+                          </td>
+                          <td className="py-4 px-6">
+                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-green-50 text-green-700 uppercase">{ad.status}</span>
+                          </td>
+                          <td className="py-4 px-6 text-right">
+                             <button className="text-[10px] font-bold text-slate-400 hover:text-gray-900 transition-colors">GERENCIAR</button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                  </tbody>
                </table>
             </div>

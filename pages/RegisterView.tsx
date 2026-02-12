@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Building2, ChevronLeft, Sprout } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { AlertTriangle, Building2, CheckCircle2, ChevronLeft, Sprout } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../src/contexts/AuthContext';
+import { toast } from 'sonner';
 
 type ProfileType = 'individual' | 'company' | null;
 
@@ -12,16 +13,117 @@ const RegisterView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [registerError, setRegisterError] = useState('');
+  const [documentTouched, setDocumentTouched] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     document: '', // CPF ou CNPJ
     phone: '',
+    birthDate: '',
+    website: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    cep: '',
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    estado: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loadingCep, setLoadingCep] = useState(false);
+
+  const onlyDigits = (value: string) => value.replace(/\D/g, '');
+
+  const maskCPF = (value: string) => {
+    const digits = onlyDigits(value).slice(0, 11);
+    return digits
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  };
+
+  const maskCNPJ = (value: string) => {
+    const digits = onlyDigits(value).slice(0, 14);
+    return digits
+      .replace(/(\d{2})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1/$2')
+      .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+  };
+
+  const maskDocument = (value: string) => {
+    const digits = onlyDigits(value);
+    return digits.length > 11 ? maskCNPJ(digits) : maskCPF(digits);
+  };
+
+  const maskPhone = (value: string) => {
+    const digits = onlyDigits(value).slice(0, 11);
+    if (digits.length <= 10) {
+      return digits
+        .replace(/(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{4})(\d{1,4})$/, '$1-$2');
+    }
+    return digits
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d{1,4})$/, '$1-$2');
+  };
+
+  const hasAllEqualDigits = (value: string) => /^([0-9])\1+$/.test(value);
+
+  const validateCPF = (value: string) => {
+    const cpf = onlyDigits(value);
+    if (cpf.length !== 11 || hasAllEqualDigits(cpf)) return false;
+    let sum = 0;
+    for (let i = 0; i < 9; i += 1) sum += parseInt(cpf[i], 10) * (10 - i);
+    let dv1 = (sum * 10) % 11;
+    if (dv1 === 10) dv1 = 0;
+    if (dv1 !== parseInt(cpf[9], 10)) return false;
+    sum = 0;
+    for (let i = 0; i < 10; i += 1) sum += parseInt(cpf[i], 10) * (11 - i);
+    let dv2 = (sum * 10) % 11;
+    if (dv2 === 10) dv2 = 0;
+    return dv2 === parseInt(cpf[10], 10);
+  };
+
+  const validateCNPJ = (value: string) => {
+    const cnpj = onlyDigits(value);
+    if (cnpj.length !== 14 || hasAllEqualDigits(cnpj)) return false;
+    const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    let sum = 0;
+    for (let i = 0; i < 12; i += 1) sum += parseInt(cnpj[i], 10) * weights1[i];
+    let dv1 = sum % 11;
+    dv1 = dv1 < 2 ? 0 : 11 - dv1;
+    if (dv1 !== parseInt(cnpj[12], 10)) return false;
+    sum = 0;
+    for (let i = 0; i < 13; i += 1) sum += parseInt(cnpj[i], 10) * weights2[i];
+    let dv2 = sum % 11;
+    dv2 = dv2 < 2 ? 0 : 11 - dv2;
+    return dv2 === parseInt(cnpj[13], 10);
+  };
+
+  const isDocumentValid = useMemo(() => {
+    const digits = onlyDigits(formData.document);
+    if (digits.length === 11) return validateCPF(digits);
+    if (digits.length === 14) return validateCNPJ(digits);
+    return false;
+  }, [formData.document]);
+
+  const handleDocumentBlur = () => {
+    setDocumentTouched(true);
+    if (!isDocumentValid) {
+      setErrors(prev => ({ ...prev, document: 'Documento inválido' }));
+      toast.error('Documento inválido');
+    } else {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next.document;
+        return next;
+      });
+    }
+  };
 
   // Redirecionar se já estiver logado
   useEffect(() => {
@@ -29,6 +131,45 @@ const RegisterView: React.FC = () => {
       navigate('/minha-conta', { replace: true });
     }
   }, [user, navigate]);
+
+  // Função para consultar CEP no ViaCEP
+  const handleCepBlur = async () => {
+    const cepClean = formData.cep.replace(/\D/g, '');
+    if (cepClean.length !== 8) {
+      setErrors(prev => ({...prev, cep: 'CEP deve ter 8 dígitos'}));
+      return;
+    }
+
+    setLoadingCep(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cepClean}/json/`);
+      const data = await response.json();
+
+      if (data.erro) {
+        setErrors(prev => ({...prev, cep: 'CEP não encontrado'}));
+        setLoadingCep(false);
+        return;
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        logradouro: data.logradouro || '',
+        bairro: data.bairro || '',
+        cidade: data.localidade || '',
+        estado: data.uf || ''
+      }));
+      setErrors(prev => {
+        const newErrors = {...prev};
+        delete newErrors.cep;
+        return newErrors;
+      });
+    } catch (err) {
+      setErrors(prev => ({...prev, cep: 'Erro ao consultar CEP'}));
+    } finally {
+      setLoadingCep(false);
+    }
+  };
+
 
   // Validação
   useEffect(() => {
@@ -44,33 +185,44 @@ const RegisterView: React.FC = () => {
     if (formData.confirmPassword && formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'As senhas não coincidem';
     }
-    // Simplificação de máscaras/validadores de documento para o protótipo
-    if (formData.document && profileType === 'individual' && formData.document.replace(/\D/g, '').length !== 11) {
-      newErrors.document = 'CPF inválido';
-    }
-    if (formData.document && profileType === 'company' && formData.document.replace(/\D/g, '').length !== 14) {
-      newErrors.document = 'CNPJ inválido';
-    }
-
     setErrors(newErrors);
   }, [formData, profileType]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    const documentDigits = onlyDigits(formData.document);
+    const isDocValidNow = documentDigits.length === 11 ? validateCPF(documentDigits) : documentDigits.length === 14 ? validateCNPJ(documentDigits) : false;
+    if (!isDocValidNow) {
+      setDocumentTouched(true);
+      setErrors(prev => ({ ...prev, document: 'Documento inválido' }));
+      toast.error('Documento inválido');
+      return;
+    }
     if (Object.keys(errors).length > 0 || !acceptedTerms) return;
 
     setLoading(true);
-    setRegisterError('');
 
     const { error } = await signUp(
       formData.email,
       formData.password,
       formData.name,
-      formData.phone
+      onlyDigits(formData.phone),
+      {
+        document: documentDigits,
+        birthDate: formData.birthDate,
+        website: formData.website,
+        cep: formData.cep.replace(/\D/g, ''),
+        logradouro: formData.logradouro,
+        numero: formData.numero,
+        complemento: formData.complemento,
+        bairro: formData.bairro,
+        cidade: formData.cidade,
+        estado: formData.estado
+      }
     );
 
     if (error) {
-      setRegisterError(
+      toast.error(
         error.message === 'User already registered'
           ? 'Este e-mail já está cadastrado'
           : 'Erro ao criar conta. Tente novamente.'
@@ -78,6 +230,7 @@ const RegisterView: React.FC = () => {
       setLoading(false);
     } else {
       // Cadastro bem-sucedido
+      toast.success('Cadastro concluído!', { description: 'Sua conta foi criada com sucesso.' });
       setLoading(false);
       navigate('/anunciar', { replace: true });
     }
@@ -94,9 +247,9 @@ const RegisterView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-white overflow-hidden">
-      {/* Lado Esquerdo: Imagem (60%) */}
-      <div className="hidden md:flex md:w-[60%] relative h-screen">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-white">
+      {/* Lado Esquerdo: Imagem */}
+      <div className="hidden lg:block lg:w-[45%] sticky top-0 h-screen relative">
         <img 
           src="https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=1600&auto=format&fit=crop" 
           alt="Inovação no Campo" 
@@ -115,8 +268,8 @@ const RegisterView: React.FC = () => {
         </div>
       </div>
 
-      {/* Lado Direito: Formulário (40%) */}
-      <div className="flex-1 flex items-center justify-center p-8 md:p-12 lg:p-20 bg-slate-50 md:bg-white overflow-y-auto">
+      {/* Lado Direito: Formulário */}
+      <div className="flex-1 w-full lg:w-[55%] flex items-center justify-center p-8 md:p-12 lg:p-20 bg-slate-50 md:bg-white">
         <div className="max-w-md w-full animate-in fade-in slide-in-from-right duration-500">
           
           <div className="mb-10 text-center md:text-left">
@@ -194,15 +347,39 @@ const RegisterView: React.FC = () => {
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
                   {profileType === 'individual' ? 'CPF' : 'CNPJ'}
                 </label>
-                <input 
-                  required
-                  type="text"
-                  value={formData.document}
-                  onChange={e => setFormData({...formData, document: e.target.value})}
-                  className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${errors.document ? 'border-red-200' : 'border-transparent focus:border-green-600 focus:bg-white'}`}
-                  placeholder={profileType === 'individual' ? '000.000.000-00' : '00.000.000/0001-00'}
-                />
+                <div className="relative">
+                  <input 
+                    required
+                    type="text"
+                    value={formData.document}
+                    onChange={e => setFormData({...formData, document: maskDocument(e.target.value)})}
+                    onBlur={handleDocumentBlur}
+                    className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium pr-12 ${errors.document && documentTouched ? 'border-red-300' : 'border-transparent focus:border-green-600 focus:bg-white'}`}
+                    placeholder={profileType === 'individual' ? '000.000.000-00' : '00.000.000/0001-00'}
+                  />
+                  {documentTouched && errors.document && (
+                    <AlertTriangle className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />
+                  )}
+                  {documentTouched && !errors.document && isDocumentValid && (
+                    <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600" />
+                  )}
+                </div>
+                {documentTouched && errors.document && (
+                  <p className="text-[10px] text-red-600 mt-1 ml-1">Documento inválido</p>
+                )}
               </div>
+
+              {profileType === 'individual' && (
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Data de Nascimento</label>
+                  <input 
+                    type="date"
+                    value={formData.birthDate}
+                    onChange={e => setFormData({...formData, birthDate: e.target.value})}
+                    className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -211,7 +388,7 @@ const RegisterView: React.FC = () => {
                     required
                     type="tel"
                     value={formData.phone}
-                    onChange={e => setFormData({...formData, phone: e.target.value})}
+                    onChange={e => setFormData({...formData, phone: maskPhone(e.target.value)})}
                     className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
                     placeholder="(00) 00000-0000"
                   />
@@ -227,6 +404,17 @@ const RegisterView: React.FC = () => {
                     placeholder="email@agro.com"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Site/URL (Opcional)</label>
+                <input 
+                  type="url"
+                  value={formData.website}
+                  onChange={e => setFormData({...formData, website: e.target.value})}
+                  className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                  placeholder="https://seu-site.com"
+                />
               </div>
 
               <div>
@@ -273,6 +461,110 @@ const RegisterView: React.FC = () => {
                 />
               </div>
 
+              {/* Seção Endereço */}
+              <div className="pt-6 border-t border-slate-200">
+                <h3 className="text-sm font-black text-slate-800 mb-5 flex items-center gap-2">
+                  📍 Endereço
+                </h3>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">CEP</label>
+                  <div className="relative">
+                    <input 
+                      type="text"
+                      value={formData.cep}
+                      onChange={e => {
+                        const value = e.target.value.replace(/\D/g, '');
+                        const masked = value.slice(0, 5) + (value.length > 5 ? '-' + value.slice(5, 8) : '');
+                        setFormData({...formData, cep: masked});
+                      }}
+                      onBlur={handleCepBlur}
+                      className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${errors.cep ? 'border-red-200' : 'border-transparent focus:border-green-600 focus:bg-white'}`}
+                      placeholder="00000-000"
+                    />
+                    {loadingCep && (
+                      <div className="absolute right-5 top-1/2 -translate-y-1/2 animate-spin">
+                        ⏳
+                      </div>
+                    )}
+                  </div>
+                  {errors.cep && <p className="text-[10px] text-red-600 mt-1 ml-1">{errors.cep}</p>}
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 mt-4">
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Logradouro</label>
+                    <input 
+                      type="text"
+                      value={formData.logradouro}
+                      onChange={e => setFormData({...formData, logradouro: e.target.value})}
+                      className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      placeholder="Rua, Avenida, etc"
+                      readOnly={!!formData.logradouro && loadingCep}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Número</label>
+                    <input 
+                      type="text"
+                      value={formData.numero}
+                      onChange={e => setFormData({...formData, numero: e.target.value})}
+                      className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      placeholder="000"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1 mt-3">Complemento (Opcional)</label>
+                  <input 
+                    type="text"
+                    value={formData.complemento}
+                    onChange={e => setFormData({...formData, complemento: e.target.value})}
+                    className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                    placeholder="Apto 101, Bloco A, etc"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Bairro</label>
+                    <input 
+                      type="text"
+                      value={formData.bairro}
+                      onChange={e => setFormData({...formData, bairro: e.target.value})}
+                      className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      placeholder="Bairro"
+                      readOnly={!!formData.bairro && loadingCep}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Cidade</label>
+                    <input 
+                      type="text"
+                      value={formData.cidade}
+                      onChange={e => setFormData({...formData, cidade: e.target.value})}
+                      className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      placeholder="Cidade"
+                      readOnly={!!formData.cidade && loadingCep}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Estado (UF)</label>
+                  <input 
+                    type="text"
+                    value={formData.estado}
+                    onChange={e => setFormData({...formData, estado: e.target.value.toUpperCase().slice(0, 2)})}
+                    maxLength={2}
+                    className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                    placeholder="SP"
+                    readOnly={!!formData.estado && loadingCep}
+                  />
+                </div>
+              </div>
+
               <div className="flex items-start gap-3 py-2">
                 <input 
                   type="checkbox" 
@@ -286,12 +578,6 @@ const RegisterView: React.FC = () => {
                   Li e aceito os <Link to="/termos-de-uso" className="text-green-700 hover:underline">Termos de Uso</Link> e a <Link to="/privacidade" className="text-green-700 hover:underline">Política de Privacidade</Link> do BWAGRO.
                 </label>
               </div>
-
-              {registerError && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-                  <p className="text-sm text-red-700 font-bold">{registerError}</p>
-                </div>
-              )}
 
               <button 
                 type="submit"

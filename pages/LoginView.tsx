@@ -2,26 +2,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../src/contexts/AuthContext';
+import { toast } from 'sonner';
 
 const LoginView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, user, isLoading } = useAuth();
+  const { signIn, sendPasswordResetEmail } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({ email: '', password: '' });
-  const [loginError, setLoginError] = useState('');
   const [adminHint, setAdminHint] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
   
   const from = (location.state as any)?.from?.pathname || "/minha-conta";
-
-  // Redirecionar apenas quando user estiver pronto E não estiver carregando
-  useEffect(() => {
-    if (user && !isLoading && !loading) {
-      navigate(from, { replace: true });
-    }
-  }, [user, isLoading, loading, navigate, from]);
 
   // Validação em tempo real
   useEffect(() => {
@@ -38,13 +33,13 @@ const LoginView: React.FC = () => {
         setAdminHint(false);
       }
 
-      if (formData.password && formData.password.length < 6) {
+      if (!recoveryMode && formData.password && formData.password.length < 6) {
         newErrors.password = 'A senha deve ter no mínimo 6 caracteres';
       }
       setErrors(newErrors);
     };
     validate();
-  }, [formData]);
+  }, [formData, recoveryMode]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,19 +51,36 @@ const LoginView: React.FC = () => {
     }
 
     setLoading(true);
-    setLoginError('');
-
     const { error } = await signIn(formData.email, formData.password);
 
     if (error) {
-      setLoginError(
+      toast.error(
         error.message === 'Invalid login credentials' 
           ? 'E-mail ou senha incorretos' 
           : 'Erro ao fazer login. Tente novamente.'
       );
       setLoading(false);
+    } else {
+      toast.success('Login realizado!', { description: 'Bem-vindo de volta.' });
+      navigate('/minha-conta', { replace: true });
+      setLoading(false);
     }
-    // Não chamar navigate aqui - o useEffect vai fazer isso quando user estiver pronto
+  };
+
+  const handlePasswordRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.email || errors.email) return;
+    setRecoveryLoading(true);
+    const { error } = await sendPasswordResetEmail(formData.email);
+    if (error) {
+      toast.error('Não foi possível enviar o link. Tente novamente.');
+      setRecoveryLoading(false);
+      return;
+    }
+    toast.success('Link de recuperação enviado!', {
+      description: 'Se o e-mail existir em nossa base, um link foi enviado. Verifique também sua caixa de spam.'
+    });
+    setRecoveryLoading(false);
   };
 
   return (
@@ -110,13 +122,14 @@ const LoginView: React.FC = () => {
             <p className="text-slate-500 mt-3 font-medium">Insira suas credenciais para gerenciar seus negócios.</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={recoveryMode ? handlePasswordRecovery : handleLogin} className="space-y-6">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Endereço de E-mail</label>
               <div className="relative">
                 <input 
                   type="email" 
                   required
+                  autoComplete="email"
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   className={`w-full bg-slate-50 border-2 rounded-2xl px-6 py-4 outline-none transition-all font-medium ${errors.email ? 'border-red-200 focus:border-red-500 bg-red-50/30' : 'border-transparent focus:border-green-600 focus:bg-white'}`}
@@ -133,56 +146,89 @@ const LoginView: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha Segura</label>
-                <button type="button" className="text-[10px] font-black text-green-700 uppercase tracking-widest hover:underline">Esqueci minha senha</button>
-              </div>
-              <div className="relative">
-                <input 
-                  type={showPassword ? "text" : "password"} 
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className={`w-full bg-slate-50 border-2 rounded-2xl px-6 py-4 outline-none transition-all font-medium pr-14 ${errors.password ? 'border-red-200 focus:border-red-500 bg-red-50/30' : 'border-transparent focus:border-green-600 focus:bg-white'}`}
-                  placeholder="••••••••"
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                >
-                  {showPassword ? '🙈' : '👁️'}
-                </button>
-                {errors.password && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1 uppercase">{errors.password}</p>}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 py-2">
-              <input 
-                type="checkbox" 
-                id="remember"
-                className="w-5 h-5 rounded border-slate-200 text-green-600 focus:ring-green-500 transition-all cursor-pointer"
-              />
-              <label htmlFor="remember" className="text-sm font-bold text-slate-600 cursor-pointer">Lembrar-me neste dispositivo</label>
-            </div>
-
-            {loginError && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-                <p className="text-sm text-red-700 font-bold">{loginError}</p>
+            {!recoveryMode && (
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha Segura</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecoveryMode(true);
+                    }}
+                    className="text-[10px] font-black text-green-700 uppercase tracking-widest hover:underline"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </div>
+                <div className="relative">
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    required
+                    autoComplete="current-password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    className={`w-full bg-slate-50 border-2 rounded-2xl px-6 py-4 outline-none transition-all font-medium pr-14 ${errors.password ? 'border-red-200 focus:border-red-500 bg-red-50/30' : 'border-transparent focus:border-green-600 focus:bg-white'}`}
+                    placeholder="••••••••"
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                  >
+                    {showPassword ? '🙈' : '👁️'}
+                  </button>
+                  {errors.password && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1 uppercase">{errors.password}</p>}
+                </div>
               </div>
             )}
+
+            {recoveryMode && (
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                <p className="text-xs text-slate-600 font-medium">
+                  Informe seu e-mail para receber o link de recuperação.
+                </p>
+              </div>
+            )}
+
+            {!recoveryMode && (
+              <div className="flex items-center gap-2 py-2">
+                <input 
+                  type="checkbox" 
+                  id="remember"
+                  className="w-5 h-5 rounded border-slate-200 text-green-600 focus:ring-green-500 transition-all cursor-pointer"
+                />
+                <label htmlFor="remember" className="text-sm font-bold text-slate-600 cursor-pointer">Lembrar-me neste dispositivo</label>
+              </div>
+            )}
+
             
             <div className="space-y-4">
               <button 
                 type="submit"
-                disabled={loading}
+                disabled={recoveryMode ? recoveryLoading : loading}
                 className="w-full bg-green-700 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-200 hover:bg-green-800 transition-all active:scale-95 disabled:opacity-70 flex items-center justify-center gap-3"
               >
-                {loading ? (
-                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                ) : 'Entrar no BWAGRO'}
+                {recoveryMode ? (
+                  recoveryLoading ? (
+                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  ) : 'Enviar Link de Recuperação'
+                ) : (
+                  loading ? (
+                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  ) : 'Entrar no BWAGRO'
+                )}
               </button>
+              {recoveryMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecoveryMode(false);
+                  }}
+                  className="w-full text-green-700 py-3 rounded-2xl font-black text-sm hover:underline"
+                >
+                  Voltar para o login
+                </button>
+              )}
             </div>
           </form>
 

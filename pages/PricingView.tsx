@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Check, ChevronDown, X } from 'lucide-react';
-import { MOCK_PLANS, PRICING_FEATURES, PRICING_FAQ } from '../constants';
+import { PRICING_FEATURES, PRICING_FAQ } from '../constants';
+import { usePlans } from '../src/hooks/usePlans';
 
 const PricingView: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
+  const { plans, isLoading: plansLoading } = usePlans();
 
   return (
     <div className="bg-white min-h-screen">
@@ -43,7 +45,16 @@ const PricingView: React.FC = () => {
       {/* Grid de Planos */}
       <section className="max-w-7xl mx-auto px-4 -mt-20 relative z-20">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {MOCK_PLANS.map((plan) => {
+          {plansLoading ? (
+            Array.from({ length: 3 }).map((_, index) => (
+              <div key={`plan-skeleton-${index}`} className="bg-white rounded-[2.5rem] p-10 border-2 border-slate-50 shadow-xl animate-pulse h-[520px]" />
+            ))
+          ) : plans.length === 0 ? (
+            <div className="col-span-full bg-white rounded-2xl p-8 text-center border border-slate-100">
+              <p className="text-sm text-slate-500">Nenhum plano disponível no momento.</p>
+            </div>
+          ) : (
+          plans.map((plan) => {
             const displayPrice = billingCycle === 'monthly' ? plan.monthlyPrice : (plan.yearlyPrice / 12);
             return (
               <div 
@@ -88,7 +99,8 @@ const PricingView: React.FC = () => {
                 </button>
               </div>
             );
-          })}
+          })
+          )}
         </div>
       </section>
 
@@ -100,43 +112,49 @@ const PricingView: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50/50">
-                <th className="py-8 px-8 font-black text-slate-400 uppercase tracking-widest text-[10px]">Funcionalidade</th>
-                {MOCK_PLANS.map(p => (
-                  <th key={p.id} className="py-8 px-6 font-black text-slate-900 text-center">{p.name}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {PRICING_FEATURES.map((feat) => (
-                <tr key={feat.id} className="hover:bg-slate-50/30 transition-colors">
-                  <td className="py-6 px-8 text-sm font-bold text-slate-700">{feat.label}</td>
-                  {MOCK_PLANS.map(plan => {
-                    const value = plan.comparison[feat.id];
-                    return (
-                      <td key={plan.id} className="py-6 px-6 text-center">
-                        {typeof value === 'boolean' ? (
-                          value ? (
-                            <div className="flex justify-center">
-                              <Check className="w-5 h-5 text-green-500" strokeWidth={1.5} />
-                            </div>
-                          ) : (
-                            <div className="flex justify-center">
-                              <X className="w-5 h-5 text-slate-200" strokeWidth={1.5} />
-                            </div>
-                          )
-                        ) : (
-                          <span className="text-sm font-black text-slate-800">{value}</span>
-                        )}
-                      </td>
-                    );
-                  })}
+          {plansLoading ? (
+            <div className="p-8 text-center text-sm text-slate-500">Carregando comparação de planos...</div>
+          ) : plans.length === 0 ? (
+            <div className="p-8 text-center text-sm text-slate-500">Nenhum plano disponível para comparação.</div>
+          ) : (
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50/50">
+                  <th className="py-8 px-8 font-black text-slate-400 uppercase tracking-widest text-[10px]">Funcionalidade</th>
+                  {plans.map(p => (
+                    <th key={p.id} className="py-8 px-6 font-black text-slate-900 text-center">{p.name}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {PRICING_FEATURES.map((feat) => (
+                  <tr key={feat.id} className="hover:bg-slate-50/30 transition-colors">
+                    <td className="py-6 px-8 text-sm font-bold text-slate-700">{feat.label}</td>
+                    {plans.map(plan => {
+                      const value = plan.comparison[feat.id];
+                      return (
+                        <td key={plan.id} className="py-6 px-6 text-center">
+                          {typeof value === 'boolean' ? (
+                            value ? (
+                              <div className="flex justify-center">
+                                <Check className="w-5 h-5 text-green-500" strokeWidth={1.5} />
+                              </div>
+                            ) : (
+                              <div className="flex justify-center">
+                                <X className="w-5 h-5 text-slate-200" strokeWidth={1.5} />
+                              </div>
+                            )
+                          ) : (
+                            <span className="text-sm font-black text-slate-800">{value}</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </section>
 
