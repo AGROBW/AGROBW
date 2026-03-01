@@ -33,6 +33,31 @@ const statusConfig = {
   lost: { label: 'Perdido', color: 'bg-red-100 text-red-700', icon: XCircle }
 };
 
+// Função helper para buscar config de status com fallback seguro
+const getStatusConfig = (status: string | undefined | null) => {
+  if (!status) return statusConfig.new;
+  
+  // Normalizar para minúsculas e remover espaços
+  const normalizedStatus = status.toLowerCase().trim();
+  
+  // Mapear possíveis variações para os status corretos
+  const statusMap: Record<string, keyof typeof statusConfig> = {
+    'new': 'new',
+    'novo': 'new',
+    'contacted': 'contacted',
+    'contatado': 'contacted',
+    'negotiating': 'negotiating',
+    'negociando': 'negotiating',
+    'closed': 'closed',
+    'fechado': 'closed',
+    'lost': 'lost',
+    'perdido': 'lost'
+  };
+  
+  const mappedStatus = statusMap[normalizedStatus];
+  return statusConfig[mappedStatus] || statusConfig.new;
+};
+
 const LeadsView: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -119,19 +144,39 @@ const LeadsView: React.FC = () => {
     });
   };
 
-  const filteredLeads = leads.filter(lead =>
-    filterStatus === 'all' || lead.status === filterStatus
-  );
+  // Normalizar status para comparação segura
+  const normalizeStatus = (status: string | undefined | null): string => {
+    if (!status) return 'new';
+    const normalized = status.toLowerCase().trim();
+    const statusMap: Record<string, string> = {
+      'new': 'new',
+      'novo': 'new',
+      'contacted': 'contacted',
+      'contatado': 'contacted',
+      'negotiating': 'negotiating',
+      'negociando': 'negotiating',
+      'closed': 'closed',
+      'fechado': 'closed',
+      'lost': 'lost',
+      'perdido': 'lost'
+    };
+    return statusMap[normalized] || 'new';
+  };
+
+  const filteredLeads = leads.filter(lead => {
+    if (filterStatus === 'all') return true;
+    return normalizeStatus(lead.status) === filterStatus;
+  });
 
   const stats = {
     total: leads.length,
-    new: leads.filter(l => l.status === 'new').length,
-    contacted: leads.filter(l => l.status === 'contacted').length,
-    negotiating: leads.filter(l => l.status === 'negotiating').length,
-    closed: leads.filter(l => l.status === 'closed').length,
-    lost: leads.filter(l => l.status === 'lost').length,
+    new: leads.filter(l => normalizeStatus(l.status) === 'new').length,
+    contacted: leads.filter(l => normalizeStatus(l.status) === 'contacted').length,
+    negotiating: leads.filter(l => normalizeStatus(l.status) === 'negotiating').length,
+    closed: leads.filter(l => normalizeStatus(l.status) === 'closed').length,
+    lost: leads.filter(l => normalizeStatus(l.status) === 'lost').length,
     conversionRate: leads.length > 0
-      ? ((leads.filter(l => l.status === 'closed').length / leads.length) * 100).toFixed(1)
+      ? ((leads.filter(l => normalizeStatus(l.status) === 'closed').length / leads.length) * 100).toFixed(1)
       : '0'
   };
 
@@ -220,13 +265,13 @@ const LeadsView: React.FC = () => {
             <p className="text-slate-400 text-sm mt-1">
               {filterStatus === 'all'
                 ? 'Aguarde interessados entrarem em contato com seus anúncios'
-                : `Nenhum lead com status "${statusConfig[filterStatus as keyof typeof statusConfig].label}"`}
+                : `Nenhum lead com status "${getStatusConfig(filterStatus).label}"`}
             </p>
           </div>
         ) : (
           <div className="divide-y divide-slate-200">
             {filteredLeads.map((lead) => {
-              const config = statusConfig[lead.status];
+              const config = getStatusConfig(lead.status);
               const StatusIcon = config.icon;
               
               return (
@@ -325,9 +370,9 @@ const LeadsView: React.FC = () => {
                           Responder
                         </button>
 
-                        {lead.status !== 'closed' && lead.status !== 'lost' && (
+                        {normalizeStatus(lead.status) !== 'closed' && normalizeStatus(lead.status) !== 'lost' && (
                           <select
-                            value={lead.status}
+                            value={normalizeStatus(lead.status)}
                             onChange={(e) => {
                               e.stopPropagation();
                               updateLeadStatus(lead.id, e.target.value as Lead['status']);

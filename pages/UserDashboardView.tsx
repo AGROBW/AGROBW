@@ -1,17 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Camera, CreditCard, DollarSign, Download, Edit3, FileText, Heart, Inbox, LayoutGrid, LogOut, Map, MapPin, MessageSquare, PauseCircle, ShieldCheck, Trash2, User } from 'lucide-react';
+import { Bell, Camera, CreditCard, DollarSign, Download, Edit3, Eye, FileText, Heart, Inbox, LayoutGrid, LogOut, Map, MapPin, MessageSquare, PauseCircle, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles } from 'lucide-react';
 import { AdStatus, Message, Ad, AdMetrics } from '../types';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useUserAds } from '../src/hooks/useAds';
 import { useChats } from '../src/hooks/useMessages';
 import { useNotifications } from '../src/hooks/useNotifications';
+import { useSubscription } from '../src/hooks/useSubscription';
 import { supabase } from '../src/lib/supabaseClient';
 import { useInvoices } from '../src/hooks/useInvoices';
 import PlanGuard from '../components/PlanGuard';
 import MessagesView from '../components/MessagesView';
 import LeadsView from '../components/LeadsView';
+import HighlightConfirmationModal from '../components/HighlightConfirmationModal';
+import toast from 'react-hot-toast';
+import { useDashboardStats } from '../src/hooks/useDashboardStats';
+import { 
+  DashboardStatsCard, 
+  ReachModule, 
+  PriceIntelligenceModule, 
+  PlanModule 
+} from '../components/DashboardModules';
 
 const Icons = {
   Dashboard: () => <LayoutGrid className="w-5 h-5" strokeWidth={1.5} />,
@@ -55,6 +65,7 @@ const UserDashboardView: React.FC = () => {
   const { ads, isLoading: adsLoading } = useUserAds();
   const { chats } = useChats();
   const { unreadCount: unreadNotifications } = useNotifications();
+  const { subscription, usage, isLoading: subscriptionLoading } = useSubscription();
   const [userAds, setUserAds] = useState<Ad[]>([]);
   const [userAdsLoading, setUserAdsLoading] = useState(false);
   const { invoices, isLoading: invoicesLoading } = useInvoices();
@@ -208,84 +219,151 @@ const UserDashboardView: React.FC = () => {
   );
 
   const HomeDashboard = () => {
+    const [selectedAdId, setSelectedAdId] = React.useState<string | null>(null);
+    const { stats: dashboardStats, loading: dashboardLoading } = useDashboardStats(selectedAdId);
+    const { chats: filteredChats, isLoading: chatsLoading } = useChats(selectedAdId);
+
     if (!userAds) return null;
-    const activeAds = ads.filter(a => a.status === 'active');
-    const totalViews = stats?.total_views || 0;
-    const totalClicks = stats?.total_clicks || 0;
-    
-    const adMetrics: AdMetrics = {
-      totalViews,
-      totalClicks,
-      totalContacts: totalClicks,
-      clicksByState: [
-        { state: 'SP', count: Math.floor(totalClicks * 0.4) },
-        { state: 'MG', count: Math.floor(totalClicks * 0.25) },
-        { state: 'RJ', count: Math.floor(totalClicks * 0.2) },
-        { state: 'RS', count: Math.floor(totalClicks * 0.15) },
-      ],
-      pricePosition: 'MED'
-    };
+
+    // Filtrar anúncios ativos com preço para o seletor
+    const activeAdsWithPrice = userAds.filter(
+      ad => ad.status === AdStatus.ACTIVE && ad.price > 0
+    );
+
+    // Encontrar título do anúncio selecionado
+    const selectedAd = selectedAdId 
+      ? activeAdsWithPrice.find(ad => ad.id === selectedAdId)
+      : null;
 
     return (
       <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-        {/* SaaS Mini-Tiles */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MiniTile label="Anúncios Ativos" value={stats?.active_ads || 0} icon={<Icons.Ads />} />
-          <MiniTile label="Novas Mensagens" value={unreadMessagesCount} icon={<Icons.Messages />} />
-          <MiniTile label="Visualizações" value={totalViews.toLocaleString('pt-BR')} icon={<Icons.Dashboard />} />
-          <MiniTile label="Créditos" value={user?.credits || 0} icon={<Icons.Finance />} />
+        {/* Grid Superior: 4 Cards de Estatísticas */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <DashboardStatsCard
+            icon={<FileText className="w-6 h-6" strokeWidth={1.5} />}
+            label="Anúncios Ativos"
+            value={dashboardStats?.total_ads || 0}
+            bgColor="bg-blue-50"
+            iconColor="text-blue-600"
+            loading={dashboardLoading}
+          />
+          <DashboardStatsCard
+            icon={<MessageSquare className="w-6 h-6" strokeWidth={1.5} />}
+            label="Novas Mensagens"
+            value={unreadMessagesCount}
+            bgColor="bg-green-50"
+            iconColor="text-green-600"
+            loading={false}
+          />
+          <DashboardStatsCard
+            icon={<Eye className="w-6 h-6" strokeWidth={1.5} />}
+            label="Visualizações"
+            value={dashboardStats?.total_views.toLocaleString('pt-BR') || '0'}
+            bgColor="bg-purple-50"
+            iconColor="text-purple-600"
+            loading={dashboardLoading}
+          />
+          <DashboardStatsCard
+            icon={<Inbox className="w-6 h-6" strokeWidth={1.5} />}
+            label="Leads Gerados"
+            value={dashboardStats?.total_leads || 0}
+            bgColor="bg-amber-50"
+            iconColor="text-amber-600"
+            loading={dashboardLoading}
+          />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8">
-            <HeatmapWidget metrics={adMetrics} />
+        {/* Layout Principal: 2 Colunas */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Coluna Esquerda: Módulo de Alcance (2/3) */}
+          <div className="lg:col-span-2">
+            <ReachModule 
+              clicksByState={dashboardStats?.clicks_by_state || []}
+              loading={dashboardLoading}
+            />
           </div>
-          <div className="lg:col-span-4 space-y-6">{activeAds.length > 0 && (
-              <PriceThermometer ad={activeAds[0]} metrics={adMetrics} />
-            )}
-            {activeAds.length > 0 && (
-              <PriceThermometer ad={activeAds[0]} metrics={adMetrics} />
-            )}
-            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 text-white">
-              <h4 className="text-sm font-bold mb-4">Plano Atual: {user?.plan || 'Free'}</h4>
-              <div className="flex justify-between text-xs mb-2">
-                <span>Uso de Cota</span>
-                <span>{userAdsLoading ? 'Carregando...' : `${userAds?.length || 0} / 5`}</span>
-              </div>
-              <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full bg-green-500" style={{ width: `${((userAds?.length || 0) / 5) * 100}%` }}></div>
-              </div>
-              {userAdsLoading && (
-                <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-green-300 uppercase tracking-wider">
-                  <div className="w-3 h-3 border-2 border-green-300/30 border-t-green-300 rounded-full animate-spin"></div>
-                  Atualizando anúncios
-                </div>
-              )}
-              <Link to="/minha-conta/financeiro" className="block text-center mt-6 text-xs font-bold text-green-400 hover:text-green-300 transition-colors uppercase tracking-wider">Fazer Upgrade do Plano</Link>
-            </div>
+
+          {/* Coluna Direita: Módulo de Plano (1/3) */}
+          <div className="lg:col-span-1">
+            <PlanModule
+              planName={subscription?.plans?.name || user?.plan || 'Start Agro'}
+              adsUsed={usage.adsUsed}
+              adsLimit={usage.adsLimit}
+              categoryHighlightsUsed={usage.categoryHighlightsUsed}
+              categoryHighlightsLimit={usage.categoryHighlightsLimit}
+              homeHighlightsUsed={usage.homeHighlightsUsed}
+              homeHighlightsLimit={usage.homeHighlightsLimit}
+              periodEndDate={usage.periodEndDate}
+              loading={subscriptionLoading}
+              rpcAdsCount={dashboardStats?.total_ads}
+              rpcHomeHighlights={dashboardStats?.home_highlights}
+            />
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl border border-slate-100">
-          <h4 className="text-sm font-bold text-gray-900 mb-6">Mensagens Recentes</h4>
+        {/* Módulo de Inteligência de Preço (Full Width) */}
+        <div className="grid grid-cols-1">
+          <PriceIntelligenceModule
+            priceAnalysis={dashboardStats?.price_analysis || null}
+            loading={dashboardLoading}
+            ads={activeAdsWithPrice}
+            selectedAdId={selectedAdId}
+            onAdChange={setSelectedAdId}
+          />
+        </div>
+
+        {/* Mensagens Recentes */}
+        <div className="bg-white p-6 rounded-xl border border-slate-200">
+          <div className="flex items-center justify-between mb-6">
+            <h4 className="text-lg font-bold text-slate-900">
+              {selectedAd 
+                ? `Mensagens: ${selectedAd.title}`
+                : 'Mensagens Recentes'
+              }
+            </h4>
+            {selectedAd && (
+              <button
+                onClick={() => setSelectedAdId(null)}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              >
+                Ver todas
+              </button>
+            )}
+          </div>
+          
           <div className="divide-y divide-slate-50">
-            {(chats?.length ?? 0) === 0 ? (
+            {chatsLoading ? (
               <div className="py-6 text-center">
-                <p className="text-sm text-slate-500">Nenhuma mensagem encontrada</p>
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-slate-200 border-t-blue-600"></div>
+                <p className="text-sm text-slate-500 mt-2">Carregando mensagens...</p>
+              </div>
+            ) : (filteredChats?.length ?? 0) === 0 ? (
+              <div className="py-8 text-center">
+                <Inbox className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                <p className="text-sm text-slate-500">
+                  {selectedAd 
+                    ? 'Nenhuma conversa iniciada para este anúncio ainda'
+                    : 'Nenhuma mensagem encontrada'
+                  }
+                </p>
               </div>
             ) : (
-              chats?.slice(0, 3).map(chat => {
+              filteredChats?.slice(0, 3).map(chat => {
                 const otherPartyName = chat?.sellerId === user?.id ? chat?.buyerName : chat?.sellerName
                 return (
                   <div key={chat?.id} className="py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-slate-100 rounded-lg"></div>
+                      <div className="w-10 h-10 bg-gradient-to-br from-green-100 to-blue-100 rounded-full flex items-center justify-center">
+                        <User className="w-5 h-5 text-green-700" />
+                      </div>
                       <div>
-                        <p className="text-sm font-bold text-gray-900">{otherPartyName || 'Usuário'}</p>
-                        <p className="text-xs text-gray-500 line-clamp-1">{chat?.lastMessage || 'Sem mensagens'}</p>
+                        <p className="text-sm font-bold text-slate-900">{otherPartyName || 'Usuário'}</p>
+                        <p className="text-xs text-slate-500 line-clamp-1">{chat?.lastMessage || 'Sem mensagens'}</p>
                       </div>
                     </div>
-                    <Link to="/minha-conta/mensagens" className="text-[10px] font-bold text-green-700 uppercase">Responder</Link>
+                    <Link to="/minha-conta/mensagens" className="text-xs font-bold text-green-700 uppercase hover:text-green-800 transition-colors">
+                      Responder
+                    </Link>
                   </div>
                 )
               })
@@ -300,12 +378,18 @@ const UserDashboardView: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'all' | 'active' | 'pending' | 'paused' | 'blocked'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [adToDelete, setAdToDelete] = useState<Ad | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [highlightModalOpen, setHighlightModalOpen] = useState(false);
+    const [adForHighlight, setAdForHighlight] = useState<{id: string, title: string} | null>(null);
+    const [highlightType, setHighlightType] = useState<'category' | 'home'>('category');
 
     const counts = useMemo(() => {
-      const active = ads.filter(a => a.status === 'active').length;
-      const pending = ads.filter(a => a.status === 'pending').length;
-      const paused = ads.filter(a => a.status === 'paused').length;
-      const blocked = ads.filter(a => a.status === 'blocked').length;
+      const active = ads.filter(a => a.status === AdStatus.ACTIVE).length;
+      const pending = ads.filter(a => a.status === AdStatus.PENDING).length;
+      const paused = ads.filter(a => a.status === AdStatus.PAUSED).length;
+      const blocked = ads.filter(a => a.status === AdStatus.BLOCKED).length;
       return {
         all: ads.length,
         active,
@@ -318,10 +402,10 @@ const UserDashboardView: React.FC = () => {
     const filteredAds = useMemo(() => {
       const normalized = searchTerm.trim().toLowerCase();
       const byTab = ads.filter(ad => {
-        if (activeTab === 'active') return ad.status === 'active';
-        if (activeTab === 'pending') return ad.status === 'pending';
-        if (activeTab === 'paused') return ad.status === 'paused';
-        if (activeTab === 'blocked') return ad.status === 'blocked';
+        if (activeTab === 'active') return ad.status === AdStatus.ACTIVE;
+        if (activeTab === 'pending') return ad.status === AdStatus.PENDING;
+        if (activeTab === 'paused') return ad.status === AdStatus.PAUSED;
+        if (activeTab === 'blocked') return ad.status === AdStatus.BLOCKED;
         return true;
       });
 
@@ -340,12 +424,64 @@ const UserDashboardView: React.FC = () => {
     ] as const;
 
     const statusLabel: Record<string, string> = {
-      'active': 'Ativo',
-      'paused': 'Pausado',
-      'pending': 'Em Análise',
-      'blocked': 'Excluído',
-      'expired': 'Expirado',
-      'sold': 'Vendido'
+      [AdStatus.ACTIVE]: 'Ativo',
+      [AdStatus.PAUSED]: 'Pausado',
+      [AdStatus.PENDING]: 'Em Análise',
+      [AdStatus.BLOCKED]: 'Excluído',
+      [AdStatus.EXPIRED]: 'Expirado',
+      [AdStatus.SOLD]: 'Vendido'
+    };
+
+    // Handlers para ações
+    const handleTogglePause = async (ad: Ad) => {
+      const newStatus = ad.status === AdStatus.ACTIVE ? AdStatus.PAUSED : AdStatus.ACTIVE;
+      const { error } = await supabase
+        .from('announcements')
+        .update({ status: newStatus })
+        .eq('id', ad.id);
+
+      if (error) {
+        toast.error('Erro ao alterar status do anúncio');
+      } else {
+        toast.success(newStatus === AdStatus.PAUSED ? 'Anúncio pausado' : 'Anúncio reativado');
+        // Atualizar lista
+        window.location.reload();
+      }
+    };
+
+    const handleDeleteClick = (ad: Ad) => {
+      setAdToDelete(ad);
+      setDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+      if (!adToDelete) return;
+      
+      setIsDeleting(true);
+      try {
+        const { error } = await supabase
+          .from('announcements')
+          .delete()
+          .eq('id', adToDelete.id);
+
+        if (error) throw error;
+
+        toast.success('Anúncio excluído com sucesso');
+        setDeleteModalOpen(false);
+        setAdToDelete(null);
+        // Atualizar lista
+        window.location.reload();
+      } catch (error: any) {
+        toast.error('Erro ao excluir anúncio: ' + error.message);
+      } finally {
+        setIsDeleting(false);
+      }
+    };
+
+    const handleHighlightClick = (ad: Ad, type: 'category' | 'home') => {
+      setAdForHighlight({ id: ad.id, title: ad.title });
+      setHighlightType(type);
+      setHighlightModalOpen(true);
     };
 
     return (
@@ -426,7 +562,30 @@ const UserDashboardView: React.FC = () => {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 truncate">{ad.title}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{ad.title}</p>
+                      {(() => {
+                        const hasCategory = (ad as any).highlight_category || (ad as any).highlightCategory;
+                        const hasHome = (ad as any).highlight_home || (ad as any).highlightHome;
+                        
+                        return (
+                          <>
+                            {hasCategory && (
+                              <div className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded-md" title="Destacado na categoria">
+                                <TrendingUp className="w-3 h-3 text-blue-600" strokeWidth={2} />
+                                <span className="text-[9px] font-bold text-blue-700 uppercase tracking-tight">Cat</span>
+                              </div>
+                            )}
+                            {hasHome && (
+                              <div className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-100 rounded-md" title="Destacado na home">
+                                <Sparkles className="w-3 h-3 text-amber-600" strokeWidth={2} />
+                                <span className="text-[9px] font-bold text-amber-700 uppercase tracking-tight">Home</span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                     <p className="text-xs text-slate-500 truncate">
                       Código: {ad.id} | Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
@@ -439,17 +598,41 @@ const UserDashboardView: React.FC = () => {
                     <span className={`text-xs font-semibold ${ad.status === AdStatus.ACTIVE ? 'text-green-700' : 'text-slate-500'}`}>
                       {statusLabel[ad.status] || 'Status'}
                     </span>
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <button className="p-2 rounded-lg hover:bg-slate-50 hover:text-green-700 transition-colors" title="Ver cobrança">
-                        <CreditCard className="w-4 h-4" strokeWidth={1.5} />
+                    <div className="flex items-center gap-1 text-slate-400">
+                      {/* Botão de Destaques */}
+                      <button 
+                        onClick={() => handleHighlightClick(ad, 'category')}
+                        className="p-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors" 
+                        title="Aplicar destaque"
+                      >
+                        <Sparkles className="w-4 h-4" strokeWidth={1.5} />
                       </button>
-                      <button className="p-2 rounded-lg hover:bg-slate-50 hover:text-green-700 transition-colors" title="Editar">
+                      {/* Botão Editar */}
+                      <Link
+                        to={`/anunciar?edit=${ad.id}`}
+                        className="p-2 rounded-lg hover:bg-slate-50 hover:text-green-700 transition-colors" 
+                        title="Editar anúncio"
+                      >
                         <Edit3 className="w-4 h-4" strokeWidth={1.5} />
-                      </button>
-                      <button className="p-2 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-colors" title="Pausar">
+                      </Link>
+                      {/* Botão Pausar/Reativar */}
+                      <button 
+                        onClick={() => handleTogglePause(ad)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          ad.status === AdStatus.PAUSED 
+                            ? 'hover:bg-green-50 hover:text-green-700' 
+                            : 'hover:bg-slate-50 hover:text-slate-700'
+                        }`}
+                        title={ad.status === AdStatus.PAUSED ? 'Reativar' : 'Pausar'}
+                      >
                         <PauseCircle className="w-4 h-4" strokeWidth={1.5} />
                       </button>
-                      <button className="p-2 rounded-lg hover:bg-slate-50 hover:text-red-600 transition-colors" title="Excluir">
+                      {/* Botão Excluir */}
+                      <button 
+                        onClick={() => handleDeleteClick(ad)}
+                        className="p-2 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors" 
+                        title="Excluir anúncio"
+                      >
                         <Trash2 className="w-4 h-4" strokeWidth={1.5} />
                       </button>
                     </div>
@@ -459,6 +642,63 @@ const UserDashboardView: React.FC = () => {
             )}
           </motion.div>
         </AnimatePresence>
+
+        {/* Modal de Confirmação de Exclusão */}
+        {deleteModalOpen && adToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Confirmar Exclusão</h3>
+              <p className="text-sm text-slate-600 mb-2">Tem certeza que deseja excluir este anúncio?</p>
+              <p className="text-sm font-semibold text-slate-800 mb-6 bg-slate-50 p-3 rounded-lg">
+                {adToDelete.title}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setDeleteModalOpen(false);
+                    setAdToDelete(null);
+                  }}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2 rounded-lg font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Excluindo...
+                    </>
+                  ) : (
+                    'Confirmar Exclusão'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Destaques */}
+        {highlightModalOpen && adForHighlight && (
+          <HighlightConfirmationModal
+            isOpen={highlightModalOpen}
+            onClose={() => {
+              setHighlightModalOpen(false);
+              setAdForHighlight(null);
+            }}
+            announcementId={adForHighlight.id}
+            announcementTitle={adForHighlight.title}
+            highlightType={highlightType}
+            onSuccess={() => {
+              refreshUsage();
+              window.location.reload();
+            }}
+          />
+        )}
       </div>
     );
   };

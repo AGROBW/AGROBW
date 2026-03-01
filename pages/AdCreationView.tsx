@@ -5,10 +5,11 @@ import { CATEGORIES } from '../constants';
 import AdCard from '../components/AdCard';
 import { AdStatus } from '../types';
 import { usePlanCheck } from '../src/hooks/usePlanCheck';
+import { useSubscription } from '../src/hooks/useSubscription';
 import { useAuth } from '../src/contexts/AuthContext';
 import { supabase } from '../src/lib/supabaseClient';
 import { toast } from 'sonner';
-import { Trash2, GripVertical } from 'lucide-react';
+import { Trash2, GripVertical, AlertCircle } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import { motion } from 'framer-motion';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
@@ -89,6 +90,7 @@ const AdCreationView: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { handleAction } = usePlanCheck();
+  const { subscription, usage, canCreateAd, adLimitMessage, refreshUsage } = useSubscription();
   
   // A rota já é protegida pelo RequireAuth no App.tsx.
   if (!user) return null;
@@ -1127,17 +1129,43 @@ const AdCreationView: React.FC = () => {
                 <h3 className="text-xl font-black text-green-900 mb-2">Quase lá!</h3>
                 <p className="text-green-700">Verifique se todas as informações estão corretas. Seu anúncio será publicado instantaneamente.</p>
               </div>
+
+              {/* Alerta de limite atingido */}
+              {!canCreateAd && subscription && (
+                <div className="bg-red-50 border-2 border-red-200 p-6 rounded-2xl">
+                  <div className="flex items-start gap-4">
+                    <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-lg font-bold text-red-900 mb-2">Limite de anúncios atingido</h4>
+                      <p className="text-sm text-red-800 mb-3">{adLimitMessage}</p>
+                      <p className="text-xs text-red-700 mb-3">
+                        <strong>Anúncios usados neste ciclo:</strong> {usage.adsUsed} de {usage.adsLimit}
+                      </p>
+                      <button
+                        onClick={() => navigate('/planos')}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition text-sm"
+                      >
+                        Ver Planos
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-4">
                 <button 
-                  onClick={() => {
-                    handleAction('can_add_ad', () => {
-                      void handleSubmitAd();
-                    }, {
-                      onUpgrade: () => navigate('/planos')
-                    });
+                  onClick={async () => {
+                    if (!canCreateAd) {
+                      toast.error('Limite de anúncios atingido', {
+                        description: adLimitMessage
+                      });
+                      return;
+                    }
+                    await handleSubmitAd();
+                    await refreshUsage(); // Atualizar contadores após publicar
                   }}
                   className="w-full py-6 bg-green-700 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-green-900/20 hover:bg-green-800 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={isSubmitting || isUploadingImages}
+                  disabled={isSubmitting || isUploadingImages || !canCreateAd}
                 >
                   {isUploadingImages ? 'Aguardando uploads...' : isSubmitting ? 'Publicando...' : 'Publicar Anúncio Agora'}
                 </button>

@@ -54,6 +54,10 @@ export interface Ad {
   whatsapp: string;
   technicalDetails?: TechnicalDetail[];
   healthScore?: number; // 0-100
+  highlightCategory?: boolean;
+  highlightCategoryUntil?: string;
+  highlightHome?: boolean;
+  highlightHomeUntil?: string;
 }
 
 export interface AdMetrics {

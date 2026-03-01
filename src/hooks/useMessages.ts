@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { Chat, Message } from '../types'
 
-export const useChats = () => {
+export const useChats = (announcementId?: string | null) => {
   const { user } = useAuth()
   const [chats, setChats] = useState<Chat[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -18,11 +18,22 @@ export const useChats = () => {
     }
 
     setIsLoading(true)
-    const { data, error } = await supabase
+    
+    // Construir query base
+    let query = supabase
       .from('chats_full') // Usar a VIEW criada no schema
       .select('*')
-      .or(`seller_id.eq.${user.id},buyer_id.eq.${user.id}`)
-      .order('last_message_time', { ascending: false })
+      .or(`seller_id.eq.${user.id},buyer_id.eq.${user.id}`);
+    
+    // Adicionar filtro de anúncio se fornecido
+    if (announcementId) {
+      query = query.eq('announcement_id', announcementId);
+    }
+    
+    // Ordenar por última mensagem
+    query = query.order('last_message_time', { ascending: false });
+
+    const { data, error } = await query;
 
     if (error) {
       setError(error.message)
@@ -59,7 +70,7 @@ export const useChats = () => {
 
   useEffect(() => {
     fetchChats()
-  }, [user])
+  }, [user, announcementId])
 
   return { chats, isLoading, error, refreshChats: fetchChats }
 }

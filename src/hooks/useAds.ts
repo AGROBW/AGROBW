@@ -26,6 +26,8 @@ export const useUserAds = () => {
           categories (name, slug)
         `)
         .eq('user_id', user.id)
+        .order('highlight_category', { ascending: false })
+        .order('highlight_home', { ascending: false })
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -51,7 +53,11 @@ export const useUserAds = () => {
           views: ad.views || 0,
           isPremium: ad.is_premium || false,
           createdAt: ad.created_at,
-          whatsapp: ad.whatsapp
+          whatsapp: ad.whatsapp,
+          highlightCategory: ad.highlight_category || false,
+          highlightCategoryUntil: ad.highlight_category_until,
+          highlightHome: ad.highlight_home || false,
+          highlightHomeUntil: ad.highlight_home_until
         }))
         setAds(mappedAds)
       }
@@ -118,7 +124,10 @@ export const usePublicAds = (filters?: {
         query = query.eq('state', filters.state)
       }
 
-      query = query.order('created_at', { ascending: false })
+      query = query
+        .order('highlight_category', { ascending: false })
+        .order('highlight_home', { ascending: false })
+        .order('created_at', { ascending: false })
 
       const { data, error } = await query
 
@@ -144,7 +153,11 @@ export const usePublicAds = (filters?: {
           views: ad.views || 0,
           isPremium: ad.is_premium || false,
           createdAt: ad.created_at,
-          whatsapp: ad.whatsapp
+          whatsapp: ad.whatsapp,
+          highlightCategory: ad.highlight_category || false,
+          highlightCategoryUntil: ad.highlight_category_until,
+          highlightHome: ad.highlight_home || false,
+          highlightHomeUntil: ad.highlight_home_until
         }))
         setAds(mappedAds)
       }
@@ -169,6 +182,8 @@ export const useAllAds = () => {
       const { data, error } = await supabase
         .from('announcements')
         .select('*')
+        .order('highlight_category', { ascending: false })
+        .order('highlight_home', { ascending: false })
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -193,7 +208,11 @@ export const useAllAds = () => {
           views: ad.views || 0,
           isPremium: ad.is_premium || false,
           createdAt: ad.created_at,
-          whatsapp: ad.whatsapp
+          whatsapp: ad.whatsapp,
+          highlightCategory: ad.highlight_category || false,
+          highlightCategoryUntil: ad.highlight_category_until,
+          highlightHome: ad.highlight_home || false,
+          highlightHomeUntil: ad.highlight_home_until
         }))
         setAds(mapped)
       }
@@ -278,7 +297,11 @@ export const useAd = (adId: string | undefined) => {
           whatsapp: data.whatsapp,
           technicalDetails: technicalDetailsArray.length > 0 ? technicalDetailsArray : undefined,
           healthScore: data.health_score,
-          users: data.users
+          users: data.users,
+          highlightCategory: data.highlight_category || false,
+          highlightCategoryUntil: data.highlight_category_until,
+          highlightHome: data.highlight_home || false,
+          highlightHomeUntil: data.highlight_home_until
         } as any
         setAd(mappedAd)
 

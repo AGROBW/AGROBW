@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Eye, Heart } from 'lucide-react';
+import { MapPin, Eye, Heart, Sparkles } from 'lucide-react';
 import { Ad } from '../types';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useFavorites } from '../src/hooks/useFavorites';
@@ -57,11 +57,28 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
     currency: 'BRL',
   }).format(priceValue);
 
+  // Verificar se o destaque está ativo (não expirado)
+  const isCategoryHighlightActive = ad.highlightCategory && (!ad.highlightCategoryUntil || new Date(ad.highlightCategoryUntil) > new Date());
+  const isHomeHighlightActive = ad.highlightHome && (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date());
+  const hasActiveHighlight = isCategoryHighlightActive || isHomeHighlightActive;
+
   return (
-    <div className="group bg-white rounded-xl overflow-hidden transition-all duration-300 border border-slate-100 flex flex-col h-full relative">
-      {ad.isPremium && (
+    <div className={`group bg-white rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full relative ${
+      hasActiveHighlight 
+        ? 'border-2 border-yellow-400 shadow-lg shadow-yellow-100' 
+        : 'border border-slate-100'
+    }`}>
+      {/* Badge de Destaque */}
+      {hasActiveHighlight && (
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg animate-pulse">
+          <Sparkles className="w-3 h-3" strokeWidth={2.5} />
+          DESTAQUE
+        </div>
+      )}
+      
+      {ad.isPremium && !hasActiveHighlight && (
         <div className="absolute top-4 left-4 z-10 bg-yellow-400 text-yellow-900 text-[10px] font-black uppercase px-2 py-1 rounded shadow-sm">
-          Destaque
+          Premium
         </div>
       )}
       
