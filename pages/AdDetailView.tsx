@@ -210,9 +210,6 @@ const AdDetailView: React.FC = () => {
                     {ad.seller?.document_verified && (
                       <p className="text-xs text-emerald-600 font-semibold mt-0.5">Identidade Verificada</p>
                     )}
-                    {ad.seller?.cidade && ad.seller?.estado && (
-                      <p className="text-xs text-slate-500 mt-0.5">{ad.seller.cidade}, {ad.seller.estado}</p>
-                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
