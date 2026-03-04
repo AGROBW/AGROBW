@@ -10,6 +10,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { supabase } from '../src/lib/supabaseClient';
 import { toast } from 'sonner';
 import { Trash2, GripVertical, AlertCircle } from 'lucide-react';
+import { censorContactData } from '../src/utils/censorContact';
 import imageCompression from 'browser-image-compression';
 import { motion } from 'framer-motion';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
@@ -907,6 +908,16 @@ const AdCreationView: React.FC = () => {
                   type="text" 
                   value={formData.title}
                   onChange={e => setFormData({...formData, title: e.target.value})}
+                  onBlur={e => {
+                    const result = censorContactData(e.target.value);
+                    if (result.hadContactData) {
+                      setFormData({...formData, title: result.censored});
+                      toast.warning('⚠️ Por sua segurança, removemos dados de contato do título', {
+                        description: 'Use o chat oficial da plataforma para negociar',
+                        duration: 5000
+                      });
+                    }
+                  }}
                   className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none" 
                   placeholder="Ex: Trator John Deere 6125J - Único Dono"
                 />
@@ -964,6 +975,16 @@ const AdCreationView: React.FC = () => {
                   rows={6}
                   value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
+                  onBlur={e => {
+                    const result = censorContactData(e.target.value);
+                    if (result.hadContactData) {
+                      setFormData({...formData, description: result.censored});
+                      toast.warning('⚠️ Por sua segurança, removemos dados de contato da descrição', {
+                        description: 'Use o chat oficial da plataforma para negociar',
+                        duration: 5000
+                      });
+                    }
+                  }}
                   className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none resize-none" 
                   placeholder="Descreva detalhes do produto, histórico e condições de conservação..."
                 ></textarea>
