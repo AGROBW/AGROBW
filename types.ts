@@ -58,10 +58,12 @@ export interface Ad {
   highlightCategoryUntil?: string;
   highlightHome?: boolean;
   highlightHomeUntil?: string;
-  users?: {
+  seller?: {
     name: string;
     avatar?: string;
     document_verified?: boolean;
+    cidade?: string;
+    estado?: string;
   };
 }
 

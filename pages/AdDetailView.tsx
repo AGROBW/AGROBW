@@ -196,19 +196,22 @@ const AdDetailView: React.FC = () => {
               <div className="pt-8 border-t border-gray-50 space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center text-xl font-bold text-slate-500 overflow-hidden">
-                    {ad.users?.avatar ? (
-                      <img src={ad.users.avatar} alt={ad.users?.name || 'Vendedor Profissional'} className="w-full h-full object-cover" />
+                    {ad.seller?.avatar ? (
+                      <img src={ad.seller.avatar} alt={ad.seller?.name || 'Vendedor Profissional'} className="w-full h-full object-cover" />
                     ) : (
-                      <span>{(ad.users?.name || 'Vendedor Profissional')[0].toUpperCase()}</span>
+                      <span>{(ad.seller?.name || 'Vendedor Profissional')[0].toUpperCase()}</span>
                     )}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-slate-900">{ad.users?.name || 'Vendedor Profissional'}</h4>
-                      {ad.users?.document_verified && <VerifiedBadge variant="icon-only" />}
+                      <h4 className="font-bold text-slate-900">{ad.seller?.name || 'Vendedor Profissional'}</h4>
+                      {ad.seller?.document_verified && <VerifiedBadge variant="icon-only" />}
                     </div>
-                    {ad.users?.document_verified && (
+                    {ad.seller?.document_verified && (
                       <p className="text-xs text-emerald-600 font-semibold mt-0.5">Identidade Verificada</p>
+                    )}
+                    {ad.seller?.cidade && ad.seller?.estado && (
+                      <p className="text-xs text-slate-500 mt-0.5">{ad.seller.cidade}, {ad.seller.estado}</p>
                     )}
                   </div>
                 </div>

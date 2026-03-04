@@ -123,7 +123,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
         </h3>
         
         {/* Vendedor Verificado */}
-        {ad.users?.document_verified && (
+        {ad.seller?.document_verified && (
           <div className="flex items-center gap-1.5 mb-3">
             <VerifiedBadge variant="small" />
           </div>

@@ -91,7 +91,7 @@ export const usePublicAds = (filters?: {
         .select(`
           *,
           categories (name, slug),
-          users (name, avatar, document_verified)
+          seller:vendedores_publicos!user_id (name, avatar, document_verified, cidade, estado)
         `)
         .eq('status', 'ACTIVE')
 
@@ -158,11 +158,7 @@ export const usePublicAds = (filters?: {
           highlightCategoryUntil: ad.highlight_category_until,
           highlightHome: ad.highlight_home || false,
           highlightHomeUntil: ad.highlight_home_until,
-          users: ad.users ? {
-            name: ad.users.name,
-            avatar: ad.users.avatar,
-            document_verified: ad.users.document_verified
-          } : undefined
+          seller: ad.seller ? (Array.isArray(ad.seller) ? ad.seller[0] : ad.seller) : undefined
         }))
         setAds(mappedAds)
       }
@@ -254,82 +250,112 @@ export const useAd = (adId: string | undefined) => {
     const fetchAd = async () => {
       setIsLoading(true)
       
-      const { data, error } = await supabase
+      // Buscar anúncio e usuário separadamente para garantir os dados
+      const { data: adData, error: adError } = await supabase
         .from('announcements')
         .select(`
           *,
           categories (name, slug),
-          users (name, avatar, phone, document_verified),
           announcement_technical_details (label, value, icon_name)
         `)
         .eq('id', adId)
         .single()
 
-      if (error) {
-        setError(error.message)
-        console.error('Erro ao buscar anúncio:', error)
-      } else {
-        // Mapear announcement_technical_details (tabela relacional) para technicalDetails array
-        let technicalDetailsArray: any[] = []
-        if (data.announcement_technical_details && Array.isArray(data.announcement_technical_details)) {
-          technicalDetailsArray = data.announcement_technical_details
-            .filter((detail: any) => detail.value && String(detail.value).trim() !== '')
-            .map((detail: any) => ({
-              label: detail.label,
-              value: String(detail.value),
-              iconName: detail.icon_name || 'Circle'
-            }))
-        }
+      if (adError) {
+        setError(adError.message)
+        console.error('Erro ao buscar anúncio:', adError)
+        setIsLoading(false)
+        return
+      }
 
-        const mappedAd: Ad = {
-          id: data.id,
-          title: data.title,
-          description: data.description,
-          price: parseFloat(data.unit_price || data.price),
-          location: {
-            city: data.city,
-            state: data.state,
-            cep: data.cep
-          },
-          categoryId: data.category_id,
-          categorySlug: data.categories?.slug,
-          images: data.images || [],
-          userId: data.user_id,
-          status: data.status,
-          views: data.views || 0,
-          isPremium: data.is_premium || false,
-          createdAt: data.created_at,
-          whatsapp: data.whatsapp,
-          technicalDetails: technicalDetailsArray.length > 0 ? technicalDetailsArray : undefined,
-          healthScore: data.health_score,
-          users: data.users,
-          highlightCategory: data.highlight_category || false,
-          highlightCategoryUntil: data.highlight_category_until,
-          highlightHome: data.highlight_home || false,
-          highlightHomeUntil: data.highlight_home_until
-        } as any
-        setAd(mappedAd)
-
-        // Incrementar views com prevenção de duplicidade
-        const viewKey = `viewed_ad_${adId}`
-        const hasViewed = sessionStorage.getItem(viewKey)
+      // Buscar dados do vendedor separadamente usando a view pública
+      let sellerData = null
+      if (adData?.user_id) {
+        console.log('[useAd] Buscando vendedor com ID:', adData.user_id)
         
-        if (!hasViewed) {
-          console.log('[Views] Incrementando visualização para:', adId)
-          
-          const { error: viewError } = await supabase.rpc('increment_ad_views', { ad_id: adId })
-          
-          if (viewError) {
-            console.error('[Views] Erro ao incrementar views:', viewError)
-          } else {
-            // Marcar como visualizado na sessão
-            sessionStorage.setItem(viewKey, 'true')
-            console.log('[Views] Visualização incrementada com sucesso')
-          }
+        const { data: sellerList, error: sellerError } = await supabase
+          .from('vendedores_publicos')
+          .select('name, avatar, document_verified, cidade, estado')
+          .eq('id', adData.user_id)
+        
+        console.log('[useAd] Resultado da busca:', { sellerList, sellerError })
+        
+        if (!sellerError && sellerList && sellerList.length > 0) {
+          sellerData = sellerList[0]
+          console.log('[useAd] Dados do vendedor encontrados:', sellerData)
+        } else if (sellerError) {
+          console.error('[useAd] Erro ao buscar vendedor:', sellerError)
         } else {
-          console.log('[Views] Anúncio já visualizado nesta sessão')
+          console.warn('[useAd] Vendedor não encontrado na view vendedores_publicos.')
         }
       }
+
+      const data = { ...adData, seller: sellerData }
+      
+      console.log('[useAd] Dados retornados:', data)
+      console.log('[useAd] Seller:', data.seller)
+      
+      // Mapear announcement_technical_details (tabela relacional) para technicalDetails array
+      let technicalDetailsArray: any[] = []
+      if (data.announcement_technical_details && Array.isArray(data.announcement_technical_details)) {
+        technicalDetailsArray = data.announcement_technical_details
+          .filter((detail: any) => detail.value && String(detail.value).trim() !== '')
+          .map((detail: any) => ({
+            label: detail.label,
+            value: String(detail.value),
+            iconName: detail.icon_name || 'Circle'
+          }))
+      }
+
+      const mappedAd: Ad = {
+        id: data.id,
+        title: data.title,
+        description: data.description,
+        price: parseFloat(data.unit_price || data.price),
+        location: {
+          city: data.city,
+          state: data.state,
+          cep: data.cep
+        },
+        categoryId: data.category_id,
+        categorySlug: data.categories?.slug,
+        images: data.images || [],
+        userId: data.user_id,
+        status: data.status,
+        views: data.views || 0,
+        isPremium: data.is_premium || false,
+        createdAt: data.created_at,
+        whatsapp: data.whatsapp,
+        technicalDetails: technicalDetailsArray.length > 0 ? technicalDetailsArray : undefined,
+        healthScore: data.health_score,
+        seller: data.seller || undefined,
+        highlightCategory: data.highlight_category || false,
+        highlightCategoryUntil: data.highlight_category_until,
+        highlightHome: data.highlight_home || false,
+        highlightHomeUntil: data.highlight_home_until
+      } as any
+      setAd(mappedAd)
+
+      // Incrementar views com prevenção de duplicidade
+      const viewKey = `viewed_ad_${adId}`
+      const hasViewed = sessionStorage.getItem(viewKey)
+      
+      if (!hasViewed) {
+        console.log('[Views] Incrementando visualização para:', adId)
+        
+        const { error: viewError } = await supabase.rpc('increment_ad_views', { ad_id: adId })
+        
+        if (viewError) {
+          console.error('[Views] Erro ao incrementar views:', viewError)
+        } else {
+          // Marcar como visualizado na sessão
+          sessionStorage.setItem(viewKey, 'true')
+          console.log('[Views] Visualização incrementada com sucesso')
+        }
+      } else {
+        console.log('[Views] Anúncio já visualizado nesta sessão')
+      }
+      
       setIsLoading(false)
     }
 

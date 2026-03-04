@@ -4,6 +4,8 @@
 
 Os dados do vendedor são **totalmente públicos** e visíveis para todos os visitantes da plataforma, incluindo usuários não autenticados. Isso permite que compradores saibam exatamente quem está vendendo o equipamento antes de fazer contato.
 
+**IMPORTANTE:** Os dados do vendedor são agora acessados através da view `vendedores_publicos`, que expõe apenas informações seguras sem comprometer a privacidade dos usuários.
+
 ## 🔍 Estrutura de Dados
 
 ### Query Supabase
@@ -14,7 +16,7 @@ supabase
   .select(`
     *,
     categories (name, slug),
-    users (name, avatar, phone, document_verified),
+    seller:vendedores_publicos!user_id (name, avatar, document_verified, cidade, estado),
     announcement_technical_details (label, value, icon_name)
   `)
   .eq('id', adId)
@@ -26,12 +28,29 @@ supabase
 ```typescript
 interface Ad {
   // ... outros campos
-  users?: {
+  seller?: {
     name: string;
     avatar?: string;
     document_verified?: boolean;
+    cidade?: string;
+    estado?: string;
   };
 }
+```
+
+### View SQL (vendedores_publicos)
+
+```sql
+CREATE OR REPLACE VIEW vendedores_publicos AS
+SELECT 
+  u.id,
+  u.name,
+  u.avatar,
+  u.document_verified,
+  a.city as cidade,
+  a.state as estado
+FROM users u
+LEFT JOIN addresses a ON a.user_id = u.id AND a.is_primary = true;
 ```
 
 ## 🎨 Renderização no Frontend
@@ -44,21 +63,24 @@ interface Ad {
 <div className="flex items-center gap-4">
   {/* Avatar do Vendedor */}
   <div className="w-14 h-14 bg-slate-100 rounded-full overflow-hidden">
-    {ad.users?.avatar ? (
-      <img src={ad.users.avatar} alt={ad.users?.name || 'Vendedor Profissional'} />
+    {ad.seller?.avatar ? (
+      <img src={ad.seller.avatar} alt={ad.seller?.name || 'Vendedor Profissional'} />
     ) : (
-      <span>{(ad.users?.name || 'Vendedor Profissional')[0].toUpperCase()}</span>
+      <span>{(ad.seller?.name || 'Vendedor Profissional')[0].toUpperCase()}</span>
     )}
   </div>
   
   {/* Nome e Selo de Verificação */}
   <div>
     <div className="flex items-center gap-2">
-      <h4 className="font-bold">{ad.users?.name || 'Vendedor Profissional'}</h4>
-      {ad.users?.document_verified && <VerifiedBadge variant="icon-only" />}
+      <h4 className="font-bold">{ad.seller?.name || 'Vendedor Profissional'}</h4>
+      {ad.seller?.document_verified && <VerifiedBadge variant="icon-only" />}
     </div>
-    {ad.users?.document_verified && (
+    {ad.seller?.document_verified && (
       <p className="text-xs text-emerald-600">Identidade Verificada</p>
+    )}
+    {ad.seller?.cidade && ad.seller?.estado && (
+      <p className="text-xs text-slate-500">{ad.seller.cidade}, {ad.seller.estado}</p>
     )}
   </div>
 </div>
@@ -67,23 +89,52 @@ interface Ad {
 ## ✅ Campos Exibidos
 
 ### 1. Nome do Vendedor
-- **Campo**: `ad.users?.name`
+- **Campo**: `ad.seller?.name`
 - **Fallback**: `'Vendedor Profissional'`
 - **Visibilidade**: Pública (todos os visitantes)
 
 ### 2. Avatar do Vendedor
-- **Campo**: `ad.users?.avatar`
+- **Campo**: `ad.seller?.avatar`
 - **Fallback**: Inicial do nome em círculo colorido
 - **Visibilidade**: Pública (todos os visitantes)
 
 ### 3. Selo de Verificação
-- **Campo**: `ad.users?.document_verified`
+- **Campo**: `ad.seller?.document_verified`
 - **Exibição**: Apenas se `true`
 - **Componente**: `<VerifiedBadge variant="icon-only" />`
 - **Texto adicional**: "Identidade Verificada" em verde
 - **Visibilidade**: Pública (todos os visitantes)
 
+### 4. Localização do Vendedor
+- **Campo**: `ad.seller?.cidade` e `ad.seller?.estado`
+- **Formato**: "Cidade, UF"
+- **Visibilidade**: Pública (todos os visitantes)
+- **Exibição**: Apenas se ambos os campos estiverem disponíveis
+
 ## 🔐 Privacidade e Segurança
+
+### View de Segurança (vendedores_publicos)
+
+A view `vendedores_publicos` garante que apenas dados seguros sejam expostos:
+
+```sql
+CREATE OR REPLACE VIEW vendedores_publicos AS
+SELECT 
+  u.id,
+  u.name,
+  u.avatar,
+  u.document_verified,
+  a.city as cidade,
+  a.state as estado
+FROM users u
+LEFT JOIN addresses a ON a.user_id = u.id AND a.is_primary = true;
+```
+
+Esta abordagem oferece:
+- ✅ **Camada de segurança**: Apenas campos permitidos são acessíveis
+- ✅ **Simplicidade**: Sem necessidade de políticas RLS complexas
+- ✅ **Performance**: View otimizada com JOIN pré-computado
+- ✅ **Manutenibilidade**: Fácil adicionar/remover campos no futuro
 
 ### Dados NÃO Expostos
 
@@ -103,6 +154,7 @@ Apenas dados necessários para **confiabilidade** na transação:
 - ✅ Nome
 - ✅ Avatar
 - ✅ Status de verificação (`document_verified`)
+- ✅ Cidade e Estado (localização geral)
 
 ## 📱 Casos de Uso
 
@@ -147,36 +199,42 @@ Selo: [não exibido]
 
 ## 🔄 Sincronização com Banco de Dados
 
-Os dados do vendedor são **sempre atualizados** diretamente do banco:
+Os dados do vendedor são **sempre atualizados** diretamente da view:
 
 ```typescript
-// Hook useAd busca dados em tempo real
+// Hook useAd busca dados em tempo real da view vendedores_publicos
 const { ad, isLoading, error } = useAd(adId);
 
-// ad.users contém dados mais recentes do vendedor
-ad.users.name              // Nome atual
-ad.users.avatar            // URL atual do avatar
-ad.users.document_verified // Status atual de verificação
+// ad.seller contém dados mais recentes do vendedor
+ad.seller.name              // Nome atual
+ad.seller.avatar            // URL atual do avatar
+ad.seller.document_verified // Status atual de verificação
+ad.seller.cidade            // Cidade atual
+ad.seller.estado            // Estado atual
 ```
 
 **Importante:** Quando o vendedor atualiza:
 - ✅ Avatar → Mudança é refletida em todos os anúncios
 - ✅ Nome → Mudança é refletida em todos os anúncios
 - ✅ Verificação → Selo aparece/desaparece automaticamente
+- ✅ Endereço → Localização atualizada em todos os anúncios
 
 ## 🚀 Implementação em Outros Componentes
 
 ### AdCard.tsx (Cards de Listagem)
 ```tsx
-{ad.users?.document_verified && (
+{ad.seller?.document_verified && (
   <VerifiedBadge variant="small" />
 )}
 ```
 
 ### AdDetailView.tsx (Página de Detalhes)
 ```tsx
-<h4>{ad.users?.name || 'Vendedor Profissional'}</h4>
-{ad.users?.document_verified && <VerifiedBadge variant="icon-only" />}
+<h4>{ad.seller?.name || 'Vendedor Profissional'}</h4>
+{ad.seller?.document_verified && <VerifiedBadge variant="icon-only" />}
+{ad.seller?.cidade && ad.seller?.estado && (
+  <p className="text-xs text-slate-500">{ad.seller.cidade}, {ad.seller.estado}</p>
+)}
 ```
 
 ## 📊 Estatísticas de Conversão (Exemplo)
