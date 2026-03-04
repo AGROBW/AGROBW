@@ -5,6 +5,7 @@ import { MapPin, Eye, Heart, Sparkles } from 'lucide-react';
 import { Ad } from '../types';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useFavorites } from '../src/hooks/useFavorites';
+import VerifiedBadge from './VerifiedBadge';
 
 interface AdCardProps {
   ad: Ad;
@@ -43,8 +44,10 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
     
     setIsToggling(true);
     try {
-      const result = await toggleFavorite(ad.id);
-      setIsFav(result.isFavorited);
+      // Passar o preço atual ao favoritar
+      const currentPrice = (ad as any).unit_price || ad.price;
+      const result = await toggleFavorite(ad.id, currentPrice);
+      setIsFav(!isFav); // Toggle local
     } finally {
       setIsToggling(false);
     }
@@ -118,6 +121,13 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
         <h3 className="text-sm font-semibold text-slate-800 mb-3 line-clamp-2 leading-tight group-hover:text-green-700 transition-colors h-10">
           {ad.title}
         </h3>
+        
+        {/* Vendedor Verificado */}
+        {ad.users?.document_verified && (
+          <div className="flex items-center gap-1.5 mb-3">
+            <VerifiedBadge variant="small" />
+          </div>
+        )}
         
         <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-100">
           <div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Mail, Phone, MapPin, Calendar, TrendingUp, CheckCircle, XCircle, Clock, Loader2, ExternalLink, MessageSquare } from 'lucide-react';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -6,6 +6,8 @@ import { supabase } from '../src/lib/supabaseClient';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+
+const PAGE_SIZE = 20; // Número de leads por página
 
 interface Lead {
   id: string;
@@ -18,7 +20,7 @@ interface Lead {
   buyer_phone: string;
   buyer_cep: string;
   initial_message: string;
-  status: 'new' | 'contacted' | 'negotiating' | 'closed' | 'lost';
+  status: 'novo' | 'contatado' | 'negociando' | 'fechado' | 'perdido';
   created_at: string;
   announcement_title?: string;
   announcement_price?: number;
@@ -26,36 +28,22 @@ interface Lead {
 }
 
 const statusConfig = {
-  new: { label: 'Novo', color: 'bg-blue-100 text-blue-700', icon: Clock },
-  contacted: { label: 'Contatado', color: 'bg-yellow-100 text-yellow-700', icon: Phone },
-  negotiating: { label: 'Negociando', color: 'bg-purple-100 text-purple-700', icon: TrendingUp },
-  closed: { label: 'Fechado', color: 'bg-green-100 text-green-700', icon: CheckCircle },
-  lost: { label: 'Perdido', color: 'bg-red-100 text-red-700', icon: XCircle }
+  novo: { label: 'Novo', color: 'bg-blue-100 text-blue-700', icon: Clock },
+  contatado: { label: 'Contatado', color: 'bg-yellow-100 text-yellow-700', icon: Phone },
+  negociando: { label: 'Negociando', color: 'bg-purple-100 text-purple-700', icon: TrendingUp },
+  fechado: { label: 'Fechado', color: 'bg-green-100 text-green-700', icon: CheckCircle },
+  perdido: { label: 'Perdido', color: 'bg-red-100 text-red-700', icon: XCircle }
 };
 
 // Função helper para buscar config de status com fallback seguro
 const getStatusConfig = (status: string | undefined | null) => {
-  if (!status) return statusConfig.new;
+  if (!status) return statusConfig.novo;
   
-  // Normalizar para minúsculas e remover espaços
-  const normalizedStatus = status.toLowerCase().trim();
+  // Normalizar para minúsculas e remover espaços (defensivo)
+  const normalizedStatus = status.toLowerCase().trim() as keyof typeof statusConfig;
   
-  // Mapear possíveis variações para os status corretos
-  const statusMap: Record<string, keyof typeof statusConfig> = {
-    'new': 'new',
-    'novo': 'new',
-    'contacted': 'contacted',
-    'contatado': 'contacted',
-    'negotiating': 'negotiating',
-    'negociando': 'negotiating',
-    'closed': 'closed',
-    'fechado': 'closed',
-    'lost': 'lost',
-    'perdido': 'lost'
-  };
-  
-  const mappedStatus = statusMap[normalizedStatus];
-  return statusConfig[mappedStatus] || statusConfig.new;
+  // Retornar config ou fallback para 'novo'
+  return statusConfig[normalizedStatus] || statusConfig.novo;
 };
 
 const LeadsView: React.FC = () => {
@@ -66,17 +54,60 @@ const LeadsView: React.FC = () => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Estados de paginação
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  
+  // Ref para o elemento sentinela do IntersectionObserver
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchLeads();
+    fetchLeads(true);
   }, [user]);
 
-  const fetchLeads = async () => {
+  // IntersectionObserver para scroll infinito
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Só carregar mais se não estiver filtrando (filtro 'all')
+        // Para filtros específicos, mostrar apenas os já carregados
+        if (
+          entries[0].isIntersecting && 
+          hasMore && 
+          !loadingMore && 
+          !isLoading &&
+          filterStatus === 'all'
+        ) {
+          loadMoreLeads();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [hasMore, loadingMore, isLoading, page, filterStatus]);
+
+  const fetchLeads = async (reset: boolean = false) => {
     if (!user) return;
 
-    setIsLoading(true);
+    const currentPage = reset ? 0 : page;
+    setIsLoading(reset);
+    
     try {
-      const { data, error } = await supabase
+      const from = currentPage * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error, count } = await supabase
         .from('leads')
         .select(`
           *,
@@ -85,9 +116,10 @@ const LeadsView: React.FC = () => {
             price,
             images
           )
-        `)
+        `, { count: 'exact' })
         .eq('seller_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
 
@@ -98,13 +130,70 @@ const LeadsView: React.FC = () => {
         announcement_image: lead.announcements?.images?.[0]
       }));
 
-      setLeads(mappedLeads);
+      if (reset) {
+        setLeads(mappedLeads);
+        setPage(0);
+      } else {
+        setLeads(prev => [...prev, ...mappedLeads]);
+      }
+
+      // Verificar se há mais páginas
+      const totalLoaded = reset ? mappedLeads.length : leads.length + mappedLeads.length;
+      setHasMore(count ? totalLoaded < count : false);
+      
     } catch (error) {
       console.error('Erro ao buscar leads:', error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const loadMoreLeads = useCallback(async () => {
+    if (!user || loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    
+    try {
+      const from = nextPage * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error, count } = await supabase
+        .from('leads')
+        .select(`
+          *,
+          announcements (
+            title,
+            price,
+            images
+          )
+        `, { count: 'exact' })
+        .eq('seller_id', user.id)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+
+      const mappedLeads: Lead[] = data.map((lead: any) => ({
+        ...lead,
+        announcement_title: lead.announcements?.title,
+        announcement_price: lead.announcements?.price,
+        announcement_image: lead.announcements?.images?.[0]
+      }));
+
+      setLeads(prev => [...prev, ...mappedLeads]);
+      setPage(nextPage);
+
+      // Verificar se há mais páginas
+      const totalLoaded = leads.length + mappedLeads.length;
+      setHasMore(count ? totalLoaded < count : false);
+      
+    } catch (error) {
+      console.error('Erro ao carregar mais leads:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [user, page, leads.length, hasMore, loadingMore]);
 
   const updateLeadStatus = async (leadId: string, newStatus: Lead['status']) => {
     setIsUpdating(true);
@@ -144,23 +233,10 @@ const LeadsView: React.FC = () => {
     });
   };
 
-  // Normalizar status para comparação segura
+  // Normalizar status para comparação segura (apenas lowercase e trim, sem tradução)
   const normalizeStatus = (status: string | undefined | null): string => {
-    if (!status) return 'new';
-    const normalized = status.toLowerCase().trim();
-    const statusMap: Record<string, string> = {
-      'new': 'new',
-      'novo': 'new',
-      'contacted': 'contacted',
-      'contatado': 'contacted',
-      'negotiating': 'negotiating',
-      'negociando': 'negotiating',
-      'closed': 'closed',
-      'fechado': 'closed',
-      'lost': 'lost',
-      'perdido': 'lost'
-    };
-    return statusMap[normalized] || 'new';
+    if (!status) return 'novo';
+    return status.toLowerCase().trim();
   };
 
   const filteredLeads = leads.filter(lead => {
@@ -170,13 +246,13 @@ const LeadsView: React.FC = () => {
 
   const stats = {
     total: leads.length,
-    new: leads.filter(l => normalizeStatus(l.status) === 'new').length,
-    contacted: leads.filter(l => normalizeStatus(l.status) === 'contacted').length,
-    negotiating: leads.filter(l => normalizeStatus(l.status) === 'negotiating').length,
-    closed: leads.filter(l => normalizeStatus(l.status) === 'closed').length,
-    lost: leads.filter(l => normalizeStatus(l.status) === 'lost').length,
+    novo: leads.filter(l => normalizeStatus(l.status) === 'novo').length,
+    contatado: leads.filter(l => normalizeStatus(l.status) === 'contatado').length,
+    negociando: leads.filter(l => normalizeStatus(l.status) === 'negociando').length,
+    fechado: leads.filter(l => normalizeStatus(l.status) === 'fechado').length,
+    perdido: leads.filter(l => normalizeStatus(l.status) === 'perdido').length,
     conversionRate: leads.length > 0
-      ? ((leads.filter(l => normalizeStatus(l.status) === 'closed').length / leads.length) * 100).toFixed(1)
+      ? ((leads.filter(l => normalizeStatus(l.status) === 'fechado').length / leads.length) * 100).toFixed(1)
       : '0'
   };
 
@@ -199,27 +275,27 @@ const LeadsView: React.FC = () => {
         
         <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
           <p className="text-xs text-blue-600 font-bold uppercase mb-1">Novos</p>
-          <p className="text-2xl font-black text-blue-700">{stats.new}</p>
+          <p className="text-2xl font-black text-blue-700">{stats.novo}</p>
         </div>
         
         <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-4">
           <p className="text-xs text-yellow-600 font-bold uppercase mb-1">Contatados</p>
-          <p className="text-2xl font-black text-yellow-700">{stats.contacted}</p>
+          <p className="text-2xl font-black text-yellow-700">{stats.contatado}</p>
         </div>
         
         <div className="bg-purple-50 rounded-xl border border-purple-200 p-4">
           <p className="text-xs text-purple-600 font-bold uppercase mb-1">Negociando</p>
-          <p className="text-2xl font-black text-purple-700">{stats.negotiating}</p>
+          <p className="text-2xl font-black text-purple-700">{stats.negociando}</p>
         </div>
         
         <div className="bg-green-50 rounded-xl border border-green-200 p-4">
           <p className="text-xs text-green-600 font-bold uppercase mb-1">Fechados</p>
-          <p className="text-2xl font-black text-green-700">{stats.closed}</p>
+          <p className="text-2xl font-black text-green-700">{stats.fechado}</p>
         </div>
         
         <div className="bg-red-50 rounded-xl border border-red-200 p-4">
           <p className="text-xs text-red-600 font-bold uppercase mb-1">Perdidos</p>
-          <p className="text-2xl font-black text-red-700">{stats.lost}</p>
+          <p className="text-2xl font-black text-red-700">{stats.perdido}</p>
         </div>
         
         <div className="bg-slate-900 rounded-xl p-4 text-white">
@@ -227,6 +303,18 @@ const LeadsView: React.FC = () => {
           <p className="text-2xl font-black">{stats.conversionRate}%</p>
         </div>
       </div>
+
+      {/* Info de Paginação */}
+      {hasMore && filterStatus === 'all' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            <p className="text-sm text-blue-700 font-medium">
+              Carregados {leads.length} leads • Rolagem infinita ativada
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-2">
@@ -269,7 +357,7 @@ const LeadsView: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-slate-200 max-h-[800px] overflow-y-auto scroll-smooth">
             {filteredLeads.map((lead) => {
               const config = getStatusConfig(lead.status);
               const StatusIcon = config.icon;
@@ -280,6 +368,7 @@ const LeadsView: React.FC = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="p-6 hover:bg-slate-50 transition-colors cursor-pointer"
+                  style={{ contentVisibility: 'auto' }}
                   onClick={() => setSelectedLead(lead)}
                 >
                   <div className="flex gap-4">
@@ -370,7 +459,7 @@ const LeadsView: React.FC = () => {
                           Responder
                         </button>
 
-                        {normalizeStatus(lead.status) !== 'closed' && normalizeStatus(lead.status) !== 'lost' && (
+                        {normalizeStatus(lead.status) !== 'fechado' && normalizeStatus(lead.status) !== 'perdido' && (
                           <select
                             value={normalizeStatus(lead.status)}
                             onChange={(e) => {
@@ -381,11 +470,11 @@ const LeadsView: React.FC = () => {
                             className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <option value="new">Marcar como Novo</option>
-                            <option value="contacted">Marcar como Contatado</option>
-                            <option value="negotiating">Marcar como Negociando</option>
-                            <option value="closed">Marcar como Fechado</option>
-                            <option value="lost">Marcar como Perdido</option>
+                            <option value="novo">Marcar como Novo</option>
+                            <option value="contatado">Marcar como Contatado</option>
+                            <option value="negociando">Marcar como Negociando</option>
+                            <option value="fechado">Marcar como Fechado</option>
+                            <option value="perdido">Marcar como Perdido</option>
                           </select>
                         )}
                       </div>
@@ -394,6 +483,45 @@ const LeadsView: React.FC = () => {
                 </motion.div>
               );
             })}
+            
+            {/* Elemento Sentinela para IntersectionObserver */}
+            {hasMore && filterStatus === 'all' && (
+              <div ref={observerTarget} className="py-8 flex justify-center items-center">
+                {loadingMore ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="w-6 h-6 text-green-600 animate-spin" />
+                    <p className="text-sm text-slate-500 font-medium">Carregando mais leads...</p>
+                  </div>
+                ) : (
+                  <div className="h-4" /> /* spacer para o observer */
+                )}
+              </div>
+            )}
+            
+            {/* Botão manual para carregar mais quando filtrando */}
+            {hasMore && filterStatus !== 'all' && (
+              <div className="py-6 flex flex-col items-center gap-3 border-t border-slate-200">
+                <p className="text-xs text-slate-500">
+                  Filtrando apenas os leads já carregados. Há mais {leads.length > PAGE_SIZE ? 'leads disponíveis' : 'para carregar'}.
+                </p>
+                <button
+                  onClick={() => {
+                    setFilterStatus('all');
+                    if (hasMore) loadMoreLeads();
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Carregar Todos os Leads
+                </button>
+              </div>
+            )}
+            
+            {/* Mensagem de fim da lista */}
+            {!hasMore && filteredLeads.length > 0 && (
+              <div className="py-6 text-center border-t border-slate-200">
+                <p className="text-xs text-slate-400 font-medium">✓ Todos os leads foram carregados</p>
+              </div>
+            )}
           </div>
         )}
       </div>

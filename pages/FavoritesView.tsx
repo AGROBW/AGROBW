@@ -1,32 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { Heart, ArrowLeft, GitCompare, Inbox, TrendingDown } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Heart, ArrowLeft, GitCompare, Inbox, TrendingDown, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { FavoriteCard } from '../components/FavoriteCard';
-import { Favorite } from '../types';
-import { getFavorites, canCompare, getFavoritesStats } from '../services/favoriteService';
 import { AnimatePresence } from 'framer-motion';
+import { useAuth } from '../src/contexts/AuthContext';
+import { useFavorites } from '../src/hooks/useFavorites';
 
 export const FavoritesView: React.FC = () => {
   const navigate = useNavigate();
-  const [favorites, setFavorites] = useState<Favorite[]>([]);
+  const { user, isLoading: authLoading } = useAuth();
+  const { favorites, isLoading: favoritesLoading, refreshFavorites } = useFavorites();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [stats, setStats] = useState({ total: 0, withPriceReduction: 0, soldOrPaused: 0 });
   
-  useEffect(() => {
-    const storedUser = localStorage.getItem('bwagro_user');
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
-      setCurrentUser(user);
-      loadFavorites(user.id);
-    }
-  }, []);
-  
-  const loadFavorites = (userId: string) => {
-    const userFavorites = getFavorites(userId);
-    setFavorites(userFavorites);
-    setStats(getFavoritesStats(userId));
-  };
+  // Calcular estatísticas dos favoritos
+  const stats = useMemo(() => {
+    let withPriceReduction = 0;
+    let soldOrPaused = 0;
+    
+    favorites.forEach(fav => {
+      const currentPrice = fav.ad.price;
+      const originalPrice = fav.priceAtFavorite;
+      
+      if (currentPrice < originalPrice) {
+        withPriceReduction++;
+      }
+      
+      if (fav.ad.status === 'SOLD' || fav.ad.status === 'PAUSED') {
+        soldOrPaused++;
+      }
+    });
+    
+    return {
+      total: favorites.length,
+      withPriceReduction,
+      soldOrPaused
+    };
+  }, [favorites]);
   
   const handleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -41,14 +50,13 @@ export const FavoritesView: React.FC = () => {
     });
   };
   
-  const handleRemove = () => {
-    if (currentUser) {
-      loadFavorites(currentUser.id);
-    }
+  const handleRemove = async () => {
+    await refreshFavorites();
   };
   
   const handleCompare = () => {
-    if (canCompare(selectedIds)) {
+    const canCompare = selectedIds.length >= 2 && selectedIds.length <= 4;
+    if (canCompare) {
       // Navegar para página de comparação (a ser implementada)
       alert(`Comparando ${selectedIds.length} anúncios selecionados`);
     }
@@ -62,11 +70,34 @@ export const FavoritesView: React.FC = () => {
     }
   };
   
-  if (!currentUser) {
+  // Aguardar carregamento da autenticação e favoritos
+  if (authLoading || favoritesLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-slate-600">Faça login para acessar seus favoritos</p>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+          <p className="text-sm text-slate-600">Carregando favoritos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Exibir mensagem de login apenas após confirmar que não há usuário
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Heart className="w-16 h-16 text-slate-300 mx-auto" />
+          <div>
+            <p className="text-lg font-semibold text-slate-700 mb-2">Faça login para acessar seus favoritos</p>
+            <p className="text-sm text-slate-500">Você precisa estar autenticado para visualizar seus favoritos</p>
+          </div>
+          <button
+            onClick={() => navigate('/login')}
+            className="px-6 py-2.5 bg-green-700 text-white font-semibold rounded-lg hover:bg-green-800 transition-colors"
+          >
+            Fazer Login
+          </button>
         </div>
       </div>
     );
@@ -131,7 +162,7 @@ export const FavoritesView: React.FC = () => {
                 )}
               </div>
               
-              {canCompare(selectedIds) && (
+              {selectedIds.length >= 2 && selectedIds.length <= 4 && (
                 <button
                   onClick={handleCompare}
                   className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-800 transition-colors"
@@ -170,7 +201,7 @@ export const FavoritesView: React.FC = () => {
                 <FavoriteCard
                   key={favorite.id}
                   favorite={favorite}
-                  userId={currentUser.id}
+                  userId={user.id}
                   isSelected={selectedIds.includes(favorite.id)}
                   onSelect={handleSelect}
                   onRemove={handleRemove}

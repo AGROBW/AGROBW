@@ -58,6 +58,11 @@ export interface Ad {
   highlightCategoryUntil?: string;
   highlightHome?: boolean;
   highlightHomeUntil?: string;
+  users?: {
+    name: string;
+    avatar?: string;
+    document_verified?: boolean;
+  };
 }
 
 export interface AdMetrics {
@@ -99,6 +104,8 @@ export interface User {
   role: UserRole;
   phone: string;
   document?: string;
+  document_path?: string; // Caminho do documento de verificação
+  document_verified?: boolean; // Status de validação OCR do documento
   whatsapp?: string;
   cep?: string;
   logradouro?: string;
@@ -112,6 +119,7 @@ export interface User {
   plan?: 'seed' | 'boost' | 'harvest';
   twoFactorEnabled?: boolean;
   isAdmin?: boolean;
+  credits?: number;
 }
 
 export interface Banner {

@@ -91,7 +91,7 @@ export const usePublicAds = (filters?: {
         .select(`
           *,
           categories (name, slug),
-          users (name, avatar)
+          users (name, avatar, document_verified)
         `)
         .eq('status', 'ACTIVE')
 
@@ -157,7 +157,12 @@ export const usePublicAds = (filters?: {
           highlightCategory: ad.highlight_category || false,
           highlightCategoryUntil: ad.highlight_category_until,
           highlightHome: ad.highlight_home || false,
-          highlightHomeUntil: ad.highlight_home_until
+          highlightHomeUntil: ad.highlight_home_until,
+          users: ad.users ? {
+            name: ad.users.name,
+            avatar: ad.users.avatar,
+            document_verified: ad.users.document_verified
+          } : undefined
         }))
         setAds(mappedAds)
       }
@@ -254,7 +259,7 @@ export const useAd = (adId: string | undefined) => {
         .select(`
           *,
           categories (name, slug),
-          users (name, avatar, phone),
+          users (name, avatar, phone, document_verified),
           announcement_technical_details (label, value, icon_name)
         `)
         .eq('id', adId)

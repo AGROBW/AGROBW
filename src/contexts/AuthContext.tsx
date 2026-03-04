@@ -80,6 +80,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         name: userData.name || 'Usuário',
         phone: userData.phone,
         document: userData.document,
+        document_path: userData.document_path,
         whatsapp: userData.whatsapp,
         cep: userData.cep,
         logradouro: userData.logradouro,
@@ -92,7 +93,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         location: userData.location || (userData.cidade && userData.estado ? `${userData.cidade}, ${userData.estado}` : userData.cidade),
         avatar: userData.avatar,
         plan: userData.plan,
-        isAdmin: userData.is_admin ?? false
+        isAdmin: userData.is_admin ?? false,
+        credits: userData.credits ?? 0
       }
 
       if (!canSetState || canSetState()) {

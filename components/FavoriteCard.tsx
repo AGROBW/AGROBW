@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Favorite } from '../types';
-import { MapPin, Clock, Eye, Trash2, ExternalLink, ArrowDown, Zap } from 'lucide-react';
-import { getPriceChange, removeFavorite } from '../services/favoriteService';
-import { isOpportunity } from '../services/notificationService';
+import { MapPin, Clock, Eye, Trash2, ExternalLink, TrendingDown } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useFavorites } from '../src/hooks/useFavorites';
 
 interface FavoriteCardProps {
   favorite: Favorite;
@@ -21,9 +20,14 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
   onRemove 
 }) => {
   const [isRemoving, setIsRemoving] = useState(false);
-  const priceChange = getPriceChange(favorite);
+  const { toggleFavorite } = useFavorites();
   const { ad } = favorite;
-  const hasOpportunity = isOpportunity(userId, ad.id);
+  
+  // Calcular diferença de preço
+  const currentPrice = ad.price;
+  const priceAtFavorite = favorite.priceAtFavorite;
+  const priceDifference = priceAtFavorite - currentPrice;
+  const hasPriceReduction = currentPrice < priceAtFavorite;
   
   const isUnavailable = ad.status === 'SOLD' || ad.status === 'PAUSED' || ad.status === 'BLOCKED';
   
@@ -41,9 +45,9 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
   };
   
-  const handleRemove = () => {
+  const handleRemove = async () => {
     setIsRemoving(true);
-    removeFavorite(userId, favorite.id);
+    await toggleFavorite(ad.id, currentPrice);
     setTimeout(() => {
       onRemove();
     }, 300);
@@ -67,24 +71,19 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
           className="w-full h-full object-cover"
         />
         
-        {/* Badge de Preço */}
+        {/* Badge de Preço Atual */}
         <div className="absolute top-3 right-3 bg-green-700 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg">
-          {formatPrice(ad.price)}
+          {formatPrice(currentPrice)}
         </div>
         
-        {/* Selo de Preço Reduzido */}
-        {priceChange.isReduced && !isUnavailable && (
-          <div className="absolute top-3 left-3 bg-red-600 text-white px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 shadow-lg">
-            <ArrowDown className="w-3 h-3" strokeWidth={1.5} />
-            -{priceChange.percentChange.toFixed(0)}%
-          </div>
-        )}
-        
-        {/* Selo de Oportunidade */}
-        {hasOpportunity && !isUnavailable && (
-          <div className="absolute top-14 left-3 bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 shadow-lg animate-pulse">
-            <Zap className="w-3 h-3 fill-current" strokeWidth={1.5} />
-            Oportunidade
+        {/* Badge de Economia - Mostra apenas se o preço atual for menor */}
+        {hasPriceReduction && !isUnavailable && (
+          <div className="absolute top-3 left-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg animate-pulse">
+            <TrendingDown className="w-4 h-4" strokeWidth={2} />
+            <div className="flex flex-col leading-none">
+              <span className="text-[10px] opacity-90">Baixou</span>
+              <span className="text-sm">{formatPrice(priceDifference)}</span>
+            </div>
           </div>
         )}
         
@@ -160,12 +159,18 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
         </div>
         
         {/* Indicador de mudança de preço */}
-        {priceChange.hasChanged && !isUnavailable && (
+        {hasPriceReduction && !isUnavailable && (
           <div className="mt-3 pt-3 border-t">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500">Preço anterior:</span>
-              <span className={`font-semibold ${priceChange.isReduced ? 'text-green-700' : 'text-red-600'}`}>
-                {formatPrice(favorite.priceAtFavorite)}
+              <span className="text-slate-500">Preço ao favoritar:</span>
+              <span className="font-semibold text-slate-700 line-through">
+                {formatPrice(priceAtFavorite)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs mt-1">
+              <span className="text-green-700 font-semibold">Economia:</span>
+              <span className="font-bold text-green-700">
+                {formatPrice(priceDifference)}
               </span>
             </div>
           </div>

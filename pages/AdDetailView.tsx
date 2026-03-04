@@ -5,6 +5,7 @@ import { AlertTriangle, ChevronRight, Clock, DollarSign, Eye, Heart, MessageCirc
 import { useAd } from '../src/hooks/useAds';
 import { useAuth } from '../src/contexts/AuthContext';
 import ContactSellerModal from '../components/ContactSellerModal';
+import VerifiedBadge from '../components/VerifiedBadge';
 import toast from 'react-hot-toast';
 
 // Mapa de ícones para renderizar dinamicamente
@@ -195,15 +196,20 @@ const AdDetailView: React.FC = () => {
               <div className="pt-8 border-t border-gray-50 space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center text-xl font-bold text-slate-500 overflow-hidden">
-                    {(ad as any).users?.avatar ? (
-                      <img src={(ad as any).users.avatar} alt={(ad as any).users?.name || 'Vendedor'} className="w-full h-full object-cover" />
+                    {ad.users?.avatar ? (
+                      <img src={ad.users.avatar} alt={ad.users?.name || 'Vendedor Profissional'} className="w-full h-full object-cover" />
                     ) : (
-                      <span>{((ad as any).users?.name || 'V')[0].toUpperCase()}</span>
+                      <span>{(ad.users?.name || 'Vendedor Profissional')[0].toUpperCase()}</span>
                     )}
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-900">{(ad as any).users?.name || 'Vendedor'}</h4>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Vendedor Verificado</p>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-slate-900">{ad.users?.name || 'Vendedor Profissional'}</h4>
+                      {ad.users?.document_verified && <VerifiedBadge variant="icon-only" />}
+                    </div>
+                    {ad.users?.document_verified && (
+                      <p className="text-xs text-emerald-600 font-semibold mt-0.5">Identidade Verificada</p>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">

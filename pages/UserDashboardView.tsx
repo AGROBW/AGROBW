@@ -14,6 +14,7 @@ import PlanGuard from '../components/PlanGuard';
 import MessagesView from '../components/MessagesView';
 import LeadsView from '../components/LeadsView';
 import HighlightConfirmationModal from '../components/HighlightConfirmationModal';
+import VerifiedBadge from '../components/VerifiedBadge';
 import toast from 'react-hot-toast';
 import { useDashboardStats } from '../src/hooks/useDashboardStats';
 import { 
@@ -61,7 +62,7 @@ const AdsSkeletonList = ({ count = 3 }: { count?: number }) => (
 const UserDashboardView: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, stats, signOut } = useAuth();
+  const { user, stats, signOut, refreshStats } = useAuth();
   const { ads, isLoading: adsLoading } = useUserAds();
   const { chats } = useChats();
   const { unreadCount: unreadNotifications } = useNotifications();
@@ -70,6 +71,16 @@ const UserDashboardView: React.FC = () => {
   const [userAdsLoading, setUserAdsLoading] = useState(false);
   const { invoices, isLoading: invoicesLoading } = useInvoices();
   const [newLeadsCount, setNewLeadsCount] = useState(0);
+  
+  // Estados para upload
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [isValidatingDocument, setIsValidatingDocument] = useState(false);
+  const [validationResult, setValidationResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
   
   const isPremium = user?.plan && user.plan !== 'seed';
   const unreadMessagesCount = chats.reduce((sum, chat) => sum + chat.unreadCount, 0);
@@ -119,6 +130,352 @@ const UserDashboardView: React.FC = () => {
       isActive = false;
     };
   }, [user?.id]);
+
+  // Função para slugificar nome do usuário
+  const slugify = (text: string): string => {
+    return text
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '_') // Espaços -> underscores
+      .replace(/[^\w\-]+/g, '') // Remove caracteres especiais
+      .replace(/\_\_+/g, '_') // Múltiplos underscores -> um
+      .replace(/^-+/, '') // Remove hífen do início
+      .replace(/-+$/, ''); // Remove hífen do fim
+  };
+
+  // Função auxiliar para formatar CPF ou CNPJ
+  const formatDocument = (doc: string): string => {
+    const cleanDoc = doc.replace(/\D/g, '');
+    
+    if (cleanDoc.length === 11) {
+      // CPF: 000.000.000-00
+      return cleanDoc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    } else if (cleanDoc.length === 14) {
+      // CNPJ: 00.000.000/0000-00
+      return cleanDoc.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    }
+    
+    return cleanDoc; // Retorna sem formatação se não for CPF nem CNPJ
+  };
+
+  // Função para extrair CPF/CNPJ de texto usando regex
+  const extractDocumentFromText = (text: string): string | null => {
+    // Remover quebras de linha e múltiplos espaços, mas manter espaços únicos
+    const normalizedText = text.replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ');
+    
+    // Regex flexível para CNPJ: aceita separadores opcionais (., -, /, espaço)
+    // Exemplos: 61.232.149/0001-90, 61232149/0001-90, 61 232 149/0001-90
+    const cnpjRegex = /\d{2}[.\s]?\d{3}[.\s]?\d{3}[/\s]?\d{4}[-\s]?\d{2}/g;
+    
+    // Regex flexível para CPF: aceita separadores opcionais (., -, espaço)
+    // Exemplos: 029.177.601-92, 029177601-92, 029 177 601-92
+    const cpfRegex = /\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2}/g;
+    
+    // Buscar CNPJ primeiro (14 dígitos) - prioridade para empresas
+    const cnpjMatches = normalizedText.match(cnpjRegex);
+    if (cnpjMatches && cnpjMatches.length > 0) {
+      // Remover todos os caracteres não numéricos
+      const cnpj = cnpjMatches[0].replace(/\D/g, '');
+      if (cnpj.length === 14) {
+        console.log('[OCR] CNPJ encontrado:', cnpjMatches[0], '→', cnpj);
+        return cnpj;
+      }
+    }
+    
+    // Buscar CPF (11 dígitos)
+    const cpfMatches = normalizedText.match(cpfRegex);
+    if (cpfMatches && cpfMatches.length > 0) {
+      // Remover todos os caracteres não numéricos
+      const cpf = cpfMatches[0].replace(/\D/g, '');
+      if (cpf.length === 11) {
+        console.log('[OCR] CPF encontrado:', cpfMatches[0], '→', cpf);
+        return cpf;
+      }
+    }
+    
+    console.log('[OCR] Nenhum CPF/CNPJ encontrado no texto');
+    return null;
+  };
+
+  // Função para validar documento via OCR.space API
+  const validateDocumentWithOCR = async (file: File): Promise<{
+    success: boolean;
+    message: string;
+    extractedDocument?: string;
+  }> => {
+    try {
+      // Preparar FormData para enviar à API
+      const formData = new FormData();
+      formData.append('apikey', 'K85883462288957');
+      formData.append('language', 'por');
+      formData.append('isOverlayRequired', 'false');
+      formData.append('file', file);
+      
+      // Adicionar filetype para PDFs
+      if (file.type === 'application/pdf') {
+        formData.append('filetype', 'PDF');
+      }
+
+      // Enviar para OCR.space API
+      const response = await fetch('https://api.ocr.space/parse/image', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao comunicar com a API de OCR');
+      }
+
+      const data = await response.json();
+
+      // Verificar se houve erro na API
+      if (data.IsErroredOnProcessing) {
+        throw new Error(data.ErrorMessage?.[0] || 'Erro ao processar documento');
+      }
+
+      // Extrair texto do resultado
+      const parsedText = data.ParsedResults?.[0]?.ParsedText;
+      
+      if (!parsedText) {
+        return {
+          success: false,
+          message: '❌ Não foi possível extrair texto do documento. Verifique a qualidade da imagem.'
+        };
+      }
+
+      console.log('[OCR] Texto extraído:', parsedText);
+
+      // Extrair CPF/CNPJ do texto
+      const extractedDocument = extractDocumentFromText(parsedText);
+
+      if (!extractedDocument) {
+        return {
+          success: false,
+          message: '❌ Não foi possível identificar CPF ou CNPJ no documento.'
+        };
+      }
+
+      console.log('[OCR] Documento extraído:', extractedDocument);
+
+      // Comparar com documento do usuário
+      const userDocument = user?.document?.replace(/\D/g, ''); // Remover formatação
+
+      if (!userDocument) {
+        return {
+          success: false,
+          message: '⚠️ Você ainda não cadastrou seu CPF/CNPJ no perfil.',
+          extractedDocument
+        };
+      }
+
+      // Verificar correspondência
+      if (extractedDocument === userDocument) {
+        return {
+          success: true,
+          message: '✅ Documento validado com sucesso! Os dados conferem.',
+          extractedDocument
+        };
+      } else {
+        return {
+          success: false,
+          message: `❌ Os dados do documento não batem com o seu perfil. Documento extraído: ${formatDocument(extractedDocument)} | Cadastrado: ${formatDocument(userDocument)}`,
+          extractedDocument
+        };
+      }
+
+    } catch (error: any) {
+      console.error('[OCR] Erro:', error);
+      return {
+        success: false,
+        message: `❌ Erro ao validar documento: ${error.message}`
+      };
+    }
+  };
+
+  // Função para upload de avatar
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validar tipo de arquivo
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecione uma imagem válida');
+      return;
+    }
+
+    // Validar tamanho (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 5MB');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    
+    try {
+      const userName = slugify(user.name);
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${userName}/perfil.${fileExt}`;
+
+      // Upload para o Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, {
+          upsert: true, // Substituir arquivo existente
+          contentType: file.type
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Obter URL pública
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // Atualizar coluna avatar na tabela users
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ avatar: urlData.publicUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      // Forçar atualização do contexto (recarregar usuário)
+      window.location.reload();
+      
+      toast.success('Foto de perfil atualizada com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao fazer upload do avatar:', error);
+      toast.error(error.message || 'Erro ao atualizar foto de perfil');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  // Função para upload de documentos
+  const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validar tipo de arquivo (PDF, JPG, PNG)
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Por favor, selecione um PDF ou imagem (JPG/PNG)');
+      return;
+    }
+
+    // Validar tamanho (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('O documento deve ter no máximo 10MB');
+      return;
+    }
+
+    setIsUploadingDocument(true);
+    setValidationResult(null);
+    
+    try {
+      const userName = slugify(user.name);
+      const fileName = file.name;
+      const filePath = `${userName}/${fileName}`;
+
+      // Upload para o Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('verification_docs')
+        .upload(filePath, file, {
+          upsert: true,
+          contentType: file.type
+        });
+
+      if (uploadError) throw uploadError;
+
+      toast.success('Documento enviado! Iniciando validação...');
+      setIsUploadingDocument(false);
+      
+      // Verificar se é PDF grande (>1MB) - análise manual
+      const isPDF = file.type === 'application/pdf';
+      const isPDFTooLarge = isPDF && file.size > 1 * 1024 * 1024; // 1MB
+      
+      if (isPDFTooLarge) {
+        // PDF grande: análise manual
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ 
+            document_path: filePath,
+            document_verified: null
+          })
+          .eq('id', user.id);
+
+        if (updateError) throw updateError;
+        
+        setUploadSuccess('📄 PDF enviado! Por ser um arquivo grande, aguarde análise manual da equipe.');
+      } else {
+        // Imagens ou PDFs pequenos: validação OCR automática
+        setIsValidatingDocument(true);
+        
+        const validationResult = await validateDocumentWithOCR(file);
+        setValidationResult(validationResult);
+        
+        if (validationResult.success) {
+          // Atualizar document_path com validação aprovada
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({ 
+              document_path: filePath,
+              document_verified: true
+            })
+            .eq('id', user.id);
+
+          if (updateError) console.error('Erro ao atualizar status:', updateError);
+          
+          // Atualizar contexto de autenticação para refletir mudança sem reload
+          await refreshStats();
+          
+          // Toast especial de sucesso com celebração
+          toast.success(
+            '🎉 Parabéns! Sua identidade foi confirmada e você agora é um Vendedor Verificado.',
+            {
+              duration: 6000,
+              style: {
+                background: '#059669',
+                color: '#fff',
+                fontWeight: 'bold',
+                padding: '16px',
+              },
+              icon: '🎊',
+            }
+          );
+          
+          setUploadSuccess(`✅ ${isPDF ? 'PDF' : 'Documento'} validado e enviado com sucesso!`);
+        } else {
+          // Salvar mesmo se não validado (para revisão manual)
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({ 
+              document_path: filePath,
+              document_verified: false
+            })
+            .eq('id', user.id);
+
+          if (updateError) console.error('Erro ao atualizar status:', updateError);
+        }
+        
+        setIsValidatingDocument(false);
+      }
+      
+      // Limpar mensagens após 10 segundos
+      setTimeout(() => {
+        setUploadSuccess(null);
+        setValidationResult(null);
+      }, 10000);
+      
+    } catch (error: any) {
+      console.error('Erro ao fazer upload do documento:', error);
+      toast.error(error.message || 'Erro ao enviar documento');
+    } finally {
+      setIsUploadingDocument(false);
+      setIsValidatingDocument(false);
+    }
+  };
 
   const menuItems = [
     { label: 'Visão Geral', path: '/minha-conta', icon: <Icons.Dashboard />, badge: 0 },
@@ -705,8 +1062,21 @@ const UserDashboardView: React.FC = () => {
 
   const FinanceDashboard = () => {
     const nextInvoice = invoices.find((inv) => inv.status !== 'PAID') || invoices[0];
-    const currentPlan = user?.plan ? user.plan : 'seed';
-    const isBoostPlan = currentPlan === 'boost';
+    
+    // Buscar nome do plano da assinatura
+    const planName = subscription?.plans?.name || 'Semente';
+    const planPrice = subscription?.plans ? 0 : 0; // Preço será calculado via RPC ou tabela de preços
+    
+    // Formatar data de vencimento
+    const periodEnd = subscription?.current_period_end 
+      ? new Date(subscription.current_period_end).toLocaleDateString('pt-BR')
+      : 'N/A';
+    
+    // Créditos do usuário
+    const userCredits = user?.credits || 0;
+    
+    // Verificar se é plano Impulso para mostrar banner de upgrade
+    const isBoostPlan = subscription?.plans?.name?.toLowerCase().includes('impulso');
 
     const statusBadge = (status: string) => {
       if (status === 'PAID') return 'bg-green-100 text-green-700';
@@ -719,37 +1089,58 @@ const UserDashboardView: React.FC = () => {
       PENDING: 'Pendente',
       OVERDUE: 'Vencido'
     };
+    
+    const handleManagePlan = () => {
+      // Redirecionar para página de planos com ID do plano atual
+      navigate(`/planos?current=${subscription?.plan_id || ''}`);
+    };
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Card: Plano Atual */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-green-700/10 text-green-700 flex items-center justify-center">
               <CreditCard className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Plano Atual</p>
-              <p className="text-sm font-semibold text-slate-900">{currentPlan === 'boost' ? 'Impulso' : currentPlan === 'harvest' ? 'Colheita' : 'Semente'}</p>
+              <p className="text-sm font-semibold text-slate-900">{planName}</p>
             </div>
           </div>
 
+          {/* Card: Próxima Fatura */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-slate-900/5 text-slate-700 flex items-center justify-center">
               <DollarSign className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Próxima Fatura</p>
-              <p className="text-sm font-semibold text-slate-900">R$ {nextInvoice?.amount.toLocaleString('pt-BR')}</p>
+              <p className="text-sm font-semibold text-slate-900">
+                {nextInvoice ? `R$ ${nextInvoice.amount.toLocaleString('pt-BR')}` : 'N/A'}
+              </p>
             </div>
           </div>
 
+          {/* Card: Vencimento */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-slate-900/5 text-slate-700 flex items-center justify-center">
               <FileText className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Vencimento</p>
-              <p className="text-sm font-semibold text-slate-900">{nextInvoice?.date}</p>
+              <p className="text-sm font-semibold text-slate-900">{periodEnd}</p>
+            </div>
+          </div>
+          
+          {/* Card: Meus Créditos */}
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg bg-green-700 text-white flex items-center justify-center">
+              <Sparkles className="w-5 h-5" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wider">Meus Créditos</p>
+              <p className="text-sm font-bold text-green-900">{userCredits}</p>
             </div>
           </div>
         </div>
@@ -764,7 +1155,10 @@ const UserDashboardView: React.FC = () => {
               <button className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                 Atualizar Pagamento
               </button>
-              <button className="h-9 px-4 rounded-lg bg-green-700 text-white text-sm font-semibold hover:bg-green-800">
+              <button 
+                onClick={handleManagePlan}
+                className="h-9 px-4 rounded-lg bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
+              >
                 Gerenciar Plano
               </button>
             </div>
@@ -897,9 +1291,25 @@ const UserDashboardView: React.FC = () => {
               alt={userName}
               className="w-16 h-16 rounded-xl object-cover"
             />
-            <button className="absolute -bottom-2 -right-2 w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center">
-              <Camera className="w-4 h-4" strokeWidth={1.5} />
-            </button>
+            <label 
+              htmlFor="avatar-upload" 
+              className="absolute -bottom-2 -right-2 w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center cursor-pointer hover:bg-slate-800 transition-colors"
+              title="Alterar foto de perfil"
+            >
+              {isUploadingAvatar ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Camera className="w-4 h-4" strokeWidth={1.5} />
+              )}
+            </label>
+            <input
+              id="avatar-upload"
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+              className="hidden"
+              disabled={isUploadingAvatar}
+            />
           </div>
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-3">
@@ -1019,14 +1429,84 @@ const UserDashboardView: React.FC = () => {
                 <h4 className="text-sm font-semibold">Central de Verificação</h4>
               </div>
               <div className="border border-dashed border-slate-200 rounded-lg p-5 text-center">
-                <input type="file" className="hidden" id="doc-upload" />
-                <label htmlFor="doc-upload" className="inline-flex items-center gap-2 text-sm font-semibold text-green-700 cursor-pointer">
-                  <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
-                  Enviar Documento (RG/CNH ou Contrato Social)
+                <input 
+                  type="file" 
+                  className="hidden" 
+                  id="doc-upload"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={handleDocumentUpload}
+                  disabled={isUploadingDocument || isValidatingDocument}
+                />
+                <label 
+                  htmlFor="doc-upload" 
+                  className={`inline-flex items-center gap-2 text-sm font-semibold cursor-pointer transition-colors ${
+                    isUploadingDocument || isValidatingDocument
+                      ? 'text-slate-400 cursor-not-allowed' 
+                      : 'text-green-700 hover:text-green-800'
+                  }`}
+                >
+                  {isUploadingDocument ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
+                      Enviando documento...
+                    </>
+                  ) : isValidatingDocument ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
+                      Validando com OCR...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
+                      Enviar Documento (RG/CNH ou Contrato Social)
+                    </>
+                  )}
                 </label>
                 <p className="text-xs text-slate-500 mt-2">
-                  Seus dados são protegidos por criptografia e servem apenas para validar sua identidade na plataforma.
+                  Seus dados são protegidos por criptografia. Documentos e PDFs pequenos (&lt;1MB) são validados automaticamente via OCR.
                 </p>
+                
+                {/* Mensagem de Sucesso Geral */}
+                {uploadSuccess && (
+                  <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-xs text-green-700 font-semibold">{uploadSuccess}</p>
+                  </div>
+                )}
+                
+                {/* Resultado da Validação OCR */}
+                {validationResult && (
+                  <div className={`mt-3 p-3 border rounded-lg ${
+                    validationResult.success 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-red-50 border-red-200'
+                  }`}>
+                    <div className="flex items-start gap-2">
+                      <div className="flex-shrink-0 mt-0.5">
+                        {validationResult.success ? (
+                          <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">✓</span>
+                          </div>
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">✕</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className={`text-xs font-semibold ${
+                          validationResult.success ? 'text-green-700' : 'text-red-700'
+                        }`}>
+                          {validationResult.message}
+                        </p>
+                        {!validationResult.success && (
+                          <p className="text-xs text-slate-600 mt-2">
+                            💡 Dica: Certifique-se de que a imagem está nítida e o documento está bem enquadrado.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </PlanGuard>
@@ -1079,7 +1559,10 @@ const UserDashboardView: React.FC = () => {
       <main className="flex-grow p-6 lg:p-10 max-w-7xl mx-auto w-full">
         <header className="flex justify-between items-center mb-10">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Olá, {user?.name.split(' ')[0]}</h2>
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="text-2xl font-bold text-gray-900">Olá, {user?.name.split(' ')[0]}</h2>
+              {user?.document_verified && <VerifiedBadge variant="small" />}
+            </div>
             <p className="text-sm text-gray-500">Acompanhe seus negócios e oportunidades rurais.</p>
           </div>
           <div className="flex items-center gap-4">
@@ -1087,7 +1570,10 @@ const UserDashboardView: React.FC = () => {
               <div className="w-7 h-7 bg-slate-200 rounded-full overflow-hidden">
                 <img src={user?.avatar} alt="" />
               </div>
-              <span className="text-xs font-bold text-gray-700">{user?.name}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-gray-700">{user?.name}</span>
+                {user?.document_verified && <VerifiedBadge variant="icon-only" />}
+              </div>
             </div>
           </div>
         </header>
