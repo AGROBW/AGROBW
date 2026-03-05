@@ -4,19 +4,14 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, Menu, X, MessageCircle, Bell } from 'lucide-react';
 import AdsSideDrawer from './AdsSideDrawer';
 import { useAuth } from '../src/contexts/AuthContext';
-import { useChats } from '../src/hooks/useMessages';
-import { useNotifications } from '../src/hooks/useNotifications';
+import { useNotificationsCount } from '../src/hooks/useNotificationsCount';
 
 const Header: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isAdsDrawerOpen, setIsAdsDrawerOpen] = useState(false);
   const { user, signOut } = useAuth();
-  const { chats } = useChats();
-  const { unreadCount } = useNotifications();
+  const { messagesCount, notificationsCount, isLoading } = useNotificationsCount();
   const navigate = useNavigate();
-
-  // Calcular mensagens não lidas
-  const unreadMessages = chats.reduce((sum, chat) => sum + chat.unreadCount, 0);
 
   const handleLogout = async () => {
     await signOut();
@@ -57,26 +52,26 @@ const Header: React.FC = () => {
               <div className="flex items-center gap-4">
                 {/* Mensagens */}
                 <Link 
-                  to="/mensagens" 
+                  to="/minha-conta/mensagens" 
                   className="relative p-2 text-slate-600 hover:text-green-700 hover:bg-slate-50 rounded-lg transition-colors"
                 >
                   <MessageCircle className="w-5 h-5" strokeWidth={1.5} />
-                  {unreadMessages > 0 && (
+                  {messagesCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-green-700 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                      {unreadMessages > 9 ? '9+' : unreadMessages}
+                      {messagesCount > 9 ? '9+' : messagesCount}
                     </span>
                   )}
                 </Link>
                 
                 {/* Notificações */}
                 <Link 
-                  to="/notificacoes" 
+                  to="/minha-conta/notificacoes" 
                   className="relative p-2 text-slate-600 hover:text-green-700 hover:bg-slate-50 rounded-lg transition-colors"
                 >
                   <Bell className="w-5 h-5" strokeWidth={1.5} />
-                  {unreadCount > 0 && (
+                  {notificationsCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-green-700 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                      {unreadCount > 9 ? '9+' : unreadCount}
+                      {notificationsCount > 9 ? '9+' : notificationsCount}
                     </span>
                   )}
                 </Link>
@@ -98,7 +93,7 @@ const Header: React.FC = () => {
             )}
             <Link 
               to="/anunciar" 
-              className="bg-green-700 text-white px-5 h-9 rounded-lg text-sm font-semibold hover:bg-green-800 transition-all"
+              className="bg-green-700 text-white px-5 h-9 rounded-lg text-sm font-semibold hover:bg-green-800 transition-all flex items-center justify-center"
             >
               Anunciar Agora
             </Link>
@@ -158,7 +153,7 @@ const Header: React.FC = () => {
               <div className="space-y-2">
                 {/* Mensagens */}
                 <Link 
-                  to="/mensagens" 
+                  to="/minha-conta/mensagens" 
                   onClick={() => setIsOpen(false)}
                   className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
                 >
@@ -166,9 +161,9 @@ const Header: React.FC = () => {
                     <MessageCircle className="w-5 h-5 text-slate-600" strokeWidth={1.5} />
                     <span className="font-medium text-slate-800">Mensagens</span>
                   </div>
-                  {unreadMessages > 0 && (
+                  {messagesCount > 0 && (
                     <span className="bg-green-700 text-white text-xs font-bold rounded-full px-2 py-0.5">
-                      {unreadMessages}
+                      {messagesCount}
                     </span>
                   )}
                 </Link>
@@ -187,7 +182,7 @@ const Header: React.FC = () => {
             ) : (
               <Link to="/login" onClick={() => setIsOpen(false)} className="w-full text-center py-3 text-slate-700 font-medium">Entrar</Link>
             )}
-            <Link to="/anunciar" onClick={() => setIsOpen(false)} className="w-full bg-green-700 text-white h-10 leading-10 rounded-lg font-semibold text-center">Anunciar Agora</Link>
+            <Link to="/anunciar" onClick={() => setIsOpen(false)} className="w-full bg-green-700 text-white h-10 rounded-lg font-semibold flex items-center justify-center">Anunciar Agora</Link>
           </div>
         </div>
       )}

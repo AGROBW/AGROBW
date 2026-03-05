@@ -82,6 +82,62 @@ export const useMessages = (chatId: string | null) => {
   const [error, setError] = useState<string | null>(null)
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
 
+  /**
+   * Marca todas as mensagens de um chat como lidas e atualiza os contadores
+   */
+  const markAsRead = async (targetChatId: string) => {
+    if (!user) return;
+
+    try {
+      // 1. Buscar informações do chat para determinar o papel do usuário
+      const { data: chatData, error: chatError } = await supabase
+        .from('chats')
+        .select('seller_id, buyer_id, unread_count_seller, unread_count_buyer')
+        .eq('id', targetChatId)
+        .single();
+
+      if (chatError || !chatData) {
+        console.error('[markAsRead] Erro ao buscar chat:', chatError);
+        return;
+      }
+
+      const isSeller = chatData.seller_id === user.id;
+      const isBuyer = chatData.buyer_id === user.id;
+
+      if (!isSeller && !isBuyer) {
+        console.warn('[markAsRead] Usuário não é participante do chat');
+        return;
+      }
+
+      // 2. Marcar mensagens como lidas (apenas as recebidas)
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('chat_id', targetChatId)
+        .neq('sender_id', user.id)
+        .eq('is_read', false);
+
+      if (messagesError) {
+        console.error('[markAsRead] Erro ao marcar mensagens como lidas:', messagesError);
+      }
+
+      // 3. Zerar o contador apropriado no chat
+      const updateField = isSeller ? 'unread_count_seller' : 'unread_count_buyer';
+      const { error: chatUpdateError } = await supabase
+        .from('chats')
+        .update({ [updateField]: 0 })
+        .eq('id', targetChatId);
+
+      if (chatUpdateError) {
+        console.error('[markAsRead] Erro ao atualizar contador do chat:', chatUpdateError);
+      }
+
+      console.log(`[markAsRead] Chat ${targetChatId} marcado como lido para ${isSeller ? 'vendedor' : 'comprador'}`);
+    } catch (err) {
+      console.error('[markAsRead] Erro inesperado:', err);
+    }
+  };
+
   useEffect(() => {
     if (!chatId || !user) {
       setMessages([])
@@ -117,19 +173,8 @@ export const useMessages = (chatId: string | null) => {
         }))
         setMessages(mappedMessages)
 
-        // Marcar mensagens como lidas (apenas as recebidas)
-        if (mappedMessages.length > 0) {
-          const { error: updateError } = await supabase
-            .from('messages')
-            .update({ is_read: true })
-            .eq('chat_id', chatId)
-            .neq('sender_id', user.id)
-            .eq('is_read', false);
-          
-          if (updateError) {
-            console.error('Erro ao marcar mensagens como lidas:', updateError);
-          }
-        }
+        // Marcar mensagens como lidas automaticamente ao selecionar o chat
+        await markAsRead(chatId);
       }
       setIsLoading(false)
     }
@@ -169,12 +214,9 @@ export const useMessages = (chatId: string | null) => {
 
           setMessages(prev => [...prev, newMessage])
 
-          // Marcar como lida se não for do próprio usuário
+          // Marcar como lida automaticamente se não for do próprio usuário
           if (payload.new.sender_id !== user.id) {
-            await supabase
-              .from('messages')
-              .update({ is_read: true })
-              .eq('id', payload.new.id)
+            await markAsRead(chatId);
           }
         }
       )
@@ -205,10 +247,13 @@ export const useMessages = (chatId: string | null) => {
       return false
     }
 
+    // Marcar pendências como lidas ao enviar nova mensagem
+    await markAsRead(chatId);
+
     return true
   }
 
-  return { messages, isLoading, error, sendMessage }
+  return { messages, isLoading, error, sendMessage, markAsRead }
 }
 
 export const useLeadStatus = (chatId: string | null) => {

@@ -6,7 +6,7 @@ import { AdStatus, Message, Ad, AdMetrics } from '../types';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useUserAds } from '../src/hooks/useAds';
 import { useChats } from '../src/hooks/useMessages';
-import { useNotifications } from '../src/hooks/useNotifications';
+import { useNotificationsCount } from '../src/hooks/useNotificationsCount';
 import { useSubscription } from '../src/hooks/useSubscription';
 import { supabase } from '../src/lib/supabaseClient';
 import { useInvoices } from '../src/hooks/useInvoices';
@@ -64,8 +64,7 @@ const UserDashboardView: React.FC = () => {
   const navigate = useNavigate();
   const { user, stats, signOut, refreshStats } = useAuth();
   const { ads, isLoading: adsLoading } = useUserAds();
-  const { chats } = useChats();
-  const { unreadCount: unreadNotifications } = useNotifications();
+  const { messagesCount, notificationsCount, isLoading: countsLoading } = useNotificationsCount();
   const { subscription, usage, isLoading: subscriptionLoading } = useSubscription();
   const [userAds, setUserAds] = useState<Ad[]>([]);
   const [userAdsLoading, setUserAdsLoading] = useState(false);
@@ -83,7 +82,6 @@ const UserDashboardView: React.FC = () => {
   } | null>(null);
   
   const isPremium = user?.plan && user.plan !== 'seed';
-  const unreadMessagesCount = chats.reduce((sum, chat) => sum + chat.unreadCount, 0);
 
   // Buscar contagem de novos leads
   useEffect(() => {
@@ -480,10 +478,10 @@ const UserDashboardView: React.FC = () => {
   const menuItems = [
     { label: 'Visão Geral', path: '/minha-conta', icon: <Icons.Dashboard />, badge: 0 },
     { label: 'Meus Anúncios', path: '/minha-conta/anuncios', icon: <Icons.Ads />, badge: 0 },
-    { label: 'Mensagens', path: '/minha-conta/mensagens', icon: <Icons.Messages />, badge: unreadMessagesCount },
+    { label: 'Mensagens', path: '/minha-conta/mensagens', icon: <Icons.Messages />, badge: messagesCount },
     { label: 'Leads', path: '/minha-conta/leads', icon: <Icons.Leads />, badge: newLeadsCount },
     { label: 'Favoritos', path: '/favoritos', icon: <Icons.Favorites />, badge: 0 },
-    { label: 'Notificações', path: '/minha-conta/notificacoes', icon: <Icons.Notifications />, badge: unreadNotifications },
+    { label: 'Notificações', path: '/minha-conta/notificacoes', icon: <Icons.Notifications />, badge: notificationsCount },
     { label: 'Financeiro', path: '/minha-conta/financeiro', icon: <Icons.Finance />, badge: 0 },
     { label: 'Perfil', path: '/minha-conta/perfil', icon: <Icons.Profile />, badge: 0 },
   ];
@@ -607,10 +605,10 @@ const UserDashboardView: React.FC = () => {
           <DashboardStatsCard
             icon={<MessageSquare className="w-6 h-6" strokeWidth={1.5} />}
             label="Novas Mensagens"
-            value={unreadMessagesCount}
+            value={messagesCount}
             bgColor="bg-green-50"
             iconColor="text-green-600"
-            loading={false}
+            loading={countsLoading}
           />
           <DashboardStatsCard
             icon={<Eye className="w-6 h-6" strokeWidth={1.5} />}

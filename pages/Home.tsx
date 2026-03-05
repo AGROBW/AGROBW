@@ -54,7 +54,39 @@ const AdFallbackCard = () => (
 
 const Home: React.FC = () => {
   const { ads, isLoading: adsLoading } = usePublicAds();
-  const premiumAds = ads.filter(ad => ad.isPremium);
+  
+  // Filtrar anúncios em destaque da Home (highlight_home = true e não expirados)
+  const highlightedAds = ads
+    .filter(ad => {
+      // Verificar se highlight_home está ativo
+      const isHomeHighlight = ad.highlightHome && 
+        (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date());
+      return isHomeHighlight;
+    })
+    .sort((a, b) => {
+      // Ordenar por data de criação (mais recentes primeiro)
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
+    })
+    .slice(0, 4); // Limitar a 4 anúncios para manter o layout
+
+  // Filtrar anúncios recentes (EXCLUIR os que estão em destaque na Home)
+  const recentAds = ads
+    .filter(ad => {
+      // Verificar se o anúncio NÃO está em destaque home ativo
+      const isHomeHighlight = ad.highlightHome && 
+        (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date());
+      return !isHomeHighlight; // Retornar apenas os que NÃO estão em destaque
+    })
+    .sort((a, b) => {
+      // Ordenar por data de criação (mais recentes primeiro)
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
+    })
+    .slice(0, 8); // Limitar a 8 anúncios (2 linhas de 4)
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Agricultural Quotations Ticker */}
@@ -110,10 +142,10 @@ const Home: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {adsLoading ? (
               Array.from({ length: 4 }).map((_, index) => (
-                <div key={`premium-skeleton-${index}`} className="bg-white rounded-xl h-72 animate-pulse border border-slate-100" />
+                <div key={`highlight-skeleton-${index}`} className="bg-white rounded-xl h-72 animate-pulse border border-slate-100" />
               ))
-            ) : premiumAds.length > 0 ? (
-              premiumAds.map((ad) => (
+            ) : highlightedAds.length > 0 ? (
+              highlightedAds.map((ad) => (
                 isAdValid(ad) ? (
                   <AdCardErrorBoundary key={ad.id}>
                     <AdCard ad={ad} />
@@ -153,11 +185,11 @@ const Home: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {adsLoading ? (
-            Array.from({ length: 4 }).map((_, index) => (
+            Array.from({ length: 8 }).map((_, index) => (
               <div key={`recent-skeleton-${index}`} className="bg-white rounded-xl h-72 animate-pulse border border-slate-100" />
             ))
-          ) : ads.length > 0 ? (
-            ads.map((ad) => (
+          ) : recentAds.length > 0 ? (
+            recentAds.map((ad) => (
               isAdValid(ad) ? (
                 <AdCardErrorBoundary key={ad.id}>
                   <AdCard ad={ad} />
