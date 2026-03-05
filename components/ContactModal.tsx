@@ -95,15 +95,26 @@ const ContactModal: React.FC<ContactModalProps> = ({
           .insert({
             announcement_id: announcementId,
             buyer_id: buyerId,
-            seller_id: sellerId,
-            status: 'pending'
+            seller_id: sellerId
           })
           .select('id')
           .single();
 
         if (createChatError) {
           console.error('[Contact] Erro ao criar chat:', createChatError);
-          throw createChatError;
+          console.error('[Contact] Detalhes do erro:', JSON.stringify(createChatError, null, 2));
+          
+          let errorMessage = 'Não foi possível criar a conversa.';
+          
+          if (createChatError.code === '23505') {
+            errorMessage = 'Você já possui uma conversa aberta com este vendedor.';
+          } else if (createChatError.code === '23503') {
+            errorMessage = 'Dados inválidos. Por favor, recarregue a página.';
+          } else if (createChatError.message?.includes('constraint')) {
+            errorMessage = 'Erro de validação dos dados.';
+          }
+          
+          throw new Error(errorMessage);
         }
 
         chatId = newChat.id;

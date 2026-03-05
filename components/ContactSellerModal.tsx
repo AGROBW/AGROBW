@@ -123,7 +123,6 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             announcement_id: announcementId,
             buyer_id: user.id,
             seller_id: sellerId,
-            status: 'pending',
             last_message: formData.message,
             last_message_time: new Date().toISOString()
           })
@@ -132,7 +131,19 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
 
         if (chatError) {
           console.error('[Chat] Erro ao criar chat:', chatError);
-          toast.error('Erro ao criar conversa.');
+          console.error('[Chat] Detalhes do erro:', JSON.stringify(chatError, null, 2));
+          
+          let errorMessage = 'Não foi possível iniciar a conversa.';
+          
+          if (chatError.code === '23505') {
+            errorMessage = 'Você já possui uma conversa aberta para este anúncio.';
+          } else if (chatError.code === '23503') {
+            errorMessage = 'Dados inválidos. Por favor, recarregue a página e tente novamente.';
+          } else if (chatError.message?.includes('constraint')) {
+            errorMessage = 'Erro de validação. Verifique seus dados e tente novamente.';
+          }
+          
+          toast.error(errorMessage);
           setIsSubmitting(false);
           return;
         }
