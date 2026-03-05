@@ -84,11 +84,11 @@ export const MessageCard: React.FC<MessageCardProps> = ({ chat, isActive, curren
               {isSeller ? 'Vendendo' : 'Comprando'}
             </span>
             
-            {/* Badge de lead pendente */}
-            {chat.status === 'pending' && isSeller && (
+            {/* Badge de lead pendente (novo) */}
+            {chat.status === 'novo' && isSeller && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-1">
                 <ShoppingBag className="w-3 h-3" strokeWidth={1.5} />
-                Lead
+                Lead Novo
               </span>
             )}
           </div>

@@ -1,4 +1,4 @@
-# Correção: Erro 400 ao Criar Chat
+# Correção: Erro 400 ao Criar Chat (ATUALIZADO)
 
 ## Problema Identificado
 
@@ -6,7 +6,21 @@ Erro `check_constraint "chats_status_check"` ocorria ao tentar criar um novo cha
 
 ### Causa Raiz
 
-O código estava tentando inserir um campo `status` na tabela `chats`, mas **esse campo não existe** na estrutura real da tabela.
+O banco de dados foi configurado para aceitar valores em **PORTUGUÊS** no campo `status`, mas o código estava tentando enviar valores em **INGLÊS**, causando violação do constraint.
+
+### Valores Corretos (Banco de Dados em Português)
+
+```sql
+status TEXT CHECK (status IN ('novo', 'contatado', 'negociando', 'fechado', 'perdido'))
+```
+
+| Português | ~~Inglês (Errado)~~ | Significado |
+|-----------|---------------------|-------------|
+| `novo` | ~~new~~ | Lead novo, ainda não contatado |
+| `contatado` | ~~contacted~~ | Vendedor já entrou em contato |
+| `negociando` | ~~negotiating~~ | Em processo de negociação |
+| `fechado` | ~~closed~~ | Venda concluída com sucesso |
+| `perdido` | ~~lost~~ | Negociação não prosperou |
 
 ## Estrutura Real da Tabela `chats`
 
@@ -16,6 +30,7 @@ CREATE TABLE chats (
   announcement_id UUID REFERENCES announcements(id),
   buyer_id UUID REFERENCES users(id),
   seller_id UUID REFERENCES users(id),
+  status TEXT DEFAULT 'novo' CHECK (status IN ('novo', 'contatado', 'negociando', 'fechado', 'perdido')),
   last_message TEXT,
   last_message_time TIMESTAMPTZ,
   unread_count_buyer INTEGER DEFAULT 0,
@@ -27,21 +42,7 @@ CREATE TABLE chats (
 );
 ```
 
-**Nota importante**: A tabela `chats` **NÃO possui o campo `status`**.
-
-## VIEW chats_full
-
-A VIEW `chats_full` traz um campo `status`, mas ele vem da tabela `announcements`, não de `chats`:
-
-```sql
-CREATE VIEW chats_full AS
-SELECT 
-  c.*,
-  a.status,  -- <- Status do ANÚNCIO, não do chat
-  ...
-FROM chats c
-LEFT JOIN announcements a ON a.id = c.announcement_id;
-```
+**Campo crítico**: `status TEXT DEFAULT 'novo'` com constraint `CHECK (status IN ('novo', 'contatado', 'negociando', 'fechado', 'perdido'))`
 
 ## Correções Implementadas
 
@@ -53,9 +54,7 @@ await supabase.from('chats').insert({
   announcement_id: announcementId,
   buyer_id: user.id,
   seller_id: sellerId,
-  status: 'pending',  // ❌ Campo não existe!
-  last_message: formData.message,
-  last_message_time: new Date().toISOString()
+  // ❌ Campo ausente ou valor em inglês!
 })
 ```
 
@@ -65,6 +64,7 @@ await supabase.from('chats').insert({
   announcement_id: announcementId,
   buyer_id: user.id,
   seller_id: sellerId,
+  status: 'novo',  // ✅ Valor correto em português
   last_message: formData.message,
   last_message_time: new Date().toISOString()
 })
@@ -77,8 +77,8 @@ await supabase.from('chats').insert({
 await supabase.from('chats').insert({
   announcement_id: announcementId,
   buyer_id: buyerId,
-  seller_id: sellerId,
-  status: 'pending'  // ❌ Campo não existe!
+  seller_id: sellerId
+  // ❌ Campo ausente!
 })
 ```
 
@@ -87,8 +87,35 @@ await supabase.from('chats').insert({
 await supabase.from('chats').insert({
   announcement_id: announcementId,
   buyer_id: buyerId,
-  seller_id: sellerId
+  seller_id: sellerId,
+  status: 'novo'  // ✅ Valor correto em português
 })
+```
+
+### 3. types.ts - Padronização de Tipos
+
+**Criado tipo ChatStatus em português**:
+```typescript
+// Status do Chat em Português (conforme banco de dados)
+export type ChatStatus = 'novo' | 'contatado' | 'negociando' | 'fechado' | 'perdido';
+
+export interface Chat {
+  id: string;
+  // ... outros campos
+  status: ChatStatus;  // ✅ Usando o tipo correto
+  // ...
+}
+```
+
+### 4. MessageCard.tsx - Badge de Lead
+
+**Atualizado para valor em português**:
+```typescript
+{chat.status === 'novo' && isSeller && (
+  <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+    Lead Novo
+  </span>
+)}
 ```
 
 ### 3. Tratamento de Erros Melhorado
@@ -135,7 +162,8 @@ if (chatError) {
 {
   announcement_id: string,  // UUID do anúncio
   buyer_id: string,         // UUID do comprador (auth.uid())
-  seller_id: string         // UUID do vendedor (dono do anúncio)
+  seller_id: string,        // UUID do vendedor (dono do anúncio)
+  status: 'novo'            // ✅ Status inicial em português
 }
 ```
 
@@ -149,6 +177,20 @@ if (chatError) {
 **Campos preenchidos depois**:
 - `last_message` - atualizado ao enviar mensagem
 - `last_message_time` - atualizado ao enviar mensagem
+
+## Fluxo de Status do Chat (CRM)
+
+```
+novo → contatado → negociando → fechado
+   └──────────────────────────────→ perdido
+```
+
+**Status possíveis**:
+- `novo` - Lead novo, vendedor ainda não contatou
+- `contatado` - Vendedor já entrou em contato
+- `negociando` - Em processo de negociação ativa
+- `fechado` - Venda concluída com sucesso ✅
+- `perdido` - Negociação não prosperou ❌
 
 ## Validações Automáticas (Constraints)
 
@@ -219,12 +261,13 @@ export interface Chat {
 
 Para verificar se a correção funciona:
 
-1. **Teste 1**: Criar novo chat
+1. **Teste 1**: Criar novo chat com status 'novo'
    - Acessar um anúncio
    - Clicar em "Fale com o Vendedor"
    - Preencher formulário
    - Enviar mensagem
-   - ✅ Deve criar chat com sucesso
+   - ✅ Deve criar chat com `status: 'novo'`
+   - ✅ Badge "Lead Novo" deve aparecer para o vendedor
 
 2. **Teste 2**: Chat duplicado
    - Tentar criar chat para o mesmo anúncio novamente
@@ -234,9 +277,10 @@ Para verificar se a correção funciona:
    - Vendedor tenta contatar próprio anúncio
    - ✅ Deve mostrar: "Você não pode enviar mensagem para o seu próprio anúncio"
 
-4. **Teste 4**: Validação frontend
-   - Verificar que todos os campos obrigatórios são validados
-   - ✅ Botão desabilitado até formulário válido
+4. **Teste 4**: Verificar tipo TypeScript
+   - VSCode deve aceitar apenas valores em português
+   - ✅ `chat.status = 'novo'` → OK
+   - ❌ `chat.status = 'new'` → Erro de tipo
 
 ## Logs de Debug
 
@@ -244,7 +288,7 @@ Para monitorar criação de chats, procure por:
 
 ```
 [Chat] Criando novo chat...
-[Chat] Chat criado com sucesso! ID: uuid
+[Chat] Chat criado com sucesso! ID: uuid, status: novo
 [Lead] Criando lead...
 [Lead] Lead criado com sucesso! ID: uuid
 ```
@@ -255,9 +299,39 @@ Em caso de erro:
 [Chat] Detalhes do erro: JSON completo
 ```
 
+## Resumo da Solução
+
+### Causa do Erro
+O banco de dados foi configurado em **PORTUGUÊS**, mas o código tentava enviar valores em **INGLÊS**.
+
+### Correção Aplicada
+1. ✅ Adicionado `status: 'novo'` na criação de chats
+2. ✅ Atualizado tipo `ChatStatus` para valores em português
+3. ✅ Corrigido verificação de status em `MessageCard`
+4. ✅ Adicionado tratamento robusto de erros
+5. ✅ Criado script SQL para adicionar campo (se necessário)
+
+### Arquivos Modificados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `components/ContactSellerModal.tsx` | Adicionado `status: 'novo'` |
+| `components/ContactModal.tsx` | Adicionado `status: 'novo'` |
+| `types.ts` | Criado `ChatStatus` em português |
+| `components/MessageCard.tsx` | Verificação `status === 'novo'` |
+| `sql/add_status_to_chats.sql` | Script para adicionar campo (**NOVO**) |
+
+### Próximos Passos
+
+**Execute no Supabase** (se o campo não existir):
+```bash
+sql/add_status_to_chats.sql
+```
+
+Esse script adiciona o campo `status` à tabela `chats` de forma segura, verificando se já existe.
+
 ---
 
 **Data da Correção**: 5 de março de 2026  
-**Arquivos Modificados**: 
-- `components/ContactSellerModal.tsx`
-- `components/ContactModal.tsx`
+**Versão**: 2.0 (Atualizado para valores em português)  
+**Integração CRM**: Pronto para Nexus CRM filtrar por status

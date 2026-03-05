@@ -167,6 +167,9 @@ export interface Message {
   isFiltered?: boolean; // Mensagem filtrada por conter contato não autorizado
 }
 
+// Status do Chat em Português (conforme banco de dados)
+export type ChatStatus = 'novo' | 'contatado' | 'negociando' | 'fechado' | 'perdido';
+
 export interface Chat {
   id: string; // chatId único
   adId: string;
@@ -180,7 +183,7 @@ export interface Chat {
   lastMessage: string;
   lastMessageTime: string;
   unreadCount: number;
-  status: 'pending' | 'unlocked'; // pending = lead não desbloqueado
+  status: ChatStatus;
   createdAt: string;
 }
 

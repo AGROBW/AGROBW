@@ -123,6 +123,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             announcement_id: announcementId,
             buyer_id: user.id,
             seller_id: sellerId,
+            status: 'novo',
             last_message: formData.message,
             last_message_time: new Date().toISOString()
           })

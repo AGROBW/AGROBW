@@ -95,7 +95,8 @@ const ContactModal: React.FC<ContactModalProps> = ({
           .insert({
             announcement_id: announcementId,
             buyer_id: buyerId,
-            seller_id: sellerId
+            seller_id: sellerId,
+            status: 'novo'
           })
           .select('id')
           .single();
