@@ -3,6 +3,7 @@ import { X, Send, AlertCircle, Check } from 'lucide-react';
 import { supabase } from '../src/lib/supabaseClient';
 import { useAuth } from '../src/contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { LEAD_STATUS, CHAT_STATUS } from '../constants/status';
 
 // Funções de máscara
 const applyPhoneMask = (value: string) => {
@@ -123,7 +124,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             announcement_id: announcementId,
             buyer_id: user.id,
             seller_id: sellerId,
-            status: 'novo',
+            status: CHAT_STATUS.NOVO,
             last_message: formData.message,
             last_message_time: new Date().toISOString()
           })
@@ -152,16 +153,32 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         chatId = newChat.id;
         console.log('[Chat] Chat criado com sucesso! ID:', chatId);
 
-        // 3. Criar lead vinculado ao chat (OBRIGATÓRIO)
-        console.log('[Lead] Criando lead...', {
+        // 3. Buscar dados atualizados do usuário para garantir completude do lead
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('name, email, phone, cep')
+          .eq('id', user.id)
+          .single();
+
+        if (userError) {
+          console.warn('[Lead] Erro ao buscar dados do usuário:', userError);
+        }
+
+        // Usar dados do formulário com fallback para dados do banco
+        const buyerName = (formData.name?.trim() || userData?.name?.trim() || user.email?.split('@')[0] || 'Comprador');
+        const buyerEmail = (formData.email?.trim() || userData?.email?.trim() || user.email || '');
+        const buyerPhone = (formData.phone?.trim() || userData?.phone?.trim() || null);
+        const buyerCep = (formData.cep?.trim() || userData?.cep?.trim() || null);
+
+        console.log('[Lead] Criando lead com dados completos...', {
           chat_id: chatId,
           announcement_id: announcementId,
           buyer_id: user.id,
           seller_id: sellerId,
-          buyer_name: formData.name,
-          buyer_email: formData.email,
-          buyer_phone: formData.phone || null,
-          buyer_cep: formData.cep || null
+          buyer_name: buyerName,
+          buyer_email: buyerEmail,
+          buyer_phone: buyerPhone,
+          buyer_cep: buyerCep
         });
 
         const { data: leadData, error: leadError } = await supabase
@@ -171,12 +188,12 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             announcement_id: announcementId,
             buyer_id: user.id,
             seller_id: sellerId,
-            buyer_name: formData.name,
-            buyer_email: formData.email,
-            buyer_phone: formData.phone || null,
-            buyer_cep: formData.cep || null,
+            buyer_name: buyerName,
+            buyer_email: buyerEmail,
+            buyer_phone: buyerPhone,
+            buyer_cep: buyerCep,
             initial_message: formData.message,
-            status: 'new'
+            status: LEAD_STATUS.NEW
           })
           .select('id')
           .single();

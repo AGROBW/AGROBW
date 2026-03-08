@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
-import { Chat, Message } from '../types'
+import { Chat, Message, LeadStatus } from '../types'
+import { LEAD_STATUS } from '../../constants/status'
 
 export const useChats = (announcementId?: string | null) => {
   const { user } = useAuth()
@@ -258,7 +259,7 @@ export const useMessages = (chatId: string | null) => {
 
 export const useLeadStatus = (chatId: string | null) => {
   const { user } = useAuth()
-  const [leadStatus, setLeadStatus] = useState<'pending' | 'unlocked'>('pending')
+  const [leadStatus, setLeadStatus] = useState<LeadStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -304,7 +305,7 @@ export const useLeadStatus = (chatId: string | null) => {
     // Atualizar status do lead (o trigger deduzirá os créditos automaticamente)
     const { error } = await supabase
       .from('leads')
-      .update({ status: 'unlocked' })
+      .update({ status: LEAD_STATUS.CONTACTED })
       .eq('chat_id', chatId)
 
     if (error) {
@@ -312,7 +313,7 @@ export const useLeadStatus = (chatId: string | null) => {
       return { success: false, message: 'Erro ao desbloquear lead' }
     }
 
-    setLeadStatus('unlocked')
+    setLeadStatus(LEAD_STATUS.CONTACTED)
     return { success: true, message: 'Lead desbloqueado com sucesso!' }
   }
 

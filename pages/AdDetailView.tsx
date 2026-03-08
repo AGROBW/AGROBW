@@ -55,10 +55,12 @@ const AdDetailView: React.FC = () => {
     );
   }
 
+  // Fallback: se price for 0, usar unit_price
+  const priceToDisplay = ad.price > 0 ? ad.price : ((ad as any).unit_price || 0);
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-  }).format(ad.price);
+  }).format(priceToDisplay);
 
   return (
     <div className="bg-gray-50 pb-20">

@@ -138,6 +138,15 @@ const AdCreationView: React.FC = () => {
     if (draftId) setDraftAdId(draftId);
   }, []);
 
+  // Cálculo automático: price = quantity * unitPrice
+  useEffect(() => {
+    const calculatedPrice = (formData.quantity || 1) * (formData.unitPrice || 0);
+    // Só atualiza se o valor calculado for diferente do atual
+    if (calculatedPrice !== formData.price) {
+      setFormData(prev => ({ ...prev, price: calculatedPrice }));
+    }
+  }, [formData.quantity, formData.unitPrice]);
+
   useEffect(() => {
     const loadCategories = async () => {
       const { data, error } = await supabase
@@ -1085,6 +1094,20 @@ const AdCreationView: React.FC = () => {
                     className="w-full bg-slate-100 border-none rounded-2xl px-4 py-5 text-sm font-bold text-slate-500"
                   />
                 </div>
+                
+                {/* Exibição do Valor Total Calculado */}
+                {formData.unitPrice > 0 && (
+                  <div className="mt-4 p-4 bg-green-50 border-2 border-green-200 rounded-xl">
+                    <p className="text-xs font-black text-green-700 uppercase tracking-widest mb-1">Valor Total na Vitrine</p>
+                    <p className="text-2xl font-black text-green-900">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(formData.price || 0)}
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">
+                      {formData.quantity} {formData.unit} × R$ {formData.unitPrice.toFixed(2)}
+                    </p>
+                  </div>
+                )}
+                
                 <div className="mt-4 flex items-center gap-2">
                    <input type="checkbox" className="w-5 h-5 rounded border-slate-300 text-green-600 focus:ring-green-500" />
                    <span className="text-sm font-bold text-slate-600">Preço sob consulta / Aceita troca</span>

@@ -6,6 +6,8 @@ import { supabase } from '../src/lib/supabaseClient';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import { LEAD_STATUS, LEAD_STATUS_LABELS, LEAD_STATUS_COLORS } from '../constants/status';
+import type { LeadStatus } from '../constants/status';
 
 const PAGE_SIZE = 20; // Número de leads por página
 
@@ -20,30 +22,28 @@ interface Lead {
   buyer_phone: string;
   buyer_cep: string;
   initial_message: string;
-  status: 'novo' | 'contatado' | 'negociando' | 'fechado' | 'perdido';
+  status: LeadStatus; // Status em inglês conforme banco de dados
   created_at: string;
   announcement_title?: string;
   announcement_price?: number;
   announcement_image?: string;
 }
 
-const statusConfig = {
-  novo: { label: 'Novo', color: 'bg-blue-100 text-blue-700', icon: Clock },
-  contatado: { label: 'Contatado', color: 'bg-yellow-100 text-yellow-700', icon: Phone },
-  negociando: { label: 'Negociando', color: 'bg-purple-100 text-purple-700', icon: TrendingUp },
-  fechado: { label: 'Fechado', color: 'bg-green-100 text-green-700', icon: CheckCircle },
-  perdido: { label: 'Perdido', color: 'bg-red-100 text-red-700', icon: XCircle }
+// Mapeamento de status em inglês (banco) para português (UI)
+const statusDisplayMap: Record<LeadStatus, { label: string; color: string; icon: any }> = {
+  [LEAD_STATUS.NEW]: { label: 'Novo', color: 'bg-blue-100 text-blue-700', icon: Clock },
+  [LEAD_STATUS.CONTACTED]: { label: 'Contatado', color: 'bg-yellow-100 text-yellow-700', icon: Phone },
+  [LEAD_STATUS.NEGOTIATING]: { label: 'Negociando', color: 'bg-purple-100 text-purple-700', icon: TrendingUp },
+  [LEAD_STATUS.CLOSED]: { label: 'Fechado', color: 'bg-green-100 text-green-700', icon: CheckCircle },
+  [LEAD_STATUS.LOST]: { label: 'Perdido', color: 'bg-red-100 text-red-700', icon: XCircle }
 };
 
 // Função helper para buscar config de status com fallback seguro
-const getStatusConfig = (status: string | undefined | null) => {
-  if (!status) return statusConfig.novo;
+const getStatusConfig = (status: LeadStatus | string | undefined | null) => {
+  if (!status) return statusDisplayMap[LEAD_STATUS.NEW];
   
-  // Normalizar para minúsculas e remover espaços (defensivo)
-  const normalizedStatus = status.toLowerCase().trim() as keyof typeof statusConfig;
-  
-  // Retornar config ou fallback para 'novo'
-  return statusConfig[normalizedStatus] || statusConfig.novo;
+  // Retornar config ou fallback para 'new'
+  return statusDisplayMap[status as LeadStatus] || statusDisplayMap[LEAD_STATUS.NEW];
 };
 
 const LeadsView: React.FC = () => {
@@ -233,26 +233,20 @@ const LeadsView: React.FC = () => {
     });
   };
 
-  // Normalizar status para comparação segura (apenas lowercase e trim, sem tradução)
-  const normalizeStatus = (status: string | undefined | null): string => {
-    if (!status) return 'novo';
-    return status.toLowerCase().trim();
-  };
-
   const filteredLeads = leads.filter(lead => {
     if (filterStatus === 'all') return true;
-    return normalizeStatus(lead.status) === filterStatus;
+    return lead.status === filterStatus;
   });
 
   const stats = {
     total: leads.length,
-    novo: leads.filter(l => normalizeStatus(l.status) === 'novo').length,
-    contatado: leads.filter(l => normalizeStatus(l.status) === 'contatado').length,
-    negociando: leads.filter(l => normalizeStatus(l.status) === 'negociando').length,
-    fechado: leads.filter(l => normalizeStatus(l.status) === 'fechado').length,
-    perdido: leads.filter(l => normalizeStatus(l.status) === 'perdido').length,
+    novo: leads.filter(l => l.status === LEAD_STATUS.NEW).length,
+    contatado: leads.filter(l => l.status === LEAD_STATUS.CONTACTED).length,
+    negociando: leads.filter(l => l.status === LEAD_STATUS.NEGOTIATING).length,
+    fechado: leads.filter(l => l.status === LEAD_STATUS.CLOSED).length,
+    perdido: leads.filter(l => l.status === LEAD_STATUS.LOST).length,
     conversionRate: leads.length > 0
-      ? ((leads.filter(l => normalizeStatus(l.status) === 'fechado').length / leads.length) * 100).toFixed(1)
+      ? ((leads.filter(l => l.status === LEAD_STATUS.CLOSED).length / leads.length) * 100).toFixed(1)
       : '0'
   };
 
@@ -459,9 +453,9 @@ const LeadsView: React.FC = () => {
                           Responder
                         </button>
 
-                        {normalizeStatus(lead.status) !== 'fechado' && normalizeStatus(lead.status) !== 'perdido' && (
+                        {lead.status !== LEAD_STATUS.CLOSED && lead.status !== LEAD_STATUS.LOST && (
                           <select
-                            value={normalizeStatus(lead.status)}
+                            value={lead.status}
                             onChange={(e) => {
                               e.stopPropagation();
                               updateLeadStatus(lead.id, e.target.value as Lead['status']);
@@ -470,11 +464,11 @@ const LeadsView: React.FC = () => {
                             className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <option value="novo">Marcar como Novo</option>
-                            <option value="contatado">Marcar como Contatado</option>
-                            <option value="negociando">Marcar como Negociando</option>
-                            <option value="fechado">Marcar como Fechado</option>
-                            <option value="perdido">Marcar como Perdido</option>
+                            <option value={LEAD_STATUS.NEW}>Marcar como Novo</option>
+                            <option value={LEAD_STATUS.CONTACTED}>Marcar como Contatado</option>
+                            <option value={LEAD_STATUS.NEGOTIATING}>Marcar como Negociando</option>
+                            <option value={LEAD_STATUS.CLOSED}>Marcar como Fechado</option>
+                            <option value={LEAD_STATUS.LOST}>Marcar como Perdido</option>
                           </select>
                         )}
                       </div>

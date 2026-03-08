@@ -3,6 +3,7 @@ import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, Camera, CreditCard, DollarSign, Download, Edit3, Eye, FileText, Heart, Inbox, LayoutGrid, LogOut, Map, MapPin, MessageSquare, PauseCircle, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles } from 'lucide-react';
 import { AdStatus, Message, Ad, AdMetrics } from '../types';
+import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useUserAds } from '../src/hooks/useAds';
 import { useChats } from '../src/hooks/useMessages';
@@ -92,7 +93,7 @@ const UserDashboardView: React.FC = () => {
         .from('leads')
         .select('id', { count: 'exact', head: true })
         .eq('seller_id', user.id)
-        .eq('status', 'new');
+        .eq('status', LEAD_STATUS.NEW);
       
       if (!error && data) {
         setNewLeadsCount(data.length || 0);

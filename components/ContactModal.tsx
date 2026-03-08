@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import InputMask from 'react-input-mask';
 import { supabase } from '../src/supabaseClient';
 import toast from 'react-hot-toast';
+import { LEAD_STATUS, CHAT_STATUS } from '../constants/status';
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -96,7 +97,7 @@ const ContactModal: React.FC<ContactModalProps> = ({
             announcement_id: announcementId,
             buyer_id: buyerId,
             seller_id: sellerId,
-            status: 'novo'
+            status: CHAT_STATUS.NOVO
           })
           .select('id')
           .single();
@@ -121,6 +122,34 @@ const ContactModal: React.FC<ContactModalProps> = ({
         chatId = newChat.id;
         console.log('[Contact] Chat criado:', chatId);
 
+        // 3. Buscar dados atualizados do usuário para garantir completude do lead
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('name, email, phone, cep')
+          .eq('id', buyerId)
+          .single();
+
+        if (userError) {
+          console.warn('[Lead] Erro ao buscar dados do usuário:', userError);
+        }
+
+        // Usar dados do formulário com fallback para dados do banco
+        const buyerName = (formData.name?.trim() || userData?.name?.trim() || buyerData?.name?.trim() || buyerData?.email?.split('@')[0] || 'Comprador');
+        const buyerEmail = (formData.email?.trim() || userData?.email?.trim() || buyerData?.email?.trim() || '');
+        const buyerPhone = (formData.phone?.trim() || userData?.phone?.trim() || buyerData?.phone?.trim() || null);
+        const buyerCep = (formData.cep?.trim() || userData?.cep?.trim() || buyerData?.cep?.trim() || null);
+
+        console.log('[Lead] Criando lead com dados completos...', {
+          chat_id: chatId,
+          announcement_id: announcementId,
+          buyer_id: buyerId,
+          seller_id: sellerId,
+          buyer_name: buyerName,
+          buyer_email: buyerEmail,
+          buyer_phone: buyerPhone,
+          buyer_cep: buyerCep
+        });
+
         // 3. Criar lead associado ao chat
         const { error: leadError } = await supabase
           .from('leads')
@@ -129,12 +158,12 @@ const ContactModal: React.FC<ContactModalProps> = ({
             announcement_id: announcementId,
             buyer_id: buyerId,
             seller_id: sellerId,
-            buyer_name: formData.name,
-            buyer_email: formData.email,
-            buyer_phone: formData.phone,
-            buyer_cep: formData.cep,
+            buyer_name: buyerName,
+            buyer_email: buyerEmail,
+            buyer_phone: buyerPhone,
+            buyer_cep: buyerCep,
             initial_message: formData.message,
-            status: 'new'
+            status: LEAD_STATUS.NEW
           });
 
         if (leadError) {
