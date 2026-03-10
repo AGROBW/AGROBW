@@ -323,7 +323,7 @@ const LeadsView: React.FC = () => {
           Todos ({stats.total})
         </button>
         
-        {Object.entries(statusConfig).map(([status, config]) => (
+        {Object.entries(statusDisplayMap).map(([status, config]) => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}

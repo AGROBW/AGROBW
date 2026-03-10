@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Camera, CreditCard, DollarSign, Download, Edit3, Eye, FileText, Heart, Inbox, LayoutGrid, LogOut, Map, MapPin, MessageSquare, PauseCircle, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles } from 'lucide-react';
+import { Bell, Camera, CreditCard, DollarSign, Download, Edit3, Eye, FileText, Heart, Inbox, LayoutGrid, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles } from 'lucide-react';
 import { AdStatus, Message, Ad, AdMetrics } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -14,6 +14,7 @@ import { useInvoices } from '../src/hooks/useInvoices';
 import PlanGuard from '../components/PlanGuard';
 import MessagesView from '../components/MessagesView';
 import LeadsView from '../components/LeadsView';
+import RadarView from '../components/RadarView';
 import HighlightConfirmationModal from '../components/HighlightConfirmationModal';
 import VerifiedBadge from '../components/VerifiedBadge';
 import toast from 'react-hot-toast';
@@ -31,7 +32,7 @@ const Icons = {
   Messages: () => <MessageSquare className="w-5 h-5" strokeWidth={1.5} />,
   Leads: () => <Inbox className="w-5 h-5" strokeWidth={1.5} />,
   Favorites: () => <Heart className="w-5 h-5" strokeWidth={1.5} />,
-  Notifications: () => <Bell className="w-5 h-5" strokeWidth={1.5} />,
+  Radar: () => <Radar className="w-5 h-5" strokeWidth={1.5} />,
   Finance: () => <DollarSign className="w-5 h-5" strokeWidth={1.5} />,
   Profile: () => <User className="w-5 h-5" strokeWidth={1.5} />,
   Logout: () => <LogOut className="w-5 h-5" strokeWidth={1.5} />,
@@ -482,7 +483,7 @@ const UserDashboardView: React.FC = () => {
     { label: 'Mensagens', path: '/minha-conta/mensagens', icon: <Icons.Messages />, badge: messagesCount },
     { label: 'Leads', path: '/minha-conta/leads', icon: <Icons.Leads />, badge: newLeadsCount },
     { label: 'Favoritos', path: '/favoritos', icon: <Icons.Favorites />, badge: 0 },
-    { label: 'Notificações', path: '/minha-conta/notificacoes', icon: <Icons.Notifications />, badge: notificationsCount },
+    { label: 'Radar de Oportunidades', path: '/minha-conta/radar', icon: <Icons.Radar />, badge: 0 },
     { label: 'Financeiro', path: '/minha-conta/financeiro', icon: <Icons.Finance />, badge: 0 },
     { label: 'Perfil', path: '/minha-conta/perfil', icon: <Icons.Profile />, badge: 0 },
   ];
@@ -731,6 +732,7 @@ const UserDashboardView: React.FC = () => {
   };
 
   const AdsDashboard = () => {
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<'all' | 'active' | 'pending' | 'paused' | 'blocked'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -911,7 +913,16 @@ const UserDashboardView: React.FC = () => {
               pagedAds.map((ad) => (
                 <div
                   key={ad.id}
-                  className="bg-white border border-slate-200 rounded-lg px-4 py-3 flex items-center gap-4 h-20"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => navigate(`/anuncio/${ad.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/anuncio/${ad.id}`);
+                    }
+                  }}
+                  className="bg-white border border-slate-200 rounded-lg px-4 py-3 flex items-center gap-4 h-20 cursor-pointer hover:shadow-lg transition-shadow"
                 >
                   <div className="w-[60px] h-[60px] rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
                     <img src={ad.images[0]} alt={ad.title} className="w-full h-full object-cover" />
@@ -957,23 +968,35 @@ const UserDashboardView: React.FC = () => {
                     <div className="flex items-center gap-1 text-slate-400">
                       {/* Botão de Destaques */}
                       <button 
-                        onClick={() => handleHighlightClick(ad, 'category')}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleHighlightClick(ad, 'category');
+                        }}
                         className="p-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors" 
                         title="Aplicar destaque"
                       >
                         <Sparkles className="w-4 h-4" strokeWidth={1.5} />
                       </button>
                       {/* Botão Editar */}
-                      <Link
-                        to={`/anunciar?edit=${ad.id}`}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/anunciar?edit=${ad.id}`);
+                        }}
                         className="p-2 rounded-lg hover:bg-slate-50 hover:text-green-700 transition-colors" 
                         title="Editar anúncio"
                       >
                         <Edit3 className="w-4 h-4" strokeWidth={1.5} />
-                      </Link>
+                      </button>
                       {/* Botão Pausar/Reativar */}
                       <button 
-                        onClick={() => handleTogglePause(ad)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleTogglePause(ad);
+                        }}
                         className={`p-2 rounded-lg transition-colors ${
                           ad.status === AdStatus.PAUSED 
                             ? 'hover:bg-green-50 hover:text-green-700' 
@@ -985,7 +1008,11 @@ const UserDashboardView: React.FC = () => {
                       </button>
                       {/* Botão Excluir */}
                       <button 
-                        onClick={() => handleDeleteClick(ad)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDeleteClick(ad);
+                        }}
                         className="p-2 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors" 
                         title="Excluir anúncio"
                       >
@@ -1582,6 +1609,7 @@ const UserDashboardView: React.FC = () => {
           <Route path="/anuncios" element={<AdsDashboard />} />
           <Route path="/mensagens" element={<MessagesView />} />
           <Route path="/leads" element={<LeadsView />} />
+          <Route path="/radar" element={<RadarView />} />
           <Route path="/financeiro" element={<FinanceDashboard />} />
           <Route path="/perfil" element={<ProfileDashboard />} />
           <Route path="*" element={<HomeDashboard />} />
