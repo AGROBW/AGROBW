@@ -6,6 +6,8 @@ import { Ad } from '../types';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useFavorites } from '../src/hooks/useFavorites';
 import VerifiedBadge from './VerifiedBadge';
+import { supabase } from '../src/lib/supabaseClient';
+import { detectUserState } from '../src/utils/geoLocation';
 
 interface AdCardProps {
   ad: Ad;
@@ -146,6 +148,27 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
       <div className="px-5 pb-5 mt-auto">
         <Link 
           to={`/anuncio/${ad.id}`}
+          onClick={() => {
+            // Captura de cliques por estado para analytics (fire-and-forget)
+            detectUserState().then(userState => {
+              if (userState) {
+                // Fire-and-forget: não await, não bloquear navegação
+                supabase.rpc('register_click_by_state', {
+                  p_announcement_id: ad.id,
+                  p_state: userState
+                }).then(({ error }) => {
+                  if (error) {
+                    console.error('[Analytics] Erro ao registrar clique:', error.message);
+                  } else {
+                    console.log('[Analytics] Clique registrado:', userState);
+                  }
+                });
+              }
+            }).catch(err => {
+              // Silencioso - não prejudicar UX se analytics falhar
+              console.error('[Analytics] Erro na captura:', err);
+            });
+          }}
           className="block w-full text-center h-10 leading-10 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-all"
         >
           Ver Detalhes
