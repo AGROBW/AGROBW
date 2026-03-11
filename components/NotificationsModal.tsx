@@ -8,6 +8,35 @@ import { supabase } from '../src/lib/supabaseClient';
 import { Notification } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Custom scrollbar styles para a lista de notificações
+const scrollbarStyles = `
+.notifications-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.notifications-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+.notifications-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+.notifications-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+`;
+
+// Injetar estilos no head (apenas uma vez)
+if (typeof document !== 'undefined') {
+  const styleId = 'notifications-scrollbar-styles';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = scrollbarStyles;
+    document.head.appendChild(style);
+  }
+}
+
 interface NotificationsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -147,10 +176,10 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -20 }}
             transition={{ duration: 0.2 }}
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[80vh] bg-white rounded-2xl shadow-2xl z-50 flex flex-col"
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] bg-white rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+            {/* Header - Fixo */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-white sticky top-0 z-10">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-green-100 rounded-lg">
                   <Bell className="w-5 h-5 text-green-700" strokeWidth={2} />
@@ -184,8 +213,8 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
               </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2 px-6 pt-4 border-b border-slate-200">
+            {/* Tabs - Fixas */}
+            <div className="flex gap-2 px-6 pt-4 pb-3 border-b border-slate-200 bg-white sticky top-[89px] z-10">
               {[
                 { id: 'all', label: 'Todas', count: notifications.length },
                 { id: 'business', label: 'Negócios', count: notifications.filter(n => n.type === 'new_lead' || n.type === 'radar_match').length },
@@ -213,8 +242,14 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
               ))}
             </div>
 
-            {/* Notifications List */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-2">
+            {/* Notifications List - Scrollável */}
+            {/* TODO: Quando usuário tiver 100+ notificações, implementar Infinite Scroll:
+                - useInfiniteScroll hook com IntersectionObserver
+                - fetchMoreNotifications() com offset/pagination
+                - Loading indicator no final da lista
+                - Prevenir múltiplas requisições simultâneas
+            */}
+            <div className="notifications-scroll flex-1 overflow-y-auto p-6 space-y-2 max-h-[calc(85vh-180px)]">
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>

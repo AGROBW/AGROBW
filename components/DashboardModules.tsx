@@ -4,25 +4,29 @@ import { FileText, MessageSquare, Eye, Inbox, TrendingUp, TrendingDown, AlertCir
 import { DashboardStats, StateClicks, PriceAnalysis } from '../src/hooks/useDashboardStats';
 import { Ad } from '../types';
 
-// Animação CSS para glow dourado pulsante
-const goldenGlowAnimation = `
-@keyframes goldenGlow {
+// Animação CSS para borda dourada pulsante (Golden Border Pulse)
+const goldBorderPulseAnimation = `
+@keyframes goldBorderPulse {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(212, 175, 55, 0.3), 0 0 40px rgba(212, 175, 55, 0.15), 0 0 60px rgba(212, 175, 55, 0.05);
+    border-color: #F3E5AB;
+    border-width: 2px;
+    box-shadow: 0 0 4px #F3E5AB;
   }
   50% {
-    box-shadow: 0 0 30px rgba(212, 175, 55, 0.5), 0 0 60px rgba(212, 175, 55, 0.25), 0 0 90px rgba(212, 175, 55, 0.1);
+    border-color: #D4AF37;
+    border-width: 2px;
+    box-shadow: 0 0 12px 2px rgba(212, 175, 55, 0.7), inset 0 0 6px rgba(212, 175, 55, 0.4);
   }
 }
 `;
 
 // Injetar animação no head (apenas uma vez)
 if (typeof document !== 'undefined') {
-  const styleId = 'golden-glow-animation';
+  const styleId = 'gold-border-pulse-animation';
   if (!document.getElementById(styleId)) {
     const style = document.createElement('style');
     style.id = styleId;
-    style.textContent = goldenGlowAnimation;
+    style.textContent = goldBorderPulseAnimation;
     document.head.appendChild(style);
   }
 }
@@ -820,8 +824,11 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
 
   return (
     <div 
-      className="bg-white p-6 rounded-xl border border-slate-200 shadow-xl"
-      style={{ animation: 'goldenGlow 3s ease-in-out infinite' }}
+      className="bg-white p-6 rounded-xl shadow-xl"
+      style={{ 
+        animation: 'goldBorderPulse 3s ease-in-out infinite',
+        borderStyle: 'solid'
+      }}
     >
       <div className="flex items-center justify-between mb-6">
         <h4 className="text-sm font-bold text-slate-900">Plano Atual</h4>

@@ -17,12 +17,18 @@ export const useNotifications = () => {
     }
 
     setIsLoading(true)
+    
+    // TODO: Implementar Infinite Scroll quando usuário tiver 100+ notificações
+    // - Buscar apenas 20 por vez inicialmente
+    // - Adicionar parâmetro `offset` para paginação
+    // - Usar IntersectionObserver no modal para detectar scroll no final
+    // - Carregar mais ao atingir o final da lista
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(20)
+      .limit(20) // Limite inicial para performance
 
     if (error) {
       setError(error.message)

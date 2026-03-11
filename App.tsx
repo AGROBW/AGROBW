@@ -3,6 +3,7 @@ import { MessageCircle } from 'lucide-react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { ProtectedAdminRoute } from './components/ProtectedAdminRoute';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Home from './pages/Home';
@@ -43,26 +44,6 @@ const RequireAuth = ({ children }: { children?: React.ReactNode }) => {
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  return <>{children}</>;
-};
-
-// Admin Guard Component usando Supabase
-const RequireAdmin = ({ children }: { children?: React.ReactNode }) => {
-  const { user, isAdmin, isLoading } = useAuth();
-  const location = useLocation();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2D5016]"></div>
-      </div>
-    );
-  }
-
-  if (!user || !isAdmin) {
-    return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 
   return <>{children}</>;
@@ -167,13 +148,13 @@ const AppContent: React.FC = () => {
               } 
             />
             
-            {/* Admin Protected Routes */}
+            {/* Admin Protected Routes com RBAC */}
             <Route 
               path="/admin/*" 
               element={
-                <RequireAdmin>
+                <ProtectedAdminRoute requiredRole="admin" redirectTo="/admin/login">
                   <AdminDashboard />
-                </RequireAdmin>
+                </ProtectedAdminRoute>
               } 
             />
             
