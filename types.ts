@@ -207,7 +207,7 @@ export interface ContactInfo {
 
 export interface Notification {
   id: string;
-  type: 'SYSTEM' | 'SECURITY' | 'PROMO' | 'AD_STATUS' | 'NEW_MESSAGE';
+  type: 'new_lead' | 'radar_match' | 'new_message' | 'system' | 'plan_alert' | 'SYSTEM' | 'SECURITY' | 'PROMO' | 'AD_STATUS' | 'NEW_MESSAGE';
   title: string;
   content: string;
   timestamp: string;

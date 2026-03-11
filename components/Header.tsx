@@ -3,12 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, Menu, X, MessageCircle, Bell } from 'lucide-react';
 import AdsSideDrawer from './AdsSideDrawer';
+import NotificationsModal from './NotificationsModal';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useNotificationsCount } from '../src/hooks/useNotificationsCount';
 
 const Header: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isAdsDrawerOpen, setIsAdsDrawerOpen] = useState(false);
+  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { messagesCount, notificationsCount, isLoading } = useNotificationsCount();
   const navigate = useNavigate();
@@ -64,8 +66,8 @@ const Header: React.FC = () => {
                 </Link>
                 
                 {/* Notificações */}
-                <Link 
-                  to="/minha-conta/notificacoes" 
+                <button 
+                  onClick={() => setIsNotificationsModalOpen(true)}
                   className="relative p-2 text-slate-600 hover:text-green-700 hover:bg-slate-50 rounded-lg transition-colors"
                 >
                   <Bell className="w-5 h-5" strokeWidth={1.5} />
@@ -74,7 +76,7 @@ const Header: React.FC = () => {
                       {notificationsCount > 9 ? '9+' : notificationsCount}
                     </span>
                   )}
-                </Link>
+                </button>
                 
                 {/* Perfil */}
                 <Link to="/minha-conta" className="flex items-center gap-3 border-r border-slate-100 pr-6 hover:bg-slate-50 transition-all p-1.5 rounded-lg">
@@ -191,6 +193,12 @@ const Header: React.FC = () => {
       <AdsSideDrawer 
         isOpen={isAdsDrawerOpen} 
         onClose={() => setIsAdsDrawerOpen(false)} 
+      />
+
+      {/* Notifications Modal */}
+      <NotificationsModal
+        isOpen={isNotificationsModalOpen}
+        onClose={() => setIsNotificationsModalOpen(false)}
       />
     </header>
   );

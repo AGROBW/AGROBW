@@ -4,6 +4,29 @@ import { FileText, MessageSquare, Eye, Inbox, TrendingUp, TrendingDown, AlertCir
 import { DashboardStats, StateClicks, PriceAnalysis } from '../src/hooks/useDashboardStats';
 import { Ad } from '../types';
 
+// Animação CSS para glow dourado pulsante
+const goldenGlowAnimation = `
+@keyframes goldenGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.3), 0 0 40px rgba(212, 175, 55, 0.15), 0 0 60px rgba(212, 175, 55, 0.05);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(212, 175, 55, 0.5), 0 0 60px rgba(212, 175, 55, 0.25), 0 0 90px rgba(212, 175, 55, 0.1);
+  }
+}
+`;
+
+// Injetar animação no head (apenas uma vez)
+if (typeof document !== 'undefined') {
+  const styleId = 'golden-glow-animation';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = goldenGlowAnimation;
+    document.head.appendChild(style);
+  }
+}
+
 // ============================================
 // 1. DASHBOARD STATS CARD (Grid Superior)
 // ============================================
@@ -770,11 +793,11 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
 
   if (loading) {
     return (
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 rounded-xl border border-slate-700 text-white shadow-xl animate-pulse">
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xl animate-pulse">
         <div className="space-y-4">
-          <div className="h-12 bg-white/5 rounded-lg"></div>
-          <div className="h-12 bg-white/5 rounded-lg"></div>
-          <div className="h-12 bg-white/5 rounded-lg"></div>
+          <div className="h-12 bg-slate-100 rounded-lg"></div>
+          <div className="h-12 bg-slate-100 rounded-lg"></div>
+          <div className="h-12 bg-slate-100 rounded-lg"></div>
         </div>
       </div>
     );
@@ -796,28 +819,31 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
   const adsPercentage = calculatePercentage(finalAdsUsed, adsLimit);
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 rounded-xl border border-slate-700 text-white shadow-xl">
+    <div 
+      className="bg-white p-6 rounded-xl border border-slate-200 shadow-xl"
+      style={{ animation: 'goldenGlow 3s ease-in-out infinite' }}
+    >
       <div className="flex items-center justify-between mb-6">
-        <h4 className="text-sm font-bold">Plano Atual</h4>
-        <div className="px-3 py-1 bg-white/10 rounded-full">
-          <span className="text-xs font-bold">{planName}</span>
+        <h4 className="text-sm font-bold text-slate-900">Plano Atual</h4>
+        <div className="px-3 py-1 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-full">
+          <span className="text-xs font-bold text-yellow-800">{planName}</span>
         </div>
       </div>
 
       <div className="space-y-4">
         {/* Anúncios */}
-        <div className="bg-white/5 backdrop-blur-sm p-4 rounded-lg border border-white/10">
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
           <div className="flex items-center gap-2 mb-2">
-            <Package className="w-4 h-4 text-blue-400" />
-            <span className="text-xs font-medium text-slate-300">Anúncios</span>
+            <Package className="w-4 h-4 text-blue-600" />
+            <span className="text-xs font-medium text-slate-700">Anúncios</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-2xl font-bold">{finalAdsUsed}</span>
-            <span className="text-sm text-slate-400">de</span>
-            <span className="text-2xl font-bold text-slate-400">{adsLimit || '∞'}</span>
+            <span className="text-2xl font-bold text-slate-900">{finalAdsUsed}</span>
+            <span className="text-sm text-slate-500">de</span>
+            <span className="text-2xl font-bold text-slate-600">{adsLimit || '∞'}</span>
           </div>
           {adsLimit && (
-            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 ${getProgressColor(finalAdsUsed, adsLimit)}`}
                 style={{ width: `${adsPercentage}%` }}
@@ -827,18 +853,18 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
         </div>
 
         {/* Destaques de Categoria */}
-        <div className="bg-white/5 backdrop-blur-sm p-4 rounded-lg border border-white/10">
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
           <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="w-4 h-4 text-blue-400" />
-            <span className="text-xs font-medium text-slate-300">Destaques em Categoria</span>
+            <TrendingUp className="w-4 h-4 text-blue-600" />
+            <span className="text-xs font-medium text-slate-700">Destaques em Categoria</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-2xl font-bold">{categoryHighlightsUsed}</span>
-            <span className="text-sm text-slate-400">de</span>
-            <span className="text-2xl font-bold text-slate-400">{categoryHighlightsLimit}</span>
+            <span className="text-2xl font-bold text-slate-900">{categoryHighlightsUsed}</span>
+            <span className="text-sm text-slate-500">de</span>
+            <span className="text-2xl font-bold text-slate-600">{categoryHighlightsLimit}</span>
           </div>
           {categoryHighlightsLimit > 0 && (
-            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 ${
                   categoryHighlightsUsed >= categoryHighlightsLimit ? 'bg-red-500' : 'bg-blue-500'
@@ -850,18 +876,18 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
         </div>
 
         {/* Destaques de Home */}
-        <div className="bg-white/5 backdrop-blur-sm p-4 rounded-lg border border-white/10">
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
           <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="w-4 h-4 text-yellow-400" />
-            <span className="text-xs font-medium text-slate-300">Destaques na Home</span>
+            <Sparkles className="w-4 h-4 text-yellow-600" />
+            <span className="text-xs font-medium text-slate-700">Destaques na Home</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-2xl font-bold">{finalHomeHighlightsUsed}</span>
-            <span className="text-sm text-slate-400">de</span>
-            <span className="text-2xl font-bold text-slate-400">{homeHighlightsLimit}</span>
+            <span className="text-2xl font-bold text-slate-900">{finalHomeHighlightsUsed}</span>
+            <span className="text-sm text-slate-500">de</span>
+            <span className="text-2xl font-bold text-slate-600">{homeHighlightsLimit}</span>
           </div>
           {homeHighlightsLimit > 0 && (
-            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 ${
                   finalHomeHighlightsUsed >= homeHighlightsLimit ? 'bg-red-500' : 'bg-yellow-500'
@@ -874,18 +900,18 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
 
         {/* Info do Ciclo */}
         {periodEndDate && (
-          <div className="pt-3 border-t border-white/10">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-1">
+          <div className="pt-3 border-t border-slate-200">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">
               Ciclo atual termina em:
             </p>
-            <p className="text-xs font-bold text-white">
+            <p className="text-xs font-bold text-slate-900">
               {new Date(periodEndDate).toLocaleDateString('pt-BR', {
                 day: '2-digit',
                 month: 'long',
                 year: 'numeric'
               })}
             </p>
-            <p className="text-[10px] text-slate-400 mt-1">
+            <p className="text-[10px] text-slate-500 mt-1">
               Créditos não utilizados serão resetados
             </p>
           </div>
