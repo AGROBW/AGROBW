@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, Menu, X, MessageCircle, Bell } from 'lucide-react';
+import { ChevronDown, Menu, X, MessageCircle, Bell, Shield, LogOut, User as UserIcon } from 'lucide-react';
 import AdsSideDrawer from './AdsSideDrawer';
 import NotificationsModal from './NotificationsModal';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -11,9 +11,31 @@ const Header: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isAdsDrawerOpen, setIsAdsDrawerOpen] = useState(false);
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { messagesCount, notificationsCount, isLoading } = useNotificationsCount();
   const navigate = useNavigate();
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Detectar clique fora do dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setIsProfileDropdownOpen(false);
+      }
+    };
+
+    if (isProfileDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileDropdownOpen]);
+
+  // Verificar se usuário é admin
+  const isAdmin = user?.is_admin === true || user?.role === 'admin';
 
   const handleLogout = async () => {
     await signOut();
@@ -78,17 +100,76 @@ const Header: React.FC = () => {
                   )}
                 </button>
                 
-                {/* Perfil */}
-                <Link to="/minha-conta" className="flex items-center gap-3 border-r border-slate-100 pr-6 hover:bg-slate-50 transition-all p-1.5 rounded-lg">
-                  <div className="w-9 h-9 rounded-full border border-green-100 bg-green-700 flex items-center justify-center text-white font-bold">
-                    {user.name?.charAt(0).toUpperCase() || 'U'}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-semibold text-slate-800 leading-tight truncate max-w-[80px]">{user.name?.split(' ')[0] || 'Usuário'}</span>
-                    <span className="text-[9px] font-semibold text-green-600 uppercase tracking-widest">Painel</span>
-                  </div>
-                </Link>
-                <button onClick={handleLogout} className="text-[10px] font-semibold text-slate-400 hover:text-red-500 text-left uppercase tracking-widest">Sair</button>
+                {/* Perfil com Dropdown */}
+                <div className="relative" ref={profileDropdownRef}>
+                  <button 
+                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                    className="flex items-center gap-3 border-r border-slate-100 pr-6 hover:bg-slate-50 transition-all p-1.5 rounded-lg"
+                  >
+                    <div className="w-9 h-9 rounded-full border border-green-100 bg-green-700 flex items-center justify-center text-white font-bold relative">
+                      {user.name?.charAt(0).toUpperCase() || 'U'}
+                      {isAdmin && (
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-white flex items-center justify-center">
+                          <Shield className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-slate-800 leading-tight truncate max-w-[80px]">
+                          {user.name?.split(' ')[0] || 'Usuário'}
+                        </span>
+                        {isAdmin && (
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-black uppercase rounded-full">
+                            Admin
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[9px] font-semibold text-green-600 uppercase tracking-widest">Painel</span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {isProfileDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-50">
+                      <Link 
+                        to="/minha-conta"
+                        onClick={() => setIsProfileDropdownOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <UserIcon className="w-4 h-4 text-slate-500" strokeWidth={2} />
+                        <span className="font-medium">Minha Conta</span>
+                      </Link>
+
+                      {isAdmin && (
+                        <>
+                          <div className="border-t border-slate-100 my-1"></div>
+                          <Link 
+                            to="/admin"
+                            onClick={() => setIsProfileDropdownOpen(false)}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 transition-colors group"
+                          >
+                            <Shield className="w-4 h-4 text-amber-600 group-hover:text-amber-700" strokeWidth={2} />
+                            <span className="font-semibold">Painel Administrativo</span>
+                          </Link>
+                        </>
+                      )}
+
+                      <div className="border-t border-slate-100 my-1"></div>
+                      <button 
+                        onClick={() => {
+                          setIsProfileDropdownOpen(false);
+                          handleLogout();
+                        }}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors w-full"
+                      >
+                        <LogOut className="w-4 h-4" strokeWidth={2} />
+                        <span className="font-medium">Sair</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-green-700 px-4 py-2 uppercase tracking-widest">Entrar</Link>
@@ -171,14 +252,52 @@ const Header: React.FC = () => {
                 </Link>
                 
                 {/* Painel */}
-                <div className="p-3 bg-slate-50 rounded-lg flex items-center justify-between">
-                  <Link to="/minha-conta" onClick={() => setIsOpen(false)} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center text-white font-bold">
+                <div className="p-3 bg-slate-50 rounded-lg">
+                  <Link to="/minha-conta" onClick={() => setIsOpen(false)} className="flex items-center gap-3 mb-2">
+                    <div className="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center text-white font-bold relative">
                       {user.name?.charAt(0).toUpperCase() || 'U'}
+                      {isAdmin && (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-white flex items-center justify-center">
+                          <Shield className="w-2 h-2 text-white" strokeWidth={3} />
+                        </div>
+                      )}
                     </div>
-                    <span className="font-semibold text-slate-800">Meu Painel</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-800">{user.name?.split(' ')[0] || 'Usuário'}</span>
+                        {isAdmin && (
+                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-black uppercase rounded-full">
+                            Admin
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-slate-500">Meu Painel</span>
+                    </div>
                   </Link>
-                  <button onClick={handleLogout} className="text-red-500 font-semibold text-xs">Sair</button>
+
+                  {/* Link Admin (Condicional) */}
+                  {isAdmin && (
+                    <Link 
+                      to="/admin" 
+                      onClick={() => setIsOpen(false)} 
+                      className="flex items-center gap-3 p-2 bg-amber-50 border border-amber-200 rounded-lg mb-2 hover:bg-amber-100 transition-colors"
+                    >
+                      <Shield className="w-5 h-5 text-amber-600" strokeWidth={2} />
+                      <span className="font-semibold text-amber-700 text-sm">Painel Administrativo</span>
+                    </Link>
+                  )}
+
+                  {/* Botão Sair */}
+                  <button 
+                    onClick={() => {
+                      setIsOpen(false);
+                      handleLogout();
+                    }} 
+                    className="flex items-center gap-2 text-red-500 font-semibold text-sm w-full justify-center py-2 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" strokeWidth={2} />
+                    <span>Sair</span>
+                  </button>
                 </div>
               </div>
             ) : (

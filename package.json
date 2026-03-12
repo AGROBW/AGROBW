@@ -22,11 +22,13 @@
     "react-dom": "^19.2.3",
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.13.0",
+    "recharts": "^3.8.0",
     "sonner": "^1.7.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^22.14.0",
+    "@types/recharts": "^1.8.29",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.24",
     "postcss": "^8.5.6",

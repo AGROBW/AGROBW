@@ -256,10 +256,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Função de login
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
     })
+    
+    if (error) {
+      return { error }
+    }
+    
+    // Verificar se o usuário está suspenso
+    if (data?.user?.id) {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('is_suspended, suspension_reason, name')
+        .eq('id', data.user.id)
+        .single()
+      
+      if (!userError && userData?.is_suspended) {
+        // Fazer logout imediatamente
+        await supabase.auth.signOut()
+        
+        // Retornar erro customizado com informações de suspensão
+        return { 
+          error: { 
+            message: 'USER_SUSPENDED',
+            suspension_reason: userData.suspension_reason || 'Sua conta foi suspensa.',
+            user_name: userData.name
+          }
+        }
+      }
+    }
+    
     return { error }
   }
 

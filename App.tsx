@@ -28,6 +28,11 @@ const FavoritesView = lazy(() => import('./pages/FavoritesView'));
 // Admin Pages
 const AdminLoginView = lazy(() => import('./pages/AdminLoginView'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
+const AdminDashboardOverview = lazy(() => import('./pages/admin/AdminDashboardOverview'));
+const ModerationQueue = lazy(() => import('./pages/admin/ModerationQueue'));
+const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
+const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'));
 
 // Auth Guard Component usando Supabase
 const RequireAuth = ({ children }: { children?: React.ReactNode }) => {
@@ -150,13 +155,19 @@ const AppContent: React.FC = () => {
             
             {/* Admin Protected Routes com RBAC */}
             <Route 
-              path="/admin/*" 
+              path="/admin" 
               element={
                 <ProtectedAdminRoute requiredRole="admin" redirectTo="/admin/login">
-                  <AdminDashboard />
+                  <AdminLayout />
                 </ProtectedAdminRoute>
               } 
-            />
+            >
+              <Route index element={<AdminDashboardOverview />} />
+              <Route path="moderation" element={<ModerationQueue />} />
+              <Route path="users" element={<UserManagement />} />
+              <Route path="audit" element={<AuditLogs />} />
+              <Route path="settings" element={<AdminDashboard />} />
+            </Route>
             
             <Route path="/categoria/:slug" element={<AdsListingView />} />
             <Route path="/anuncio/:id" element={<AdDetailView />} />

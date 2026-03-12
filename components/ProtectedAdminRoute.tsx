@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/contexts/AuthContext';
-import { ShieldAlert, Loader } from 'lucide-react';
+import { useSecurityLog } from '../src/hooks/useSecurityLog';
+import { ShieldAlert, Loader, Home } from 'lucide-react';
 
 /**
- * Componente de Proteção de Rotas com RBAC
+ * Componente de Proteção de Rotas com RBAC e Auditoria de Segurança
  * 
  * Protege rotas administrativas verificando:
  * - Se usuário está autenticado
  * - Se usuário possui role adequado (admin ou editor)
  * - Se JWT contém custom claims corretos
+ * - Registra automaticamente tentativas de acesso não autorizado
  * 
  * Uso:
  * ```tsx
@@ -33,8 +35,11 @@ export const ProtectedAdminRoute: React.FC<ProtectedAdminRouteProps> = ({
   redirectTo = '/admin/login'
 }) => {
   const { user, isAdmin, isLoading } = useAuth();
+  const { logUnauthorizedAccess } = useSecurityLog();
   const location = useLocation();
+  const navigate = useNavigate();
   const [verifying, setVerifying] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
     // Simular verificação de JWT (em produção, verificar custom claims)
@@ -78,33 +83,58 @@ export const ProtectedAdminRoute: React.FC<ProtectedAdminRouteProps> = ({
       isAdmin
     });
 
-    // Tela de acesso negado
+    // Registrar evento de segurança automaticamente
+    if (!accessDenied) {
+      setAccessDenied(true);
+      
+      // Log assíncrono (não bloqueia renderização)
+      logUnauthorizedAccess({
+        attemptedRoute: location.pathname,
+        reason: `Role insuficiente: ${user.role || 'user'} (requerido: ${requiredRole})`
+      }).catch(error => {
+        console.error('[ProtectedRoute] Erro ao registrar tentativa de acesso:', error);
+      });
+    }
+
+    // Tela de acesso negado (UI LIMPA - sem detalhes de debug)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center border border-slate-200">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <ShieldAlert className="w-8 h-8 text-red-600" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8 text-center border border-slate-200">
+          {/* Ícone de Escudo */}
+          <div className="w-20 h-20 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <ShieldAlert className="w-10 h-10 text-white" strokeWidth={2.5} />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Acesso Negado</h2>
-          <p className="text-slate-600 mb-6">
-            Você não possui permissão para acessar esta área do sistema.
+          
+          {/* Título */}
+          <h2 className="text-3xl font-black text-slate-900 mb-3">
+            Acesso Negado
+          </h2>
+          
+          {/* Mensagem Amigável */}
+          <p className="text-slate-600 mb-8 leading-relaxed">
+            Você não possui as permissões necessárias para acessar esta área do sistema. 
+            Se você acredita que deveria ter acesso, entre em contato com o administrador.
           </p>
-          <div className="bg-slate-50 rounded-lg p-4 mb-6 text-left">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-              Detalhes
-            </p>
-            <div className="space-y-1 text-sm text-slate-700">
-              <p><span className="font-semibold">Seu nível:</span> {user.role || 'user'}</p>
-              <p><span className="font-semibold">Necessário:</span> {requiredRole}</p>
-              <p><span className="font-semibold">Rota:</span> {location.pathname}</p>
-            </div>
+          
+          {/* Botões de Ação */}
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => navigate('/')}
+              className="w-full bg-slate-900 text-white py-3 px-4 rounded-xl font-semibold hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+            >
+              <Home className="w-5 h-5" />
+              Voltar para Home
+            </button>
+            
+            {user && (
+              <button
+                onClick={() => navigate('/minha-conta')}
+                className="w-full bg-white text-slate-700 py-3 px-4 rounded-xl font-semibold hover:bg-slate-50 transition-all border-2 border-slate-200"
+              >
+                Ir para Meu Painel
+              </button>
+            )}
           </div>
-          <button
-            onClick={() => window.history.back()}
-            className="w-full bg-slate-900 text-white py-3 rounded-lg font-semibold hover:bg-slate-800 transition-colors"
-          >
-            Voltar
-          </button>
         </div>
       </div>
     );
