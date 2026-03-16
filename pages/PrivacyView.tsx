@@ -1,15 +1,28 @@
 
-import React, { useState, useEffect } from 'react';
-import { ArrowRight, ArrowUp, ChevronDown, ChevronRight, Info } from 'lucide-react';
-import { PRIVACY_DATA } from '../constants';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ArrowRight, ArrowUp, ChevronDown, ChevronRight, Info, Loader2 } from 'lucide-react';
+import { usePrivacyPage, PRIVACY_PAGE_FALLBACK } from '../src/hooks/usePrivacyPage';
 
 const PrivacyView: React.FC = () => {
+  const { content, isLoading } = usePrivacyPage();
+  const data = content || PRIVACY_PAGE_FALLBACK;
+
   const [activeSection, setActiveSection] = useState<string>('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Criar array de seções a partir dos dados estruturados do banco
+  const sections = useMemo(() => [
+    { id: 'section1', title: data.section1_title, content: data.section1_content },
+    { id: 'section2', title: data.section2_title, content: data.section2_content },
+    { id: 'section3', title: data.section3_title, content: data.section3_content },
+    { id: 'section4', title: data.section4_title, content: data.section4_content },
+    { id: 'section5', title: data.section5_title, content: data.section5_content },
+    { id: 'section6', title: data.section6_title, content: data.section6_content },
+  ], [data]);
+
   useEffect(() => {
     const handleScroll = () => {
-      const sections = PRIVACY_DATA.sections.map(s => document.getElementById(s.id));
+      const sectionElements = sections.map(s => document.getElementById(s.id));
       const scrollPosition = window.scrollY + 200;
 
       const currentSection = sections.find((section, index) => {
@@ -28,7 +41,7 @@ const PrivacyView: React.FC = () => {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [sections]);
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -41,6 +54,14 @@ const PrivacyView: React.FC = () => {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="bg-gray-50 min-h-screen flex items-center justify-center">
+        <Loader2 className="w-12 h-12 text-green-600 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="bg-gray-50 min-h-screen pb-20">
       {/* Page Header */}
@@ -51,10 +72,10 @@ const PrivacyView: React.FC = () => {
               <span className="text-green-700 text-xs font-semibold uppercase tracking-[0.2em] mb-2 block">Transparência & Segurança</span>
               <h1 className="text-xl font-semibold text-slate-900">Política de Privacidade</h1>
               <p className="text-slate-500 mt-3 text-sm font-medium leading-relaxed">
-                {PRIVACY_DATA.intro}
+                Sua privacidade é prioridade. Esta política explica como coletamos, usamos e protegemos seus dados pessoais conforme a LGPD.
               </p>
               <p className="text-slate-400 mt-3 text-xs font-semibold uppercase tracking-wider">
-                Última atualização: <span className="text-slate-600">{PRIVACY_DATA.lastUpdate}</span>
+                Última atualização: <span className="text-slate-600">{data.last_updated_date}</span>
               </p>
             </div>
           </div>
@@ -72,7 +93,7 @@ const PrivacyView: React.FC = () => {
         </button>
         {isMobileMenuOpen && (
           <div className="bg-white border-t border-slate-100 px-4 py-3 space-y-1">
-            {PRIVACY_DATA.sections.map(section => (
+            {sections.map(section => (
               <button 
                 key={section.id}
                 onClick={() => scrollToSection(section.id)}
@@ -93,7 +114,7 @@ const PrivacyView: React.FC = () => {
           <aside className="hidden lg:block lg:col-span-4">
             <div className="sticky top-32 space-y-2">
               <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4 ml-4">Índice de Privacidade</h3>
-              {PRIVACY_DATA.sections.map((section) => (
+              {sections.map((section) => (
                 <button
                   key={section.id}
                   onClick={() => scrollToSection(section.id)}
@@ -123,7 +144,7 @@ const PrivacyView: React.FC = () => {
           {/* Column 2: Privacy Content Body */}
           <article className="lg:col-span-8 bg-white rounded-xl p-6 md:p-10 border border-slate-100">
             <div className="space-y-16">
-              {PRIVACY_DATA.sections.map((section) => (
+              {sections.map((section) => (
                 <div key={section.id} id={section.id} className="scroll-mt-32">
                   <div className="flex items-center gap-4 mb-6">
                     <span className="w-1.5 h-6 bg-green-600 rounded-full"></span>
@@ -132,24 +153,10 @@ const PrivacyView: React.FC = () => {
                     </h2>
                   </div>
 
-                  {/* Summary Card */}
-                  <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-100 flex gap-3 items-start">
-                    <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center text-green-600 flex-shrink-0">
-                      <Info className="w-4 h-4" strokeWidth={1.5} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Resumo Rápido</p>
-                      <p className="text-sm font-semibold text-slate-700 leading-relaxed">
-                        {section.summary}
-                      </p>
-                    </div>
-                  </div>
-
                   {/* Main Content */}
-                  <div 
-                    className="prose prose-slate max-w-none prose-p:text-slate-600 prose-p:leading-relaxed prose-li:text-slate-600 prose-strong:text-slate-900 prose-ul:list-disc prose-ul:ml-6"
-                    dangerouslySetInnerHTML={{ __html: section.content }}
-                  />
+                  <div className="text-slate-600 leading-relaxed whitespace-pre-line">
+                    {section.content}
+                  </div>
                 </div>
               ))}
             </div>

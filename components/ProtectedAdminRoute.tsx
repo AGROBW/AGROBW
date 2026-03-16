@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useSecurityLog } from '../src/hooks/useSecurityLog';
@@ -10,7 +10,7 @@ import { ShieldAlert, Loader, Home } from 'lucide-react';
  * Protege rotas administrativas verificando:
  * - Se usuário está autenticado
  * - Se usuário possui role adequado (admin ou editor)
- * - Se JWT contém custom claims corretos
+ * - Aguarda inicialização completa do AuthContext (elimina race conditions)
  * - Registra automaticamente tentativas de acesso não autorizado
  * 
  * Uso:
@@ -38,24 +38,10 @@ export const ProtectedAdminRoute: React.FC<ProtectedAdminRouteProps> = ({
   const { logUnauthorizedAccess } = useSecurityLog();
   const location = useLocation();
   const navigate = useNavigate();
-  const [verifying, setVerifying] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
 
-  useEffect(() => {
-    // Simular verificação de JWT (em produção, verificar custom claims)
-    const verifyAccess = async () => {
-      if (!isLoading) {
-        // Aguardar um pouco para garantir que user está carregado
-        await new Promise(resolve => setTimeout(resolve, 300));
-        setVerifying(false);
-      }
-    };
-
-    verifyAccess();
-  }, [isLoading, user]);
-
-  // Loading state
-  if (isLoading || verifying) {
+  // Loading state - Aguarda inicialização do AuthContext
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">

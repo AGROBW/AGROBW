@@ -25,15 +25,21 @@ interface User {
   name: string;
   email: string;
   phone: string;
-  cpf_cnpj: string;
-  plan: 'FREE' | 'BASIC' | 'PRO' | 'PREMIUM';
+  document: string; // CPF/CNPJ
   role: 'user' | 'editor' | 'admin';
   is_admin: boolean;
   is_suspended: boolean;
   suspension_reason: string | null;
   suspended_at: string | null;
   created_at: string;
-  last_login_at: string;
+  last_login: string | null; // Sincronizado via trigger do auth.users.last_sign_in_at
+  plan_name?: string; // Nome do plano ativo (extraído de user_subscriptions)
+  user_subscriptions?: Array<{
+    status: string;
+    plans: {
+      name: string;
+    };
+  }>;
   _count?: {
     announcements: number;
   };
@@ -46,7 +52,6 @@ const UserManagement: React.FC = () => {
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterPlan, setFilterPlan] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -62,16 +67,21 @@ const UserManagement: React.FC = () => {
   useEffect(() => {
     loadUsers();
     loadPlans();
-  }, [page, searchTerm, filterPlan, filterStatus]);
+  }, [page, searchTerm, filterStatus]);
 
   // Debug: Log do usuário selecionado no modal de detalhes
   useEffect(() => {
     if (showDetailsModal && selectedUser) {
-      console.log('[UserManagement] Dados do usuário selecionado:', selectedUser);
-      console.log('- Plan:', selectedUser.plan);
-      console.log('- CPF/CNPJ:', selectedUser.cpf_cnpj);
-      console.log('- Phone:', selectedUser.phone);
-      console.log('- Last Login:', selectedUser.last_login_at);
+      console.log('[UserManagement] 📋 Dados do usuário selecionado:', {
+        id: selectedUser.id,
+        name: selectedUser.name,
+        email: selectedUser.email,
+        document: selectedUser.document,
+        plan_name: selectedUser.plan_name,
+        last_login: selectedUser.last_login,
+        is_suspended: selectedUser.is_suspended,
+        announcements_count: selectedUser._count?.announcements
+      });
     }
   }, [showDetailsModal, selectedUser]);
 
@@ -93,22 +103,28 @@ const UserManagement: React.FC = () => {
   const loadUsers = async () => {
     setLoading(true);
     try {
+      // Query com JOIN relacional (mais eficiente que N+1 queries)
       let query = supabase
         .from('users')
-        .select('*', { count: 'exact' })
+        .select(`
+          *,
+          user_subscriptions(
+            status,
+            plans(
+              name
+            )
+          )
+        `, { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
       if (searchTerm) {
         query = query.or(
-          `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,cpf_cnpj.ilike.%${searchTerm}%`
+          `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,document.ilike.%${searchTerm}%`
         );
       }
 
-      if (filterPlan !== 'all') {
-        query = query.eq('plan', filterPlan);
-      }
-
+      // Filtro de suspensão
       if (filterStatus === 'suspended') {
         query = query.eq('is_suspended', true);
       } else if (filterStatus === 'active') {
@@ -117,22 +133,72 @@ const UserManagement: React.FC = () => {
 
       const { data, error, count } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('[UserManagement] Erro na query:', error);
+        throw error;
+      }
 
-      // Carregar contagem de anúncios por usuário
+      // 🔍 DEBUG: Log completo dos dados brutos de TODOS os usuários
+      console.log('[UserManagement] 🔍 DADOS BRUTOS DE TODOS OS USUÁRIOS:', 
+        data?.map(u => ({
+          id: u.id,
+          name: u.name,
+          subscriptions_raw: u.user_subscriptions,
+          subscriptions_count: u.user_subscriptions?.length || 0,
+          // Detalhar cada subscription
+          subscriptions_details: u.user_subscriptions?.map((sub: any) => ({
+            status: sub.status,
+            plan_name: sub.plans?.name || 'NO_PLAN',
+            full_sub: sub
+          }))
+        }))
+      );
+
+      // 🔍 DEBUG: Log completo dos dados brutos
+      console.log('[UserManagement] Dados brutos da query (primeiro usuário):', {
+        total: data?.length,
+        firstUser: data?.[0],
+        subscriptions: data?.[0]?.user_subscriptions
+      });
+
+      // Flattening: Extrair plano ativo e buscar contagem de anúncios
       const usersWithCounts = await Promise.all(
         (data || []).map(async (user) => {
+          // Buscar contagem de anúncios (única sub-query necessária)
           const { count: announcementCount } = await supabase
             .from('announcements')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id);
 
+          // Extrair plano ativo da subscription (flattening relacional)
+          // Supabase retorna user_subscriptions como array, mesmo com 1 resultado
+          let planName: string | null = null;
+          
+          if (user.user_subscriptions && Array.isArray(user.user_subscriptions)) {
+            const activeSubscription = user.user_subscriptions.find(
+              (sub: any) => sub && sub.status === 'active'
+            );
+            
+            if (activeSubscription?.plans) {
+              // plans pode ser objeto único ou array dependendo da configuração
+              if (Array.isArray(activeSubscription.plans)) {
+                planName = activeSubscription.plans[0]?.name || null;
+              } else if (typeof activeSubscription.plans === 'object') {
+                planName = activeSubscription.plans.name || null;
+              }
+            }
+          }
+
           return {
             ...user,
+            plan_name: planName,
             _count: { announcements: announcementCount || 0 }
           };
         })
       );
+
+      // Log resumido para validação
+      console.log('[UserManagement] ✅ Usuários carregados:', usersWithCounts.length);
 
       setUsers(usersWithCounts);
       setTotalCount(count || 0);
@@ -327,26 +393,10 @@ const UserManagement: React.FC = () => {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por nome, email, CPF/CNPJ..."
+                placeholder="Buscar por nome, email ou telefone..."
                 className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
-          </div>
-
-          {/* Plan Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-slate-400" />
-            <select
-              value={filterPlan}
-              onChange={(e) => setFilterPlan(e.target.value)}
-              className="px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              <option value="all">Todos os Planos</option>
-              <option value="FREE">Free</option>
-              <option value="BASIC">Basic</option>
-              <option value="PRO">Pro</option>
-              <option value="PREMIUM">Premium</option>
-            </select>
           </div>
 
           {/* Status Filter */}
@@ -372,12 +422,6 @@ const UserManagement: React.FC = () => {
                   Usuário
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  CPF/CNPJ
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  Plano
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
@@ -394,7 +438,7 @@ const UserManagement: React.FC = () => {
             <tbody className="divide-y divide-slate-200">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
+                  <td colSpan={5} className="px-6 py-12 text-center">
                     <div className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
                     </div>
@@ -402,7 +446,7 @@ const UserManagement: React.FC = () => {
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
                     Nenhum usuário encontrado
                   </td>
                 </tr>
@@ -423,19 +467,6 @@ const UserManagement: React.FC = () => {
                           <p className="text-xs text-slate-400">{user.phone}</p>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {user.cpf_cnpj || '—'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                        user.plan === 'PREMIUM' ? 'bg-purple-100 text-purple-800' :
-                        user.plan === 'PRO' ? 'bg-blue-100 text-blue-800' :
-                        user.plan === 'BASIC' ? 'bg-green-100 text-green-800' :
-                        'bg-slate-100 text-slate-800'
-                      }`}>
-                        {user.plan}
-                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -640,7 +671,7 @@ const UserManagement: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 mb-1">CPF/CNPJ</p>
-                    <p className="font-semibold text-slate-900">{selectedUser.cpf_cnpj || 'Não informado'}</p>
+                    <p className="font-semibold text-slate-900">{selectedUser.document || 'Não informado'}</p>
                   </div>
                 </div>
               </div>
@@ -655,7 +686,7 @@ const UserManagement: React.FC = () => {
                   <div>
                     <p className="text-xs text-slate-500 mb-1">Plano Atual</p>
                     <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
-                      {selectedUser.plan || 'Não definido'}
+                      {selectedUser.plan_name || 'Sem plano ativo'}
                     </span>
                   </div>
                   <div>
@@ -710,9 +741,15 @@ const UserManagement: React.FC = () => {
                   <div>
                     <p className="text-xs text-slate-500 mb-1">Último Login</p>
                     <p className="font-semibold text-slate-900">
-                      {selectedUser.last_login_at 
-                        ? new Date(selectedUser.last_login_at).toLocaleDateString('pt-BR')
-                        : 'Nunca'
+                      {selectedUser.last_login 
+                        ? new Date(selectedUser.last_login).toLocaleString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : 'Nunca acessou'
                       }
                     </p>
                   </div>

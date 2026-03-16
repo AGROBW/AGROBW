@@ -286,6 +286,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
       }
+
+      // ✅ Atualizar last_login após login bem-sucedido
+      await supabase
+        .from('users')
+        .update({ last_login: new Date().toISOString() })
+        .eq('id', data.user.id)
     }
     
     return { error }

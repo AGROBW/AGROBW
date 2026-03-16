@@ -1,12 +1,77 @@
 import React, { useState } from 'react';
-import { Check, ChevronDown, X } from 'lucide-react';
+import { Check, ChevronDown, X, Loader2 } from 'lucide-react';
 import { PRICING_FEATURES, PRICING_FAQ } from '../constants';
 import { usePlans } from '../src/hooks/usePlans';
+import { useAuth } from '../src/contexts/AuthContext';
+import { 
+  initiateCheckout, 
+  isCustomPlan, 
+  getCustomPlanContactLink,
+  calculateYearlyTotal
+} from '../services/mercadoPagoService';
+import toast from 'react-hot-toast';
 
 const PricingView: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
+  const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
   const { plans, isLoading: plansLoading } = usePlans();
+  const { user } = useAuth();
+
+  /**
+   * Manipula o clique no botão de assinar
+   */
+  const handleSubscribe = async (planId: string, planName: string, monthlyPrice: number, yearlyPrice: number) => {
+    // Verificar se é plano customizado (Corporativo)
+    if (isCustomPlan(planName)) {
+      const contactLink = getCustomPlanContactLink(planName);
+      window.open(contactLink, '_blank');
+      return;
+    }
+
+    // Verificar autenticação
+    if (!user) {
+      toast.error('Você precisa estar logado para assinar um plano.');
+      // Redirecionar para login
+      setTimeout(() => {
+        window.location.href = '/#/login?redirect=/pricing';
+      }, 1500);
+      return;
+    }
+
+    // Calcular valor correto
+    const amount = billingCycle === 'monthly' 
+      ? monthlyPrice 
+      : calculateYearlyTotal(monthlyPrice, yearlyPrice);
+
+    setLoadingPlanId(planId);
+    toast.loading('Preparando checkout...', { id: 'checkout-loading' });
+
+    try {
+      const result = await initiateCheckout({
+        planId,
+        planName,
+        planDescription: `Plano ${planName} - ${billingCycle === 'monthly' ? 'Mensal' : 'Anual'}`,
+        billingCycle,
+        amount,
+        userId: user.id,
+      });
+
+      toast.dismiss('checkout-loading');
+
+      if (result.success) {
+        toast.success('Redirecionando para checkout...');
+      } else {
+        toast.error(result.error || 'Erro ao processar checkout.');
+      }
+    } catch (err) {
+      toast.dismiss('checkout-loading');
+      console.error('Erro ao iniciar checkout:', err);
+      toast.error('Erro inesperado ao processar checkout.');
+    } finally {
+      setLoadingPlanId(null);
+    }
+  };
 
   return (
     <div className="bg-white min-h-screen">
@@ -94,8 +159,19 @@ const PricingView: React.FC = () => {
                   ))}
                 </ul>
 
-                <button className={`w-full py-5 rounded-2xl font-black text-sm transition-all active:scale-95 shadow-lg ${plan.isPopular ? 'bg-green-600 text-white hover:bg-green-700 shadow-green-200' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'}`}>
-                  {plan.buttonText}
+                <button 
+                  onClick={() => handleSubscribe(plan.id, plan.name, plan.monthlyPrice, plan.yearlyPrice)}
+                  disabled={loadingPlanId === plan.id}
+                  className={`w-full py-5 rounded-2xl font-black text-sm transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed ${plan.isPopular ? 'bg-green-600 text-white hover:bg-green-700 shadow-green-200' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-200'}`}
+                >
+                  {loadingPlanId === plan.id ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processando...
+                    </>
+                  ) : (
+                    plan.buttonText || 'Assinar Agora'
+                  )}
                 </button>
               </div>
             );

@@ -24,6 +24,7 @@ const PrivacyView = lazy(() => import('./pages/PrivacyView'));
 const UserDashboardView = lazy(() => import('./pages/UserDashboardView'));
 const MessagesView = lazy(() => import('./pages/MessagesView'));
 const FavoritesView = lazy(() => import('./pages/FavoritesView'));
+const InstitutionalPage = lazy(() => import('./pages/InstitutionalPage'));
 
 // Admin Pages
 const AdminLoginView = lazy(() => import('./pages/AdminLoginView'));
@@ -33,6 +34,7 @@ const AdminDashboardOverview = lazy(() => import('./pages/admin/AdminDashboardOv
 const ModerationQueue = lazy(() => import('./pages/admin/ModerationQueue'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'));
+const SettingsView = lazy(() => import('./pages/admin/SettingsView'));
 
 // Auth Guard Component usando Supabase
 const RequireAuth = ({ children }: { children?: React.ReactNode }) => {
@@ -103,12 +105,18 @@ const AppContent: React.FC = () => {
             <Route path="/categorias" element={<CategoriesView />} />
             <Route path="/planos" element={<PricingView />} />
             <Route path="/contato" element={<ContactView />} />
-            <Route path="/quem-somos" element={<AboutView />} />
-            <Route path="/termos-de-uso" element={<TermsView />} />
-            <Route path="/privacidade" element={<PrivacyView />} />
+            
+            {/* Redirects para páginas institucionais (agora no CMS) */}
+            <Route path="/quem-somos" element={<Navigate to="/p/quem-somos" replace />} />
+            <Route path="/termos-de-uso" element={<Navigate to="/p/termos-de-uso" replace />} />
+            <Route path="/privacidade" element={<Navigate to="/p/politica-de-privacidade" replace />} />
+            
             <Route path="/login" element={<LoginView />} />
             <Route path="/cadastro" element={<RegisterView />} />
             <Route path="/redefinir-senha" element={<ResetPasswordView />} />
+            
+            {/* Institutional Pages - Dynamic */}
+            <Route path="/p/:slug" element={<InstitutionalPage />} />
             
             {/* Admin Login */}
             <Route path="/admin/login" element={<AdminLoginView />} />
@@ -166,7 +174,7 @@ const AppContent: React.FC = () => {
               <Route path="moderation" element={<ModerationQueue />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="audit" element={<AuditLogs />} />
-              <Route path="settings" element={<AdminDashboard />} />
+              <Route path="settings" element={<SettingsView />} />
             </Route>
             
             <Route path="/categoria/:slug" element={<AdsListingView />} />

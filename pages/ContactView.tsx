@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { Check, Clock, Mail, MapPin, MessageCircle } from 'lucide-react';
-import { CONTACT_CONFIG } from '../constants';
+import { Check, Clock, Mail, MapPin, MessageCircle, Loader2 } from 'lucide-react';
+import { useContactPage, CONTACT_PAGE_FALLBACK } from '../src/hooks/useContactPage';
 
 const ContactView: React.FC = () => {
+  const { content, isLoading } = useContactPage();
+  const data = content || CONTACT_PAGE_FALLBACK;
+
   const [formStatus, setFormStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    subject: 'Suporte Técnico',
+    subject: '',
     message: ''
   });
 
@@ -19,19 +22,27 @@ const ContactView: React.FC = () => {
     // Simulação de envio
     setTimeout(() => {
       setFormStatus('success');
-      setFormData({ name: '', email: '', phone: '', subject: 'Suporte Técnico', message: '' });
+      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
       setTimeout(() => setFormStatus('idle'), 5000);
     }, 1500);
   };
+
+  if (isLoading) {
+    return (
+      <div className="bg-gray-50 min-h-screen flex items-center justify-center">
+        <Loader2 className="w-12 h-12 text-green-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gray-50 min-h-screen">
       {/* Hero Section */}
       <section className="bg-slate-900 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <h1 className="text-xl font-semibold mb-3">Fale Conosco</h1>
+          <h1 className="text-xl font-semibold mb-3">{data.page_title}</h1>
           <p className="text-slate-400 text-sm max-w-2xl mx-auto">
-            Estamos aqui para ajudar você a colher os melhores resultados. Entre em contato pelos nossos canais oficiais ou envie uma mensagem.
+            {data.page_subtitle}
           </p>
         </div>
       </section>
@@ -51,9 +62,9 @@ const ContactView: React.FC = () => {
                     <MessageCircle className="w-5 h-5" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">WhatsApp</p>
-                    <a href={`https://wa.me/${CONTACT_CONFIG.whatsapp}`} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-slate-800 hover:text-green-600 transition-colors">
-                      {CONTACT_CONFIG.whatsappDisplay}
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">{data.whatsapp_label}</p>
+                    <a href={`https://wa.me/${data.whatsapp_number.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-slate-800 hover:text-green-600 transition-colors">
+                      {data.whatsapp_number}
                     </a>
                   </div>
                 </div>
@@ -64,9 +75,9 @@ const ContactView: React.FC = () => {
                     <Mail className="w-5 h-5" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">E-mail</p>
-                    <a href={`mailto:${CONTACT_CONFIG.email}`} className="text-sm font-semibold text-slate-800 hover:text-green-600 transition-colors">
-                      {CONTACT_CONFIG.email}
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">{data.email_label}</p>
+                    <a href={`mailto:${data.email_address}`} className="text-sm font-semibold text-slate-800 hover:text-green-600 transition-colors">
+                      {data.email_address}
                     </a>
                   </div>
                 </div>
@@ -77,9 +88,9 @@ const ContactView: React.FC = () => {
                     <MapPin className="w-5 h-5" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Endereço Sede</p>
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">{data.address_label}</p>
                     <p className="text-sm font-semibold text-slate-800 leading-tight">
-                      {CONTACT_CONFIG.address}
+                      {data.address_full}
                     </p>
                   </div>
                 </div>
@@ -87,7 +98,7 @@ const ContactView: React.FC = () => {
                 {/* Horário */}
                 <div className="pt-5 border-t border-slate-100 flex items-center gap-3 text-slate-500">
                   <Clock className="w-5 h-5 text-green-600" strokeWidth={1.5} />
-                  <p className="text-sm font-semibold">{CONTACT_CONFIG.workingHours}</p>
+                  <p className="text-sm font-semibold">{data.schedule_text}</p>
                 </div>
               </div>
             </div>
@@ -95,7 +106,7 @@ const ContactView: React.FC = () => {
             {/* Google Map Placeholder */}
             <div className="bg-white rounded-xl p-2 border border-slate-100 overflow-hidden h-56">
               <iframe 
-                src={CONTACT_CONFIG.mapEmbedUrl}
+                src={data.maps_embed_url}
                 width="100%" 
                 height="100%" 
                 style={{ border: 0, borderRadius: '0.75rem' }} 
@@ -109,7 +120,7 @@ const ContactView: React.FC = () => {
           {/* Coluna 2: Formulário */}
           <div className="lg:col-span-7">
             <div className="bg-white rounded-xl p-6 border border-slate-100">
-              <h2 className="text-xl font-semibold text-slate-900 mb-6">Envie sua Mensagem</h2>
+              <h2 className="text-xl font-semibold text-slate-900 mb-6">{data.form_title}</h2>
               
               {formStatus === 'success' ? (
                 <div className="py-12 text-center animate-in fade-in zoom-in duration-500">
@@ -130,7 +141,7 @@ const ContactView: React.FC = () => {
                         value={formData.name}
                         onChange={e => setFormData({...formData, name: e.target.value})}
                         className="w-full bg-slate-50 border-none rounded-lg px-4 h-10 focus:ring-2 focus:ring-green-500 outline-none transition-all"
-                        placeholder="Seu nome"
+                        placeholder={data.form_name_placeholder}
                       />
                     </div>
                     <div>
@@ -141,7 +152,7 @@ const ContactView: React.FC = () => {
                         value={formData.email}
                         onChange={e => setFormData({...formData, email: e.target.value})}
                         className="w-full bg-slate-50 border-none rounded-lg px-4 h-10 focus:ring-2 focus:ring-green-500 outline-none transition-all"
-                        placeholder="seu@email.com"
+                        placeholder={data.form_email_placeholder}
                       />
                     </div>
                   </div>
@@ -155,7 +166,7 @@ const ContactView: React.FC = () => {
                         value={formData.phone}
                         onChange={e => setFormData({...formData, phone: e.target.value})}
                         className="w-full bg-slate-50 border-none rounded-lg px-4 h-10 focus:ring-2 focus:ring-green-500 outline-none transition-all"
-                        placeholder="(00) 00000-0000"
+                        placeholder={data.form_phone_placeholder}
                       />
                     </div>
                     <div>
@@ -165,11 +176,13 @@ const ContactView: React.FC = () => {
                         onChange={e => setFormData({...formData, subject: e.target.value})}
                         className="w-full bg-slate-50 border-none rounded-lg px-4 h-10 focus:ring-2 focus:ring-green-500 outline-none transition-all"
                       >
-                        <option>Suporte Técnico</option>
-                        <option>Dúvidas sobre Planos</option>
-                        <option>Parcerias Comerciais</option>
-                        <option>Sugestões e Elogios</option>
-                        <option>Denunciar Anúncio</option>
+                        <option value="">{data.form_subject_placeholder || 'Selecione o assunto'}</option>
+                        {(data.form_subject_options || 'Suporte Técnico\nDúvidas sobre Planos\nParcerias Comerciais\nSugestões e Elogios\nDenunciar Anúncio')
+                          .split('\n')
+                          .filter(opt => opt.trim())
+                          .map((option, index) => (
+                            <option key={index} value={option.trim()}>{option.trim()}</option>
+                          ))}
                       </select>
                     </div>
                   </div>
@@ -182,7 +195,7 @@ const ContactView: React.FC = () => {
                       value={formData.message}
                       onChange={e => setFormData({...formData, message: e.target.value})}
                       className="w-full bg-slate-50 border-none rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none transition-all resize-none"
-                      placeholder="Como podemos ajudar?"
+                      placeholder={data.form_message_placeholder}
                     ></textarea>
                   </div>
 
@@ -196,7 +209,7 @@ const ContactView: React.FC = () => {
                         <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin"></div>
                         Enviando Mensagem...
                       </>
-                    ) : 'Enviar Mensagem'}
+                    ) : data.form_button_text}
                   </button>
                 </form>
               )}

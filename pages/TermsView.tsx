@@ -1,18 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowUp, ChevronRight, Download } from 'lucide-react';
-import { TERMS_DATA } from '../constants';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ArrowUp, ChevronRight, Download, Loader2 } from 'lucide-react';
+import { useTermsPage, TERMS_PAGE_FALLBACK } from '../src/hooks/useTermsPage';
 
 const TermsView: React.FC = () => {
+  const { content, isLoading } = useTermsPage();
+  const data = content || TERMS_PAGE_FALLBACK;
+
   const [activeSection, setActiveSection] = useState<string>('');
+
+  // Criar array de seções a partir dos dados estruturados do banco
+  const sections = useMemo(() => [
+    { id: 'section1', title: data.section1_title, content: data.section1_content },
+    { id: 'section2', title: data.section2_title, content: data.section2_content },
+    { id: 'section3', title: data.section3_title, content: data.section3_content },
+    { id: 'section4', title: data.section4_title, content: data.section4_content },
+    { id: 'section5', title: data.section5_title, content: data.section5_content },
+    { id: 'section6', title: data.section6_title, content: data.section6_content },
+  ], [data]);
 
   useEffect(() => {
     const handleScroll = () => {
-      const sections = TERMS_DATA.sections.map(s => document.getElementById(s.id));
+      const sectionElements = sections.map(s => document.getElementById(s.id));
       const scrollPosition = window.scrollY + 200;
 
-      const currentSection = sections.find((section, index) => {
+      const currentSection = sectionElements.find((section, index) => {
         if (!section) return false;
-        const nextSection = sections[index + 1];
+        const nextSection = sectionElements[index + 1];
         if (nextSection) {
           return scrollPosition >= section.offsetTop && scrollPosition < nextSection.offsetTop;
         }
@@ -26,7 +39,7 @@ const TermsView: React.FC = () => {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [sections]);
 
   const handlePrint = () => {
     window.print();
@@ -42,6 +55,14 @@ const TermsView: React.FC = () => {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="bg-gray-50 min-h-screen flex items-center justify-center">
+        <Loader2 className="w-12 h-12 text-green-600 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="bg-gray-50 min-h-screen pb-20">
       {/* Page Header */}
@@ -52,7 +73,7 @@ const TermsView: React.FC = () => {
               <span className="text-green-700 text-xs font-semibold uppercase tracking-[0.2em] mb-2 block">Políticas da Plataforma</span>
               <h1 className="text-xl font-semibold text-slate-900">Termos de Uso</h1>
               <p className="text-slate-400 mt-2 text-sm font-medium">
-                Última atualização: <span className="text-slate-600">{TERMS_DATA.lastUpdate}</span>
+                Última atualização: <span className="text-slate-600">{data.last_updated_date}</span>
               </p>
             </div>
             <button 
@@ -74,7 +95,7 @@ const TermsView: React.FC = () => {
           <aside className="lg:col-span-4">
             <div className="sticky top-32 space-y-2">
               <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4 ml-4">Neste Documento</h3>
-              {TERMS_DATA.sections.map((section) => (
+              {sections.map((section) => (
                 <button
                   key={section.id}
                   onClick={() => scrollToSection(section.id)}
@@ -107,16 +128,15 @@ const TermsView: React.FC = () => {
           {/* Column 2: Legal Content Body */}
           <article className="lg:col-span-8 bg-white rounded-xl p-6 md:p-10 border border-slate-100">
             <div className="prose prose-slate max-w-none prose-headings:font-semibold prose-p:text-slate-600 prose-p:leading-relaxed prose-li:text-slate-600 prose-strong:text-slate-900">
-              {TERMS_DATA.sections.map((section) => (
+              {sections.map((section) => (
                 <div key={section.id} id={section.id} className="scroll-mt-32 mb-16 last:mb-0">
                   <h2 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-3">
                     <span className="w-1.5 h-6 bg-green-600 rounded-full"></span>
                     {section.title}
                   </h2>
-                  <div 
-                    className="text-slate-600 space-y-4"
-                    dangerouslySetInnerHTML={{ __html: section.content }}
-                  />
+                  <div className="text-slate-600 space-y-4 whitespace-pre-line">
+                    {section.content}
+                  </div>
                 </div>
               ))}
             </div>
