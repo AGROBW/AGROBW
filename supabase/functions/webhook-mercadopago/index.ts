@@ -7,6 +7,8 @@ interface WebhookBody {
     id?: string;
   };
   id?: number;
+  resource?: string;
+  topic?: string;
   type?: string;
 }
 
@@ -53,21 +55,21 @@ serve(async (req) => {
       .select('id')
       .single();
 
-    if (body.type !== 'payment' || !body.data?.id) {
+    const eventType = body.type || body.topic || '';
+    const paymentId = body.data?.id || (body.topic === 'payment' ? body.resource : undefined);
+
+    if (eventType !== 'payment' || !paymentId) {
+      await supabaseAdmin
+        .from('webhook_logs')
+        .update({
+          processed: true,
+          processed_at: new Date().toISOString(),
+          status_code: 200,
+          error_message: `ignored:${eventType || 'unknown'}`,
+        })
+        .eq('id', webhookLog?.id);
+
       return textResponse('OK - ignored');
-    }
-
-    const { data: processedWebhook } = await supabaseAdmin
-      .from('webhook_logs')
-      .select('id')
-      .eq('provider', 'mercadopago')
-      .eq('processed', true)
-      .filter('payload->data->>id', 'eq', body.data.id)
-      .limit(1)
-      .maybeSingle();
-
-    if (processedWebhook?.id) {
-      return textResponse('Payment already processed');
     }
 
     const { data: credentials, error: credentialsError } = await supabaseAdmin
@@ -82,7 +84,7 @@ serve(async (req) => {
     }
 
     const paymentResponse = await fetch(
-      `https://api.mercadopago.com/v1/payments/${body.data.id}`,
+      `https://api.mercadopago.com/v1/payments/${paymentId}`,
       {
         headers: {
           Authorization: `Bearer ${credentials.mp_access_token}`,
@@ -121,6 +123,30 @@ serve(async (req) => {
     }
 
     if (payment.status === 'approved') {
+      const processedMarker = `payment_processed:${payment.id}`;
+      const { data: approvedWebhook } = await supabaseAdmin
+        .from('webhook_logs')
+        .select('id')
+        .eq('provider', 'mercadopago')
+        .eq('processed', true)
+        .eq('error_message', processedMarker)
+        .limit(1)
+        .maybeSingle();
+
+      if (approvedWebhook?.id) {
+        await supabaseAdmin
+          .from('webhook_logs')
+          .update({
+            processed: true,
+            processed_at: new Date().toISOString(),
+            status_code: 200,
+            error_message: processedMarker,
+          })
+          .eq('id', webhookLog?.id);
+
+        return textResponse('Payment already processed');
+      }
+
       const { data: activeSubscription } = await supabaseAdmin
         .from('user_subscriptions')
         .select('id')
@@ -207,6 +233,7 @@ serve(async (req) => {
           processed: true,
           processed_at: new Date().toISOString(),
           status_code: 200,
+          error_message: processedMarker,
         })
         .eq('id', webhookLog?.id);
 
@@ -229,6 +256,7 @@ serve(async (req) => {
         processed: true,
         processed_at: new Date().toISOString(),
         status_code: 200,
+        error_message: `payment_status:${payment.status || 'unknown'}`,
       })
       .eq('id', webhookLog?.id);
 
