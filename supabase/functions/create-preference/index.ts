@@ -189,7 +189,6 @@ serve(async (req) => {
         failure: `${siteUrl}/#/pricing?payment=failure`,
         pending: `${siteUrl}/#/dashboard?payment=pending`,
       },
-      auto_return: 'approved',
       notification_url: `${projectFunctionsBaseUrl}/webhook-mercadopago`,
       metadata: {
         user_id: user.id,
