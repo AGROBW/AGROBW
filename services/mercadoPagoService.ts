@@ -23,6 +23,27 @@ export interface MPCredentials {
   is_production: boolean;
 }
 
+const readFunctionErrorResponse = async (response?: Response): Promise<string | null> => {
+  if (!response) {
+    return null;
+  }
+
+  try {
+    const contentType = response.headers.get('content-type') || '';
+
+    if (contentType.includes('application/json')) {
+      const payload = await response.clone().json();
+      return payload?.details || payload?.error || payload?.message || JSON.stringify(payload);
+    }
+
+    const text = await response.clone().text();
+    return text || null;
+  } catch (parseError) {
+    console.error('Erro ao ler corpo da resposta da Edge Function:', parseError);
+    return null;
+  }
+};
+
 export const getMercadoPagoCredentials = async (): Promise<MPCredentials | null> => {
   try {
     const { data, error } = await supabase.rpc('get_mp_credentials');
@@ -94,7 +115,7 @@ export const createPaymentPreference = async (
       };
     }
 
-    const { data, error } = await supabase.functions.invoke('create-preference', {
+    const { data, error, response } = await supabase.functions.invoke('create-preference', {
       method: 'POST',
       body: request,
       headers: {
@@ -104,10 +125,16 @@ export const createPaymentPreference = async (
     });
 
     if (error) {
+      const errorDetails = await readFunctionErrorResponse(response);
+
       console.error('Erro ao criar preferencia:', error);
+      console.error('Corpo da resposta da Edge Function:', errorDetails);
       return {
         success: false,
-        error: error.message || 'Erro ao criar preferencia de pagamento.',
+        error:
+          errorDetails ||
+          error.message ||
+          `Erro ao criar preferencia de pagamento${response?.status ? ` (HTTP ${response.status})` : ''}.`,
       };
     }
 
