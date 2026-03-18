@@ -219,7 +219,7 @@ serve(async (req) => {
 
     console.log('Testing Mercado Pago connection...');
 
-    const mpResponse = await fetch('https://api.mercadopago.com/v1/me', {
+    const mpResponse = await fetch('https://api.mercadolibre.com/users/me', {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${credentials.mp_access_token}`,
@@ -261,7 +261,7 @@ serve(async (req) => {
       return jsonResponse({
         success: false,
         error: errorMessage,
-        details: `Mercado Pago responded with ${mpResponse.status}`,
+        details: `Mercado Pago responded with ${mpResponse.status} on /users/me`,
         message: `Erro ${mpResponse.status}: ${mpResponse.statusText}`,
       });
     }

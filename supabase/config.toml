@@ -1,0 +1,19 @@
+[functions.diag-mp-connection]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/diag-mp-connection/index.ts"
+
+[functions.test-mp-connection]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/test-mp-connection/index.ts"
+
+[functions.create-preference]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/create-preference/index.ts"
+
+[functions.webhook-mercadopago]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/webhook-mercadopago/index.ts"

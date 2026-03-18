@@ -1,12 +1,3 @@
-/**
- * =====================================================
- * Mercado Pago Service
- * =====================================================
- * 
- * Service para integração com Mercado Pago via Supabase Edge Function.
- * Gerencia criação de preferências de pagamento e checkout.
- */
-
 import { supabase } from '../src/lib/supabaseClient';
 
 export interface CheckoutRequest {
@@ -32,9 +23,6 @@ export interface MPCredentials {
   is_production: boolean;
 }
 
-/**
- * Busca as credenciais do Mercado Pago via RPC function
- */
 export const getMercadoPagoCredentials = async (): Promise<MPCredentials | null> => {
   try {
     const { data, error } = await supabase.rpc('get_mp_credentials');
@@ -56,40 +44,34 @@ export const getMercadoPagoCredentials = async (): Promise<MPCredentials | null>
   }
 };
 
-/**
- * Verifica se o Mercado Pago está configurado
- */
 export const isMercadoPagoConfigured = async (): Promise<boolean> => {
   const credentials = await getMercadoPagoCredentials();
   return !!(credentials && credentials.access_token);
 };
 
-/**
- * Cria uma preferência de pagamento via Edge Function
- */
 export const createPaymentPreference = async (
   request: CheckoutRequest
 ): Promise<CheckoutResponse> => {
   try {
-    // Verificar autenticação
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
       return {
         success: false,
-        error: 'Usuário não autenticado. Faça login para continuar.',
+        error: userError?.message || 'Usuario nao autenticado. Faca login para continuar.',
       };
     }
 
-    // Garantir que o userId é do usuário atual (segurança)
     if (request.userId !== user.id) {
       return {
         success: false,
-        error: 'Usuário inválido.',
+        error: 'Usuario invalido.',
       };
     }
 
-    // Log de tentativa de checkout
     try {
       await supabase.rpc('log_checkout_attempt', {
         p_plan_id: request.planId,
@@ -98,26 +80,41 @@ export const createPaymentPreference = async (
       });
     } catch (logError) {
       console.warn('Erro ao registrar log de checkout:', logError);
-      // Não bloqueia o checkout se o log falhar
     }
 
-    // Chamar Edge Function
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      return {
+        success: false,
+        error: sessionError?.message || 'Sessao invalida para criar checkout.',
+      };
+    }
+
     const { data, error } = await supabase.functions.invoke('create-preference', {
+      method: 'POST',
       body: request,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
     });
 
     if (error) {
-      console.error('Erro ao criar preferência:', error);
+      console.error('Erro ao criar preferencia:', error);
       return {
         success: false,
-        error: error.message || 'Erro ao criar preferência de pagamento.',
+        error: error.message || 'Erro ao criar preferencia de pagamento.',
       };
     }
 
     if (!data || !data.initPoint) {
       return {
         success: false,
-        error: 'Resposta inválida do servidor.',
+        error: data?.error || 'Resposta invalida do servidor.',
       };
     }
 
@@ -128,7 +125,7 @@ export const createPaymentPreference = async (
       sandboxInitPoint: data.sandboxInitPoint,
     };
   } catch (err) {
-    console.error('Erro inesperado ao criar preferência:', err);
+    console.error('Erro inesperado ao criar preferencia:', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Erro inesperado ao processar pagamento.',
@@ -136,41 +133,32 @@ export const createPaymentPreference = async (
   }
 };
 
-/**
- * Inicia o fluxo de checkout do Mercado Pago
- * Cria a preferência e redireciona para o checkout
- */
 export const initiateCheckout = async (
   request: CheckoutRequest
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    // Verificar se MP está configurado
     const isConfigured = await isMercadoPagoConfigured();
     if (!isConfigured) {
       return {
         success: false,
-        error: 'Mercado Pago não está configurado. Entre em contato com o suporte.',
+        error: 'Mercado Pago nao esta configurado. Entre em contato com o suporte.',
       };
     }
 
-    // Criar preferência
     const result = await createPaymentPreference(request);
 
     if (!result.success || !result.initPoint) {
       return {
         success: false,
-        error: result.error || 'Erro ao criar preferência de pagamento.',
+        error: result.error || 'Erro ao criar preferencia de pagamento.',
       };
     }
 
-    // Redirecionar para checkout do Mercado Pago
-    // Usar sandbox_init_point se estiver em ambiente de teste
     const credentials = await getMercadoPagoCredentials();
     const checkoutUrl = credentials?.is_production
       ? result.initPoint
       : result.sandboxInitPoint || result.initPoint;
 
-    // Abrir em nova aba (melhor UX)
     window.open(checkoutUrl, '_blank');
 
     return {
@@ -185,9 +173,6 @@ export const initiateCheckout = async (
   }
 };
 
-/**
- * Formata o preço para exibição
- */
 export const formatPrice = (price: number): string => {
   return price.toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
@@ -195,9 +180,6 @@ export const formatPrice = (price: number): string => {
   });
 };
 
-/**
- * Calcula o preço com base no ciclo de faturamento
- */
 export const calculatePrice = (
   monthlyPrice: number,
   yearlyPrice: number,
@@ -206,13 +188,10 @@ export const calculatePrice = (
   if (billingCycle === 'monthly') {
     return monthlyPrice;
   }
-  // Retornar preço mensal equivalente do plano anual
-  return yearlyPrice / 12;
+
+  return yearlyPrice > 0 ? yearlyPrice : monthlyPrice * 12;
 };
 
-/**
- * Calcula o valor total anual
- */
 export const calculateYearlyTotal = (
   monthlyPrice: number,
   yearlyPrice: number
@@ -220,9 +199,6 @@ export const calculateYearlyTotal = (
   return yearlyPrice > 0 ? yearlyPrice : monthlyPrice * 12;
 };
 
-/**
- * Calcula a economia do plano anual
- */
 export const calculateYearlySavings = (
   monthlyPrice: number,
   yearlyPrice: number
@@ -238,31 +214,17 @@ export const calculateYearlySavings = (
   };
 };
 
-/**
- * Verifica se o plano é "sob consulta" (Corporativo, Enterprise, etc.)
- */
 export const isCustomPlan = (planName: string): boolean => {
   const customPlanNames = ['corporativo', 'enterprise', 'personalizado', 'custom'];
-  return customPlanNames.some((name) => 
-    planName.toLowerCase().includes(name)
-  );
+  return customPlanNames.some((name) => planName.toLowerCase().includes(name));
 };
 
-/**
- * Retorna o link de contato para planos customizados
- * Ajuste o número do WhatsApp conforme necessário
- */
 export const getCustomPlanContactLink = (planName: string): string => {
-  const whatsappNumber = '5511999999999'; // Ajustar número
+  const whatsappNumber = '5511999999999';
   const message = encodeURIComponent(
-    `Olá! Tenho interesse no plano ${planName}. Gostaria de mais informações.`
+    `Ola! Tenho interesse no plano ${planName}. Gostaria de mais informacoes.`
   );
   return `https://wa.me/${whatsappNumber}?text=${message}`;
 };
 
-/**
- * Retorna o link de contato via formulário
- */
-export const getContactFormLink = (): string => {
-  return '/#/contact';
-};
+export const getContactFormLink = (): string => '/#/contact';

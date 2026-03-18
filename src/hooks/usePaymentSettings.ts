@@ -186,6 +186,18 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
         };
       }
 
+      if (!data.success) {
+        const detailedError = [data.error, data.message, data.details]
+          .filter((value): value is string => Boolean(value && String(value).trim()))
+          .join(' | ');
+
+        return {
+          success: false,
+          data: data.data,
+          error: detailedError || 'Erro ao testar conexao com Mercado Pago',
+        };
+      }
+
       return {
         success: data.success,
         data: data.data,
