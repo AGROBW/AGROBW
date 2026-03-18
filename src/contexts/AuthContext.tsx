@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
-import { User } from '../../types'
+import { User, UserRole } from '../../types'
 import { toast } from 'sonner'
 
 interface UserStats {
@@ -48,6 +48,32 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const defaultStats: UserStats = {
+  total_ads: 0,
+  active_ads: 0,
+  total_views: 0,
+  unread_messages: 0,
+  favorites_count: 0,
+  opportunities_count: 0,
+  is_seller: false,
+  first_ad_at: null
+}
+
+const normalizeUserRole = (role?: string | null): UserRole => {
+  switch ((role || '').toUpperCase()) {
+    case UserRole.ADMIN:
+      return UserRole.ADMIN
+    case UserRole.BUYER:
+      return UserRole.BUYER
+    case UserRole.ADVERTISER:
+      return UserRole.ADVERTISER
+    case UserRole.VISITOR:
+      return UserRole.VISITOR
+    default:
+      return UserRole.VISITOR
+  }
+}
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null)
@@ -89,7 +115,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         bairro: userData.bairro,
         cidade: userData.cidade,
         estado: userData.estado,
-        role: userData.role || 'USER',
+        role: normalizeUserRole(userData.role),
         location: userData.location || (userData.cidade && userData.estado ? `${userData.cidade}, ${userData.estado}` : userData.cidade),
         avatar: userData.avatar,
         plan: userData.plan,
@@ -115,15 +141,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Buscar estatísticas via função get_user_stats
   const fetchStats = async (userId: string, canSetState?: () => boolean) => {
-    const defaultStats = {
-      total_ads: 0,
-      active_ads: 0,
-      total_views: 0,
-      total_clicks: 0,
-      is_seller: false,
-      first_ad_at: null
-    }
-
     try {
       const { data, error } = await supabase.rpc('get_user_stats', {
         user_uuid: userId
@@ -194,11 +211,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             id: session.user.id,
             email: session.user.email || '',
             name: session.user.email || 'Usuário',
-            phone: null,
-            role: 'USER',
-            location: null,
-            avatar: null,
-            plan: null,
+            phone: '',
+            role: UserRole.VISITOR,
+            location: '',
+            avatar: '',
+            plan: undefined,
             isAdmin: false
           })
           setIsLoading(false)
@@ -375,7 +392,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         stats,
         isLoading,
         isSeller: stats?.is_seller ?? false,
-        isAdmin: (user?.isAdmin ?? (user?.role === 'ADMIN')) || false,
+        isAdmin: (user?.isAdmin ?? (user?.role === UserRole.ADMIN)) || false,
         signIn,
         sendPasswordResetEmail,
         signUp,

@@ -168,7 +168,7 @@ export interface Message {
 }
 
 // Importar tipos de status das constantes centralizadas
-import type { ChatStatus, LeadStatus } from '../constants/status';
+import type { ChatStatus, LeadStatus } from './constants/status';
 
 export type { ChatStatus, LeadStatus };
 

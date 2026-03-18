@@ -921,7 +921,7 @@ const AdCreationView: React.FC = () => {
                     const result = censorContactData(e.target.value);
                     if (result.hadContactData) {
                       setFormData({...formData, title: result.censored});
-                      toast.warning('⚠️ Por sua segurança, removemos dados de contato do título', {
+                      toast.error('Por sua segurança, removemos dados de contato do título', {
                         description: 'Use o chat oficial da plataforma para negociar',
                         duration: 5000
                       });
@@ -988,7 +988,7 @@ const AdCreationView: React.FC = () => {
                     const result = censorContactData(e.target.value);
                     if (result.hadContactData) {
                       setFormData({...formData, description: result.censored});
-                      toast.warning('⚠️ Por sua segurança, removemos dados de contato da descrição', {
+                      toast.error('Por sua segurança, removemos dados de contato da descrição', {
                         description: 'Use o chat oficial da plataforma para negociar',
                         duration: 5000
                       });

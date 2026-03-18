@@ -395,11 +395,9 @@ export const MOCK_METRICS: AdMetrics[] = [
 export const MOCK_MESSAGES: Message[] = [
   {
     id: 'm1',
-    adId: 'ad1',
-    adTitle: 'Trator John Deere 6125J',
+    chatId: 'chat_ad1_u1_buyer123',
     senderId: 'buyer123',
     senderName: 'Ricardo Almeida',
-    receiverId: 'u1',
     content: 'Olá, aceita troca por caminhonete no negócio?',
     timestamp: '2024-05-20T10:30:00Z',
     isRead: false,
@@ -407,11 +405,9 @@ export const MOCK_MESSAGES: Message[] = [
   },
   {
     id: 'm2',
-    adId: 'ad1',
-    adTitle: 'Trator John Deere 6125J',
+    chatId: 'chat_ad1_u1_buyer123',
     senderId: 'u1',
     senderName: 'João do Campo',
-    receiverId: 'buyer123',
     content: 'Olá Ricardo, podemos conversar sobre. Qual o modelo da sua caminhonete?',
     timestamp: '2024-05-20T11:00:00Z',
     isRead: true,

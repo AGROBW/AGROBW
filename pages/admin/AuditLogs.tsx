@@ -118,23 +118,23 @@ const AuditLogs: React.FC = () => {
         .select('admin_name, admin_email');
 
       if (adminData) {
-        const adminCountMap = new Map<string, { name: string; email: string; count: number }>();
+        const adminCountMap = new Map<string, AdminStats>();
         
         adminData.forEach((log) => {
           const key = log.admin_email;
           if (adminCountMap.has(key)) {
-            adminCountMap.get(key)!.count++;
+            adminCountMap.get(key)!.action_count++;
           } else {
             adminCountMap.set(key, {
-              name: log.admin_name,
-              email: log.admin_email,
-              count: 1
+              admin_name: log.admin_name,
+              admin_email: log.admin_email,
+              action_count: 1
             });
           }
         });
 
         const adminStatsArray = Array.from(adminCountMap.values())
-          .sort((a, b) => b.count - a.count)
+          .sort((a, b) => b.action_count - a.action_count)
           .slice(0, 5);
 
         setAdminStats(adminStatsArray);
@@ -264,10 +264,10 @@ const AuditLogs: React.FC = () => {
             {adminStats.map((stat, idx) => (
               <div key={idx} className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">{stat.name}</p>
-                  <p className="text-xs text-slate-500">{stat.email}</p>
+                  <p className="text-sm font-semibold text-slate-900">{stat.admin_name}</p>
+                  <p className="text-xs text-slate-500">{stat.admin_email}</p>
                 </div>
-                <span className="text-sm font-bold text-slate-900">{stat.count} ações</span>
+                <span className="text-sm font-bold text-slate-900">{stat.action_count} ações</span>
               </div>
             ))}
           </div>

@@ -3,6 +3,9 @@ declare module 'sonner' {
 
   export interface ToastOptions {
     description?: React.ReactNode
+    duration?: number
+    icon?: React.ReactNode
+    style?: React.CSSProperties
   }
 
   export interface ToasterProps {
@@ -16,5 +19,6 @@ declare module 'sonner' {
     success: (message: string, options?: ToastOptions) => void
     error: (message: string, options?: ToastOptions) => void
     info: (message: string, options?: ToastOptions) => void
+    warning: (message: string, options?: ToastOptions) => void
   }
 }

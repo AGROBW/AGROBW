@@ -25,5 +25,28 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "App.tsx",
+    "index.tsx",
+    "constants.tsx",
+    "types.ts",
+    "vite-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "pages/**/*.ts",
+    "pages/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "services/**/*.ts",
+    "services/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "supabase/functions/**",
+    "examples/**",
+    "EXEMPLO_BOTOES_DESTAQUE.tsx",
+    "sql/**"
+  ]
 }

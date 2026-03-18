@@ -237,21 +237,21 @@ const AdminDashboardOverview: React.FC = () => {
       const freeToPaid = conversionData?.conversion_rate_percentage || 0;
 
       // Taxa de Churn de Clientes (número de clientes, não MRR)
-      const { data: currentMonthSubs } = await supabase
+      const { count: activeThisMonthCount } = await supabase
         .from('user_subscriptions')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'active')
         .gte('current_period_start', new Date(new Date().setDate(1)).toISOString()); // Início do mês
 
-      const activeThisMonth = currentMonthSubs || 0;
+      const activeThisMonth = activeThisMonthCount || 0;
 
-      const { data: canceledThisMonth } = await supabase
+      const { count: churnedCustomersCount } = await supabase
         .from('subscription_history')
         .select('*', { count: 'exact', head: true })
         .in('event_type', ['canceled', 'expired'])
         .gte('created_at', new Date(new Date().setDate(1)).toISOString());
 
-      const churnedCustomers = canceledThisMonth || 0;
+      const churnedCustomers = churnedCustomersCount || 0;
       const customerChurn = activeThisMonth > 0 ? (churnedCustomers / activeThisMonth) * 100 : 0;
 
       // Taxa de Conversão de Leads
@@ -658,7 +658,7 @@ const AdminDashboardOverview: React.FC = () => {
                     cx="50%"
                     cy="50%"
                     outerRadius={60}
-                    label={(entry) => `${entry.name}: ${entry.percentage.toFixed(1)}%`}
+                    label={(entry) => `${entry.name}: ${((entry.percent ?? 0) * 100).toFixed(1)}%`}
                   >
                     {financialMetrics.revenueByPlan.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'][index % 5]} />

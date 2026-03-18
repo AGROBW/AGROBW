@@ -6,6 +6,7 @@ import AdsSideDrawer from './AdsSideDrawer';
 import NotificationsModal from './NotificationsModal';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useNotificationsCount } from '../src/hooks/useNotificationsCount';
+import { UserRole } from '../types';
 
 const Header: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -35,7 +36,7 @@ const Header: React.FC = () => {
   }, [isProfileDropdownOpen]);
 
   // Verificar se usuário é admin
-  const isAdmin = user?.is_admin === true || user?.role === 'admin';
+  const isAdmin = user?.isAdmin === true || user?.role === UserRole.ADMIN;
 
   const handleLogout = async () => {
     await signOut();

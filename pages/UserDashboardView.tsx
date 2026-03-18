@@ -67,7 +67,7 @@ const UserDashboardView: React.FC = () => {
   const { user, stats, signOut, refreshStats } = useAuth();
   const { ads, isLoading: adsLoading } = useUserAds();
   const { messagesCount, notificationsCount, isLoading: countsLoading } = useNotificationsCount();
-  const { subscription, usage, isLoading: subscriptionLoading } = useSubscription();
+  const { subscription, usage, isLoading: subscriptionLoading, refreshUsage } = useSubscription();
   const [userAds, setUserAds] = useState<Ad[]>([]);
   const [userAdsLoading, setUserAdsLoading] = useState(false);
   const { invoices, isLoading: invoicesLoading } = useInvoices();
@@ -90,14 +90,14 @@ const UserDashboardView: React.FC = () => {
     const fetchNewLeadsCount = async () => {
       if (!user?.id) return;
       
-      const { data, error } = await supabase
+      const { count, error } = await supabase
         .from('leads')
         .select('id', { count: 'exact', head: true })
         .eq('seller_id', user.id)
         .eq('status', LEAD_STATUS.NEW);
       
-      if (!error && data) {
-        setNewLeadsCount(data.length || 0);
+      if (!error) {
+        setNewLeadsCount(count || 0);
       }
     };
     
@@ -650,7 +650,7 @@ const UserDashboardView: React.FC = () => {
               categoryHighlightsLimit={usage.categoryHighlightsLimit}
               homeHighlightsUsed={usage.homeHighlightsUsed}
               homeHighlightsLimit={usage.homeHighlightsLimit}
-              periodEndDate={usage.periodEndDate}
+              periodEndDate={usage.periodEndDate?.toISOString()}
               loading={subscriptionLoading}
               rpcAdsCount={dashboardStats?.total_ads}
               rpcHomeHighlights={dashboardStats?.home_highlights}

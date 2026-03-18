@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Send, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import InputMask from 'react-input-mask';
-import { supabase } from '../src/supabaseClient';
+import { supabase } from '../src/lib/supabaseClient';
 import toast from 'react-hot-toast';
 import { LEAD_STATUS, CHAT_STATUS } from '../constants/status';
 
@@ -191,9 +191,7 @@ const ContactModal: React.FC<ContactModalProps> = ({
 
       console.log('[Contact] Mensagem enviada com sucesso');
 
-      toast.success('Mensagem enviada com sucesso!', {
-        description: 'O vendedor receberá sua mensagem em breve.'
-      });
+      toast.success('Mensagem enviada com sucesso! O vendedor receberá sua mensagem em breve.');
 
       // Resetar formulário e fechar modal
       setFormData(prev => ({
@@ -205,9 +203,7 @@ const ContactModal: React.FC<ContactModalProps> = ({
 
     } catch (error: any) {
       console.error('[Contact] Erro ao processar contato:', error);
-      toast.error('Erro ao enviar mensagem', {
-        description: error.message || 'Tente novamente mais tarde.'
-      });
+      toast.error(`Erro ao enviar mensagem: ${error.message || 'Tente novamente mais tarde.'}`);
     } finally {
       setIsSubmitting(false);
     }

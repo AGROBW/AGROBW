@@ -8,7 +8,7 @@ import { ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 const AdminLoginView: React.FC = () => {
   const navigate = useNavigate();
-  const { signIn, signOut, user, isAdmin } = useAuth();
+  const { signIn, user, isAdmin } = useAuth();
   const { logAction } = useAdminAudit();
   
   // Rate Limiting (5 tentativas a cada 15 min, bloqueio de 30 min)
@@ -37,9 +37,9 @@ const AdminLoginView: React.FC = () => {
     }
     if (user && !isAdmin) {
       setError('Usuário não possui permissão de administrador.');
-      signOut();
+      setTimeout(() => navigate('/minha-conta'), 300);
     }
-  }, [user, isAdmin, navigate, signOut, reset]);
+  }, [user, isAdmin, navigate, reset]);
 
   // Mostrar captcha após 2 tentativas falhadas
   useEffect(() => {

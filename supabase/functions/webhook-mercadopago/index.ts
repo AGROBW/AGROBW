@@ -124,16 +124,39 @@ serve(async (req) => {
 
     if (payment.status === 'approved') {
       const processedMarker = `payment_processed:${payment.id}`;
-      const { data: approvedWebhook } = await supabaseAdmin
-        .from('webhook_logs')
-        .select('id')
-        .eq('provider', 'mercadopago')
-        .eq('processed', true)
-        .eq('error_message', processedMarker)
-        .limit(1)
+      const { data: processedPayment, error: processedPaymentError } = await supabaseAdmin
+        .from('mp_processed_payments')
+        .upsert(
+          {
+            payment_id: String(payment.id),
+            provider: 'mercadopago',
+            user_id: userId,
+            plan_id: planId,
+            webhook_log_id: webhookLog?.id || null,
+          },
+          {
+            onConflict: 'payment_id',
+            ignoreDuplicates: true,
+          }
+        )
+        .select('payment_id')
         .maybeSingle();
 
-      if (approvedWebhook?.id) {
+      if (processedPaymentError) {
+        console.error('Failed to reserve payment id:', processedPaymentError);
+
+        await supabaseAdmin
+          .from('webhook_logs')
+          .update({
+            processed: false,
+            error_message: processedPaymentError.message,
+          })
+          .eq('id', webhookLog?.id);
+
+        return textResponse('Failed to reserve payment', 500);
+      }
+
+      if (!processedPayment?.payment_id) {
         await supabaseAdmin
           .from('webhook_logs')
           .update({

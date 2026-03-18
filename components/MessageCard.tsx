@@ -1,6 +1,7 @@
 import React from 'react';
 import { Chat } from '../types';
 import { Clock, ShoppingBag, Tag } from 'lucide-react';
+import { CHAT_STATUS } from '../constants/status';
 
 interface MessageCardProps {
   chat: Chat;

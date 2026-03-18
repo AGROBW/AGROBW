@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
-import { Chat, Message, LeadStatus } from '../types'
+import { Chat, Message, LeadStatus } from '../../types'
 import { LEAD_STATUS } from '../../constants/status'
 
 export const useChats = (announcementId?: string | null) => {

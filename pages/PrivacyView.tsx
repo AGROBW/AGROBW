@@ -26,12 +26,14 @@ const PrivacyView: React.FC = () => {
       const scrollPosition = window.scrollY + 200;
 
       const currentSection = sections.find((section, index) => {
-        if (!section) return false;
+        const currentElement = section ? document.getElementById(section.id) : null;
+        if (!currentElement) return false;
         const nextSection = sections[index + 1];
+        const nextElement = nextSection ? document.getElementById(nextSection.id) : null;
         if (nextSection) {
-          return scrollPosition >= section.offsetTop && scrollPosition < nextSection.offsetTop;
+          return scrollPosition >= currentElement.offsetTop && (!nextElement || scrollPosition < nextElement.offsetTop);
         }
-        return scrollPosition >= section.offsetTop;
+        return scrollPosition >= currentElement.offsetTop;
       });
 
       if (currentSection) {

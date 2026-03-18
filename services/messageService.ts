@@ -1,4 +1,8 @@
 import { Message, Chat, Lead, ContactInfo, User } from '../types';
+import { CHAT_STATUS, LEAD_STATUS, LeadStatus } from '../constants/status';
+
+type MockLeadStatus = 'pending' | 'unlocked';
+type StoredLead = Omit<Lead, 'status'> & { status: LeadStatus | MockLeadStatus };
 
 // ========================================
 // FILTRO DE SEGURANÇA (GATEKEEPER)
@@ -40,12 +44,12 @@ export const filterMessageContent = (content: string, isLeadUnlocked: boolean): 
 
 const LEAD_UNLOCK_COST = 5; // Créditos necessários para desbloquear
 
-export const getLeads = (): Lead[] => {
+export const getLeads = (): StoredLead[] => {
   const stored = localStorage.getItem('bwagro_leads');
   return stored ? JSON.parse(stored) : [];
 };
 
-export const saveLead = (lead: Lead): void => {
+export const saveLead = (lead: StoredLead): void => {
   const leads = getLeads();
   const index = leads.findIndex(l => l.chatId === lead.chatId);
   
@@ -61,7 +65,8 @@ export const saveLead = (lead: Lead): void => {
 export const getLeadStatus = (chatId: string): 'pending' | 'unlocked' => {
   const leads = getLeads();
   const lead = leads.find(l => l.chatId === chatId);
-  return lead?.status || 'pending';
+  if (!lead) return 'pending';
+  return lead.status === 'unlocked' ? 'unlocked' : 'pending';
 };
 
 export const unlockLead = (chatId: string, userId: string): { success: boolean; message: string } => {
@@ -183,7 +188,7 @@ export const createOrGetChat = (adId: string, adTitle: string, adPrice: number, 
     lastMessage: '',
     lastMessageTime: new Date().toISOString(),
     unreadCount: 0,
-    status: 'pending',
+    status: CHAT_STATUS.NOVO,
     createdAt: new Date().toISOString()
   };
   
@@ -195,7 +200,7 @@ export const createOrGetChat = (adId: string, adTitle: string, adPrice: number, 
     adId,
     sellerId,
     buyerId,
-    status: 'pending'
+    status: LEAD_STATUS.NEW
   };
   saveLead(lead);
   

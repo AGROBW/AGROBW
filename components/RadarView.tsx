@@ -441,7 +441,7 @@ const RadarView: React.FC = () => {
                   <li>• Palavras-chave: {planLimits.keywords ? '✓ Disponível' : '✗ Não disponível'}</li>
                   <li>• Filtro de preço: {planLimits.price_filter ? '✓ Disponível' : '✗ Não disponível'}</li>
                 </ul>
-                {userPlan !== 'destaque' && (
+                {userPlan !== 'harvest' && (
                   <Link
                     to="/minha-conta"
                     className="inline-flex items-center gap-1 mt-2 text-sm font-semibold text-blue-700 hover:text-blue-800"

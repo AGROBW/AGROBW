@@ -27,6 +27,7 @@ interface User {
   phone: string;
   document: string; // CPF/CNPJ
   role: 'user' | 'editor' | 'admin';
+  plan?: string;
   is_admin: boolean;
   is_suspended: boolean;
   suspension_reason: string | null;
