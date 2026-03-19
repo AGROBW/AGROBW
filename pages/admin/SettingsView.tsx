@@ -9,8 +9,9 @@ import PrivacyPageManagement from './PrivacyPageManagement';
 import ContactPageManagement from './ContactPageManagement';
 import PlansManagement from './PlansManagement';
 import IntegrationsManagement from './IntegrationsManagement';
+import FiscalSettingsManagement from './FiscalSettingsManagement';
 
-type SettingsTab = 'banners' | 'pages' | 'about' | 'terms' | 'privacy' | 'contact' | 'integrations' | 'plans' | 'email';
+type SettingsTab = 'banners' | 'pages' | 'about' | 'terms' | 'privacy' | 'contact' | 'integrations' | 'plans' | 'fiscal' | 'email';
 
 const SettingsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('banners');
@@ -24,6 +25,7 @@ const SettingsView: React.FC = () => {
     { id: 'contact' as SettingsTab, label: 'Fale Conosco', icon: MessageCircle },
     { id: 'integrations' as SettingsTab, label: 'Integrações', icon: Plug },
     { id: 'plans' as SettingsTab, label: 'Planos', icon: CreditCard },
+    { id: 'fiscal' as SettingsTab, label: 'Fiscal NFS-e', icon: FileText },
     { id: 'email' as SettingsTab, label: 'Config. E-mail', icon: Mail }
   ];
 
@@ -113,6 +115,10 @@ const SettingsView: React.FC = () => {
         
         {activeTab === 'plans' && (
           <PlansManagement />
+        )}
+
+        {activeTab === 'fiscal' && (
+          <FiscalSettingsManagement />
         )}
         
         {activeTab === 'email' && (

@@ -17,3 +17,13 @@ entrypoint = "./functions/create-preference/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/webhook-mercadopago/index.ts"
+
+[functions.issue-nfse]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/issue-nfse/index.ts"
+
+[functions.webhook-fiscal]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/webhook-fiscal/index.ts"

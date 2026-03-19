@@ -29,6 +29,18 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import toast from 'react-hot-toast';
 
+const FieldShell: React.FC<{
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}> = ({ label, hint, children }) => (
+  <label className="block space-y-2">
+    <span className="text-sm font-semibold text-gray-700">{label}</span>
+    {children}
+    {hint ? <span className="block text-xs text-gray-400">{hint}</span> : null}
+  </label>
+);
+
 const makeEmptyForm = (position: number): UpdatePlanData => ({
   name: '',
   description: '',
@@ -265,15 +277,33 @@ const PlansManagement: React.FC = () => {
               Conteudo do Card
             </h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <input value={formData.name || ''} onChange={(e) => handleChange('name', e.target.value)} placeholder="Nome do plano" className="rounded-lg border border-gray-300 px-4 py-2 md:col-span-2" />
-              <input value={formData.card_eyebrow || ''} onChange={(e) => handleChange('card_eyebrow', e.target.value)} placeholder="Texto superior do card" className="rounded-lg border border-gray-300 px-4 py-2 md:col-span-2" />
-              <textarea value={formData.description || ''} onChange={(e) => handleChange('description', e.target.value)} placeholder="Descricao curta" rows={2} className="rounded-lg border border-gray-300 px-4 py-2 md:col-span-2" />
-              <input value={formData.price_caption || ''} onChange={(e) => handleChange('price_caption', e.target.value)} placeholder="Frase da caixa de preco" className="rounded-lg border border-gray-300 px-4 py-2 md:col-span-2" />
-              <input value={formData.footer_caption || ''} onChange={(e) => handleChange('footer_caption', e.target.value)} placeholder="Frase de rodape do card" className="rounded-lg border border-gray-300 px-4 py-2 md:col-span-2" />
-              <input type="number" value={formData.monthly_price ?? 0} onChange={(e) => handleChange('monthly_price', parseFloat(e.target.value) || 0)} placeholder="Preco mensal" className="rounded-lg border border-gray-300 px-4 py-2" />
-              <input type="number" value={formData.yearly_price ?? 0} onChange={(e) => handleChange('yearly_price', parseFloat(e.target.value) || 0)} placeholder="Preco anual" className="rounded-lg border border-gray-300 px-4 py-2" />
-              <input value={formData.button_text || ''} onChange={(e) => handleChange('button_text', e.target.value)} placeholder="Texto do botao" className="rounded-lg border border-gray-300 px-4 py-2" />
-              <input type="number" value={formData.position ?? 0} onChange={(e) => handleChange('position', parseInt(e.target.value, 10) || 0)} placeholder="Posicao" className="rounded-lg border border-gray-300 px-4 py-2" />
+              <FieldShell label="Nome do Plano">
+                <input value={formData.name || ''} onChange={(e) => handleChange('name', e.target.value)} placeholder="Ex.: Essencial" className="w-full rounded-lg border border-gray-300 px-4 py-2 md:col-span-2" />
+              </FieldShell>
+              <FieldShell label="Texto Superior do Card" hint="Pequeno texto acima do nome, como 'Plano BWAGRO'.">
+                <input value={formData.card_eyebrow || ''} onChange={(e) => handleChange('card_eyebrow', e.target.value)} placeholder="Texto superior do card" className="w-full rounded-lg border border-gray-300 px-4 py-2 md:col-span-2" />
+              </FieldShell>
+              <FieldShell label="Descricao Curta" hint="Texto logo abaixo do nome do plano.">
+                <textarea value={formData.description || ''} onChange={(e) => handleChange('description', e.target.value)} placeholder="Descricao curta" rows={2} className="w-full rounded-lg border border-gray-300 px-4 py-2 md:col-span-2" />
+              </FieldShell>
+              <FieldShell label="Frase da Caixa de Preco" hint="Texto exibido dentro da faixa escura abaixo do valor.">
+                <input value={formData.price_caption || ''} onChange={(e) => handleChange('price_caption', e.target.value)} placeholder="Frase da caixa de preco" className="w-full rounded-lg border border-gray-300 px-4 py-2 md:col-span-2" />
+              </FieldShell>
+              <FieldShell label="Frase de Rodape do Card" hint="Mensagem de apoio exibida perto do botao do card.">
+                <input value={formData.footer_caption || ''} onChange={(e) => handleChange('footer_caption', e.target.value)} placeholder="Frase de rodape do card" className="w-full rounded-lg border border-gray-300 px-4 py-2 md:col-span-2" />
+              </FieldShell>
+              <FieldShell label="Preco Mensal (R$)">
+                <input type="number" value={formData.monthly_price ?? 0} onChange={(e) => handleChange('monthly_price', parseFloat(e.target.value) || 0)} placeholder="0,00" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Preco Anual (R$)">
+                <input type="number" value={formData.yearly_price ?? 0} onChange={(e) => handleChange('yearly_price', parseFloat(e.target.value) || 0)} placeholder="0,00" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Texto do Botao">
+                <input value={formData.button_text || ''} onChange={(e) => handleChange('button_text', e.target.value)} placeholder="Ex.: Assinar agora" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Posicao" hint="Define a ordem de exibicao na tela publica.">
+                <input type="number" value={formData.position ?? 0} onChange={(e) => handleChange('position', parseInt(e.target.value, 10) || 0)} placeholder="1" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
               <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" checked={formData.is_active ?? true} onChange={(e) => handleChange('is_active', e.target.checked)} />Plano ativo</label>
               <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" checked={formData.is_popular ?? false} onChange={(e) => handleChange('is_popular', e.target.checked)} />Plano popular</label>
             </div>
@@ -311,11 +341,21 @@ const PlansManagement: React.FC = () => {
               Limites de Anuncios
             </h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
-              <input type="number" value={formData.max_ads ?? ''} onChange={(e) => handleChange('max_ads', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Max. anuncios" className="rounded-lg border border-gray-300 px-4 py-2" />
-              <input type="number" value={formData.ad_duration_days ?? ''} onChange={(e) => handleChange('ad_duration_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Duracao do anuncio" className="rounded-lg border border-gray-300 px-4 py-2" />
-              <input type="number" value={formData.lead_contact_limit_days ?? ''} onChange={(e) => handleChange('lead_contact_limit_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Dias de contato" className="rounded-lg border border-gray-300 px-4 py-2" />
-              <input type="number" value={formData.category_highlights_count ?? 0} onChange={(e) => handleChange('category_highlights_count', parseInt(e.target.value, 10) || 0)} placeholder="Destaques categoria" className="rounded-lg border border-gray-300 px-4 py-2" />
-              <input type="number" value={formData.home_highlight_count ?? 0} onChange={(e) => handleChange('home_highlight_count', parseInt(e.target.value, 10) || 0)} placeholder="Destaques home" className="rounded-lg border border-gray-300 px-4 py-2" />
+              <FieldShell label="Maximo de Anuncios" hint="Deixe vazio para ilimitado.">
+                <input type="number" value={formData.max_ads ?? ''} onChange={(e) => handleChange('max_ads', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 2" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Duracao do Anuncio (dias)" hint="Tempo que cada anuncio fica ativo.">
+                <input type="number" value={formData.ad_duration_days ?? ''} onChange={(e) => handleChange('ad_duration_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 60" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Limite Contato Lead (dias)" hint="Por quantos dias o contato fica liberado.">
+                <input type="number" value={formData.lead_contact_limit_days ?? ''} onChange={(e) => handleChange('lead_contact_limit_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 30" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Destaques por Categoria" hint="Quantidade incluida no plano.">
+                <input type="number" value={formData.category_highlights_count ?? 0} onChange={(e) => handleChange('category_highlights_count', parseInt(e.target.value, 10) || 0)} placeholder="0" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Destaques na Home" hint="Quantidade incluida no plano.">
+                <input type="number" value={formData.home_highlight_count ?? 0} onChange={(e) => handleChange('home_highlight_count', parseInt(e.target.value, 10) || 0)} placeholder="0" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
             </div>
           </div>
 
@@ -327,13 +367,21 @@ const PlansManagement: React.FC = () => {
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div className="space-y-3 rounded-lg bg-blue-50 p-4">
                 <h4 className="font-semibold text-blue-900">Destaque por Categoria</h4>
-                <input type="number" value={formData.category_highlights_count ?? 0} onChange={(e) => handleChange('category_highlights_count', parseInt(e.target.value, 10) || 0)} placeholder="Quantidade de destaques" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
-                <input type="number" value={formData.category_highlight_days ?? ''} onChange={(e) => handleChange('category_highlight_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Duracao em dias" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+                <FieldShell label="Quantidade de Destaques">
+                  <input type="number" value={formData.category_highlights_count ?? 0} onChange={(e) => handleChange('category_highlights_count', parseInt(e.target.value, 10) || 0)} placeholder="Quantidade de destaques" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+                </FieldShell>
+                <FieldShell label="Duracao (dias)">
+                  <input type="number" value={formData.category_highlight_days ?? ''} onChange={(e) => handleChange('category_highlight_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Duracao em dias" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+                </FieldShell>
               </div>
               <div className="space-y-3 rounded-lg bg-purple-50 p-4">
                 <h4 className="font-semibold text-purple-900">Destaque na Home</h4>
-                <input type="number" value={formData.home_highlight_count ?? 0} onChange={(e) => handleChange('home_highlight_count', parseInt(e.target.value, 10) || 0)} placeholder="Quantidade de destaques" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
-                <input type="number" value={formData.home_highlight_days ?? ''} onChange={(e) => handleChange('home_highlight_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Duracao em dias" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+                <FieldShell label="Quantidade de Destaques">
+                  <input type="number" value={formData.home_highlight_count ?? 0} onChange={(e) => handleChange('home_highlight_count', parseInt(e.target.value, 10) || 0)} placeholder="Quantidade de destaques" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+                </FieldShell>
+                <FieldShell label="Duracao (dias)">
+                  <input type="number" value={formData.home_highlight_days ?? ''} onChange={(e) => handleChange('home_highlight_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Duracao em dias" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+                </FieldShell>
               </div>
             </div>
           </div>
@@ -371,6 +419,7 @@ const PlansManagement: React.FC = () => {
                   Campanhas Sociais / Mes
                 </label>
                 <input type="number" value={formData.social_campaigns_per_month ?? ''} onChange={(e) => handleChange('social_campaigns_per_month', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Quantidade mensal" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+                <p className="mt-2 text-xs text-gray-400">Informe quantas campanhas sociais mensais o plano inclui.</p>
               </div>
             </div>
           </div>
@@ -381,7 +430,9 @@ const PlansManagement: React.FC = () => {
               Radar de Oportunidades
             </h3>
             <div className="space-y-4">
-              <input type="number" value={formData.radar_max_alerts ?? 0} onChange={(e) => handleChange('radar_max_alerts', parseInt(e.target.value, 10) || 0)} placeholder="Maximo de alertas" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              <FieldShell label="Maximo de Alertas" hint="Quantidade de alertas de radar disponivel para o plano.">
+                <input type="number" value={formData.radar_max_alerts ?? 0} onChange={(e) => handleChange('radar_max_alerts', parseInt(e.target.value, 10) || 0)} placeholder="Maximo de alertas" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <label className="flex items-center gap-2 rounded-lg border border-gray-200 p-3 hover:bg-gray-50">
                   <input type="checkbox" checked={formData.radar_has_radius ?? false} onChange={(e) => handleChange('radar_has_radius', e.target.checked)} />

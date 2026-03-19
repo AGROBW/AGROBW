@@ -239,6 +239,14 @@ export type FiscalDocumentStatus =
   | 'failed'
   | 'not_applicable';
 
+export type FiscalAutomationStatus =
+  | 'not_requested'
+  | 'queued'
+  | 'processing'
+  | 'issued'
+  | 'failed'
+  | 'manual';
+
 export interface PaymentRecord {
   id: string;
   userId: string;
@@ -259,14 +267,75 @@ export interface PaymentRecord {
   invoiceNumber?: string | null;
   invoicePdfUrl?: string | null;
   invoiceStoragePath?: string | null;
+  invoiceXmlUrl?: string | null;
+  invoiceXmlStoragePath?: string | null;
   invoiceStatus: FiscalDocumentStatus;
   invoiceIssuedAt?: string | null;
   invoiceNotes?: string | null;
+  fiscalProvider?: string | null;
+  fiscalExternalId?: string | null;
+  fiscalStatus: FiscalAutomationStatus;
+  fiscalLastAttemptAt?: string | null;
+  fiscalErrorMessage?: string | null;
   paidAt?: string | null;
   createdAt: string;
   updatedAt: string;
   metadata?: Record<string, unknown>;
   planName?: string | null;
+}
+
+export interface FiscalSettings {
+  id: string;
+  provider: 'FOCUSNFE';
+  environment: 'sandbox' | 'production';
+  autoIssueEnabled: boolean;
+  legalName: string;
+  tradeName?: string | null;
+  cnpj: string;
+  municipalRegistration?: string | null;
+  taxRegime?: string | null;
+  serviceCode?: string | null;
+  serviceDescription?: string | null;
+  serviceCityCode?: string | null;
+  cnaeCode?: string | null;
+  issuerEmail?: string | null;
+  providerApiBaseUrl: string;
+  providerCompanyId?: string | null;
+  providerInvoiceEndpointPath: string;
+  providerWebhookSecret?: string | null;
+  invoiceSeries?: string | null;
+  nextRpsNumber?: number | null;
+  focusReferencePrefix: string;
+  focusNaturezaOperacao: string;
+  focusSpecialTaxRegime?: string | null;
+  focusSimpleNational: boolean;
+  focusServiceListItem?: string | null;
+  focusMunicipalTaxCode?: string | null;
+  focusIssWithheld: boolean;
+  focusIssTaxationType?: string | null;
+  focusIssRate?: number | null;
+  additionalInformation?: string | null;
+  lastUpdatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FiscalDocumentJob {
+  id: string;
+  paymentId: string;
+  provider: string;
+  status: 'pending' | 'processing' | 'awaiting_webhook' | 'completed' | 'failed' | 'cancelled';
+  attempts: number;
+  providerRequestId?: string | null;
+  providerDocumentId?: string | null;
+  requestPayload: Record<string, unknown>;
+  responsePayload: Record<string, unknown>;
+  lastError?: string | null;
+  requestedAt: string;
+  lastAttemptAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Favorite {

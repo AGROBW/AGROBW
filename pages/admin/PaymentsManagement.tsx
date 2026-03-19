@@ -5,6 +5,7 @@ import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 
 type InvoiceStatus = 'pending' | 'available' | 'failed' | 'not_applicable';
+type FiscalAutomationStatus = 'not_requested' | 'queued' | 'processing' | 'issued' | 'failed' | 'manual';
 
 interface AdminPaymentRecord {
   id: string;
@@ -20,9 +21,15 @@ interface AdminPaymentRecord {
   invoice_number: string | null;
   invoice_pdf_url: string | null;
   invoice_storage_path: string | null;
+  invoice_xml_url: string | null;
   invoice_status: InvoiceStatus;
   invoice_issued_at: string | null;
   invoice_notes: string | null;
+  fiscal_provider: string | null;
+  fiscal_external_id: string | null;
+  fiscal_status: FiscalAutomationStatus;
+  fiscal_last_attempt_at: string | null;
+  fiscal_error_message: string | null;
   users: {
     name: string;
     email: string;
@@ -52,6 +59,24 @@ const statusBadgeClass: Record<InvoiceStatus, string> = {
   available: 'bg-emerald-100 text-emerald-700',
   failed: 'bg-rose-100 text-rose-700',
   not_applicable: 'bg-slate-100 text-slate-500',
+};
+
+const fiscalAutomationBadgeClass: Record<FiscalAutomationStatus, string> = {
+  not_requested: 'bg-slate-100 text-slate-500',
+  queued: 'bg-blue-100 text-blue-700',
+  processing: 'bg-amber-100 text-amber-700',
+  issued: 'bg-emerald-100 text-emerald-700',
+  failed: 'bg-rose-100 text-rose-700',
+  manual: 'bg-violet-100 text-violet-700',
+};
+
+const fiscalAutomationLabel: Record<FiscalAutomationStatus, string> = {
+  not_requested: 'Nao solicitado',
+  queued: 'Na fila',
+  processing: 'Processando',
+  issued: 'Emitido',
+  failed: 'Falhou',
+  manual: 'Manual',
 };
 
 const PaymentsManagement: React.FC = () => {
@@ -88,9 +113,15 @@ const PaymentsManagement: React.FC = () => {
         invoice_number,
         invoice_pdf_url,
         invoice_storage_path,
+        invoice_xml_url,
         invoice_status,
         invoice_issued_at,
         invoice_notes,
+        fiscal_provider,
+        fiscal_external_id,
+        fiscal_status,
+        fiscal_last_attempt_at,
+        fiscal_error_message,
         users(name, email),
         plans(name)
       `)
@@ -309,6 +340,38 @@ const PaymentsManagement: React.FC = () => {
     }
   };
 
+  const handleIssueNfse = async (payment: AdminPaymentRecord) => {
+    try {
+      setSaving(true);
+
+      const { data, error } = await supabase.functions.invoke('issue-nfse', {
+        method: 'POST',
+        body: { paymentId: payment.id },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.issued) {
+        toast.success('NFS-e emitida com sucesso.');
+      } else if (data?.skipped) {
+        toast.info('Automacao fiscal desativada nas configuracoes.');
+      } else if (data?.alreadyIssued) {
+        toast.info('Este pagamento ja possui NFS-e emitida.');
+      } else {
+        toast.success('Solicitacao de emissao enviada ao provedor fiscal.');
+      }
+
+      await loadPayments();
+    } catch (error: any) {
+      console.error('[PaymentsManagement] Erro ao emitir NFS-e:', error);
+      toast.error(error.message || 'Nao foi possivel emitir a NFS-e.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -425,6 +488,20 @@ const PaymentsManagement: React.FC = () => {
                   <p className="mt-2 text-sm font-semibold text-slate-900 capitalize">{selectedPayment.status.replace('_', ' ')}</p>
                   <p className="text-xs text-slate-500 mt-1">{selectedPayment.payment_method || 'Mercado Pago'}</p>
                 </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Automacao fiscal</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${fiscalAutomationBadgeClass[selectedPayment.fiscal_status || 'not_requested']}`}>
+                      {fiscalAutomationLabel[selectedPayment.fiscal_status || 'not_requested']}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {selectedPayment.fiscal_provider || 'Sem provedor'} {selectedPayment.fiscal_external_id ? `· Doc ${selectedPayment.fiscal_external_id}` : ''}
+                    </span>
+                  </div>
+                  {selectedPayment.fiscal_error_message && (
+                    <p className="mt-2 text-xs text-rose-600">{selectedPayment.fiscal_error_message}</p>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -523,9 +600,21 @@ const PaymentsManagement: React.FC = () => {
                   <span>Documento atual</span>
                   <span className="font-semibold text-slate-900">{selectedPayment.invoice_number || 'Sem numero cadastrado'}</span>
                 </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>Ultima tentativa fiscal</span>
+                  <span className="font-semibold text-slate-900">{formatDateTime(selectedPayment.fiscal_last_attempt_at)}</span>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => handleIssueNfse(selectedPayment)}
+                  disabled={saving}
+                  className="h-11 px-5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                >
+                  <Receipt className="w-4 h-4" strokeWidth={1.8} />
+                  Reprocessar NFS-e
+                </button>
                 <button
                   onClick={handleSaveInvoice}
                   disabled={saving}

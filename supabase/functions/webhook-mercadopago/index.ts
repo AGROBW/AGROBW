@@ -314,6 +314,7 @@ serve(async (req) => {
           subscription_id: subscription.id,
           status: 'approved',
           invoice_status: 'pending',
+          fiscal_status: 'queued',
           paid_at: payment.date_approved || new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -352,6 +353,32 @@ serve(async (req) => {
         content: 'Sua assinatura foi ativada com sucesso. Aproveite todos os recursos do seu plano.',
         link: '/#/minha-conta/financeiro',
       });
+
+      const { data: approvedPaymentRecord } = await supabaseAdmin
+        .from('payments')
+        .select('id')
+        .eq('provider_payment_id', String(payment.id))
+        .maybeSingle();
+
+      const internalAutomationSecret = Deno.env.get('INTERNAL_AUTOMATION_SECRET');
+
+      if (approvedPaymentRecord?.id && internalAutomationSecret) {
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/issue-nfse`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-internal-secret': internalAutomationSecret,
+            },
+            body: JSON.stringify({
+              paymentId: approvedPaymentRecord.id,
+              source: 'mercadopago_webhook',
+            }),
+          });
+        } catch (nfseError) {
+          console.error('Failed to enqueue NFS-e issuance:', nfseError);
+        }
+      }
 
       await supabaseAdmin
         .from('webhook_logs')
