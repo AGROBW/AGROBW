@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Camera, CreditCard, DollarSign, Download, Edit3, Eye, FileText, Heart, Inbox, LayoutGrid, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles } from 'lucide-react';
-import { AdStatus, Message, Ad, AdMetrics } from '../types';
+import { AlertCircle, Bell, Camera, CheckCircle2, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles } from 'lucide-react';
+import { AdStatus, Message, Ad, AdMetrics, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useUserAds } from '../src/hooks/useAds';
@@ -11,6 +11,7 @@ import { useNotificationsCount } from '../src/hooks/useNotificationsCount';
 import { useSubscription } from '../src/hooks/useSubscription';
 import { supabase } from '../src/lib/supabaseClient';
 import { useInvoices } from '../src/hooks/useInvoices';
+import { usePayments } from '../src/hooks/usePayments';
 import PlanGuard from '../components/PlanGuard';
 import MessagesView from '../components/MessagesView';
 import LeadsView from '../components/LeadsView';
@@ -70,7 +71,13 @@ const UserDashboardView: React.FC = () => {
   const { subscription, usage, isLoading: subscriptionLoading, refreshUsage } = useSubscription();
   const [userAds, setUserAds] = useState<Ad[]>([]);
   const [userAdsLoading, setUserAdsLoading] = useState(false);
-  const { invoices, isLoading: invoicesLoading } = useInvoices();
+  const {
+    payments,
+    lastApprovedPayment,
+    availableInvoicesCount,
+    pendingFiscalDocumentsCount,
+    isLoading: paymentsLoading,
+  } = usePayments();
   const [newLeadsCount, setNewLeadsCount] = useState(0);
   
   // Estados para upload
@@ -1086,7 +1093,8 @@ const UserDashboardView: React.FC = () => {
     );
   };
 
-  const FinanceDashboard = () => {
+  const LegacyFinanceDashboard = () => {
+    const { invoices, isLoading: invoicesLoading } = useInvoices();
     const nextInvoice = invoices.find((inv) => inv.status !== 'PAID') || invoices[0];
     
     // Buscar nome do plano da assinatura
@@ -1300,6 +1308,624 @@ const UserDashboardView: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
+    );
+  };
+
+  const FinanceDashboard = () => {
+    const searchParams = useMemo(() => {
+      const candidates = [location.search];
+      const hashQuery = window.location.hash.includes('?')
+        ? `?${window.location.hash.split('?')[1]}`
+        : '';
+
+      if (hashQuery) {
+        candidates.push(hashQuery);
+      }
+
+      for (const candidate of candidates) {
+        const params = new URLSearchParams(candidate);
+        if (params.toString()) {
+          return params;
+        }
+      }
+
+      return new URLSearchParams();
+    }, [location.search]);
+
+    const paymentFeedback = searchParams.get('payment');
+    const planName = subscription?.plans?.name || 'Sem plano ativo';
+    const renewalDate = subscription?.current_period_end
+      ? new Date(subscription.current_period_end).toLocaleDateString('pt-BR')
+      : 'N/A';
+    const latestPayment = payments[0] || lastApprovedPayment;
+    const isBoostPlan = subscription?.plans?.name?.toLowerCase().includes('impulso');
+    const fiscalDocuments = payments.filter((payment) => payment.invoiceStatus !== 'not_applicable');
+
+    const formatCurrency = (value: number, currency = 'BRL') =>
+      new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency,
+      }).format(value || 0);
+
+    const formatDateTime = (value?: string | null) => {
+      if (!value) {
+        return 'Nao disponivel';
+      }
+
+      return new Date(value).toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    };
+
+    const paymentStatusLabel: Record<PaymentRecord['status'], string> = {
+      pending: 'Pendente',
+      approved: 'Pago',
+      rejected: 'Recusado',
+      cancelled: 'Cancelado',
+      refunded: 'Estornado',
+      in_process: 'Em analise',
+      charged_back: 'Chargeback',
+    };
+
+    const paymentStatusClass: Record<PaymentRecord['status'], string> = {
+      pending: 'bg-amber-100 text-amber-700',
+      approved: 'bg-emerald-100 text-emerald-700',
+      rejected: 'bg-rose-100 text-rose-700',
+      cancelled: 'bg-slate-200 text-slate-700',
+      refunded: 'bg-orange-100 text-orange-700',
+      in_process: 'bg-sky-100 text-sky-700',
+      charged_back: 'bg-red-100 text-red-700',
+    };
+
+    const fiscalStatusLabel = {
+      pending: 'Em emissao',
+      available: 'Disponivel',
+      failed: 'Falha',
+      not_applicable: 'Nao aplicavel',
+    } as const;
+
+    const fiscalStatusClass = {
+      pending: 'bg-amber-100 text-amber-700',
+      available: 'bg-emerald-100 text-emerald-700',
+      failed: 'bg-rose-100 text-rose-700',
+      not_applicable: 'bg-slate-100 text-slate-500',
+    } as const;
+
+    const handleManagePlan = () => {
+      navigate(`/planos?current=${subscription?.plan_id || ''}`);
+    };
+
+    const openUrl = (url?: string | null) => {
+      if (!url) {
+        return;
+      }
+
+      window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
+    const downloadReceipt = (payment: PaymentRecord) => {
+      if (payment.receiptUrl) {
+        openUrl(payment.receiptUrl);
+        return;
+      }
+
+      const receiptHtml = `<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Comprovante BWAGRO - ${payment.providerPaymentId}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; }
+      .card { max-width: 720px; margin: 0 auto; border: 1px solid #dbe4ee; border-radius: 16px; padding: 28px; }
+      h1 { margin: 0 0 8px; font-size: 24px; }
+      p { margin: 0 0 20px; color: #475569; }
+      table { width: 100%; border-collapse: collapse; }
+      td { padding: 10px 0; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+      td:first-child { width: 220px; color: #64748b; font-weight: 600; }
+      .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #dcfce7; color: #166534; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Comprovante digital BWAGRO</h1>
+      <p>Registro financeiro da sua assinatura confirmado na plataforma.</p>
+      <table>
+        <tr><td>Status</td><td><span class="badge">${paymentStatusLabel[payment.status]}</span></td></tr>
+        <tr><td>Cliente</td><td>${user?.name || 'Nao informado'}</td></tr>
+        <tr><td>E-mail</td><td>${user?.email || 'Nao informado'}</td></tr>
+        <tr><td>Plano</td><td>${payment.planName || payment.description || 'Assinatura BWAGRO'}</td></tr>
+        <tr><td>Valor</td><td>${formatCurrency(payment.amount, payment.currency)}</td></tr>
+        <tr><td>Ciclo</td><td>${payment.billingCycle === 'yearly' ? 'Anual' : 'Mensal'}</td></tr>
+        <tr><td>Forma de pagamento</td><td>${payment.paymentMethod || 'Mercado Pago'}</td></tr>
+        <tr><td>ID da transacao</td><td>${payment.providerPaymentId}</td></tr>
+        <tr><td>Data de aprovacao</td><td>${formatDateTime(payment.paidAt || payment.createdAt)}</td></tr>
+        <tr><td>Referencia</td><td>${payment.externalReference || 'Nao informada'}</td></tr>
+      </table>
+    </div>
+  </body>
+</html>`;
+
+      const blob = new Blob([receiptHtml], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `comprovante-bwagro-${payment.providerPaymentId}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    };
+
+    const renderFeedbackBanner = () => {
+      if (paymentFeedback === 'success') {
+        return (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-5 h-5" strokeWidth={1.75} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                  Pagamento confirmado
+                </p>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Sua assinatura foi ativada com sucesso.
+                </h3>
+                <p className="text-sm text-slate-600">
+                  O comprovante digital e o status fiscal da cobranca ja estao centralizados aqui.
+                </p>
+              </div>
+            </div>
+            {lastApprovedPayment && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => downloadReceipt(lastApprovedPayment)}
+                  className="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+                >
+                  Baixar comprovante
+                </button>
+                <button
+                  onClick={() => openUrl(lastApprovedPayment.invoicePdfUrl)}
+                  disabled={!lastApprovedPayment.invoicePdfUrl}
+                  className="h-10 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white"
+                >
+                  {lastApprovedPayment.invoicePdfUrl ? 'Baixar nota fiscal' : 'Nota fiscal em emissao'}
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      if (paymentFeedback === 'pending') {
+        return (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3">
+            <div className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0">
+              <Clock3 className="w-5 h-5" strokeWidth={1.75} />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Pagamento em processamento</h3>
+              <p className="text-sm text-slate-600">
+                Assim que o Mercado Pago confirmar a cobranca, o comprovante e a renovacao do plano serao atualizados aqui.
+              </p>
+            </div>
+          </div>
+        );
+      }
+
+      if (paymentFeedback === 'failure') {
+        return (
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 flex items-start gap-3">
+            <div className="w-11 h-11 rounded-xl bg-rose-500 text-white flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-5 h-5" strokeWidth={1.75} />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Nao foi possivel concluir o pagamento</h3>
+              <p className="text-sm text-slate-600">
+                Revise a forma de pagamento ou tente novamente. O historico abaixo continua disponivel para consulta.
+              </p>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    };
+
+    return (
+      <div className="space-y-6">
+        {renderFeedbackBanner()}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-green-700/10 text-green-700 flex items-center justify-center">
+              <CreditCard className="w-5 h-5" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Plano atual</p>
+              <p className="text-sm font-semibold text-slate-900">{planName}</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-slate-900/5 text-slate-700 flex items-center justify-center">
+              <Receipt className="w-5 h-5" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ultimo pagamento</p>
+              <p className="text-sm font-semibold text-slate-900">
+                {lastApprovedPayment ? formatCurrency(lastApprovedPayment.amount, lastApprovedPayment.currency) : 'Sem registro'}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-slate-900/5 text-slate-700 flex items-center justify-center">
+              <FileText className="w-5 h-5" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Proxima renovacao</p>
+              <p className="text-sm font-semibold text-slate-900">{renewalDate}</p>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-5 rounded-2xl border border-green-200 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-green-700 text-white flex items-center justify-center">
+              <Sparkles className="w-5 h-5" strokeWidth={1.5} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wider">Documentos fiscais</p>
+              <p className="text-sm font-bold text-green-900">
+                {availableInvoicesCount} disponivel(is)
+              </p>
+              <p className="text-xs text-green-700/80">
+                {pendingFiscalDocumentsCount} em emissao
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-[1.35fr,0.95fr] gap-6">
+          <section className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-700">
+                  Ultimo pagamento confirmado
+                </p>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  {latestPayment?.planName || latestPayment?.description || 'Nenhum pagamento aprovado ainda'}
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Central de comprovantes, ciclo da assinatura e documentos fiscais.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handleManagePlan}
+                  className="h-10 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Gerenciar plano
+                </button>
+                <button
+                  onClick={() => navigate('/planos')}
+                  className="h-10 px-4 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
+                >
+                  Ver planos
+                </button>
+              </div>
+            </div>
+
+            {latestPayment ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Valor pago</p>
+                    <p className="mt-2 text-3xl font-bold text-slate-900">
+                      {formatCurrency(latestPayment.amount, latestPayment.currency)}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {latestPayment.billingCycle === 'yearly' ? 'Ciclo anual' : 'Ciclo mensal'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Status da cobranca</span>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${paymentStatusClass[latestPayment.status]}`}>
+                        {paymentStatusLabel[latestPayment.status]}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Status fiscal</span>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${fiscalStatusClass[latestPayment.invoiceStatus]}`}>
+                        {fiscalStatusLabel[latestPayment.invoiceStatus]}
+                      </span>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      {latestPayment.statusDetail || 'Pagamento confirmado e vinculado a sua assinatura.'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div className="rounded-2xl border border-slate-200 p-4 space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Data da aprovacao</p>
+                      <p className="mt-1 font-semibold text-slate-900">{formatDateTime(latestPayment.paidAt || latestPayment.createdAt)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Metodo</p>
+                      <p className="mt-1 font-semibold text-slate-900">{latestPayment.paymentMethod || 'Mercado Pago'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">ID da transacao</p>
+                      <p className="mt-1 font-semibold text-slate-900 break-all">{latestPayment.providerPaymentId}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 p-4 flex flex-col justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Acoes rapidas</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Baixe seu comprovante digital agora e acompanhe a disponibilidade da nota fiscal neste painel.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => downloadReceipt(latestPayment)}
+                        className="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+                      >
+                        Baixar comprovante
+                      </button>
+                      <button
+                        onClick={() => openUrl(latestPayment.invoicePdfUrl)}
+                        disabled={!latestPayment.invoicePdfUrl}
+                        className="h-10 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                      >
+                        {latestPayment.invoicePdfUrl ? 'Baixar nota fiscal' : 'NF em emissao'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center">
+                <p className="text-sm font-semibold text-slate-900">Nenhum pagamento aprovado encontrado.</p>
+                <p className="text-sm text-slate-500 mt-2">
+                  Assim que sua primeira assinatura for confirmada, o comprovante e os documentos fiscais aparecerao aqui.
+                </p>
+              </div>
+            )}
+          </section>
+
+          <section className="bg-white border border-slate-200 rounded-2xl p-6">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Documentos fiscais</p>
+                <h3 className="text-lg font-semibold text-slate-900">Notas e anexos da cobranca</h3>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {paymentsLoading ? (
+                <div className="text-sm text-slate-500 py-8 text-center">Carregando documentos...</div>
+              ) : fiscalDocuments.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center">
+                  <p className="text-sm font-semibold text-slate-900">Nenhum documento fiscal registrado.</p>
+                  <p className="text-sm text-slate-500 mt-2">
+                    Quando a nota fiscal for anexada ao pagamento, ela ficara disponivel para download aqui.
+                  </p>
+                </div>
+              ) : (
+                fiscalDocuments.map((payment) => (
+                  <div key={`fiscal-${payment.id}`} className="rounded-2xl border border-slate-200 p-4 flex flex-col gap-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {payment.planName || payment.description || 'Assinatura BWAGRO'}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Pagamento {payment.providerPaymentId}
+                        </p>
+                      </div>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${fiscalStatusClass[payment.invoiceStatus]}`}>
+                        {fiscalStatusLabel[payment.invoiceStatus]}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-600">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Data</p>
+                        <p className="mt-1">{formatDateTime(payment.paidAt || payment.createdAt)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Numero da nota</p>
+                        <p className="mt-1">{payment.invoiceNumber || 'Aguardando emissao'}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => openUrl(payment.invoicePdfUrl)}
+                        disabled={!payment.invoicePdfUrl}
+                        className="h-9 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                      >
+                        {payment.invoicePdfUrl ? 'Baixar NF' : 'NF em emissao'}
+                      </button>
+                      <button
+                        onClick={() => downloadReceipt(payment)}
+                        className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+                      >
+                        Comprovante
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+
+        {isBoostPlan && (
+          <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Upgrade recomendado</p>
+                <h4 className="text-sm font-semibold text-slate-900">Amplie a operacao com um plano superior</h4>
+                <p className="text-sm text-slate-600">Ganhe mais visibilidade, destaque e recursos para escalar suas vendas.</p>
+                <ul className="text-sm text-slate-600 mt-3 space-y-1">
+                  <li>- Relatorios avancados de performance</li>
+                  <li>- Maior prioridade na busca e na exposicao dos anuncios</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => navigate('/planos')}
+                className="h-10 px-4 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
+              >
+                Fazer upgrade
+              </button>
+            </div>
+          </div>
+        )}
+
+        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="px-6 py-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Historico financeiro</p>
+              <h3 className="text-lg font-semibold text-slate-900">Pagamentos e renovacoes</h3>
+            </div>
+            <p className="text-sm text-slate-500">
+              Consulte status, ciclo, comprovantes e notas fiscais de cada cobranca.
+            </p>
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50">
+                <tr className="text-left text-slate-500">
+                  <th className="px-6 py-3 font-semibold">Plano</th>
+                  <th className="px-6 py-3 font-semibold">Data</th>
+                  <th className="px-6 py-3 font-semibold">Valor</th>
+                  <th className="px-6 py-3 font-semibold">Status</th>
+                  <th className="px-6 py-3 font-semibold">Fiscal</th>
+                  <th className="px-6 py-3 font-semibold text-right">Acoes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paymentsLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-sm text-slate-500">
+                      Carregando pagamentos...
+                    </td>
+                  </tr>
+                ) : payments.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-sm text-slate-500">
+                      Nenhum pagamento encontrado.
+                    </td>
+                  </tr>
+                ) : (
+                  payments.map((payment) => (
+                    <tr key={payment.id} className="text-slate-700">
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="font-semibold text-slate-900">
+                            {payment.planName || payment.description || 'Assinatura BWAGRO'}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {payment.billingCycle === 'yearly' ? 'Cobranca anual' : 'Cobranca mensal'}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-500">
+                        {formatDateTime(payment.paidAt || payment.createdAt)}
+                      </td>
+                      <td className="px-6 py-4 font-semibold text-slate-900">
+                        {formatCurrency(payment.amount, payment.currency)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${paymentStatusClass[payment.status]}`}>
+                          {paymentStatusLabel[payment.status]}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${fiscalStatusClass[payment.invoiceStatus]}`}>
+                          {fiscalStatusLabel[payment.invoiceStatus]}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => downloadReceipt(payment)}
+                            className="inline-flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+                            title="Baixar comprovante"
+                          >
+                            <Download className="w-4 h-4" strokeWidth={1.5} />
+                          </button>
+                          <button
+                            onClick={() => openUrl(payment.invoicePdfUrl)}
+                            disabled={!payment.invoicePdfUrl}
+                            className="inline-flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 hover:text-green-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Abrir nota fiscal"
+                          >
+                            <ExternalLink className="w-4 h-4" strokeWidth={1.5} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="md:hidden p-4 space-y-3">
+            {paymentsLoading ? (
+              <div className="text-center text-xs text-slate-500 py-4">Carregando pagamentos...</div>
+            ) : payments.length === 0 ? (
+              <div className="text-center text-xs text-slate-500 py-4">Nenhum pagamento encontrado.</div>
+            ) : (
+              payments.map((payment) => (
+                <div key={payment.id} className="border border-slate-200 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {payment.planName || payment.description || 'Assinatura BWAGRO'}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {formatDateTime(payment.paidAt || payment.createdAt)}
+                      </p>
+                    </div>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${paymentStatusClass[payment.status]}`}>
+                      {paymentStatusLabel[payment.status]}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {formatCurrency(payment.amount, payment.currency)}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => downloadReceipt(payment)}
+                      className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+                    >
+                      Comprovante
+                    </button>
+                    <button
+                      onClick={() => openUrl(payment.invoicePdfUrl)}
+                      disabled={!payment.invoicePdfUrl}
+                      className="h-9 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {payment.invoicePdfUrl ? 'Nota fiscal' : 'NF pendente'}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
       </div>
     );
   };

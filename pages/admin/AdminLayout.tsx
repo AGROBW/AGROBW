@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FileCheck, 
-  Users, 
-  Shield, 
-  Settings,
-  LogOut,
-  Search,
+import {
   Bell,
   ChevronDown,
+  FileCheck,
+  LayoutDashboard,
+  LogOut,
   Menu,
-  X
+  Receipt,
+  Search,
+  Settings,
+  Shield,
+  Users,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useNotificationsCount } from '../../src/hooks/useNotificationsCount';
@@ -28,33 +29,38 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const menuItems = [
-    { 
-      label: 'Dashboard', 
-      path: '/admin', 
+    {
+      label: 'Dashboard',
+      path: '/admin',
       icon: LayoutDashboard,
-      exact: true 
+      exact: true,
     },
-    { 
-      label: 'Fila de Moderação', 
-      path: '/admin/moderation', 
+    {
+      label: 'Fila de Moderacao',
+      path: '/admin/moderation',
       icon: FileCheck,
-      badge: unreadCount > 0 ? unreadCount : undefined
+      badge: unreadCount > 0 ? unreadCount : undefined,
     },
-    { 
-      label: 'Gestão de Usuários', 
-      path: '/admin/users', 
-      icon: Users 
+    {
+      label: 'Gestao de Usuarios',
+      path: '/admin/users',
+      icon: Users,
     },
-    { 
-      label: 'Auditoria & Segurança', 
-      path: '/admin/audit', 
-      icon: Shield 
+    {
+      label: 'Financeiro',
+      path: '/admin/payments',
+      icon: Receipt,
     },
-    { 
-      label: 'Configurações', 
-      path: '/admin/settings', 
-      icon: Settings 
-    }
+    {
+      label: 'Auditoria & Seguranca',
+      path: '/admin/audit',
+      icon: Shield,
+    },
+    {
+      label: 'Configuracoes',
+      path: '/admin/settings',
+      icon: Settings,
+    },
   ];
 
   const handleLogout = async () => {
@@ -62,8 +68,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     navigate('/admin/login');
   };
 
-  const handleGlobalSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGlobalSearch = (event: React.FormEvent) => {
+    event.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/admin/search?q=${encodeURIComponent(searchQuery)}`);
     }
@@ -71,13 +77,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
-      <aside 
+      <aside
         className={`fixed left-0 top-0 h-full bg-slate-900 text-white transition-all duration-300 z-40 ${
           sidebarOpen ? 'w-64' : 'w-20'
         }`}
       >
-        {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
           {sidebarOpen ? (
             <>
@@ -87,7 +91,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 </div>
                 <span className="font-black text-lg">ADMIN</span>
               </div>
-              <button 
+              <button
                 onClick={() => setSidebarOpen(false)}
                 className="p-1 hover:bg-slate-800 rounded transition-colors"
               >
@@ -95,7 +99,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               </button>
             </>
           ) : (
-            <button 
+            <button
               onClick={() => setSidebarOpen(true)}
               className="p-1 hover:bg-slate-800 rounded transition-colors mx-auto"
             >
@@ -104,7 +108,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           )}
         </div>
 
-        {/* Navigation */}
         <nav className="p-4 space-y-1">
           {menuItems.map((item) => (
             <NavLink
@@ -113,10 +116,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               end={item.exact}
               className={({ isActive }) => `
                 flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
-                ${isActive 
-                  ? 'bg-green-500 text-white font-semibold' 
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }
+                ${isActive ? 'bg-green-500 text-white font-semibold' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}
                 ${!sidebarOpen && 'justify-center'}
               `}
             >
@@ -135,7 +135,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           ))}
         </nav>
 
-        {/* User Info */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800">
           {sidebarOpen ? (
             <div className="flex items-center gap-3">
@@ -146,7 +145,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 <p className="text-sm font-semibold truncate">{user?.name || 'Admin'}</p>
                 <p className="text-xs text-slate-400 truncate">{user?.email}</p>
               </div>
-              <button 
+              <button
                 onClick={handleLogout}
                 className="p-2 hover:bg-slate-800 rounded transition-colors"
                 title="Sair"
@@ -155,7 +154,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
               </button>
             </div>
           ) : (
-            <button 
+            <button
               onClick={handleLogout}
               className="w-full p-2 hover:bg-slate-800 rounded transition-colors"
               title="Sair"
@@ -166,31 +165,27 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
-        {/* Topbar */}
-        <header className="h-16 bg-white border-b border-slate-200 fixed top-0 right-0 left-0 z-30 transition-all duration-300"
+        <header
+          className="h-16 bg-white border-b border-slate-200 fixed top-0 right-0 left-0 z-30 transition-all duration-300"
           style={{ marginLeft: sidebarOpen ? '16rem' : '5rem' }}
         >
           <div className="h-full px-6 flex items-center justify-between">
-            {/* Global Search */}
             <form onSubmit={handleGlobalSearch} className="flex-1 max-w-xl">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar anúncios, usuários, CPF/CNPJ..."
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Buscar anuncios, usuarios, CPF/CNPJ..."
                   className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                 />
               </div>
             </form>
 
-            {/* Right Actions */}
             <div className="flex items-center gap-4 ml-6">
-              {/* Notifications */}
-              <button 
+              <button
                 onClick={() => navigate('/admin/notifications')}
                 className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors"
               >
@@ -200,7 +195,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 )}
               </button>
 
-              {/* Profile Dropdown */}
               <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
                 <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
                   {user?.name?.charAt(0).toUpperCase() || 'A'}
@@ -211,7 +205,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        {/* Page Content */}
         <main className="pt-16 min-h-screen">
           <div className="p-6">
             {children || <Outlet />}

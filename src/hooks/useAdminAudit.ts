@@ -125,6 +125,7 @@ export const ADMIN_ACTIONS = {
   
   // Planos e Assinaturas
   UPDATE_PLAN: 'UPDATE_PLAN',
+  UPDATE_FISCAL_DOCUMENT: 'UPDATE_FISCAL_DOCUMENT',
   CANCEL_SUBSCRIPTION: 'CANCEL_SUBSCRIPTION',
   REFUND_PAYMENT: 'REFUND_PAYMENT',
   GRANT_CREDITS: 'GRANT_CREDITS',
@@ -151,6 +152,7 @@ export const RESOURCE_TYPES = {
   ANNOUNCEMENT: 'announcement',
   USER: 'user',
   PLAN: 'plan',
+  PAYMENT: 'payment',
   SUBSCRIPTION: 'subscription',
   BANNER: 'banner',
   PAGE: 'page',

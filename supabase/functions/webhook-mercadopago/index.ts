@@ -12,6 +12,15 @@ interface WebhookBody {
   type?: string;
 }
 
+type PaymentRowStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled'
+  | 'refunded'
+  | 'in_process'
+  | 'charged_back';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
@@ -24,6 +33,37 @@ const textResponse = (body: string, status = 200) =>
     status,
     headers: corsHeaders,
   });
+
+const normalizePaymentStatus = (status?: string): PaymentRowStatus => {
+  switch (status) {
+    case 'approved':
+      return 'approved';
+    case 'rejected':
+      return 'rejected';
+    case 'cancelled':
+      return 'cancelled';
+    case 'refunded':
+      return 'refunded';
+    case 'in_process':
+      return 'in_process';
+    case 'charged_back':
+      return 'charged_back';
+    default:
+      return 'pending';
+  }
+};
+
+const resolveInvoiceStatus = (status: PaymentRowStatus) => {
+  if (status === 'approved') {
+    return 'pending';
+  }
+
+  if (status === 'rejected' || status === 'cancelled' || status === 'charged_back') {
+    return 'not_applicable';
+  }
+
+  return 'pending';
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -120,6 +160,54 @@ serve(async (req) => {
         .eq('id', webhookLog?.id);
 
       return textResponse('Invalid external_reference', 400);
+    }
+
+    const normalizedStatus = normalizePaymentStatus(payment.status);
+    const paymentRecordBase = {
+      user_id: userId,
+      plan_id: planId,
+      provider: 'mercadopago',
+      provider_payment_id: String(payment.id),
+      provider_preference_id: payment.metadata?.preference_id || null,
+      external_reference: externalReference,
+      billing_cycle: billingCycle,
+      description:
+        payment.description ||
+        `Assinatura BWAGRO - ${billingCycle === 'yearly' ? 'Anual' : 'Mensal'}`,
+      amount: Number(payment.transaction_amount || 0),
+      currency: payment.currency_id || 'BRL',
+      status: normalizedStatus,
+      status_detail: payment.status_detail || null,
+      payment_method: payment.payment_method_id || payment.payment_type_id || null,
+      receipt_url: payment.transaction_details?.external_resource_url || null,
+      invoice_status: resolveInvoiceStatus(normalizedStatus),
+      paid_at: payment.date_approved || null,
+      updated_at: new Date().toISOString(),
+      metadata: {
+        mercadopago_id: payment.id,
+        live_mode: payment.live_mode ?? null,
+        order_id: payment.order?.id ?? null,
+        status_detail: payment.status_detail ?? null,
+        raw_status: payment.status ?? null,
+      },
+    };
+
+    const { error: paymentRecordError } = await supabaseAdmin
+      .from('payments')
+      .upsert(paymentRecordBase, { onConflict: 'provider_payment_id' });
+
+    if (paymentRecordError) {
+      console.error('Failed to persist payment record:', paymentRecordError);
+
+      await supabaseAdmin
+        .from('webhook_logs')
+        .update({
+          processed: false,
+          error_message: paymentRecordError.message,
+        })
+        .eq('id', webhookLog?.id);
+
+      return textResponse('Failed to persist payment record', 500);
     }
 
     if (payment.status === 'approved') {
@@ -220,6 +308,21 @@ serve(async (req) => {
         return textResponse('Processing error', 500);
       }
 
+      const { error: approvedPaymentUpdateError } = await supabaseAdmin
+        .from('payments')
+        .update({
+          subscription_id: subscription.id,
+          status: 'approved',
+          invoice_status: 'pending',
+          paid_at: payment.date_approved || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('provider_payment_id', String(payment.id));
+
+      if (approvedPaymentUpdateError) {
+        console.error('Failed to link payment to subscription:', approvedPaymentUpdateError);
+      }
+
       const { data: userProfile } = await supabaseAdmin
         .from('users')
         .select('email, name')
@@ -247,7 +350,7 @@ serve(async (req) => {
         type: 'SYSTEM',
         title: 'Pagamento Aprovado!',
         content: 'Sua assinatura foi ativada com sucesso. Aproveite todos os recursos do seu plano.',
-        link: '/#/dashboard',
+        link: '/#/minha-conta/financeiro',
       });
 
       await supabaseAdmin
@@ -269,7 +372,7 @@ serve(async (req) => {
         type: 'SYSTEM',
         title: 'Pagamento Recusado',
         content: `Seu pagamento foi recusado. Status: ${payment.status_detail || payment.status}.`,
-        link: '/#/pricing',
+        link: '/#/minha-conta/financeiro',
       });
     }
 

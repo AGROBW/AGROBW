@@ -224,6 +224,51 @@ export interface Invoice {
   pdfUrl: string;
 }
 
+export type PaymentStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled'
+  | 'refunded'
+  | 'in_process'
+  | 'charged_back';
+
+export type FiscalDocumentStatus =
+  | 'pending'
+  | 'available'
+  | 'failed'
+  | 'not_applicable';
+
+export interface PaymentRecord {
+  id: string;
+  userId: string;
+  subscriptionId?: string | null;
+  planId?: string | null;
+  provider: string;
+  providerPaymentId: string;
+  providerPreferenceId?: string | null;
+  externalReference?: string | null;
+  billingCycle?: 'monthly' | 'yearly' | null;
+  description?: string | null;
+  amount: number;
+  currency: string;
+  status: PaymentStatus;
+  statusDetail?: string | null;
+  paymentMethod?: string | null;
+  receiptUrl?: string | null;
+  invoiceNumber?: string | null;
+  invoicePdfUrl?: string | null;
+  invoiceStoragePath?: string | null;
+  invoiceStatus: FiscalDocumentStatus;
+  invoiceIssuedAt?: string | null;
+  invoiceNotes?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  metadata?: Record<string, unknown>;
+  planName?: string | null;
+}
+
 export interface Favorite {
   id: string;
   userId: string;

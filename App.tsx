@@ -33,6 +33,7 @@ const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminDashboardOverview = lazy(() => import('./pages/admin/AdminDashboardOverview'));
 const ModerationQueue = lazy(() => import('./pages/admin/ModerationQueue'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
+const PaymentsManagement = lazy(() => import('./pages/admin/PaymentsManagement'));
 const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'));
 const SettingsView = lazy(() => import('./pages/admin/SettingsView'));
 
@@ -173,6 +174,7 @@ const AppContent: React.FC = () => {
               <Route index element={<AdminDashboardOverview />} />
               <Route path="moderation" element={<ModerationQueue />} />
               <Route path="users" element={<UserManagement />} />
+              <Route path="payments" element={<PaymentsManagement />} />
               <Route path="audit" element={<AuditLogs />} />
               <Route path="settings" element={<SettingsView />} />
             </Route>

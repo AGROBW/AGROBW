@@ -185,9 +185,9 @@ serve(async (req) => {
       },
       external_reference: externalReference,
       back_urls: {
-        success: `${siteUrl}/#/dashboard?payment=success`,
-        failure: `${siteUrl}/#/pricing?payment=failure`,
-        pending: `${siteUrl}/#/dashboard?payment=pending`,
+        success: `${siteUrl}/#/minha-conta/financeiro?payment=success`,
+        failure: `${siteUrl}/#/minha-conta/financeiro?payment=failure`,
+        pending: `${siteUrl}/#/minha-conta/financeiro?payment=pending`,
       },
       notification_url: `${projectFunctionsBaseUrl}/webhook-mercadopago`,
       metadata: {
