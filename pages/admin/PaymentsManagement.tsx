@@ -350,6 +350,22 @@ const PaymentsManagement: React.FC = () => {
       });
 
       if (error) {
+        let responseBody = null;
+        const errorWithContext = error as any;
+
+        if (errorWithContext?.context) {
+          try {
+            responseBody = await errorWithContext.context.json();
+          } catch {
+            try {
+              responseBody = await errorWithContext.context.text();
+            } catch {
+              responseBody = null;
+            }
+          }
+        }
+
+        console.error('[PaymentsManagement] Corpo da resposta da issue-nfse:', responseBody);
         throw error;
       }
 

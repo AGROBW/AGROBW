@@ -66,7 +66,7 @@ const PricingView: React.FC = () => {
 
   const getPlanSummary = (plan: (typeof plansRaw)[number]) => {
     if (plan.display_features && plan.display_features.length > 0) {
-      return plan.display_features.filter(Boolean).slice(0, 4);
+      return plan.display_features.filter(Boolean);
     }
 
     const summary = [
@@ -278,7 +278,7 @@ const PricingView: React.FC = () => {
                       <p className="mt-2 text-sm leading-relaxed text-slate-500">{plan.description}</p>
                     </div>
                     {plan.is_popular && (
-                      <span className="rounded-full bg-green-600 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white">
+                      <span className="whitespace-nowrap rounded-full bg-green-600 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-white">
                         Escolha segura
                       </span>
                     )}
@@ -306,7 +306,7 @@ const PricingView: React.FC = () => {
                     )}
                   </div>
 
-                  <ul className="mt-6 space-y-3">
+                  <ul className="mt-6 min-h-[176px] space-y-3 overflow-y-auto pr-2">
                     {summary.map((item) => (
                       <li key={item} className="flex items-start gap-3 text-sm font-medium text-slate-700">
                         <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" strokeWidth={2} />
