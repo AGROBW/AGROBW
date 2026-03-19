@@ -65,6 +65,10 @@ const PricingView: React.FC = () => {
   };
 
   const getPlanSummary = (plan: (typeof plansRaw)[number]) => {
+    if (plan.display_features && plan.display_features.length > 0) {
+      return plan.display_features.filter(Boolean).slice(0, 4);
+    }
+
     const summary = [
       `Ate ${formatNumericValue(plan.max_ads)} anuncios ativos`,
       `${plan.category_highlights_count || 0} destaques por categoria`,
@@ -78,26 +82,7 @@ const PricingView: React.FC = () => {
     return summary;
   };
 
-  const getPlanBadges = (plan: (typeof plansRaw)[number]) => {
-    const badges = [];
-
-    if (plan.has_verification_badge) {
-      badges.push('Selo verificado');
-    }
-    if (plan.has_seller_store) {
-      badges.push('Loja oficial');
-    }
-    if (plan.has_email_marketing) {
-      badges.push('Email marketing');
-    }
-    if ((plan.radar_max_alerts || 0) > 0) {
-      badges.push(`Radar x${plan.radar_max_alerts}`);
-    }
-
-    return badges.slice(0, 4);
-  };
-
-  const getPlanSpotlight = (plan: (typeof plansRaw)[number]) => {
+  const getDefaultSpotlight = (plan: (typeof plansRaw)[number]) => {
     if (plan.is_popular) {
       return 'Mais escolhido por produtores ativos';
     }
@@ -116,6 +101,12 @@ const PricingView: React.FC = () => {
 
     return 'Equilibrio entre visibilidade, recorrencia e conversao';
   };
+
+  const getPlanPriceCaption = (plan: (typeof plansRaw)[number]) =>
+    plan.price_caption?.trim() || getDefaultSpotlight(plan);
+
+  const getPlanFooterCaption = (plan: (typeof plansRaw)[number]) =>
+    plan.footer_caption?.trim() || getDefaultSpotlight(plan);
 
   const getComparisonValue = (plan: (typeof plansRaw)[number], featureId: string): string | boolean => {
     const directValue = plan.comparison?.[featureId];
@@ -268,7 +259,6 @@ const PricingView: React.FC = () => {
               const displayPrice = getDisplayPrice(plan.monthly_price, plan.yearly_price);
               const yearlySavings = calculateYearlySavings(plan.monthly_price, plan.yearly_price);
               const summary = getPlanSummary(plan);
-              const badges = getPlanBadges(plan);
 
               return (
                 <div
@@ -282,7 +272,7 @@ const PricingView: React.FC = () => {
                   <div className="mb-6 flex items-start justify-between gap-4">
                     <div>
                       <p className="mb-2 text-[11px] font-black uppercase tracking-[0.25em] text-slate-400">
-                        {plan.is_popular ? 'Mais popular' : 'Plano BWAGRO'}
+                        {plan.card_eyebrow?.trim() || 'Plano BWAGRO'}
                       </p>
                       <h3 className="text-2xl font-black text-slate-950">{plan.name}</h3>
                       <p className="mt-2 text-sm leading-relaxed text-slate-500">{plan.description}</p>
@@ -310,35 +300,10 @@ const PricingView: React.FC = () => {
                           : ''}
                       </p>
                     ) : (
-                      <p className="mt-3 text-sm font-semibold text-slate-400">{getPlanSpotlight(plan)}</p>
+                      <p className="mt-3 text-sm font-semibold text-slate-400">
+                        {getPlanPriceCaption(plan)}
+                      </p>
                     )}
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-3 gap-3">
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
-                        Anuncios
-                      </p>
-                      <p className="mt-2 text-lg font-black text-slate-900">
-                        {formatNumericValue(plan.max_ads)}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
-                        Categoria
-                      </p>
-                      <p className="mt-2 text-lg font-black text-slate-900">
-                        {plan.category_highlights_count || 0}x
-                      </p>
-                    </div>
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
-                        Home
-                      </p>
-                      <p className="mt-2 text-lg font-black text-slate-900">
-                        {plan.home_highlight_count || 0}x
-                      </p>
-                    </div>
                   </div>
 
                   <ul className="mt-6 space-y-3">
@@ -350,26 +315,9 @@ const PricingView: React.FC = () => {
                     ))}
                   </ul>
 
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {badges.length > 0 ? (
-                      badges.map((badge) => (
-                        <span
-                          key={badge}
-                          className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-bold text-slate-600"
-                        >
-                          {badge}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-bold text-slate-500">
-                        Plano enxuto para operacao essencial
-                      </span>
-                    )}
-                  </div>
-
                   <div className="mt-auto pt-6">
                     <div className="mb-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
-                      {getPlanSpotlight(plan)}
+                      {getPlanFooterCaption(plan)}
                     </div>
 
                     <button

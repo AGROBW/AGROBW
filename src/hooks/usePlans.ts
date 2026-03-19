@@ -7,6 +7,9 @@ export interface Plan {
   id: string;
   name: string;
   description: string | null;
+  card_eyebrow: string | null;
+  price_caption: string | null;
+  footer_caption: string | null;
   monthly_price: number;
   yearly_price: number;
   features: string[];
@@ -39,6 +42,9 @@ export interface Plan {
 export interface UpdatePlanData {
   name?: string;
   description?: string;
+  card_eyebrow?: string;
+  price_caption?: string;
+  footer_caption?: string;
   monthly_price?: number;
   yearly_price?: number;
   features?: string[];
