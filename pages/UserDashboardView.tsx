@@ -5,7 +5,7 @@ import { AlertCircle, Bell, Camera, CheckCircle2, Clock3, CreditCard, DollarSign
 import { AdStatus, Message, Ad, AdMetrics, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
-import { useUserAds } from '../src/hooks/useAds';
+import { deleteAnnouncementWithRelations, useUserAds } from '../src/hooks/useAds';
 import { useChats } from '../src/hooks/useMessages';
 import { useNotificationsCount } from '../src/hooks/useNotificationsCount';
 import { useSubscription } from '../src/hooks/useSubscription';
@@ -824,12 +824,7 @@ const UserDashboardView: React.FC = () => {
       
       setIsDeleting(true);
       try {
-        const { error } = await supabase
-          .from('announcements')
-          .delete()
-          .eq('id', adToDelete.id);
-
-        if (error) throw error;
+        await deleteAnnouncementWithRelations(adToDelete.id);
 
         toast.success('Anúncio excluído com sucesso');
         setDeleteModalOpen(false);

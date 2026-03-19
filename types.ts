@@ -155,6 +155,93 @@ export interface NewsItem {
   link: string;
 }
 
+export type NewsSourceCaptureType = 'manual_url' | 'scraping' | 'api' | 'rss';
+export type NewsArticleStatus = 'draft' | 'in_review' | 'published' | 'archived';
+export type NewsCaptureStatus = 'pending' | 'captured' | 'failed';
+export type NewsGenerationStatus = 'queued' | 'processing' | 'completed' | 'failed';
+
+export interface NewsSourceRecord {
+  id: string;
+  name: string;
+  domain: string;
+  notes?: string | null;
+  isActive: boolean;
+  captureType: NewsSourceCaptureType;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewsIngestionRecord {
+  id: string;
+  sourceId?: string | null;
+  sourceUrl: string;
+  originalTitle?: string | null;
+  originalPortalName?: string | null;
+  originalPublishedAt?: string | null;
+  originalAuthor?: string | null;
+  featuredImageUrl?: string | null;
+  extractedText?: string | null;
+  extractedMetadata?: Record<string, unknown> | null;
+  captureStatus: NewsCaptureStatus;
+  captureError?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewsArticleRecord {
+  id: string;
+  ingestionId?: string | null;
+  legacyNewsId?: string | null;
+  title: string;
+  subtitle?: string | null;
+  summary?: string | null;
+  content?: string | null;
+  agroImpact?: string | null;
+  referencesBlock?: string | null;
+  slug: string;
+  status: NewsArticleStatus;
+  featuredImageUrl?: string | null;
+  featuredImagePath?: string | null;
+  publishedAt?: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  sourceUrl?: string | null;
+  originalPortalName?: string | null;
+  originalTitle?: string | null;
+  originalPublishedAt?: string | null;
+  sourceName?: string | null;
+}
+
+export interface NewsGenerationJobRecord {
+  id: string;
+  articleId?: string | null;
+  ingestionId?: string | null;
+  status: NewsGenerationStatus;
+  promptSnapshot?: string | null;
+  model?: string | null;
+  responsePayload?: Record<string, unknown> | null;
+  errorMessage?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewsSettingsRecord {
+  id: string;
+  defaultPrompt: string;
+  maxExtractedCharacters: number;
+  summaryRule: string;
+  showAgroImpact: boolean;
+  referencesTemplate: string;
+  defaultGeneratedStatus: NewsArticleStatus;
+  openaiModel?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Message {
   id: string;
   chatId: string;

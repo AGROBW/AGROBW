@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Newspaper,
   Receipt,
   Search,
   Settings,
@@ -50,6 +51,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'Financeiro',
       path: '/admin/payments',
       icon: Receipt,
+    },
+    {
+      label: 'Noticias',
+      path: '/admin/news',
+      icon: Newspaper,
     },
     {
       label: 'Auditoria & Seguranca',

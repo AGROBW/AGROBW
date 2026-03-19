@@ -21,6 +21,8 @@ const ContactView = lazy(() => import('./pages/ContactView'));
 const AboutView = lazy(() => import('./pages/AboutView'));
 const TermsView = lazy(() => import('./pages/TermsView'));
 const PrivacyView = lazy(() => import('./pages/PrivacyView'));
+const NewsListingView = lazy(() => import('./pages/NewsListingView'));
+const NewsArticleView = lazy(() => import('./pages/NewsArticleView'));
 const UserDashboardView = lazy(() => import('./pages/UserDashboardView'));
 const MessagesView = lazy(() => import('./pages/MessagesView'));
 const FavoritesView = lazy(() => import('./pages/FavoritesView'));
@@ -34,6 +36,7 @@ const AdminDashboardOverview = lazy(() => import('./pages/admin/AdminDashboardOv
 const ModerationQueue = lazy(() => import('./pages/admin/ModerationQueue'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const PaymentsManagement = lazy(() => import('./pages/admin/PaymentsManagement'));
+const NewsManagement = lazy(() => import('./pages/admin/NewsManagement'));
 const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'));
 const SettingsView = lazy(() => import('./pages/admin/SettingsView'));
 
@@ -106,6 +109,8 @@ const AppContent: React.FC = () => {
             <Route path="/categorias" element={<CategoriesView />} />
             <Route path="/planos" element={<PricingView />} />
             <Route path="/contato" element={<ContactView />} />
+            <Route path="/noticias" element={<NewsListingView />} />
+            <Route path="/noticias/:slug" element={<NewsArticleView />} />
             
             {/* Redirects para páginas institucionais (agora no CMS) */}
             <Route path="/quem-somos" element={<Navigate to="/p/quem-somos" replace />} />
@@ -175,6 +180,7 @@ const AppContent: React.FC = () => {
               <Route path="moderation" element={<ModerationQueue />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="payments" element={<PaymentsManagement />} />
+              <Route path="news" element={<NewsManagement />} />
               <Route path="audit" element={<AuditLogs />} />
               <Route path="settings" element={<SettingsView />} />
             </Route>

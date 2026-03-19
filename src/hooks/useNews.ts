@@ -10,25 +10,56 @@ export const useNews = () => {
   useEffect(() => {
     const fetchNews = async () => {
       setIsLoading(true)
-      const { data, error } = await supabase
-        .from('news')
-        .select('*')
+      const { data: articlesData, error: articlesError } = await supabase
+        .from('news_articles')
+        .select(`
+          id,
+          title,
+          summary,
+          slug,
+          featured_image_url,
+          published_at,
+          news_ingestions (
+            original_portal_name
+          )
+        `)
+        .eq('status', 'published')
         .order('published_at', { ascending: false })
 
-      if (error) {
-        setError(error.message)
-        setNews([])
-      } else {
-        const mapped: NewsItem[] = (data || []).map((item: any) => ({
+      if (!articlesError && (articlesData || []).length > 0) {
+        const mapped: NewsItem[] = (articlesData || []).map((item: any) => ({
           id: item.id,
-          category: item.category,
-          date: item.published_at || item.created_at,
+          category: item.news_ingestions?.original_portal_name || 'Mercado',
+          date: item.published_at,
           title: item.title,
           summary: item.summary,
-          imageUrl: item.image_url,
-          link: item.link
+          imageUrl: item.featured_image_url,
+          link: `#/noticias/${item.slug}`
         }))
         setNews(mapped)
+        setError(null)
+      } else {
+        const { data, error } = await supabase
+          .from('news')
+          .select('*')
+          .order('published_at', { ascending: false })
+
+        if (error) {
+          setError(error.message)
+          setNews([])
+        } else {
+          const mapped: NewsItem[] = (data || []).map((item: any) => ({
+            id: item.id,
+            category: item.category,
+            date: item.published_at || item.created_at,
+            title: item.title,
+            summary: item.summary,
+            imageUrl: item.image_url,
+            link: item.link
+          }))
+          setNews(mapped)
+          setError(articlesError?.message || null)
+        }
       }
       setIsLoading(false)
     }
