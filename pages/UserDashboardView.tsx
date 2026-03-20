@@ -969,17 +969,28 @@ const UserDashboardView: React.FC = () => {
                     </span>
                     <div className="flex items-center gap-1 text-slate-400">
                       {/* Botão de Destaques */}
-                      <button 
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleHighlightClick(ad, 'category');
-                        }}
-                        className="p-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors" 
-                        title="Aplicar destaque"
-                      >
-                        <Sparkles className="w-4 h-4" strokeWidth={1.5} />
-                      </button>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleHighlightClick(ad, 'category');
+                          }}
+                          className="p-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors" 
+                          title="Destaque na categoria"
+                        >
+                          <TrendingUp className="w-4 h-4" strokeWidth={1.5} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleHighlightClick(ad, 'home');
+                          }}
+                          className="p-2 rounded-lg hover:bg-amber-50 hover:text-amber-700 transition-colors" 
+                          title="Destaque na home"
+                        >
+                          <Sparkles className="w-4 h-4" strokeWidth={1.5} />
+                        </button>
                       {/* Botão Editar */}
                       <button
                         onClick={(e) => {
@@ -2215,7 +2226,7 @@ const UserDashboardView: React.FC = () => {
           <div className="flex items-center gap-4">
             <div className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg border border-slate-100">
               <div className="w-7 h-7 bg-slate-200 rounded-full overflow-hidden">
-                <img src={user?.avatar} alt="" />
+                {user?.avatar ? <img src={user.avatar} alt="" /> : null}
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold text-gray-700">{user?.name}</span>

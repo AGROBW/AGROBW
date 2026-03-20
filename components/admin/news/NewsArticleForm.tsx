@@ -19,10 +19,25 @@ export interface NewsArticleDraftForm {
   status: NewsArticleStatus;
 }
 
+type CapturePreview = {
+  ingestionId: string;
+  sourceUrl: string;
+  originalPortalName: string;
+  originalTitle: string;
+  originalPublishedAt: string;
+  featuredImageUrl: string;
+  extractedText: string;
+  captureStatus: string;
+  captureError?: string | null;
+};
+
 interface NewsArticleFormProps {
   initialArticle?: NewsArticleRecord | null;
   settings?: NewsSettingsRecord | null;
-  onCapture: (url: string) => Promise<{ portalName: string; referencesBlock: string }>;
+  onCapture: (url: string) => Promise<CapturePreview | null>;
+  onGenerate: (
+    payload: Pick<NewsArticleDraftForm, 'id' | 'ingestionId'>
+  ) => Promise<Partial<NewsArticleDraftForm> | null>;
   onSaveDraft: (payload: NewsArticleDraftForm) => Promise<void>;
   onPublish: (payload: NewsArticleDraftForm) => Promise<void>;
 }
@@ -48,16 +63,35 @@ const NewsArticleForm: React.FC<NewsArticleFormProps> = ({
   initialArticle,
   settings,
   onCapture,
+  onGenerate,
   onSaveDraft,
   onPublish,
 }) => {
   const [form, setForm] = useState<NewsArticleDraftForm>(buildInitialState(initialArticle));
+  const [preview, setPreview] = useState<CapturePreview | null>(null);
   const [capturing, setCapturing] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
     setForm(buildInitialState(initialArticle));
+    setPreview(
+      initialArticle?.ingestionId
+        ? {
+            ingestionId: initialArticle.ingestionId,
+            sourceUrl: initialArticle.sourceUrl || '',
+            originalPortalName: initialArticle.originalPortalName || '',
+            originalTitle: initialArticle.originalTitle || '',
+            originalPublishedAt: initialArticle.originalPublishedAt
+              ? initialArticle.originalPublishedAt.slice(0, 10)
+              : '',
+            featuredImageUrl: initialArticle.featuredImageUrl || '',
+            extractedText: '',
+            captureStatus: 'captured',
+          }
+        : null
+    );
   }, [initialArticle]);
 
   const setValue = (field: keyof NewsArticleDraftForm, value: string | NewsArticleStatus | null | undefined) => {
@@ -68,43 +102,47 @@ const NewsArticleForm: React.FC<NewsArticleFormProps> = ({
     if (!form.sourceUrl.trim()) return;
     setCapturing(true);
     const result = await onCapture(form.sourceUrl);
-    setForm((prev) => ({
-      ...prev,
-      originalPortalName: prev.originalPortalName || result.portalName,
-      referencesBlock: prev.referencesBlock || result.referencesBlock,
-    }));
+    if (result) {
+      setPreview(result);
+      setForm((prev) => ({
+        ...prev,
+        ingestionId: result.ingestionId,
+        originalPortalName: result.originalPortalName || prev.originalPortalName,
+        originalTitle: result.originalTitle || prev.originalTitle,
+        originalPublishedAt: result.originalPublishedAt
+          ? result.originalPublishedAt.slice(0, 10)
+          : prev.originalPublishedAt,
+        featuredImageUrl: result.featuredImageUrl || prev.featuredImageUrl,
+      }));
+    }
     setCapturing(false);
   };
 
-  const handleGeneratePlaceholder = () => {
-    const sourceName = form.originalPortalName || 'fonte informada';
-    const sourceTitle = form.originalTitle || 'materia capturada';
-    const generatedSummary =
-      form.summary ||
-      `Conteudo original redigido com base factual em ${sourceName}, mantendo foco no agronegocio brasileiro.`;
-    const generatedContent =
-      form.content ||
-      `Esta materia foi preparada a partir da noticia "${sourceTitle}", com reescrita original e abordagem editorial voltada ao agronegocio brasileiro.\n\nDesenvolva aqui os fatos principais, contexto economico, impacto na cadeia produtiva e os proximos desdobramentos do tema.`;
+  const handleGenerate = async () => {
+    if (!form.ingestionId) return;
+    setGenerating(true);
+    const generated = await onGenerate({
+      id: form.id,
+      ingestionId: form.ingestionId,
+    });
 
-    setForm((prev) => ({
-      ...prev,
-      title: prev.title || sourceTitle,
-      subtitle: prev.subtitle || 'Nova leitura editorial com foco no agro brasileiro.',
-      summary: generatedSummary,
-      content: generatedContent,
-      agroImpact:
-        prev.agroImpact ||
-        (settings?.showAgroImpact
-          ? 'Explique aqui como esse fato pode afetar produtores, distribuidores, cooperativas e o mercado agro.'
-          : ''),
-      referencesBlock:
-        prev.referencesBlock ||
-        settings?.referencesTemplate
-          ?.replace('{{portal_name}}', sourceName)
-          .replace('{{source_url}}', form.sourceUrl || '')
-          .replace('{{original_published_at}}', form.originalPublishedAt || 'data nao informada') ||
-        '',
-    }));
+    if (generated) {
+      setForm((prev) => ({
+        ...prev,
+        id: String(generated.id || prev.id || ''),
+        ingestionId: (generated.ingestionId as string | null | undefined) ?? prev.ingestionId,
+        title: generated.title ?? prev.title,
+        subtitle: generated.subtitle ?? prev.subtitle,
+        summary: generated.summary ?? prev.summary,
+        content: generated.content ?? prev.content,
+        agroImpact: generated.agroImpact ?? prev.agroImpact,
+        referencesBlock: generated.referencesBlock ?? prev.referencesBlock,
+        featuredImageUrl:
+          (generated.featuredImageUrl as string | undefined) ?? prev.featuredImageUrl,
+        status: (generated.status as NewsArticleStatus | undefined) ?? prev.status,
+      }));
+    }
+    setGenerating(false);
   };
 
   return (
@@ -135,21 +173,59 @@ const NewsArticleForm: React.FC<NewsArticleFormProps> = ({
           <input value={form.originalPublishedAt} onChange={(event) => setValue('originalPublishedAt', event.target.value)} type="date" className="h-11 rounded-xl border border-slate-200 px-4 text-sm" />
           <input value={form.featuredImageUrl} onChange={(event) => setValue('featuredImageUrl', event.target.value)} placeholder="Imagem destacada (URL)" className="h-11 rounded-xl border border-slate-200 px-4 text-sm" />
         </div>
+
+        {preview ? (
+          <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr,0.8fr]">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                Previa do conteudo extraido
+              </p>
+              <div className="mt-3 space-y-2 text-sm text-slate-600">
+                <p><span className="font-semibold text-slate-900">Titulo original:</span> {preview.originalTitle || 'Nao identificado'}</p>
+                <p><span className="font-semibold text-slate-900">Fonte:</span> {preview.originalPortalName || 'Nao identificada'}</p>
+                <p><span className="font-semibold text-slate-900">Data original:</span> {preview.originalPublishedAt || 'Nao informada'}</p>
+              </div>
+              <textarea
+                value={preview.extractedText}
+                readOnly
+                rows={10}
+                className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600"
+              />
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                Imagem destacada
+              </p>
+              {preview.featuredImageUrl ? (
+                <img
+                  src={preview.featuredImageUrl}
+                  alt={preview.originalTitle || 'Imagem da materia'}
+                  className="mt-3 h-56 w-full rounded-2xl object-cover"
+                />
+              ) : (
+                <div className="mt-3 flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
+                  Nenhuma imagem detectada
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-black text-slate-900">Redacao assistida</h3>
-            <p className="text-sm text-slate-500">Preencha manualmente ou use a base pronta para revisao editorial.</p>
+            <p className="text-sm text-slate-500">Gere uma base autoral com IA e revise tudo antes de publicar.</p>
           </div>
           <button
             type="button"
-            onClick={handleGeneratePlaceholder}
-            className="inline-flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-bold text-green-700 hover:bg-green-100"
+            onClick={handleGenerate}
+            disabled={generating || !form.ingestionId}
+            className="inline-flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-bold text-green-700 hover:bg-green-100 disabled:opacity-60"
           >
             <Bot className="h-4 w-4" />
-            Gerar base com IA
+            {generating ? 'Gerando materia...' : 'Gerar Materia com IA'}
           </button>
         </div>
 

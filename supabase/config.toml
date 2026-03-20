@@ -27,3 +27,18 @@ entrypoint = "./functions/issue-nfse/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/webhook-fiscal/index.ts"
+
+[functions.capture-news-url]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/capture-news-url/index.ts"
+
+[functions.generate-news-article]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/generate-news-article/index.ts"
+
+[functions.delete-announcement]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/delete-announcement/index.ts"

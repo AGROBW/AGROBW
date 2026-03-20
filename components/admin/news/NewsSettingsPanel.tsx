@@ -37,7 +37,7 @@ const NewsSettingsPanel: React.FC<NewsSettingsPanelProps> = ({ settings, onSave 
         <textarea value={form.defaultPrompt} onChange={(event) => setForm((prev) => ({ ...prev, defaultPrompt: event.target.value }))} rows={5} placeholder="Prompt padrao da IA" className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <input type="number" value={form.maxExtractedCharacters} onChange={(event) => setForm((prev) => ({ ...prev, maxExtractedCharacters: Number(event.target.value) || 0 }))} placeholder="Maximo de caracteres extraidos" className="h-11 rounded-xl border border-slate-200 px-4 text-sm" />
-          <input value={form.openaiModel} onChange={(event) => setForm((prev) => ({ ...prev, openaiModel: event.target.value }))} placeholder="Modelo de IA" className="h-11 rounded-xl border border-slate-200 px-4 text-sm" />
+          <input value={form.openaiModel} onChange={(event) => setForm((prev) => ({ ...prev, openaiModel: event.target.value }))} placeholder="Modelo da IA (ex: gemini-2.5-flash)" className="h-11 rounded-xl border border-slate-200 px-4 text-sm" />
         </div>
         <textarea value={form.summaryRule} onChange={(event) => setForm((prev) => ({ ...prev, summaryRule: event.target.value }))} rows={3} placeholder="Regra para geracao do resumo" className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
         <textarea value={form.referencesTemplate} onChange={(event) => setForm((prev) => ({ ...prev, referencesTemplate: event.target.value }))} rows={3} placeholder="Modelo do bloco de referencias" className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />

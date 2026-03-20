@@ -20,6 +20,7 @@ const NewsManagement: React.FC = () => {
     isLoading,
     error,
     createCapture,
+    generateArticleFromIngestion,
     saveArticle,
     publishArticle,
     unpublishArticle,
@@ -47,20 +48,38 @@ const NewsManagement: React.FC = () => {
       if (result.error || !result.data) {
         throw new Error(result.error || 'Falha ao capturar URL');
       }
-      toast.success('Fonte registrada com sucesso para a nova materia.');
+      toast.success('Conteudo capturado com sucesso.');
       return {
-        portalName: result.data.originalPortalName || new URL(url).hostname,
-        referencesBlock:
-          settings?.referencesTemplate
-            ?.replace('{{portal_name}}', result.data.originalPortalName || new URL(url).hostname)
-            .replace('{{source_url}}', url)
-            .replace('{{original_published_at}}', result.data.originalPublishedAt || 'data nao informada') ||
-          '',
+        ingestionId: result.data.id,
+        sourceUrl: result.data.sourceUrl,
+        originalPortalName: result.data.originalPortalName || new URL(url).hostname,
+        originalTitle: result.data.originalTitle || '',
+        originalPublishedAt: result.data.originalPublishedAt || '',
+        featuredImageUrl: result.data.featuredImageUrl || '',
+        extractedText: result.data.extractedText || '',
+        captureStatus: result.data.captureStatus,
+        captureError: result.data.captureError || null,
       };
     } catch (err: any) {
       toast.error(err.message || 'Nao foi possivel capturar a URL.');
-      return { portalName: '', referencesBlock: '' };
+      return null;
     }
+  };
+
+  const handleGenerate = async (payload: Pick<NewsArticleDraftForm, 'id' | 'ingestionId'>) => {
+    if (!payload.ingestionId) {
+      toast.error('Capture a noticia antes de gerar a materia.');
+      return null;
+    }
+
+    const result = await generateArticleFromIngestion(payload.ingestionId, payload.id);
+    if (result.error || !result.data) {
+      toast.error(result.error || 'Nao foi possivel gerar a materia.');
+      return null;
+    }
+
+    toast.success('Base editorial gerada com IA e salva como rascunho.');
+    return result.data;
   };
 
   const handleSaveDraft = async (payload: NewsArticleDraftForm) => {
@@ -164,6 +183,7 @@ const NewsManagement: React.FC = () => {
           initialArticle={editingArticle}
           settings={settings as NewsSettingsRecord | null}
           onCapture={handleCapture}
+          onGenerate={handleGenerate}
           onSaveDraft={handleSaveDraft}
           onPublish={handlePublish}
         />

@@ -3,62 +3,25 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { Ad } from '../../types'
 
-const deleteAnnouncementRelations = async (announcementId: string) => {
-  const deleteSteps: Array<{
-    table: string;
-    column: string;
-    resolveIdsFrom?: 'chats';
-  }> = [
-    { table: 'announcement_clicks_by_state', column: 'announcement_id' },
-    { table: 'announcement_highlights_history', column: 'announcement_id' },
-    { table: 'announcement_technical_details', column: 'announcement_id' },
-    { table: 'favorites', column: 'announcement_id' },
-    { table: 'messages', column: 'chat_id', resolveIdsFrom: 'chats' as const },
-    { table: 'leads', column: 'chat_id', resolveIdsFrom: 'chats' as const },
-    { table: 'chats', column: 'announcement_id' },
-    { table: 'announcement_metrics', column: 'announcement_id' },
-    { table: 'lead_conversions', column: 'announcement_id' },
-    { table: 'opportunities', column: 'announcement_id' },
-    { table: 'opportunity_matches', column: 'announcement_id' },
-    { table: 'price_drop_notifications', column: 'announcement_id' },
-  ];
+export const deleteAnnouncementWithRelations = async (announcementId: string) => {
+  const { data, error } = await supabase.functions.invoke('delete-announcement', {
+    method: 'POST',
+    body: {
+      announcementId,
+    },
+  });
 
-  const { data: chats } = await supabase
-    .from('chats')
-    .select('id')
-    .eq('announcement_id', announcementId);
-
-  const chatIds = (chats || []).map((chat: { id: string }) => chat.id);
-
-  for (const step of deleteSteps) {
-    let query = supabase.from(step.table).delete();
-
-    if (step.resolveIdsFrom === 'chats') {
-      if (chatIds.length === 0) {
-        continue;
-      }
-      query = query.in(step.column, chatIds);
-    } else {
-      query = query.eq(step.column, announcementId);
-    }
-
-    const { error } = await query;
-    if (error) {
+  if (error) {
+    try {
+      const errorBody = await error.context?.json?.();
+      throw new Error(errorBody?.details || errorBody?.error || error.message);
+    } catch {
       throw error;
     }
   }
-};
 
-export const deleteAnnouncementWithRelations = async (announcementId: string) => {
-  await deleteAnnouncementRelations(announcementId);
-
-  const { error } = await supabase
-    .from('announcements')
-    .delete()
-    .eq('id', announcementId);
-
-  if (error) {
-    throw error;
+  if (!data?.success) {
+    throw new Error(data?.details || data?.error || 'Falha ao excluir anuncio');
   }
 };
 

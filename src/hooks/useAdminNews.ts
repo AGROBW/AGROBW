@@ -37,6 +37,28 @@ type ArticlePayload = {
   featuredImageUrl?: string | null;
 };
 
+type CaptureResult = {
+  error: string | null;
+  data: NewsIngestionRecord | null;
+};
+
+type GenerateResult = {
+  error: string | null;
+  data: {
+    id: string;
+    ingestionId?: string | null;
+    title: string;
+    subtitle: string;
+    summary: string;
+    content: string;
+    agroImpact: string;
+    referencesBlock: string;
+    slug: string;
+    status: NewsArticleStatus;
+    featuredImageUrl?: string | null;
+  } | null;
+};
+
 type SourcePayload = {
   id?: string;
   name: string;
@@ -212,15 +234,19 @@ export const useAdminNews = () => {
     );
   };
 
-  const refreshAll = async () => {
-    setIsLoading(true);
+  const refreshAll = async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setIsLoading(true);
+    }
     setError(null);
     try {
       await Promise.all([fetchDashboard(), fetchArticles(), fetchSources(), fetchSettings(), fetchJobs()]);
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar modulo de noticias');
     } finally {
-      setIsLoading(false);
+      if (!options?.silent) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -240,14 +266,14 @@ export const useAdminNews = () => {
 
     const { error } = await query;
     if (error) return { error: error.message };
-    await refreshAll();
+    await refreshAll({ silent: true });
     return { error: null };
   };
 
   const deleteSource = async (id: string) => {
     const { error } = await supabase.from('news_sources').delete().eq('id', id);
     if (error) return { error: error.message };
-    await refreshAll();
+    await refreshAll({ silent: true });
     return { error: null };
   };
 
@@ -277,51 +303,77 @@ export const useAdminNews = () => {
   };
 
   const createCapture = async (sourceUrl: string) => {
-    const normalizedUrl = sourceUrl.trim();
-    const parsed = new URL(normalizedUrl);
-    const domain = parsed.hostname.replace(/^www\./, '');
+    const { data, error } = await supabase.functions.invoke('capture-news-url', {
+      method: 'POST',
+      body: {
+        url: sourceUrl.trim(),
+      },
+    });
 
-    const matchingSource = sources.find((source) => domain.includes(source.domain));
+    if (error) {
+      try {
+        const errorBody = await error.context?.json?.();
+        console.error('[useAdminNews] Corpo da resposta de capture-news-url:', errorBody);
+      } catch {
+        try {
+          const errorText = await error.context?.text?.();
+          console.error('[useAdminNews] Corpo da resposta de capture-news-url:', errorText);
+        } catch {
+          console.error('[useAdminNews] Erro ao ler corpo da resposta de capture-news-url');
+        }
+      }
+    }
 
-    const { data, error } = await supabase
-      .from('news_ingestions')
-      .insert({
-        source_id: matchingSource?.id ?? null,
-        source_url: normalizedUrl,
-        original_portal_name: matchingSource?.name ?? domain,
-        capture_status: 'captured',
-        extracted_text: null,
-        extracted_metadata: {
-          domain,
-          mode: 'manual_url_seed',
-        },
-      })
-      .select()
-      .single();
-
-    if (error) return { error: error.message, data: null as NewsIngestionRecord | null };
-    await refreshAll();
+    if (error || !data?.success) {
+      return {
+        error: data?.error || error?.message || 'Falha ao capturar URL',
+        data: null,
+      } as CaptureResult;
+    }
 
     return {
       error: null,
-      data: {
-        id: data.id,
-        sourceId: data.source_id ?? null,
-        sourceUrl: data.source_url,
-        originalTitle: data.original_title ?? null,
-        originalPortalName: data.original_portal_name ?? null,
-        originalPublishedAt: data.original_published_at ?? null,
-        originalAuthor: data.original_author ?? null,
-        featuredImageUrl: data.featured_image_url ?? null,
-        extractedText: data.extracted_text ?? null,
-        extractedMetadata: data.extracted_metadata ?? null,
-        captureStatus: data.capture_status,
-        captureError: data.capture_error ?? null,
-        createdBy: data.created_by ?? null,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
+      data: data.data as NewsIngestionRecord,
+    } as CaptureResult;
+  };
+
+  const generateArticleFromIngestion = async (
+    ingestionId: string,
+    articleId?: string | null
+  ) => {
+    const { data, error } = await supabase.functions.invoke('generate-news-article', {
+      method: 'POST',
+      body: {
+        ingestionId,
+        articleId: articleId || null,
       },
-    };
+    });
+
+    if (error) {
+      try {
+        const errorBody = await error.context?.json?.();
+        console.error('[useAdminNews] Corpo da resposta de generate-news-article:', errorBody);
+      } catch {
+        try {
+          const errorText = await error.context?.text?.();
+          console.error('[useAdminNews] Corpo da resposta de generate-news-article:', errorText);
+        } catch {
+          console.error('[useAdminNews] Erro ao ler corpo da resposta de generate-news-article');
+        }
+      }
+    }
+
+    if (error || !data?.success) {
+      return {
+        error: data?.error || error?.message || 'Falha ao gerar materia com IA',
+        data: null,
+      } as GenerateResult;
+    }
+
+    return {
+      error: null,
+      data: data.data,
+    } as GenerateResult;
   };
 
   const saveArticle = async (payload: ArticlePayload) => {
@@ -371,7 +423,6 @@ export const useAdminNews = () => {
     if (payload.status === 'published') {
       const articleId = data.id;
       const publishedAt = nowIso;
-      const legacyLink = `#/noticias/${slug}`;
 
       const articleSourcePayload = {
         article_id: articleId,
@@ -388,32 +439,10 @@ export const useAdminNews = () => {
         await supabase.from('news_article_sources').insert(articleSourcePayload);
       }
 
-      const legacyPayload = {
-        category: payload.originalPortalName || 'Mercado',
-        title: payload.title,
-        summary: payload.summary || '',
-        image_url: payload.featuredImageUrl || null,
-        link: legacyLink,
-        published_at: publishedAt,
-      };
-
-      const { data: articleAfterPublish } = await supabase
+      await supabase
         .from('news_articles')
-        .select('legacy_news_id')
-        .eq('id', articleId)
-        .single();
-
-      if (articleAfterPublish?.legacy_news_id) {
-        await supabase.from('news').update(legacyPayload).eq('id', articleAfterPublish.legacy_news_id);
-      } else {
-        const { data: legacyNews } = await supabase.from('news').insert(legacyPayload).select('id').single();
-        if (legacyNews?.id) {
-          await supabase
-            .from('news_articles')
-            .update({ legacy_news_id: legacyNews.id, published_at: publishedAt, updated_at: nowIso })
-            .eq('id', articleId);
-        }
-      }
+        .update({ published_at: publishedAt, updated_at: nowIso })
+        .eq('id', articleId);
     }
 
     await refreshAll();
@@ -454,10 +483,6 @@ export const useAdminNews = () => {
       })
       .eq('id', article.id);
     if (error) return { error: error.message };
-    if (article.legacyNewsId) {
-      await supabase.from('news').delete().eq('id', article.legacyNewsId);
-      await supabase.from('news_articles').update({ legacy_news_id: null }).eq('id', article.id);
-    }
     await refreshAll();
     return { error: null };
   };
@@ -481,9 +506,6 @@ export const useAdminNews = () => {
   };
 
   const deleteArticle = async (article: NewsArticleRecord) => {
-    if (article.legacyNewsId) {
-      await supabase.from('news').delete().eq('id', article.legacyNewsId);
-    }
     const { error } = await supabase.from('news_articles').delete().eq('id', article.id);
     if (error) return { error: error.message };
     await refreshAll();
@@ -508,6 +530,7 @@ export const useAdminNews = () => {
     deleteSource,
     saveSettings,
     createCapture,
+    generateArticleFromIngestion,
     saveArticle,
     publishArticle,
     unpublishArticle,

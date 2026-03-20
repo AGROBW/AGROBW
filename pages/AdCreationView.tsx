@@ -2,14 +2,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CATEGORIES } from '../constants';
-import AdCard from '../components/AdCard';
 import { AdStatus } from '../types';
 import { usePlanCheck } from '../src/hooks/usePlanCheck';
 import { useSubscription } from '../src/hooks/useSubscription';
 import { useAuth } from '../src/contexts/AuthContext';
 import { supabase } from '../src/lib/supabaseClient';
 import { toast } from 'sonner';
-import { Trash2, GripVertical, AlertCircle } from 'lucide-react';
+import { Trash2, GripVertical, AlertCircle, Eye, Heart, MapPin, X } from 'lucide-react';
 import { censorContactData } from '../src/utils/censorContact';
 import imageCompression from 'browser-image-compression';
 import { motion } from 'framer-motion';
@@ -87,6 +86,119 @@ const SortableImageItem: React.FC<{
   );
 };
 
+const PreviewAnnouncementModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  previewAd: any;
+}> = ({ isOpen, onClose, previewAd }) => {
+  if (!isOpen) return null;
+
+  const mainImage = previewAd.images?.[0] || '';
+  const formattedPrice = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(previewAd.price || 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="relative w-full max-w-4xl overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-5 top-5 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow hover:text-slate-900"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,0.9fr]">
+          <div className="flex flex-col justify-between bg-slate-950 p-8 text-white">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-green-300">
+                Preview da Publicacao
+              </p>
+              <h2 className="mt-4 text-3xl font-black leading-tight">
+                {previewAd.title || 'Titulo do anuncio'}
+              </h2>
+              <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm text-white/90">
+                <MapPin className="w-4 h-4 text-green-300" />
+                {previewAd.location?.city || 'Cidade'} - {previewAd.location?.state || 'UF'}
+              </div>
+            </div>
+
+            <div className="mt-8 space-y-4">
+              <div className="rounded-2xl bg-white/10 p-5">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-green-200">
+                  Investimento
+                </p>
+                <p className="mt-2 text-3xl font-black text-green-300">{formattedPrice}</p>
+                <p className="mt-1 text-sm text-white/70">
+                  {previewAd.quantity || 1} {previewAd.unit || 'Unidade'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 p-5">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/50">
+                  Descricao
+                </p>
+                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-white/80">
+                  {previewAd.description || 'Descricao do anuncio nao informada.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 p-8">
+            <div className="mx-auto max-w-sm overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+              <div className="relative h-60 bg-slate-200">
+                {mainImage ? (
+                  <img src={mainImage} alt={previewAd.title} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-500">
+                    Nenhuma imagem enviada
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow"
+                >
+                  <Heart className="w-5 h-5" strokeWidth={1.5} />
+                </button>
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent p-4">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-white">
+                    <MapPin className="w-3.5 h-3.5 text-green-400" strokeWidth={1.5} />
+                    {previewAd.location?.city || 'Cidade'} - {previewAd.location?.state || 'UF'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-5">
+                <h3 className="line-clamp-2 h-12 text-base font-bold text-slate-900">
+                  {previewAd.title || 'Titulo do anuncio'}
+                </h3>
+                <div className="mt-4 flex items-end justify-between border-t border-slate-100 pt-4">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      Investimento
+                    </p>
+                    <p className="mt-1 text-xl font-black text-green-700">{formattedPrice}</p>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs font-semibold text-slate-400">
+                    <Eye className="w-4 h-4" strokeWidth={1.5} />
+                    0
+                  </div>
+                </div>
+                <div className="mt-5 rounded-xl bg-slate-900 py-3 text-center text-sm font-bold text-white">
+                  Ver Detalhes
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AdCreationView: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -99,6 +211,7 @@ const AdCreationView: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<Step>('CATEGORY');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [imageItems, setImageItems] = useState<ImageItem[]>([]);
   const [draftAdId, setDraftAdId] = useState<string | null>(null);
   const isMountedRef = useRef(true);
@@ -1219,9 +1332,68 @@ const AdCreationView: React.FC = () => {
             <div className="w-full lg:w-[400px]">
                <div className="sticky top-28">
                   <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Visualização no App</p>
-                  <AdCard ad={previewAd as any} />
+                  <div className="group bg-white rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full relative border border-slate-100">
+                    <div className="absolute top-4 right-4 z-10 p-2 bg-white/90 rounded-full shadow-md">
+                      <Heart className="w-5 h-5 text-slate-500" strokeWidth={1.5} />
+                    </div>
+                    <div className="relative h-48 overflow-hidden">
+                      {previewAd.images?.[0] ? (
+                        <img
+                          src={previewAd.images[0]}
+                          alt={previewAd.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-slate-200 flex items-center justify-center text-sm font-semibold text-slate-500">
+                          Nenhuma imagem enviada
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+                        <p className="text-white text-xs font-semibold flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-green-400" strokeWidth={1.5} />
+                          {previewAd.location.city} - {previewAd.location.state}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="p-5 flex flex-col flex-grow">
+                      <h3 className="text-sm font-semibold text-slate-800 mb-3 line-clamp-2 leading-tight h-10">
+                        {previewAd.title}
+                      </h3>
+                      <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-100">
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Investimento</p>
+                          <p className="text-base font-semibold text-green-700 tracking-tight">
+                            {new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL',
+                            }).format(previewAd.price || 0)}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center gap-1 text-slate-400 text-[11px] font-semibold">
+                            <Eye className="w-4 h-4" strokeWidth={1.5} />
+                            0
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="px-5 pb-5 mt-auto">
+                      <button
+                        type="button"
+                        onClick={() => setIsPreviewModalOpen(true)}
+                        className="block w-full text-center h-10 leading-10 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-all"
+                      >
+                        Ver Detalhes
+                      </button>
+                    </div>
+                  </div>
                </div>
             </div>
+            <PreviewAnnouncementModal
+              isOpen={isPreviewModalOpen}
+              onClose={() => setIsPreviewModalOpen(false)}
+              previewAd={previewAd}
+            />
           </div>
         );
 
