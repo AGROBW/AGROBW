@@ -149,7 +149,7 @@ export const useSubscription = () => {
 
       setUsage({
         adsUsed: adsCount || 0,
-        adsLimit: subscription.plans?.max_ads || null,
+        adsLimit: subscription.plans?.max_ads ?? null,
         categoryHighlightsUsed: categoryHighlightsCount || 0,
         categoryHighlightsLimit: subscription.plans?.category_highlights_count || 0,
         homeHighlightsUsed: homeHighlightsCount || 0,

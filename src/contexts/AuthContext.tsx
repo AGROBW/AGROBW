@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react'
 import { User as SupabaseUser } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabaseClient'
+import { setRememberDevicePreference, supabase } from '../lib/supabaseClient'
 import { User, UserRole } from '../../types'
 import { toast } from 'sonner'
 
@@ -22,7 +22,7 @@ interface AuthContextType {
   isLoading: boolean
   isSeller: boolean
   isAdmin: boolean
-  signIn: (email: string, password: string) => Promise<{ error: any }>
+  signIn: (email: string, password: string, rememberDevice?: boolean) => Promise<{ error: any }>
   sendPasswordResetEmail: (email: string) => Promise<{ error: any }>
   signUp: (
     email: string,
@@ -272,7 +272,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [])
 
   // Função de login
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, rememberDevice = true) => {
+    setRememberDevicePreference(rememberDevice)
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password

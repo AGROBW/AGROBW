@@ -649,19 +649,34 @@ const UserDashboardView: React.FC = () => {
 
           {/* Coluna Direita: Módulo de Plano (1/3) */}
           <div className="lg:col-span-1">
-            <PlanModule
-              planName={subscription?.plans?.name || user?.plan || 'Start Agro'}
-              adsUsed={usage.adsUsed}
-              adsLimit={usage.adsLimit}
-              categoryHighlightsUsed={usage.categoryHighlightsUsed}
-              categoryHighlightsLimit={usage.categoryHighlightsLimit}
-              homeHighlightsUsed={usage.homeHighlightsUsed}
-              homeHighlightsLimit={usage.homeHighlightsLimit}
-              periodEndDate={usage.periodEndDate?.toISOString()}
-              loading={subscriptionLoading}
-              rpcAdsCount={dashboardStats?.total_ads}
-              rpcHomeHighlights={dashboardStats?.home_highlights}
-            />
+            {subscription?.plans || subscriptionLoading ? (
+              <PlanModule
+                planName={subscription?.plans?.name || 'Sem plano ativo'}
+                adsUsed={usage.adsUsed}
+                adsLimit={usage.adsLimit}
+                categoryHighlightsUsed={usage.categoryHighlightsUsed}
+                categoryHighlightsLimit={usage.categoryHighlightsLimit}
+                homeHighlightsUsed={usage.homeHighlightsUsed}
+                homeHighlightsLimit={usage.homeHighlightsLimit}
+                periodEndDate={usage.periodEndDate?.toISOString()}
+                loading={subscriptionLoading}
+                rpcAdsCount={dashboardStats?.total_ads}
+                rpcHomeHighlights={dashboardStats?.home_highlights}
+              />
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h4 className="text-sm font-bold text-slate-900">Plano Atual</h4>
+                  <div className="px-3 py-1 bg-slate-100 border border-slate-200 rounded-full">
+                    <span className="text-xs font-bold text-slate-700">Sem plano ativo</span>
+                  </div>
+                </div>
+                <div className="space-y-3 text-sm text-slate-600">
+                  <p>Esta conta ainda nao possui assinatura vinculada.</p>
+                  <p>Assim que o plano Start for atribuido, os limites corretos aparecerao aqui.</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -743,6 +758,7 @@ const UserDashboardView: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'all' | 'active' | 'pending' | 'paused' | 'blocked'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [removedAdIds, setRemovedAdIds] = useState<string[]>([]);
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [adToDelete, setAdToDelete] = useState<Ad | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -750,33 +766,35 @@ const UserDashboardView: React.FC = () => {
     const [adForHighlight, setAdForHighlight] = useState<{id: string, title: string} | null>(null);
     const [highlightType, setHighlightType] = useState<'category' | 'home'>('category');
 
+    const visibleAds = useMemo(() => {
+      return ads.filter(ad => !removedAdIds.includes(ad.id));
+    }, [ads, removedAdIds]);
+
     const counts = useMemo(() => {
-      const active = ads.filter(a => a.status === AdStatus.ACTIVE).length;
-      const pending = ads.filter(a => a.status === AdStatus.PENDING).length;
-      const paused = ads.filter(a => a.status === AdStatus.PAUSED).length;
-      const blocked = ads.filter(a => a.status === AdStatus.BLOCKED).length;
+      const active = visibleAds.filter(a => a.status === AdStatus.ACTIVE).length;
+      const pending = visibleAds.filter(a => a.status === AdStatus.PENDING).length;
+      const paused = visibleAds.filter(a => a.status === AdStatus.PAUSED).length;
       return {
-        all: ads.length,
+        all: visibleAds.length,
         active,
         pending,
         paused,
-        blocked
+        blocked: 0
       };
-    }, [ads]);
+    }, [visibleAds]);
 
     const filteredAds = useMemo(() => {
       const normalized = searchTerm.trim().toLowerCase();
-      const byTab = ads.filter(ad => {
+      const byTab = visibleAds.filter(ad => {
         if (activeTab === 'active') return ad.status === AdStatus.ACTIVE;
         if (activeTab === 'pending') return ad.status === AdStatus.PENDING;
         if (activeTab === 'paused') return ad.status === AdStatus.PAUSED;
-        if (activeTab === 'blocked') return ad.status === AdStatus.BLOCKED;
         return true;
       });
 
       if (!normalized) return byTab;
       return byTab.filter(ad => ad.title.toLowerCase().includes(normalized) || ad.id.toLowerCase().includes(normalized));
-    }, [ads, activeTab, searchTerm]);
+    }, [visibleAds, activeTab, searchTerm]);
 
     const pagedAds = useMemo(() => filteredAds.slice(0, itemsPerPage), [filteredAds, itemsPerPage]);
 
@@ -798,6 +816,46 @@ const UserDashboardView: React.FC = () => {
     };
 
     // Handlers para ações
+    const getAdDurationLabel = (ad: Ad) => {
+      if (!ad.expiresAt) {
+        return 'Validade nÃ£o informada';
+      }
+
+      const createdAt = new Date(ad.createdAt);
+      const expiresAt = new Date(ad.expiresAt);
+
+      if (Number.isNaN(createdAt.getTime()) || Number.isNaN(expiresAt.getTime())) {
+        return `Validade atÃ© ${ad.expiresAt}`;
+      }
+
+      const durationInDays = Math.max(
+        1,
+        Math.round((expiresAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
+      );
+
+      return `DuraÃ§Ã£o: ${durationInDays} ${durationInDays === 1 ? 'dia' : 'dias'}`;
+    };
+
+    const getAdLifetimeLabel = (ad: Ad) => {
+      if (!ad.expiresAt) {
+        return 'Validade nao informada';
+      }
+
+      const createdAt = new Date(ad.createdAt);
+      const expiresAt = new Date(ad.expiresAt);
+
+      if (Number.isNaN(createdAt.getTime()) || Number.isNaN(expiresAt.getTime())) {
+        return `Validade ate ${ad.expiresAt}`;
+      }
+
+      const durationInDays = Math.max(
+        1,
+        Math.round((expiresAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
+      );
+
+      return `Duracao: ${durationInDays} ${durationInDays === 1 ? 'dia' : 'dias'}`;
+    };
+
     const handleTogglePause = async (ad: Ad) => {
       const newStatus = ad.status === AdStatus.ACTIVE ? AdStatus.PAUSED : AdStatus.ACTIVE;
       const { error } = await supabase
@@ -827,10 +885,11 @@ const UserDashboardView: React.FC = () => {
         await deleteAnnouncementWithRelations(adToDelete.id);
 
         toast.success('Anúncio excluído com sucesso');
+        setRemovedAdIds((current) =>
+          current.includes(adToDelete.id) ? current : [...current, adToDelete.id]
+        );
         setDeleteModalOpen(false);
         setAdToDelete(null);
-        // Atualizar lista
-        window.location.reload();
       } catch (error: any) {
         toast.error('Erro ao excluir anúncio: ' + error.message);
       } finally {
@@ -848,7 +907,7 @@ const UserDashboardView: React.FC = () => {
       <div className="space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            {tabs.map((tab) => (
+            {tabs.filter((tab) => tab.id !== 'blocked').map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -955,8 +1014,11 @@ const UserDashboardView: React.FC = () => {
                         );
                       })()}
                     </div>
-                    <p className="text-xs text-slate-500 truncate">
+                    <p className="hidden text-xs text-slate-500 truncate">
                       Código: {ad.id} | Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate">
+                      Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} as {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {getAdLifetimeLabel(ad)}
                     </p>
                     <p className="text-xs text-slate-500">
                       Visitas: {ad.views} | Valor: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.price)}

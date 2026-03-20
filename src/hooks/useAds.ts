@@ -75,6 +75,7 @@ export const useUserAds = () => {
           views: ad.views || 0,
           isPremium: ad.is_premium || false,
           createdAt: ad.created_at,
+          expiresAt: ad.expires_at,
           whatsapp: ad.whatsapp,
           highlightCategory: ad.highlight_category || false,
           highlightCategoryUntil: ad.highlight_category_until,

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../src/contexts/AuthContext';
+import { getRememberDevicePreference } from '../src/lib/supabaseClient';
 import { toast } from 'sonner';
 
 const LoginView: React.FC = () => {
@@ -11,6 +12,7 @@ const LoginView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
+  const [rememberDevice, setRememberDevice] = useState(() => getRememberDevicePreference());
   const [errors, setErrors] = useState({ email: '', password: '' });
   const [adminHint, setAdminHint] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
@@ -56,7 +58,7 @@ const LoginView: React.FC = () => {
     }
 
     setLoading(true);
-    const { error } = await signIn(formData.email, formData.password);
+    const { error } = await signIn(formData.email, formData.password, rememberDevice);
 
     if (error) {
       // Verificar se o erro é de conta suspensa
@@ -211,6 +213,8 @@ const LoginView: React.FC = () => {
                 <input 
                   type="checkbox" 
                   id="remember"
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.target.checked)}
                   className="w-5 h-5 rounded border-slate-200 text-green-600 focus:ring-green-500 transition-all cursor-pointer"
                 />
                 <label htmlFor="remember" className="text-sm font-bold text-slate-600 cursor-pointer">Lembrar-me neste dispositivo</label>
@@ -254,14 +258,10 @@ const LoginView: React.FC = () => {
             <div className="h-px bg-slate-200 flex-grow"></div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <button className="flex items-center justify-center gap-3 py-4 border-2 border-slate-100 rounded-2xl hover:bg-slate-50 transition-all active:scale-95 group">
               <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
               <span className="text-sm font-bold text-slate-700">Google</span>
-            </button>
-            <button className="flex items-center justify-center gap-3 py-4 border-2 border-slate-100 rounded-2xl hover:bg-green-50 transition-all active:scale-95 group">
-              <img src="https://www.svgrepo.com/show/475692/whatsapp-color.svg" className="w-5 h-5" alt="WhatsApp" />
-              <span className="text-sm font-bold text-slate-700">WhatsApp</span>
             </button>
           </div>
 

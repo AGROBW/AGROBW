@@ -101,7 +101,7 @@ begin
   select id, lead_contact_limit_days
     into start_plan_id, start_lead_days
   from public.plans
-  where name = 'Start Agro'
+  where name = 'Start'
   limit 1;
 
   if start_plan_id is null then

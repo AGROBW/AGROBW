@@ -51,6 +51,7 @@ export interface Ad {
   views: number;
   isPremium: boolean;
   createdAt: string;
+  expiresAt?: string;
   whatsapp: string;
   technicalDetails?: TechnicalDetail[];
   healthScore?: number; // 0-100
