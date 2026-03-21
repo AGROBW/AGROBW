@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FileText, MessageSquare, Eye, Inbox, TrendingUp, TrendingDown, AlertCircle, Sparkles, Package } from 'lucide-react';
 import { DashboardStats, StateClicks, PriceAnalysis } from '../src/hooks/useDashboardStats';
 import { Ad } from '../types';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 // Animação CSS para borda dourada pulsante (Golden Border Pulse)
 const goldBorderPulseAnimation = `
@@ -791,6 +792,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
   rpcAdsCount,
   rpcHomeHighlights
 }) => {
+  const { settings } = useLayout();
   // Priorizar dados da RPC quando disponíveis
   const finalAdsUsed = rpcAdsCount !== undefined ? rpcAdsCount : adsUsed;
   const finalHomeHighlightsUsed = rpcHomeHighlights !== undefined ? rpcHomeHighlights : homeHighlightsUsed;
@@ -813,11 +815,11 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
   };
 
   const getProgressColor = (used: number, limit: number) => {
-    if (limit === 0) return 'bg-green-500';
+    if (limit === 0) return '';
     const percentage = (used / limit) * 100;
     if (percentage >= 100) return 'bg-red-500';
     if (percentage >= 80) return 'bg-yellow-500';
-    return 'bg-green-500';
+    return '';
   };
 
   const adsPercentage = calculatePercentage(finalAdsUsed, adsLimit);
@@ -832,8 +834,8 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
     >
       <div className="flex items-center justify-between mb-6">
         <h4 className="text-sm font-bold text-slate-900">Plano Atual</h4>
-        <div className="px-3 py-1 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-full">
-          <span className="text-xs font-bold text-yellow-800">{planName}</span>
+        <div className="px-3 py-1 border rounded-full" style={{ background: `linear-gradient(90deg, color-mix(in srgb, ${settings.accentColor} 12%, white), color-mix(in srgb, ${settings.accentColor} 20%, white))`, borderColor: `color-mix(in srgb, ${settings.accentColor} 40%, white)` }}>
+          <span className="text-xs font-bold" style={{ color: settings.accentColor }}>{planName}</span>
         </div>
       </div>
 
@@ -841,7 +843,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
         {/* Anúncios */}
         <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
           <div className="flex items-center gap-2 mb-2">
-            <Package className="w-4 h-4 text-blue-600" />
+            <Package className="w-4 h-4" style={{ color: settings.primaryColor }} />
             <span className="text-xs font-medium text-slate-700">Anúncios</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2">
@@ -853,7 +855,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
             <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 ${getProgressColor(finalAdsUsed, adsLimit)}`}
-                style={{ width: `${adsPercentage}%` }}
+                style={{ width: `${adsPercentage}%`, backgroundColor: getProgressColor(finalAdsUsed, adsLimit) ? undefined : settings.primaryColor }}
               />
             </div>
           )}
@@ -862,7 +864,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
         {/* Destaques de Categoria */}
         <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
           <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="w-4 h-4 text-blue-600" />
+            <TrendingUp className="w-4 h-4" style={{ color: settings.primaryColor }} />
             <span className="text-xs font-medium text-slate-700">Destaques em Categoria</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2">
@@ -874,9 +876,9 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
             <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 ${
-                  categoryHighlightsUsed >= categoryHighlightsLimit ? 'bg-red-500' : 'bg-blue-500'
+                  categoryHighlightsUsed >= categoryHighlightsLimit ? 'bg-red-500' : ''
                 }`}
-                style={{ width: `${calculatePercentage(categoryHighlightsUsed, categoryHighlightsLimit)}%` }}
+                style={{ width: `${calculatePercentage(categoryHighlightsUsed, categoryHighlightsLimit)}%`, backgroundColor: categoryHighlightsUsed >= categoryHighlightsLimit ? undefined : settings.primaryColor }}
               />
             </div>
           )}
@@ -885,7 +887,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
         {/* Destaques de Home */}
         <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
           <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="w-4 h-4 text-yellow-600" />
+            <Sparkles className="w-4 h-4" style={{ color: settings.accentColor }} />
             <span className="text-xs font-medium text-slate-700">Destaques na Home</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2">
@@ -897,9 +899,9 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
             <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 ${
-                  finalHomeHighlightsUsed >= homeHighlightsLimit ? 'bg-red-500' : 'bg-yellow-500'
+                  finalHomeHighlightsUsed >= homeHighlightsLimit ? 'bg-red-500' : ''
                 }`}
-                style={{ width: `${calculatePercentage(finalHomeHighlightsUsed, homeHighlightsLimit)}%` }}
+                style={{ width: `${calculatePercentage(finalHomeHighlightsUsed, homeHighlightsLimit)}%`, backgroundColor: finalHomeHighlightsUsed >= homeHighlightsLimit ? undefined : settings.accentColor }}
               />
             </div>
           )}
@@ -928,7 +930,8 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
       {/* Botão de Upgrade em Destaque */}
       <Link
         to="/minha-conta/financeiro"
-        className="block w-full text-center mt-6 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-bold transition-colors uppercase tracking-wider shadow-lg hover:shadow-xl"
+        className="block w-full text-center mt-6 px-4 py-3 text-white rounded-lg text-sm font-bold transition-colors uppercase tracking-wider shadow-lg hover:shadow-xl"
+        style={{ backgroundColor: settings.primaryColor }}
       >
         Fazer Upgrade
       </Link>

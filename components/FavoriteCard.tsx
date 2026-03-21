@@ -3,6 +3,7 @@ import { Favorite } from '../types';
 import { MapPin, Clock, Eye, Trash2, ExternalLink, TrendingDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useFavorites } from '../src/hooks/useFavorites';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 interface FavoriteCardProps {
   favorite: Favorite;
@@ -21,6 +22,7 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
 }) => {
   const [isRemoving, setIsRemoving] = useState(false);
   const { toggleFavorite } = useFavorites();
+  const { settings } = useLayout();
   const { ad } = favorite;
   
   // Calcular diferença de preço
@@ -62,6 +64,7 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
       className={`bg-white rounded-xl border overflow-hidden transition-all hover:shadow-md ${
         isUnavailable ? 'grayscale opacity-60' : ''
       } ${isSelected ? 'ring-2 ring-green-700' : ''}`}
+      style={isSelected ? { boxShadow: `0 0 0 2px ${settings.primaryColor}` } : undefined}
     >
       {/* Imagem */}
       <div className="relative aspect-square">
@@ -72,13 +75,13 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
         />
         
         {/* Badge de Preço Atual */}
-        <div className="absolute top-3 right-3 bg-green-700 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg">
+        <div className="absolute top-3 right-3 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg" style={{ backgroundColor: settings.primaryColor }}>
           {formatPrice(currentPrice)}
         </div>
         
         {/* Badge de Economia - Mostra apenas se o preço atual for menor */}
         {hasPriceReduction && !isUnavailable && (
-          <div className="absolute top-3 left-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg animate-pulse">
+          <div className="absolute top-3 left-3 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-lg animate-pulse" style={{ background: `linear-gradient(90deg, ${settings.primaryColor}, color-mix(in srgb, ${settings.primaryColor} 78%, white))` }}>
             <TrendingDown className="w-4 h-4" strokeWidth={2} />
             <div className="flex flex-col leading-none">
               <span className="text-[10px] opacity-90">Baixou</span>
@@ -102,7 +105,8 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
             type="checkbox"
             checked={isSelected}
             onChange={() => onSelect(favorite.id)}
-            className="w-5 h-5 rounded border-2 border-white bg-white/90 checked:bg-green-700 checked:border-green-700 cursor-pointer"
+            className="w-5 h-5 rounded border-2 border-white bg-white/90 cursor-pointer"
+            style={{ accentColor: settings.primaryColor }}
           />
         </div>
         
@@ -168,8 +172,8 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
               </span>
             </div>
             <div className="flex items-center justify-between text-xs mt-1">
-              <span className="text-green-700 font-semibold">Economia:</span>
-              <span className="font-bold text-green-700">
+              <span className="font-semibold" style={{ color: settings.primaryColor }}>Economia:</span>
+              <span className="font-bold" style={{ color: settings.primaryColor }}>
                 {formatPrice(priceDifference)}
               </span>
             </div>

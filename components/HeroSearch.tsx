@@ -1,12 +1,15 @@
 
 import React from 'react';
 import { ArrowRight, Search } from 'lucide-react';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 const HeroSearch: React.FC = () => {
+  const { settings } = useLayout();
+
   return (
     <div className="relative -mt-12 z-30 max-w-5xl mx-auto px-4">
       {/* Container principal com design de cápsula */}
-      <div className="bg-white rounded-xl p-2 border border-slate-100 group transition-all duration-300 focus-within:ring-2 focus-within:ring-green-500/10">
+      <div className="bg-white rounded-xl p-2 border border-slate-100 group transition-all duration-300 focus-within:ring-2" style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}22` }}>
         <div className="flex flex-col md:flex-row items-center gap-2">
           
           {/* Área do Input - Ocupa a maior parte */}
@@ -23,7 +26,7 @@ const HeroSearch: React.FC = () => {
 
           {/* Botão de Busca - Redesenhado para ser "esticado" e proeminente */}
           <div className="w-full md:w-auto md:min-w-[200px]">
-            <button className="w-full h-10 bg-green-700 hover:bg-green-800 text-white font-semibold text-sm px-6 rounded-lg transition-all flex items-center justify-center gap-2 group/btn">
+            <button className="w-full h-10 text-white font-semibold text-sm px-6 rounded-lg transition-all flex items-center justify-center gap-2 group/btn" style={{ backgroundColor: settings.primaryColor }}>
               <span>Buscar Agora</span>
               <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" strokeWidth={1.5} />
             </button>

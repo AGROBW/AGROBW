@@ -3,6 +3,7 @@ import { MessageCircle } from 'lucide-react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { LayoutProvider } from './src/contexts/LayoutContext';
 import { ProtectedAdminRoute } from './components/ProtectedAdminRoute';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -37,6 +38,7 @@ const ModerationQueue = lazy(() => import('./pages/admin/ModerationQueue'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const PaymentsManagement = lazy(() => import('./pages/admin/PaymentsManagement'));
 const NewsManagement = lazy(() => import('./pages/admin/NewsManagement'));
+const LayoutManagement = lazy(() => import('./pages/admin/LayoutManagement'));
 const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'));
 const SettingsView = lazy(() => import('./pages/admin/SettingsView'));
 
@@ -181,6 +183,7 @@ const AppContent: React.FC = () => {
               <Route path="users" element={<UserManagement />} />
               <Route path="payments" element={<PaymentsManagement />} />
               <Route path="news" element={<NewsManagement />} />
+              <Route path="layout" element={<LayoutManagement />} />
               <Route path="audit" element={<AuditLogs />} />
               <Route path="settings" element={<SettingsView />} />
             </Route>
@@ -229,7 +232,9 @@ const AppContent: React.FC = () => {
 const App = () => (
   <Router>
     <AuthProvider>
-      <AppContent />
+      <LayoutProvider>
+        <AppContent />
+      </LayoutProvider>
     </AuthProvider>
   </Router>
 );

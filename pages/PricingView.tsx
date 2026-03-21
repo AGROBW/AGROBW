@@ -11,6 +11,7 @@ import {
   isCustomPlan,
 } from '../services/mercadoPagoService';
 import toast from 'react-hot-toast';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 type BillingCycle = 'monthly' | 'yearly';
 
@@ -46,6 +47,7 @@ const PricingView: React.FC = () => {
   const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
   const { plansRaw, isLoading: plansLoading } = usePlans();
   const { user } = useAuth();
+  const { settings } = useLayout();
 
   const comparisonRows = useMemo(
     () =>
@@ -190,17 +192,17 @@ const PricingView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#ffffff_28%,#f8fafc_100%)]">
-      <section className="relative overflow-hidden bg-slate-950 px-4 pb-36 pt-24 text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,197,94,0.18),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.16),transparent_24%)]" />
+    <div className="min-h-screen" style={{ background: `linear-gradient(180deg, ${settings.backgroundColor} 0%, #ffffff 28%, ${settings.backgroundColor} 100%)` }}>
+      <section className="relative overflow-hidden px-4 pb-36 pt-24 text-white" style={{ backgroundColor: settings.secondaryColor }}>
+        <div className="absolute inset-0" style={{ background: `radial-gradient(circle at top left, color-mix(in srgb, ${settings.primaryColor} 18%, transparent), transparent 32%), radial-gradient(circle at top right, color-mix(in srgb, ${settings.accentColor} 18%, transparent), transparent 24%)` }} />
         <div className="relative mx-auto max-w-7xl text-center">
-          <span className="mb-6 inline-block rounded-full border border-green-500/30 bg-green-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.3em] text-green-300">
+          <span className="mb-6 inline-block rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.3em]" style={{ border: `1px solid color-mix(in srgb, ${settings.primaryColor} 30%, transparent)`, backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 10%, transparent)`, color: `color-mix(in srgb, ${settings.primaryColor} 70%, white)` }}>
             Crescimento Sustentavel
           </span>
           <h1 className="font-display text-4xl font-black leading-tight tracking-tight md:text-6xl">
             Escolha o plano ideal para
             <br className="hidden md:block" />
-            <span className="text-green-400"> vender com mais tracao</span>
+            <span style={{ color: settings.primaryColor }}> vender com mais tracao</span>
           </h1>
           <p className="mx-auto mt-6 max-w-3xl text-base font-medium text-slate-300 md:text-xl">
             Cards pensados para decisao rapida, com a comparacao tecnica completa logo abaixo para
@@ -220,9 +222,10 @@ const PricingView: React.FC = () => {
               className="relative h-8 w-16 rounded-full border border-slate-700 bg-slate-800 p-1 transition-all"
             >
               <div
-                className={`h-6 w-6 rounded-full bg-green-500 shadow-lg transition-transform duration-300 ${
+                className={`h-6 w-6 rounded-full shadow-lg transition-transform duration-300 ${
                   billingCycle === 'yearly' ? 'translate-x-8' : 'translate-x-0'
                 }`}
+                style={{ backgroundColor: settings.primaryColor }}
               />
             </button>
             <div className="flex items-center gap-2">
@@ -233,7 +236,7 @@ const PricingView: React.FC = () => {
               >
                 Anual
               </span>
-              <span className="rounded bg-green-600 px-2 py-0.5 text-[10px] font-black uppercase text-white">
+              <span className="rounded px-2 py-0.5 text-[10px] font-black uppercase text-white" style={{ backgroundColor: settings.primaryColor }}>
                 economia
               </span>
             </div>
@@ -265,9 +268,10 @@ const PricingView: React.FC = () => {
                   key={plan.id}
                   className={`flex min-h-[430px] flex-col rounded-[2rem] border bg-white p-7 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.35)] transition-all duration-300 ${
                     plan.is_popular
-                      ? 'border-green-500 ring-4 ring-green-100'
+                      ? ''
                       : 'border-slate-200/70 hover:-translate-y-1'
                   }`}
+                  style={plan.is_popular ? { borderColor: settings.primaryColor, boxShadow: `0 0 0 4px color-mix(in srgb, ${settings.primaryColor} 16%, white)` } : undefined}
                 >
                   <div className="mb-6 flex items-start justify-between gap-4">
                     <div>
@@ -278,7 +282,7 @@ const PricingView: React.FC = () => {
                       <p className="mt-2 text-sm leading-relaxed text-slate-500">{plan.description}</p>
                     </div>
                     {plan.is_popular && (
-                      <span className="whitespace-nowrap rounded-full bg-green-600 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-white">
+                      <span className="whitespace-nowrap rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-white" style={{ backgroundColor: settings.primaryColor }}>
                         Escolha segura
                       </span>
                     )}
@@ -293,7 +297,7 @@ const PricingView: React.FC = () => {
                       <span className="text-sm font-medium text-slate-400">/mes</span>
                     </div>
                     {billingCycle === 'yearly' && plan.yearly_price > 0 ? (
-                      <p className="mt-3 text-sm font-semibold text-green-300">
+                      <p className="mt-3 text-sm font-semibold" style={{ color: `color-mix(in srgb, ${settings.primaryColor} 55%, white)` }}>
                         Cobranca anual: R$ {formatCurrency(plan.yearly_price)}
                         {yearlySavings.amount > 0
                           ? ` | economia de ${yearlySavings.percentage}%`
@@ -309,7 +313,7 @@ const PricingView: React.FC = () => {
                   <ul className="mt-6 min-h-[176px] space-y-3 overflow-y-auto pr-2">
                     {summary.map((item) => (
                       <li key={item} className="flex items-start gap-3 text-sm font-medium text-slate-700">
-                        <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" strokeWidth={2} />
+                        <Check className="mt-0.5 h-4 w-4 flex-shrink-0" strokeWidth={2} style={{ color: settings.primaryColor }} />
                         <span>{item}</span>
                       </li>
                     ))}
@@ -333,9 +337,10 @@ const PricingView: React.FC = () => {
                       disabled={loadingPlanId === plan.id}
                       className={`flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-black transition-all disabled:cursor-not-allowed disabled:opacity-70 ${
                         plan.is_popular
-                          ? 'bg-green-600 text-white hover:bg-green-700'
+                          ? 'text-white'
                           : 'bg-slate-900 text-white hover:bg-slate-800'
                       }`}
+                      style={plan.is_popular ? { backgroundColor: settings.primaryColor } : undefined}
                     >
                       {loadingPlanId === plan.id ? (
                         <>
@@ -400,7 +405,7 @@ const PricingView: React.FC = () => {
                           {typeof value === 'boolean' ? (
                             value ? (
                               <div className="flex justify-center">
-                                <span className="inline-flex rounded-full bg-green-100 p-2 text-green-700">
+                                <span className="inline-flex rounded-full p-2" style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 12%, white)`, color: settings.primaryColor }}>
                                   <Check className="h-4 w-4" strokeWidth={2.5} />
                                 </span>
                               </div>
@@ -447,8 +452,9 @@ const PricingView: React.FC = () => {
                   <span className="font-bold text-slate-800">{faq.question}</span>
                   <ChevronDown
                     className={`h-5 w-5 text-slate-400 transition-transform ${
-                      activeFaq === idx ? 'rotate-180 text-green-600' : ''
+                      activeFaq === idx ? 'rotate-180' : ''
                     }`}
+                    style={activeFaq === idx ? { color: settings.primaryColor } : undefined}
                     strokeWidth={1.5}
                   />
                 </button>

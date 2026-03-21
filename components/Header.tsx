@@ -5,6 +5,7 @@ import { ChevronDown, Menu, X, MessageCircle, Bell, Shield, LogOut, User as User
 import AdsSideDrawer from './AdsSideDrawer';
 import NotificationsModal from './NotificationsModal';
 import { useAuth } from '../src/contexts/AuthContext';
+import { useLayout } from '../src/contexts/LayoutContext';
 import { useNotificationsCount } from '../src/hooks/useNotificationsCount';
 import { UserRole } from '../types';
 
@@ -14,6 +15,7 @@ const Header: React.FC = () => {
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { settings } = useLayout();
   const { messagesCount, notificationsCount, isLoading } = useNotificationsCount();
   const navigate = useNavigate();
   const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -43,6 +45,8 @@ const Header: React.FC = () => {
     navigate('/');
   };
 
+  const brandName = settings.headerBrandText || settings.siteName;
+
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -50,10 +54,23 @@ const Header: React.FC = () => {
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center">
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-9 h-9 bg-green-700 rounded-lg flex items-center justify-center">
-                <span className="text-white text-xl font-semibold">T</span>
-              </div>
-              <span className="text-xl font-semibold tracking-tight text-slate-800">BW<span className="text-green-700">AGRO</span></span>
+              {settings.logoUrl ? (
+                <img src={settings.logoUrl} alt={brandName} className="h-9 w-auto max-w-[160px] object-contain" />
+              ) : (
+                <>
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: settings.primaryColor }}
+                  >
+                    <span className="text-white text-xl font-semibold">
+                      {(settings.siteShortName || settings.siteName || 'B').charAt(0)}
+                    </span>
+                  </div>
+                  <span className="text-xl font-semibold tracking-tight" style={{ color: settings.textColor }}>
+                    {brandName}
+                  </span>
+                </>
+              )}
             </Link>
           </div>
 
@@ -82,7 +99,7 @@ const Header: React.FC = () => {
                 >
                   <MessageCircle className="w-5 h-5" strokeWidth={1.5} />
                   {messagesCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-green-700 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center" style={{ backgroundColor: settings.primaryColor }}>
                       {messagesCount > 9 ? '9+' : messagesCount}
                     </span>
                   )}
@@ -95,7 +112,7 @@ const Header: React.FC = () => {
                 >
                   <Bell className="w-5 h-5" strokeWidth={1.5} />
                   {notificationsCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-green-700 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center" style={{ backgroundColor: settings.primaryColor }}>
                       {notificationsCount > 9 ? '9+' : notificationsCount}
                     </span>
                   )}
@@ -107,7 +124,7 @@ const Header: React.FC = () => {
                     onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
                     className="flex items-center gap-3 border-r border-slate-100 pr-6 hover:bg-slate-50 transition-all p-1.5 rounded-lg"
                   >
-                    <div className="w-9 h-9 rounded-full border border-green-100 bg-green-700 flex items-center justify-center text-white font-bold relative">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold relative" style={{ backgroundColor: settings.primaryColor, border: `1px solid color-mix(in srgb, ${settings.primaryColor} 18%, white)` }}>
                       {user.name?.charAt(0).toUpperCase() || 'U'}
                       {isAdmin && (
                         <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-white flex items-center justify-center">
@@ -126,7 +143,7 @@ const Header: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <span className="text-[9px] font-semibold text-green-600 uppercase tracking-widest">Painel</span>
+                      <span className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: settings.primaryColor }}>Painel</span>
                     </div>
                     <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
@@ -177,7 +194,8 @@ const Header: React.FC = () => {
             )}
             <Link 
               to="/anunciar" 
-              className="bg-green-700 text-white px-5 h-9 rounded-lg text-sm font-semibold hover:bg-green-800 transition-all flex items-center justify-center"
+              className="text-white px-5 h-9 rounded-lg text-sm font-semibold transition-all flex items-center justify-center"
+              style={{ backgroundColor: settings.primaryColor }}
             >
               Anunciar Agora
             </Link>
@@ -246,7 +264,7 @@ const Header: React.FC = () => {
                     <span className="font-medium text-slate-800">Mensagens</span>
                   </div>
                   {messagesCount > 0 && (
-                    <span className="bg-green-700 text-white text-xs font-bold rounded-full px-2 py-0.5">
+                    <span className="text-white text-xs font-bold rounded-full px-2 py-0.5" style={{ backgroundColor: settings.primaryColor }}>
                       {messagesCount}
                     </span>
                   )}
@@ -255,7 +273,7 @@ const Header: React.FC = () => {
                 {/* Painel */}
                 <div className="p-3 bg-slate-50 rounded-lg">
                   <Link to="/minha-conta" onClick={() => setIsOpen(false)} className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center text-white font-bold relative">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold relative" style={{ backgroundColor: settings.primaryColor }}>
                       {user.name?.charAt(0).toUpperCase() || 'U'}
                       {isAdmin && (
                         <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-white flex items-center justify-center">
@@ -304,7 +322,7 @@ const Header: React.FC = () => {
             ) : (
               <Link to="/login" onClick={() => setIsOpen(false)} className="w-full text-center py-3 text-slate-700 font-medium">Entrar</Link>
             )}
-            <Link to="/anunciar" onClick={() => setIsOpen(false)} className="w-full bg-green-700 text-white h-10 rounded-lg font-semibold flex items-center justify-center">Anunciar Agora</Link>
+            <Link to="/anunciar" onClick={() => setIsOpen(false)} className="w-full text-white h-10 rounded-lg font-semibold flex items-center justify-center" style={{ backgroundColor: settings.primaryColor }}>Anunciar Agora</Link>
           </div>
         </div>
       )}

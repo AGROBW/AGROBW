@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../src/lib/supabaseClient';
+import { useLayout } from '../src/contexts/LayoutContext';
 import { toast } from 'sonner';
 
 const ResetPasswordView: React.FC = () => {
   const navigate = useNavigate();
+  const { settings } = useLayout();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -73,13 +75,13 @@ const ResetPasswordView: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-8">
-      <div className="w-full max-w-md bg-white border border-slate-100 rounded-2xl p-8 shadow-xl shadow-green-100">
+      <div className="w-full max-w-md bg-white border border-slate-100 rounded-2xl p-8 shadow-xl" style={{ boxShadow: `0 24px 60px -40px ${settings.primaryColor}80` }}>
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2 mb-6 group">
-            <div className="w-10 h-10 bg-green-700 rounded-xl flex items-center justify-center shadow-md">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md" style={{ backgroundColor: settings.primaryColor }}>
               <span className="text-white text-2xl font-black">T</span>
             </div>
-            <span className="text-xl font-black text-slate-800">BWAGRO</span>
+            <span className="text-xl font-black text-slate-800">{settings.siteName}</span>
           </Link>
           <h1 className="text-2xl font-black text-slate-900 font-display">Redefinir Senha</h1>
           <p className="text-slate-500 mt-2 font-medium">Crie uma nova senha para acessar sua conta.</p>
@@ -92,7 +94,8 @@ const ResetPasswordView: React.FC = () => {
               type="password"
               value={newPassword}
               onChange={e => setNewPassword(e.target.value)}
-              className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+              className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+              style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
               placeholder="••••••••"
             />
           </div>
@@ -103,7 +106,8 @@ const ResetPasswordView: React.FC = () => {
               type="password"
               value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)}
-              className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+              className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+              style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
               placeholder="••••••••"
             />
           </div>
@@ -115,23 +119,24 @@ const ResetPasswordView: React.FC = () => {
           )}
 
           {success && (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
-              <p className="text-sm text-green-700 font-bold">{success}</p>
+            <div className="p-4 rounded-xl" style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 10%, white)`, border: `1px solid color-mix(in srgb, ${settings.primaryColor} 22%, white)` }}>
+              <p className="text-sm font-bold" style={{ color: settings.primaryColor }}>{success}</p>
             </div>
           )}
 
           <button
             type="submit"
             disabled={loading || redirecting}
-            className="w-full bg-green-700 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-200 hover:bg-green-800 transition-all active:scale-95 disabled:opacity-70 flex items-center justify-center gap-3"
+            className="w-full text-white py-5 rounded-2xl font-black text-lg transition-all active:scale-95 disabled:opacity-70 flex items-center justify-center gap-3"
+            style={{ backgroundColor: settings.primaryColor, boxShadow: `0 20px 30px -18px ${settings.primaryColor}66` }}
           >
             {loading ? (
               <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
             ) : 'Salvar nova senha'}
           </button>
           {redirecting && (
-            <div className="mt-4 flex items-center justify-center gap-2 text-sm font-bold text-green-700">
-              <div className="w-4 h-4 border-2 border-green-700/20 border-t-green-700 rounded-full animate-spin"></div>
+            <div className="mt-4 flex items-center justify-center gap-2 text-sm font-bold" style={{ color: settings.primaryColor }}>
+              <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: `${settings.primaryColor}33`, borderTopColor: settings.primaryColor }}></div>
               Redirecionando para o login...
             </div>
           )}

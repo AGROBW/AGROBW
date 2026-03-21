@@ -8,6 +8,7 @@ import { useFavorites } from '../src/hooks/useFavorites';
 import VerifiedBadge from './VerifiedBadge';
 import { supabase } from '../src/lib/supabaseClient';
 import { detectUserState } from '../src/utils/geoLocation';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 interface AdCardProps {
   ad: Ad;
@@ -16,6 +17,7 @@ interface AdCardProps {
 const AdCard: React.FC<AdCardProps> = ({ ad }) => {
   const { user } = useAuth();
   const { toggleFavorite, isFavorited } = useFavorites();
+  const { settings } = useLayout();
   const [isFav, setIsFav] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   
@@ -66,18 +68,29 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
   const isCategoryHighlightActive = ad.highlightCategory && (!ad.highlightCategoryUntil || new Date(ad.highlightCategoryUntil) > new Date());
   const isHomeHighlightActive = ad.highlightHome && (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date());
   const hasActiveHighlight = isCategoryHighlightActive || isHomeHighlightActive;
+  const categoryHighlightStyle = {
+    borderColor: '#93c5fd',
+    boxShadow: '0 12px 30px -18px rgba(59, 130, 246, 0.28)',
+  } as const;
 
   return (
     <div className={`group bg-white rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full relative ${
       hasActiveHighlight 
-        ? 'border-2 border-yellow-400 shadow-lg shadow-yellow-100' 
+        ? 'border-2 shadow-lg' 
         : 'border border-slate-100'
-    }`}>
+    }`} style={isHomeHighlightActive ? { borderColor: settings.accentColor, boxShadow: `0 12px 30px -18px ${settings.accentColor}66` } : isCategoryHighlightActive ? categoryHighlightStyle : undefined}>
       {/* Badge de Destaque */}
       {hasActiveHighlight && (
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg animate-pulse">
+        <div
+          className="absolute top-4 left-4 z-10 flex items-center gap-1 text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg animate-pulse"
+          style={
+            isHomeHighlightActive
+              ? { background: `linear-gradient(90deg, ${settings.accentColor}, color-mix(in srgb, ${settings.accentColor} 82%, white))`, color: settings.secondaryColor }
+              : { background: 'linear-gradient(90deg, #dbeafe, #eff6ff)', color: '#1d4ed8' }
+          }
+        >
           <Sparkles className="w-3 h-3" strokeWidth={2.5} />
-          DESTAQUE
+          {isHomeHighlightActive ? 'HOME' : 'CATEGORIA'}
         </div>
       )}
       
@@ -112,7 +125,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
         />
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
           <p className="text-white text-xs font-semibold flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-green-400" strokeWidth={1.5} />
+            <MapPin className="w-3.5 h-3.5" strokeWidth={1.5} style={{ color: settings.primaryColor }} />
             {ad.location.city} - {ad.location.state}
           </p>
         </div>
@@ -120,7 +133,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
 
       {/* Content */}
       <div className="p-5 flex flex-col flex-grow">
-        <h3 className="text-sm font-semibold text-slate-800 mb-3 line-clamp-2 leading-tight group-hover:text-green-700 transition-colors h-10">
+        <h3 className="text-sm font-semibold text-slate-800 mb-3 line-clamp-2 leading-tight transition-colors h-10 group-hover:opacity-90" style={{ color: 'var(--brand-text)' }}>
           {ad.title}
         </h3>
         
@@ -134,7 +147,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
         <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-100">
           <div>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Investimento</p>
-            <p className="text-base font-semibold text-green-700 tracking-tight">{formattedPrice}</p>
+            <p className="text-base font-semibold tracking-tight" style={{ color: settings.primaryColor }}>{formattedPrice}</p>
           </div>
           <div className="flex flex-col items-end">
              <div className="flex items-center gap-1 text-slate-400 text-[11px] font-semibold">
@@ -169,7 +182,8 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
               console.error('[Analytics] Erro na captura:', err);
             });
           }}
-          className="block w-full text-center h-10 leading-10 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-all"
+          className="block w-full text-center h-10 leading-10 text-white rounded-lg text-sm font-semibold transition-all"
+          style={{ backgroundColor: settings.secondaryColor }}
         >
           Ver Detalhes
         </Link>

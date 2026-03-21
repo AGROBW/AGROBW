@@ -1,14 +1,15 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import AdSlider from '../components/AdSlider';
 import HeroSearch from '../components/HeroSearch';
 import AdCard from '../components/AdCard';
 import QuotationTicker from '../components/QuotationTicker';
 import NewsGrid from '../components/NewsGrid';
+import HomeAdsCarousel from '../components/HomeAdsCarousel';
 import { CATEGORIES } from '../constants';
 import { usePublicAds } from '../src/hooks/useAds';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 class AdCardErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode }) {
@@ -31,11 +32,14 @@ class AdCardErrorBoundary extends React.Component<{ children: React.ReactNode },
 const isAdValid = (ad: any) => {
   return Boolean(
     ad &&
-    ad.id &&
-    ad.title &&
-    typeof ad.price === 'number' &&
-    Array.isArray(ad.images) && ad.images[0] &&
-    ad.location && ad.location.city && ad.location.state
+      ad.id &&
+      ad.title &&
+      typeof ad.price === 'number' &&
+      Array.isArray(ad.images) &&
+      ad.images[0] &&
+      ad.location &&
+      ad.location.city &&
+      ad.location.state
   );
 };
 
@@ -43,8 +47,8 @@ const AdFallbackCard = () => (
   <div className="bg-white rounded-xl border border-slate-100 p-5 h-full flex flex-col justify-between">
     <div>
       <div className="w-full h-36 bg-slate-100 rounded-lg mb-4" />
-      <h3 className="text-sm font-semibold text-slate-700 mb-2">Anúncio indisponível</h3>
-      <p className="text-xs text-slate-500">Estamos atualizando este conteúdo. Tente novamente em instantes.</p>
+      <h3 className="text-sm font-semibold text-slate-700 mb-2">Anuncio indisponivel</h3>
+      <p className="text-xs text-slate-500">Estamos atualizando este conteudo. Tente novamente em instantes.</p>
     </div>
     <div className="mt-4">
       <div className="w-full h-10 bg-slate-100 rounded-lg" />
@@ -54,60 +58,50 @@ const AdFallbackCard = () => (
 
 const Home: React.FC = () => {
   const { ads, isLoading: adsLoading } = usePublicAds();
-  
-  // Filtrar anúncios em destaque da Home (highlight_home = true e não expirados)
-  const highlightedAds = ads
-    .filter(ad => {
-      // Verificar se highlight_home está ativo
-      const isHomeHighlight = ad.highlightHome && 
-        (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date());
-      return isHomeHighlight;
-    })
-    .sort((a, b) => {
-      // Ordenar por data de criação (mais recentes primeiro)
-      const dateA = new Date(a.createdAt || 0).getTime();
-      const dateB = new Date(b.createdAt || 0).getTime();
-      return dateB - dateA;
-    })
-    .slice(0, 4); // Limitar a 4 anúncios para manter o layout
+  const { settings } = useLayout();
 
-  // Filtrar anúncios recentes (EXCLUIR os que estão em destaque na Home)
-  const recentAds = ads
-    .filter(ad => {
-      // Verificar se o anúncio NÃO está em destaque home ativo
-      const isHomeHighlight = ad.highlightHome && 
-        (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date());
-      return !isHomeHighlight; // Retornar apenas os que NÃO estão em destaque
-    })
+  const hasActiveHomeHighlight = (ad: any) =>
+    Boolean(ad.highlightHome && (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date()));
+  const hasActiveCategoryHighlight = (ad: any) =>
+    Boolean(ad.highlightCategory && (!ad.highlightCategoryUntil || new Date(ad.highlightCategoryUntil) > new Date()));
+  const hasAnyActiveHighlight = (ad: any) => hasActiveHomeHighlight(ad) || hasActiveCategoryHighlight(ad);
+
+  const highlightedAds = ads
+    .filter((ad) => hasAnyActiveHighlight(ad))
     .sort((a, b) => {
-      // Ordenar por data de criação (mais recentes primeiro)
+      const homePriorityA = hasActiveHomeHighlight(a) ? 1 : 0;
+      const homePriorityB = hasActiveHomeHighlight(b) ? 1 : 0;
+      if (homePriorityA !== homePriorityB) {
+        return homePriorityB - homePriorityA;
+      }
       const dateA = new Date(a.createdAt || 0).getTime();
       const dateB = new Date(b.createdAt || 0).getTime();
       return dateB - dateA;
-    })
-    .slice(0, 8); // Limitar a 8 anúncios (2 linhas de 4)
+    });
+
+  const recentAds = ads
+    .filter((ad) => !hasAnyActiveHighlight(ad))
+    .sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
 
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Agricultural Quotations Ticker */}
+    <div className="flex flex-col min-h-screen" style={{ backgroundColor: settings.backgroundColor }}>
       <QuotationTicker />
-
-      {/* Top Banner Slider */}
       <AdSlider />
-
-      {/* Hero Search Section */}
       <HeroSearch />
 
-      {/* Featured Categories */}
       <section className="py-16 max-w-7xl mx-auto px-4 w-full">
         <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
           <div>
             <h2 className="text-xl font-semibold text-slate-900 mb-2">Categorias em Destaque</h2>
             <p className="text-slate-500 max-w-xl text-sm">
-              Navegue pelos setores mais movimentados do agronegócio e encontre exatamente o que sua produção precisa.
+              Navegue pelos setores mais movimentados do agronegocio e encontre exatamente o que sua producao precisa.
             </p>
           </div>
-          <Link to="/categorias" className="text-green-700 font-semibold flex items-center gap-2 hover:underline text-sm">
+          <Link to="/categorias" className="font-semibold flex items-center gap-2 hover:underline text-sm" style={{ color: settings.primaryColor }}>
             Ver todas as categorias
             <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
           </Link>
@@ -115,116 +109,89 @@ const Home: React.FC = () => {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {CATEGORIES.map((cat) => (
-            <Link 
-              key={cat.id} 
+            <Link
+              key={cat.id}
               to={`/anuncios?categoria=${cat.slug}`}
               className="group bg-white p-4 rounded-xl border border-slate-100 transition-all text-center flex flex-col items-center"
             >
-              <div className="mb-3 text-slate-600 group-hover:text-green-700 transition-colors">
+              <div className="mb-3 text-slate-600 transition-colors group-hover:opacity-90" style={{ color: 'var(--brand-muted)' }}>
                 {cat.icon}
               </div>
-              <h3 className="font-semibold text-slate-800 text-sm mb-1 group-hover:text-green-700">{cat.name}</h3>
-              <p className="text-xs text-slate-400">{cat.count} anúncios</p>
+              <h3 className="font-semibold text-slate-800 text-sm mb-1 transition-colors group-hover:opacity-90" style={{ color: 'var(--brand-text)' }}>
+                {cat.name}
+              </h3>
+              <p className="text-xs text-slate-400">{cat.count} anuncios</p>
             </Link>
           ))}
         </div>
       </section>
 
-      {/* Premium Ads Section */}
-      <section className="py-16 bg-green-50/50 w-full border-y border-green-100/50">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-10">
-            <span className="bg-green-100 text-green-700 text-[10px] font-semibold px-3 py-1 rounded-lg uppercase tracking-widest mb-3 inline-block">Seleção Especial</span>
-            <h2 className="text-xl font-semibold text-slate-900">Anúncios em Destaque</h2>
-            <p className="text-slate-500 mt-2 text-sm">As melhores ofertas verificadas da nossa rede</p>
-          </div>
+      <HomeAdsCarousel
+        title="Anuncios em Destaque"
+        subtitle="As melhores ofertas verificadas da nossa rede"
+        eyebrow="Selecao Especial"
+        centeredHeader
+        items={highlightedAds}
+        isLoading={adsLoading}
+        emptyMessage="Nenhum anuncio em destaque no momento."
+        skeletonCount={4}
+        sectionClassName="py-16 w-full border-y"
+        sectionStyle={{
+          backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 6%, white)`,
+          borderColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)`,
+        }}
+        renderItem={(ad) =>
+          isAdValid(ad) ? (
+            <AdCardErrorBoundary>
+              <AdCard ad={ad} />
+            </AdCardErrorBoundary>
+          ) : (
+            <AdFallbackCard />
+          )
+        }
+      />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {adsLoading ? (
-              Array.from({ length: 4 }).map((_, index) => (
-                <div key={`highlight-skeleton-${index}`} className="bg-white rounded-xl h-72 animate-pulse border border-slate-100" />
-              ))
-            ) : highlightedAds.length > 0 ? (
-              highlightedAds.map((ad) => (
-                isAdValid(ad) ? (
-                  <AdCardErrorBoundary key={ad.id}>
-                    <AdCard ad={ad} />
-                  </AdCardErrorBoundary>
-                ) : (
-                  <AdFallbackCard key={`fallback-${ad?.id ?? Math.random()}`} />
-                )
-              ))
-            ) : (
-              <div className="col-span-full bg-white rounded-xl p-8 text-center border border-slate-100">
-                <p className="text-sm text-slate-500">Nenhum anúncio em destaque no momento.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* NEW: News Section (Mural de Informações) */}
       <NewsGrid />
 
-      {/* Recent Ads Section */}
-      <section className="py-16 max-w-7xl mx-auto px-4 w-full">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">Publicados Recentemente</h2>
-            <p className="text-slate-500 mt-1 text-sm">Atualizado há poucos minutos</p>
-          </div>
-          <div className="flex gap-2">
-            <button className="p-2 rounded-lg border border-slate-200 hover:bg-white transition-all">
-               <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
-            </button>
-            <button className="p-2 rounded-lg border border-slate-200 hover:bg-white transition-all">
-               <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {adsLoading ? (
-            Array.from({ length: 8 }).map((_, index) => (
-              <div key={`recent-skeleton-${index}`} className="bg-white rounded-xl h-72 animate-pulse border border-slate-100" />
-            ))
-          ) : recentAds.length > 0 ? (
-            recentAds.map((ad) => (
-              isAdValid(ad) ? (
-                <AdCardErrorBoundary key={ad.id}>
-                  <AdCard ad={ad} />
-                </AdCardErrorBoundary>
-              ) : (
-                <AdFallbackCard key={`fallback-${ad?.id ?? Math.random()}`} />
-              )
-            ))
-          ) : (
-            <div className="col-span-full bg-white rounded-xl p-8 text-center border border-slate-100">
-              <p className="text-sm text-slate-500">Nenhum anúncio publicado recentemente.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-10 text-center">
-          <Link to="/anuncios" className="inline-block bg-slate-900 text-white px-8 h-10 leading-10 rounded-lg font-semibold hover:bg-green-700 transition-all text-center">
-            Ver Mais Anúncios
+      <HomeAdsCarousel
+        title="Publicados Recentemente"
+        subtitle="Atualizado ha poucos minutos"
+        items={recentAds}
+        isLoading={adsLoading}
+        emptyMessage="Nenhum anuncio publicado recentemente."
+        skeletonCount={8}
+        sectionClassName="py-16 w-full"
+        footer={
+          <Link to="/anuncios" className="inline-block px-8 h-10 leading-10 rounded-lg font-semibold text-center text-white" style={{ backgroundColor: settings.secondaryColor }}>
+            Ver Mais Anuncios
           </Link>
-        </div>
-      </section>
+        }
+        renderItem={(ad) =>
+          isAdValid(ad) ? (
+            <AdCardErrorBoundary>
+              <AdCard ad={ad} />
+            </AdCardErrorBoundary>
+          ) : (
+            <AdFallbackCard />
+          )
+        }
+      />
 
-      {/* Newsletter / CTA */}
-      <section className="py-16 bg-green-900 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-1/3 h-full bg-green-800 skew-x-12 transform translate-x-20 opacity-50"></div>
+      <section className="py-16 relative overflow-hidden" style={{ backgroundColor: settings.secondaryColor }}>
+        <div
+          className="absolute top-0 right-0 w-1/3 h-full skew-x-12 transform translate-x-20 opacity-50"
+          style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 30%, ${settings.secondaryColor})` }}
+        />
         <div className="max-w-7xl mx-auto px-4 relative z-10">
           <div className="flex flex-col lg:flex-row items-center gap-12">
             <div className="flex-1 text-white text-center lg:text-left">
-              <h2 className="text-xl font-semibold mb-4 leading-tight">Pronto para fechar o melhor negócio do ano?</h2>
-              <p className="text-green-100 text-sm mb-6 opacity-90">
-                Junte-se a mais de 10.000 produtores rurais que já utilizam a BWAGRO para comprar e vender com segurança e rapidez.
+              <h2 className="text-xl font-semibold mb-4 leading-tight">Pronto para fechar o melhor negocio do ano?</h2>
+              <p className="text-sm mb-6 opacity-90" style={{ color: 'rgba(255,255,255,0.82)' }}>
+                Junte-se a mais de 10.000 produtores rurais que ja utilizam a BWAGRO para comprar e vender com seguranca e rapidez.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Link to="/anunciar" className="bg-yellow-400 text-yellow-950 px-6 h-10 leading-10 rounded-lg font-semibold text-sm hover:bg-yellow-300 transition-all">
-                  Anunciar Agora Grátis
+                <Link to="/anunciar" className="px-6 h-10 leading-10 rounded-lg font-semibold text-sm transition-all" style={{ backgroundColor: settings.accentColor, color: settings.secondaryColor }}>
+                  Anunciar Agora Gratis
                 </Link>
                 <Link to="/planos" className="bg-white/10 backdrop-blur-md text-white border border-white/20 px-6 h-10 leading-10 rounded-lg font-semibold text-sm hover:bg-white/20 transition-all">
                   Conhecer Planos Premium
@@ -235,24 +202,30 @@ const Home: React.FC = () => {
               <div className="bg-white/10 backdrop-blur-xl p-6 rounded-xl border border-white/10">
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center text-white text-sm font-semibold">1</div>
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-semibold" style={{ backgroundColor: settings.primaryColor }}>
+                      1
+                    </div>
                     <div>
-                      <h4 className="text-white font-semibold text-sm">Crie seu anúncio</h4>
-                      <p className="text-green-100 text-sm">Em menos de 2 minutos seu produto está online.</p>
+                      <h4 className="text-white font-semibold text-sm">Crie seu anuncio</h4>
+                      <p className="text-sm" style={{ color: 'rgba(255,255,255,0.72)' }}>Em menos de 2 minutos seu produto esta online.</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center text-white text-sm font-semibold">2</div>
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-semibold" style={{ backgroundColor: settings.primaryColor }}>
+                      2
+                    </div>
                     <div>
                       <h4 className="text-white font-semibold text-sm">Receba propostas</h4>
-                      <p className="text-green-100 text-sm">Compradores reais entrarão em contato direto.</p>
+                      <p className="text-sm" style={{ color: 'rgba(255,255,255,0.72)' }}>Compradores reais entrarao em contato direto.</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center text-white text-sm font-semibold">3</div>
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-semibold" style={{ backgroundColor: settings.primaryColor }}>
+                      3
+                    </div>
                     <div>
-                      <h4 className="text-white font-semibold text-sm">Feche o negócio</h4>
-                      <p className="text-green-100 text-sm">Venda com a melhor margem do mercado.</p>
+                      <h4 className="text-white font-semibold text-sm">Feche o negocio</h4>
+                      <p className="text-sm" style={{ color: 'rgba(255,255,255,0.72)' }}>Venda com a melhor margem do mercado.</p>
                     </div>
                   </div>
                 </div>

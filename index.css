@@ -1,11 +1,29 @@
 @import "tailwindcss";
 
+:root {
+  --brand-primary: #16a34a;
+  --brand-secondary: #0f172a;
+  --brand-accent: #f59e0b;
+  --brand-background: #f8fafc;
+  --brand-surface: #ffffff;
+  --brand-text: #0f172a;
+  --brand-muted: #64748b;
+  --brand-success: #16a34a;
+  --brand-warning: #f59e0b;
+  --brand-error: #dc2626;
+}
+
 html { font-size: 85%; }
-body { font-family: 'Inter', sans-serif; font-size: 0.875rem; }
+body {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  background: var(--brand-background);
+  color: var(--brand-text);
+}
 h1, h2, h3, .font-display { font-family: 'Inter', sans-serif; }
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #166534; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: var(--brand-primary); border-radius: 10px; }
 .text-base { font-size: 0.875rem; line-height: 1.25rem; }
 .text-lg { font-size: 0.875rem; line-height: 1.25rem; }
 .text-2xl,

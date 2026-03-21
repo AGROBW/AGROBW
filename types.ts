@@ -408,6 +408,35 @@ export interface FiscalSettings {
   updatedAt: string;
 }
 
+export interface LayoutSettings {
+  id: string;
+  siteName: string;
+  siteShortName?: string | null;
+  siteTagline?: string | null;
+  headerBrandText?: string | null;
+  footerBrandText?: string | null;
+  loginBrandText?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  logoUrl?: string | null;
+  logoLightUrl?: string | null;
+  logoDarkUrl?: string | null;
+  faviconUrl?: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  textColor: string;
+  mutedTextColor: string;
+  successColor: string;
+  warningColor: string;
+  errorColor: string;
+  lastUpdatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FiscalDocumentJob {
   id: string;
   paymentId: string;

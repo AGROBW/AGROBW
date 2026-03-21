@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../src/lib/supabaseClient';
 import { toast } from 'sonner';
 import { useSubscription } from '../src/hooks/useSubscription';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 type HighlightType = 'category' | 'home';
 
@@ -26,6 +27,7 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
 }) => {
   const [isApplying, setIsApplying] = useState(false);
   const { usage, refreshUsage } = useSubscription();
+  const { settings } = useLayout();
 
   const highlightConfig = {
     category: {
@@ -42,9 +44,9 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
       icon: <Home className="w-6 h-6" />,
       title: 'Destaque na Home',
       description: 'Seu anúncio aparecerá em destaque na página inicial',
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
-      borderColor: 'border-green-200',
+      color: '',
+      bgColor: '',
+      borderColor: '',
       used: usage.homeHighlightsUsed,
       limit: usage.homeHighlightsLimit
     }
@@ -117,12 +119,15 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
           className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
         >
           {/* Header */}
-          <div className={`${config.bgColor} ${config.borderColor} border-b-2 px-6 py-4 flex items-center justify-between`}>
+          <div
+            className={`${highlightType === 'category' ? `${config.bgColor} ${config.borderColor}` : ''} border-b-2 px-6 py-4 flex items-center justify-between`}
+            style={highlightType === 'home' ? { backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 10%, white)`, borderColor: `color-mix(in srgb, ${settings.primaryColor} 22%, white)` } : undefined}
+          >
             <div className="flex items-center gap-3">
-              <div className={`${config.color}`}>
+              <div className={config.color} style={highlightType === 'home' ? { color: settings.primaryColor } : undefined}>
                 {config.icon}
               </div>
-              <h2 className={`text-xl font-bold ${config.color}`}>
+              <h2 className={`text-xl font-bold ${config.color}`} style={highlightType === 'home' ? { color: settings.primaryColor } : undefined}>
                 {config.title}
               </h2>
             </div>
@@ -144,9 +149,12 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
             </div>
 
             {/* Descrição */}
-            <div className={`${config.bgColor} ${config.borderColor} border-2 rounded-lg p-4`}>
+            <div
+              className={`${highlightType === 'category' ? `${config.bgColor} ${config.borderColor}` : ''} border-2 rounded-lg p-4`}
+              style={highlightType === 'home' ? { backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 8%, white)`, borderColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)` } : undefined}
+            >
               <div className="flex items-start gap-3">
-                <Sparkles className={`w-5 h-5 ${config.color} flex-shrink-0 mt-0.5`} />
+                <Sparkles className={`w-5 h-5 ${config.color} flex-shrink-0 mt-0.5`} style={highlightType === 'home' ? { color: settings.primaryColor } : undefined} />
                 <p className="text-sm text-slate-700 leading-relaxed">
                   {config.description}
                 </p>
@@ -183,7 +191,7 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
                   <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
                     Restantes
                   </p>
-                  <p className={`text-2xl font-bold mt-1 ${remaining > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <p className={`text-2xl font-bold mt-1 ${remaining > 0 ? '' : 'text-red-600'}`} style={remaining > 0 ? { color: settings.primaryColor } : undefined}>
                     {remaining}
                   </p>
                 </div>
@@ -192,8 +200,8 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
               {/* Barra de progresso */}
               <div className="mt-3 w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                 <div
-                  className={`h-full ${remaining > 0 ? 'bg-green-500' : 'bg-red-500'} transition-all duration-300`}
-                  style={{ width: `${(config.used / config.limit) * 100}%` }}
+                  className={`h-full ${remaining > 0 ? '' : 'bg-red-500'} transition-all duration-300`}
+                  style={{ width: `${(config.used / config.limit) * 100}%`, backgroundColor: remaining > 0 ? settings.primaryColor : undefined }}
                 />
               </div>
             </div>
@@ -214,8 +222,9 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
               className={`px-6 py-2 rounded-lg font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
                 highlightType === 'category'
                   ? 'bg-blue-600 hover:bg-blue-700'
-                  : 'bg-green-600 hover:bg-green-700'
+                  : ''
               }`}
+              style={highlightType === 'home' ? { backgroundColor: settings.primaryColor } : undefined}
             >
               {isApplying ? (
                 <>

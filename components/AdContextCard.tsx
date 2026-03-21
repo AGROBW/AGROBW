@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Chat } from '../types';
 import { MapPin, DollarSign, Eye, Phone, Mail, Lock, Unlock } from 'lucide-react';
 import { getContactInfo, getLeadStatus, unlockLead, getUserCredits } from '../services/messageService';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 interface AdContextCardProps {
   chat: Chat;
@@ -10,6 +11,7 @@ interface AdContextCardProps {
 }
 
 export const AdContextCard: React.FC<AdContextCardProps> = ({ chat, currentUserId, onLeadUnlocked }) => {
+  const { settings } = useLayout();
   const [leadStatus, setLeadStatus] = useState<'pending' | 'unlocked'>(getLeadStatus(chat.id));
   
   const isSeller = currentUserId === chat.sellerId;
@@ -49,7 +51,7 @@ export const AdContextCard: React.FC<AdContextCardProps> = ({ chat, currentUserI
           alt={chat.adTitle}
           className="w-full h-48 object-cover"
         />
-        <div className="absolute top-3 right-3 bg-green-700 text-white px-3 py-1 rounded-full text-sm font-semibold">
+        <div className="absolute top-3 right-3 text-white px-3 py-1 rounded-full text-sm font-semibold" style={{ backgroundColor: settings.primaryColor }}>
           {formatPrice(chat.adPrice)}
         </div>
       </div>
@@ -80,7 +82,8 @@ export const AdContextCard: React.FC<AdContextCardProps> = ({ chat, currentUserI
             {!isContactVisible && isSeller && (
               <button
                 onClick={handleUnlock}
-                className="flex items-center gap-1 text-xs text-green-700 hover:text-green-800"
+                className="flex items-center gap-1 text-xs"
+                style={{ color: settings.primaryColor }}
               >
                 <Lock className="w-3.5 h-3.5" strokeWidth={1.5} />
                 Bloqueado
@@ -88,7 +91,7 @@ export const AdContextCard: React.FC<AdContextCardProps> = ({ chat, currentUserI
             )}
             
             {isContactVisible && (
-              <span className="flex items-center gap-1 text-xs text-green-700">
+              <span className="flex items-center gap-1 text-xs" style={{ color: settings.primaryColor }}>
                 <Unlock className="w-3.5 h-3.5" strokeWidth={1.5} />
                 Desbloqueado
               </span>
@@ -117,7 +120,8 @@ export const AdContextCard: React.FC<AdContextCardProps> = ({ chat, currentUserI
           {!isContactVisible && isSeller && (
             <button
               onClick={handleUnlock}
-              className="w-full mt-3 px-4 py-2 bg-green-700 text-white text-sm font-medium rounded hover:bg-green-800 transition-colors flex items-center justify-center gap-2"
+              className="w-full mt-3 px-4 py-2 text-white text-sm font-medium rounded transition-colors flex items-center justify-center gap-2"
+              style={{ backgroundColor: settings.primaryColor }}
             >
               <Unlock className="w-4 h-4" strokeWidth={1.5} />
               Desbloquear Lead (5 créditos)
@@ -143,7 +147,7 @@ export const AdContextCard: React.FC<AdContextCardProps> = ({ chat, currentUserI
           <div className="pt-3 border-t">
             <div className="flex items-center justify-between text-xs text-slate-600">
               <span>Seus créditos:</span>
-              <span className="font-semibold text-green-700">
+              <span className="font-semibold" style={{ color: settings.primaryColor }}>
                 {getUserCredits(currentUserId)} disponíveis
               </span>
             </div>

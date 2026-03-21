@@ -5,6 +5,7 @@ import InputMask from 'react-input-mask';
 import { supabase } from '../src/lib/supabaseClient';
 import toast from 'react-hot-toast';
 import { LEAD_STATUS, CHAT_STATUS } from '../constants/status';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ const ContactModal: React.FC<ContactModalProps> = ({
   buyerId,
   buyerData
 }) => {
+  const { settings } = useLayout();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -264,7 +266,8 @@ const ContactModal: React.FC<ContactModalProps> = ({
                       value={formData.name}
                       onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                       readOnly={!!buyerData?.name}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all disabled:bg-gray-50"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all disabled:bg-gray-50"
+                      style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                       placeholder="Seu nome completo"
                       required
                     />
@@ -280,7 +283,8 @@ const ContactModal: React.FC<ContactModalProps> = ({
                       value={formData.email}
                       onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                       readOnly={!!buyerData?.email}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all disabled:bg-gray-50"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all disabled:bg-gray-50"
+                      style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                       placeholder="seu@email.com"
                       required
                     />
@@ -301,7 +305,8 @@ const ContactModal: React.FC<ContactModalProps> = ({
                         <input
                           {...inputProps}
                           type="tel"
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all disabled:bg-gray-50"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all disabled:bg-gray-50"
+                          style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                           placeholder="(00) 00000-0000"
                           required
                         />
@@ -324,7 +329,8 @@ const ContactModal: React.FC<ContactModalProps> = ({
                         <input
                           {...inputProps}
                           type="text"
-                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all disabled:bg-gray-50"
+                          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all disabled:bg-gray-50"
+                          style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                           placeholder="00000-000"
                         />
                       )}
@@ -340,7 +346,8 @@ const ContactModal: React.FC<ContactModalProps> = ({
                   <textarea
                     value={formData.message}
                     onChange={(e) => setFormData(prev => ({ ...prev, message: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all resize-none"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all resize-none"
+                    style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                     placeholder={`Olá! Tenho interesse em "${announcementTitle}". Poderia me fornecer mais informações?`}
                     rows={4}
                     required
@@ -357,16 +364,17 @@ const ContactModal: React.FC<ContactModalProps> = ({
                     id="acceptTerms"
                     checked={formData.acceptTerms}
                     onChange={(e) => setFormData(prev => ({ ...prev, acceptTerms: e.target.checked }))}
-                    className="mt-1 w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                    className="mt-1 w-4 h-4 border-gray-300 rounded"
+                    style={{ accentColor: settings.primaryColor }}
                     required
                   />
                   <label htmlFor="acceptTerms" className="text-sm text-slate-600 cursor-pointer">
                     Li e aceito os{' '}
-                    <a href="/termos" target="_blank" className="text-green-600 font-bold hover:underline">
+                    <a href="/termos" target="_blank" className="font-bold hover:underline" style={{ color: settings.primaryColor }}>
                       Termos de Uso
                     </a>{' '}
                     e a{' '}
-                    <a href="/privacidade" target="_blank" className="text-green-600 font-bold hover:underline">
+                    <a href="/privacidade" target="_blank" className="font-bold hover:underline" style={{ color: settings.primaryColor }}>
                       Política de Privacidade
                     </a>
                     . <span className="text-red-500">*</span>
@@ -385,7 +393,8 @@ const ContactModal: React.FC<ContactModalProps> = ({
                   <button
                     type="submit"
                     disabled={!isFormValid || isSubmitting}
-                    className="flex-1 py-4 px-6 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 py-4 px-6 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    style={{ backgroundColor: settings.primaryColor }}
                   >
                     {isSubmitting ? (
                       <>

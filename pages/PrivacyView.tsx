@@ -2,9 +2,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowRight, ArrowUp, ChevronDown, ChevronRight, Info, Loader2 } from 'lucide-react';
 import { usePrivacyPage, PRIVACY_PAGE_FALLBACK } from '../src/hooks/usePrivacyPage';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 const PrivacyView: React.FC = () => {
   const { content, isLoading } = usePrivacyPage();
+  const { settings } = useLayout();
   const data = content || PRIVACY_PAGE_FALLBACK;
 
   const [activeSection, setActiveSection] = useState<string>('');
@@ -59,7 +61,7 @@ const PrivacyView: React.FC = () => {
   if (isLoading) {
     return (
       <div className="bg-gray-50 min-h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-green-600 animate-spin" />
+        <Loader2 className="w-12 h-12 animate-spin" style={{ color: settings.primaryColor }} />
       </div>
     );
   }
@@ -71,7 +73,7 @@ const PrivacyView: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
             <div className="max-w-3xl">
-              <span className="text-green-700 text-xs font-semibold uppercase tracking-[0.2em] mb-2 block">Transparência & Segurança</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] mb-2 block" style={{ color: settings.primaryColor }}>Transparência & Segurança</span>
               <h1 className="text-xl font-semibold text-slate-900">Política de Privacidade</h1>
               <p className="text-slate-500 mt-3 text-sm font-medium leading-relaxed">
                 Sua privacidade é prioridade. Esta política explica como coletamos, usamos e protegemos seus dados pessoais conforme a LGPD.
@@ -99,7 +101,8 @@ const PrivacyView: React.FC = () => {
               <button 
                 key={section.id}
                 onClick={() => scrollToSection(section.id)}
-                className={`w-full text-left px-4 py-2 rounded-lg text-sm font-semibold ${activeSection === section.id ? 'bg-green-50 text-green-700' : 'text-slate-500'}`}
+                className={`w-full text-left px-4 py-2 rounded-lg text-sm font-semibold ${activeSection === section.id ? '' : 'text-slate-500'}`}
+                style={activeSection === section.id ? { backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 10%, white)`, color: settings.primaryColor } : undefined}
               >
                 {section.title}
               </button>
@@ -122,21 +125,22 @@ const PrivacyView: React.FC = () => {
                   onClick={() => scrollToSection(section.id)}
                   className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-300 group flex items-center justify-between ${
                     activeSection === section.id 
-                    ? 'bg-green-700 text-white translate-x-1' 
+                    ? 'text-white translate-x-1' 
                     : 'hover:bg-white text-slate-500 hover:text-slate-800'
                   }`}
+                  style={activeSection === section.id ? { backgroundColor: settings.primaryColor } : undefined}
                 >
                   <span className="font-semibold text-sm">{section.title}</span>
                   <ChevronRight className={`w-4 h-4 transition-transform group-hover:translate-x-1 ${activeSection === section.id ? 'opacity-100' : 'opacity-0'}`} strokeWidth={1.5} />
                 </button>
               ))}
               
-              <div className="mt-8 p-5 bg-green-50 rounded-xl border border-green-100">
-                <h4 className="text-green-900 font-semibold mb-3 text-sm">Proteção LGPD</h4>
-                <p className="text-green-700 text-xs leading-relaxed mb-6">
+              <div className="mt-8 p-5 rounded-xl border" style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 8%, white)`, borderColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)` }}>
+                <h4 className="font-semibold mb-3 text-sm" style={{ color: settings.textColor }}>Proteção LGPD</h4>
+                <p className="text-xs leading-relaxed mb-6" style={{ color: settings.secondaryColor }}>
                   Seus dados são protegidos por criptografia de nível bancário. Você tem total controle sobre suas informações.
                 </p>
-                <button className="inline-block bg-white text-green-700 px-4 h-9 leading-9 rounded-lg font-semibold text-xs transition-all">
+                <button className="inline-block bg-white px-4 h-9 leading-9 rounded-lg font-semibold text-xs transition-all" style={{ color: settings.primaryColor }}>
                   Baixar Manual de Privacidade
                 </button>
               </div>
@@ -149,7 +153,7 @@ const PrivacyView: React.FC = () => {
               {sections.map((section) => (
                 <div key={section.id} id={section.id} className="scroll-mt-32">
                   <div className="flex items-center gap-4 mb-6">
-                    <span className="w-1.5 h-6 bg-green-600 rounded-full"></span>
+                    <span className="w-1.5 h-6 rounded-full" style={{ backgroundColor: settings.primaryColor }}></span>
                     <h2 className="text-xl font-semibold text-slate-900">
                       {section.title}
                     </h2>
@@ -171,7 +175,8 @@ const PrivacyView: React.FC = () => {
               <div className="mt-8">
                 <a 
                   href="mailto:privacidade@bwagro.com.br" 
-                  className="inline-flex items-center gap-2 text-green-700 font-semibold text-sm hover:underline"
+                  className="inline-flex items-center gap-2 font-semibold text-sm hover:underline"
+                  style={{ color: settings.primaryColor }}
                 >
                   privacidade@bwagro.com.br
                   <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
@@ -185,7 +190,15 @@ const PrivacyView: React.FC = () => {
       {/* Floating Back to Top Button */}
       <button 
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className="fixed bottom-6 right-6 w-10 h-10 bg-white text-slate-900 rounded-lg border border-slate-100 flex items-center justify-center hover:bg-green-700 hover:text-white transition-all z-50 group"
+        className="fixed bottom-6 right-6 w-10 h-10 bg-white text-slate-900 rounded-lg border border-slate-100 flex items-center justify-center transition-all z-50 group"
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = settings.primaryColor;
+          e.currentTarget.style.color = '#ffffff';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = '#ffffff';
+          e.currentTarget.style.color = '';
+        }}
       >
         <ArrowUp className="w-4 h-4 group-hover:-translate-y-1 transition-transform" strokeWidth={1.5} />
       </button>

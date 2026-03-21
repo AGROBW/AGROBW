@@ -5,6 +5,7 @@ import {
   ChevronDown,
   FileCheck,
   LayoutDashboard,
+  MonitorSmartphone,
   LogOut,
   Menu,
   Newspaper,
@@ -56,6 +57,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'Noticias',
       path: '/admin/news',
       icon: Newspaper,
+    },
+    {
+      label: 'Layout',
+      path: '/admin/layout',
+      icon: MonitorSmartphone,
     },
     {
       label: 'Auditoria & Seguranca',

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AlertTriangle, Building2, CheckCircle2, ChevronLeft, Sprout } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../src/contexts/AuthContext';
+import { useLayout } from '../src/contexts/LayoutContext';
 import { toast } from 'sonner';
 
 type ProfileType = 'individual' | 'company' | null;
@@ -9,6 +10,7 @@ type ProfileType = 'individual' | 'company' | null;
 const RegisterView: React.FC = () => {
   const navigate = useNavigate();
   const { signUp, user } = useAuth();
+  const { settings } = useLayout();
   const [profileType, setProfileType] = useState<ProfileType>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -255,13 +257,13 @@ const RegisterView: React.FC = () => {
           alt="Inovação no Campo" 
           className="absolute inset-0 w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-br from-green-950/80 via-green-800/40 to-transparent"></div>
+        <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${settings.secondaryColor} 86%, transparent), color-mix(in srgb, ${settings.primaryColor} 38%, transparent), transparent)` }}></div>
         <div className="relative z-10 p-20 flex flex-col justify-end h-full text-white">
           <div className="max-w-xl">
             <h2 className="text-5xl font-black mb-6 font-display leading-tight">
               Sua jornada no agro digital começa agora.
             </h2>
-            <p className="text-xl text-green-50/80 font-medium leading-relaxed">
+            <p className="text-xl font-medium leading-relaxed" style={{ color: 'rgba(255,255,255,0.82)' }}>
               Crie seu perfil em segundos e conecte-se com o maior ecossistema de negócios rurais do país.
             </p>
           </div>
@@ -274,10 +276,10 @@ const RegisterView: React.FC = () => {
           
           <div className="mb-10 text-center md:text-left">
             <Link to="/" className="inline-flex items-center gap-2 mb-8 group">
-              <div className="w-10 h-10 bg-green-700 rounded-xl flex items-center justify-center shadow-md">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md" style={{ backgroundColor: settings.primaryColor }}>
                 <span className="text-white text-2xl font-black">T</span>
               </div>
-              <span className="text-xl font-black text-slate-800">BWAGRO</span>
+              <span className="text-xl font-black text-slate-800">{settings.siteName}</span>
             </Link>
             
             {!profileType ? (
@@ -289,7 +291,8 @@ const RegisterView: React.FC = () => {
               <>
                 <button 
                   onClick={() => setProfileType(null)}
-                  className="flex items-center gap-1 text-[10px] font-semibold text-green-700 uppercase tracking-widest mb-4 hover:underline"
+                  className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest mb-4 hover:underline"
+                  style={{ color: settings.primaryColor }}
                 >
                   <ChevronLeft className="w-3 h-3" strokeWidth={1.5} />
                   Trocar Tipo de Perfil
@@ -307,9 +310,10 @@ const RegisterView: React.FC = () => {
             <div className="grid grid-cols-1 gap-4">
               <button 
                 onClick={() => setProfileType('individual')}
-                className="group p-5 bg-white border border-slate-100 rounded-xl text-left hover:border-green-600 transition-all"
+                className="group p-5 bg-white border border-slate-100 rounded-xl text-left transition-all"
+                style={{ borderColor: `color-mix(in srgb, ${settings.primaryColor} 10%, #e2e8f0)` }}
               >
-                <div className="w-10 h-10 bg-green-50 text-green-600 rounded-lg flex items-center justify-center mb-4">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-4" style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 12%, white)`, color: settings.primaryColor }}>
                   <Sprout className="w-5 h-5" strokeWidth={1.5} />
                 </div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-2">Sou Produtor</h3>
@@ -317,9 +321,10 @@ const RegisterView: React.FC = () => {
               </button>
               <button 
                 onClick={() => setProfileType('company')}
-                className="group p-5 bg-white border border-slate-100 rounded-xl text-left hover:border-green-600 transition-all"
+                className="group p-5 bg-white border border-slate-100 rounded-xl text-left transition-all"
+                style={{ borderColor: `color-mix(in srgb, ${settings.primaryColor} 10%, #e2e8f0)` }}
               >
-                <div className="w-10 h-10 bg-slate-900 text-white rounded-lg flex items-center justify-center mb-4">
+                <div className="w-10 h-10 text-white rounded-lg flex items-center justify-center mb-4" style={{ backgroundColor: settings.secondaryColor }}>
                   <Building2 className="w-5 h-5" strokeWidth={1.5} />
                 </div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-2">Sou Empresa / Revenda</h3>
@@ -338,7 +343,8 @@ const RegisterView: React.FC = () => {
                   type="text"
                   value={formData.name}
                   onChange={e => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                  className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                  style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                   placeholder={profileType === 'individual' ? 'Ex: João da Silva' : 'Ex: Agro Tech Ltda'}
                 />
               </div>
@@ -354,14 +360,15 @@ const RegisterView: React.FC = () => {
                     value={formData.document}
                     onChange={e => setFormData({...formData, document: maskDocument(e.target.value)})}
                     onBlur={handleDocumentBlur}
-                    className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium pr-12 ${errors.document && documentTouched ? 'border-red-300' : 'border-transparent focus:border-green-600 focus:bg-white'}`}
+                    className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium pr-12 ${errors.document && documentTouched ? 'border-red-300' : 'border-transparent focus:ring-2 focus:bg-white'}`}
+                    style={!(errors.document && documentTouched) ? { ['--tw-ring-color' as any]: `${settings.primaryColor}33` } : undefined}
                     placeholder={profileType === 'individual' ? '000.000.000-00' : '00.000.000/0001-00'}
                   />
                   {documentTouched && errors.document && (
                     <AlertTriangle className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500" />
                   )}
                   {documentTouched && !errors.document && isDocumentValid && (
-                    <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600" />
+                    <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: settings.primaryColor }} />
                   )}
                 </div>
                 {documentTouched && errors.document && (
@@ -376,7 +383,8 @@ const RegisterView: React.FC = () => {
                     type="date"
                     value={formData.birthDate}
                     onChange={e => setFormData({...formData, birthDate: e.target.value})}
-                    className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                    className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                    style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                   />
                 </div>
               )}
@@ -389,7 +397,8 @@ const RegisterView: React.FC = () => {
                     type="tel"
                     value={formData.phone}
                     onChange={e => setFormData({...formData, phone: maskPhone(e.target.value)})}
-                    className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                    className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                    style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                     placeholder="(00) 00000-0000"
                   />
                 </div>
@@ -400,7 +409,8 @@ const RegisterView: React.FC = () => {
                     type="email"
                     value={formData.email}
                     onChange={e => setFormData({...formData, email: e.target.value})}
-                    className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${errors.email ? 'border-red-200' : 'border-transparent focus:border-green-600 focus:bg-white'}`}
+                    className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${errors.email ? 'border-red-200' : 'border-transparent focus:ring-2 focus:bg-white'}`}
+                    style={!errors.email ? { ['--tw-ring-color' as any]: `${settings.primaryColor}33` } : undefined}
                     placeholder="email@agro.com"
                   />
                 </div>
@@ -412,7 +422,8 @@ const RegisterView: React.FC = () => {
                   type="url"
                   value={formData.website}
                   onChange={e => setFormData({...formData, website: e.target.value})}
-                  className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                  className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                  style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                   placeholder="https://seu-site.com"
                 />
               </div>
@@ -425,7 +436,8 @@ const RegisterView: React.FC = () => {
                     type={showPassword ? "text" : "password"}
                     value={formData.password}
                     onChange={e => setFormData({...formData, password: e.target.value})}
-                    className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium pr-14"
+                    className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium pr-14"
+                    style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                     placeholder="••••••••"
                   />
                   <button 
@@ -442,7 +454,8 @@ const RegisterView: React.FC = () => {
                     {[25, 50, 75, 100].map(s => (
                       <div 
                         key={s} 
-                        className={`flex-1 rounded-full transition-all duration-500 ${getPasswordStrength() >= s ? (getPasswordStrength() > 50 ? 'bg-green-500' : 'bg-yellow-500') : 'bg-slate-200'}`}
+                        className={`flex-1 rounded-full transition-all duration-500 ${getPasswordStrength() >= s ? '' : 'bg-slate-200'}`}
+                        style={getPasswordStrength() >= s ? { backgroundColor: getPasswordStrength() > 50 ? settings.primaryColor : settings.accentColor } : undefined}
                       />
                     ))}
                   </div>
@@ -456,7 +469,8 @@ const RegisterView: React.FC = () => {
                   type="password"
                   value={formData.confirmPassword}
                   onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
-                  className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${errors.confirmPassword ? 'border-red-200' : 'border-transparent focus:border-green-600 focus:bg-white'}`}
+                  className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${errors.confirmPassword ? 'border-red-200' : 'border-transparent focus:ring-2 focus:bg-white'}`}
+                  style={!errors.confirmPassword ? { ['--tw-ring-color' as any]: `${settings.primaryColor}33` } : undefined}
                   placeholder="••••••••"
                 />
               </div>
@@ -479,7 +493,8 @@ const RegisterView: React.FC = () => {
                         setFormData({...formData, cep: masked});
                       }}
                       onBlur={handleCepBlur}
-                      className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${errors.cep ? 'border-red-200' : 'border-transparent focus:border-green-600 focus:bg-white'}`}
+                      className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${errors.cep ? 'border-red-200' : 'border-transparent focus:ring-2 focus:bg-white'}`}
+                      style={!errors.cep ? { ['--tw-ring-color' as any]: `${settings.primaryColor}33` } : undefined}
                       placeholder="00000-000"
                     />
                     {loadingCep && (
@@ -498,7 +513,8 @@ const RegisterView: React.FC = () => {
                       type="text"
                       value={formData.logradouro}
                       onChange={e => setFormData({...formData, logradouro: e.target.value})}
-                      className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                       placeholder="Rua, Avenida, etc"
                       readOnly={!!formData.logradouro && loadingCep}
                     />
@@ -509,7 +525,8 @@ const RegisterView: React.FC = () => {
                       type="text"
                       value={formData.numero}
                       onChange={e => setFormData({...formData, numero: e.target.value})}
-                      className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                       placeholder="000"
                     />
                   </div>
@@ -521,7 +538,8 @@ const RegisterView: React.FC = () => {
                     type="text"
                     value={formData.complemento}
                     onChange={e => setFormData({...formData, complemento: e.target.value})}
-                    className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                    className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                    style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                     placeholder="Apto 101, Bloco A, etc"
                   />
                 </div>
@@ -533,7 +551,8 @@ const RegisterView: React.FC = () => {
                       type="text"
                       value={formData.bairro}
                       onChange={e => setFormData({...formData, bairro: e.target.value})}
-                      className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                       placeholder="Bairro"
                       readOnly={!!formData.bairro && loadingCep}
                     />
@@ -544,7 +563,8 @@ const RegisterView: React.FC = () => {
                       type="text"
                       value={formData.cidade}
                       onChange={e => setFormData({...formData, cidade: e.target.value})}
-                      className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                      style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                       placeholder="Cidade"
                       readOnly={!!formData.cidade && loadingCep}
                     />
@@ -558,7 +578,8 @@ const RegisterView: React.FC = () => {
                     value={formData.estado}
                     onChange={e => setFormData({...formData, estado: e.target.value.toUpperCase().slice(0, 2)})}
                     maxLength={2}
-                    className="w-full bg-slate-50 border-2 border-transparent focus:border-green-600 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                    className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
+                    style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                     placeholder="SP"
                     readOnly={!!formData.estado && loadingCep}
                   />
@@ -572,17 +593,19 @@ const RegisterView: React.FC = () => {
                   required
                   checked={acceptedTerms}
                   onChange={e => setAcceptedTerms(e.target.checked)}
-                  className="w-5 h-5 mt-0.5 rounded border-slate-200 text-green-600 focus:ring-green-500 transition-all cursor-pointer"
+                  className="w-5 h-5 mt-0.5 rounded border-slate-200 transition-all cursor-pointer"
+                  style={{ accentColor: settings.primaryColor }}
                 />
                 <label htmlFor="terms" className="text-xs font-bold text-slate-500 leading-relaxed cursor-pointer">
-                  Li e aceito os <Link to="/termos-de-uso" className="text-green-700 hover:underline">Termos de Uso</Link> e a <Link to="/privacidade" className="text-green-700 hover:underline">Política de Privacidade</Link> do BWAGRO.
+                  Li e aceito os <Link to="/termos-de-uso" className="hover:underline" style={{ color: settings.primaryColor }}>Termos de Uso</Link> e a <Link to="/privacidade" className="hover:underline" style={{ color: settings.primaryColor }}>Política de Privacidade</Link> do BWAGRO.
                 </label>
               </div>
 
               <button 
                 type="submit"
                 disabled={loading || !acceptedTerms || Object.keys(errors).length > 0}
-                className="w-full bg-green-700 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-green-200 hover:bg-green-800 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 mt-4"
+                className="w-full text-white py-5 rounded-2xl font-black text-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 mt-4"
+                style={{ backgroundColor: settings.primaryColor, boxShadow: `0 20px 30px -18px ${settings.primaryColor}66` }}
               >
                 {loading ? (
                   <>
@@ -597,7 +620,7 @@ const RegisterView: React.FC = () => {
           <div className="mt-12 text-center">
             <p className="text-slate-500 font-medium">
               Já possui uma conta?{' '}
-              <Link to="/login" className="text-green-700 font-black hover:underline underline-offset-4 decoration-2">Fazer Login</Link>
+              <Link to="/login" className="font-black hover:underline underline-offset-4 decoration-2" style={{ color: settings.primaryColor }}>Fazer Login</Link>
             </p>
           </div>
         </div>

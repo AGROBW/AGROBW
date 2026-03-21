@@ -3,17 +3,19 @@ import { Link } from 'react-router-dom';
 import { Newspaper } from 'lucide-react';
 import NewsCard from './NewsCard';
 import { useNews } from '../src/hooks/useNews';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 const NewsGrid: React.FC = () => {
   const { news, isLoading } = useNews();
+  const { settings } = useLayout();
 
   return (
-    <section className="border-y border-slate-200/40 bg-slate-50/50 py-16">
+    <section className="border-y py-16" style={{ borderColor: 'rgba(226,232,240,0.7)', backgroundColor: `color-mix(in srgb, ${settings.backgroundColor} 86%, white)` }}>
       <div className="mx-auto max-w-7xl px-4">
         <div className="mb-10 flex flex-col items-center justify-between text-center md:flex-row md:text-left">
           <div>
             <h2 className="flex items-center justify-center gap-2 text-xl font-semibold text-slate-900 md:justify-start">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-100 text-green-700">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 12%, white)`, color: settings.primaryColor }}>
                 <Newspaper className="h-4 w-4" strokeWidth={1.5} />
               </span>
               Mural de Informacoes BWAGRO
@@ -24,7 +26,8 @@ const NewsGrid: React.FC = () => {
           </div>
           <Link
             to="/noticias"
-            className="mt-6 border-b border-slate-900 pb-1 text-sm font-semibold uppercase tracking-widest text-slate-900 transition-all hover:border-green-700 hover:text-green-700 md:mt-0"
+            className="mt-6 border-b pb-1 text-sm font-semibold uppercase tracking-widest transition-all md:mt-0"
+            style={{ borderColor: settings.secondaryColor, color: settings.secondaryColor }}
           >
             Ver todas as materias
           </Link>

@@ -4,6 +4,7 @@ import { supabase } from '../src/lib/supabaseClient';
 import { useAuth } from '../src/contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { LEAD_STATUS, CHAT_STATUS } from '../constants/status';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 // Funções de máscara
 const applyPhoneMask = (value: string) => {
@@ -35,6 +36,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
   sellerId
 }) => {
   const { user } = useAuth();
+  const { settings } = useLayout();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   
@@ -308,11 +310,11 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           
           {/* Info Alert */}
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm text-blue-900">
+          <div className="border rounded-2xl p-4 flex items-start gap-3" style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 8%, white)`, borderColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)` }}>
+            <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: settings.primaryColor }} />
+            <div className="text-sm" style={{ color: settings.textColor }}>
               <p className="font-bold mb-1">Seus dados estão protegidos</p>
-              <p className="text-blue-700">As informações abaixo serão compartilhadas apenas com o vendedor deste anúncio.</p>
+              <p style={{ color: settings.secondaryColor }}>As informações abaixo serão compartilhadas apenas com o vendedor deste anúncio.</p>
             </div>
           </div>
 
@@ -326,7 +328,8 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               readOnly={!!user}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed"
+              style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
               placeholder="Seu nome completo"
               required
             />
@@ -342,7 +345,8 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               readOnly={!!user}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed"
+              style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
               placeholder="seu@email.com"
               required
             />
@@ -363,7 +367,8 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
                 }}
                 readOnly={!!user}
                 maxLength={15}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed read-only:bg-gray-50 read-only:cursor-not-allowed"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed read-only:bg-gray-50 read-only:cursor-not-allowed"
+                style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                 placeholder="(00) 00000-0000"
               />
             </div>
@@ -381,7 +386,8 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
                 }}
                 readOnly={!!user}
                 maxLength={9}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed read-only:bg-gray-50 read-only:cursor-not-allowed"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed read-only:bg-gray-50 read-only:cursor-not-allowed"
+                style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                 placeholder="00000-000"
               />
             </div>
@@ -395,7 +401,8 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             <textarea
               value={formData.message}
               onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 transition-all outline-none resize-none"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 transition-all outline-none resize-none"
+              style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
               rows={5}
               placeholder="Escreva sua mensagem para o vendedor..."
               required
@@ -412,15 +419,16 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
               id="terms"
               checked={acceptedTerms}
               onChange={(e) => setAcceptedTerms(e.target.checked)}
-              className="mt-1 w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              className="mt-1 w-5 h-5 rounded border-gray-300"
+              style={{ accentColor: settings.primaryColor }}
             />
             <label htmlFor="terms" className="text-sm text-slate-600">
               Li e aceito os{' '}
-              <a href="/termos" target="_blank" className="text-green-600 font-bold hover:underline">
+              <a href="/termos" target="_blank" className="font-bold hover:underline" style={{ color: settings.primaryColor }}>
                 Termos de Uso
               </a>{' '}
               e a{' '}
-              <a href="/privacidade" target="_blank" className="text-green-600 font-bold hover:underline">
+              <a href="/privacidade" target="_blank" className="font-bold hover:underline" style={{ color: settings.primaryColor }}>
                 Política de Privacidade
               </a>
               <span className="text-red-500 ml-1">*</span>
@@ -439,7 +447,8 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             <button
               type="submit"
               disabled={!isFormValid || isSubmitting}
-              className="flex-1 py-3 px-6 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-3 px-6 rounded-xl text-white font-bold disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              style={{ backgroundColor: settings.primaryColor }}
             >
               {isSubmitting ? (
                 <>

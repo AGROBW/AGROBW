@@ -2,15 +2,17 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useNews } from '../src/hooks/useNews';
+import { useLayout } from '../src/contexts/LayoutContext';
 
 const NewsListingView: React.FC = () => {
   const { news, isLoading } = useNews();
+  const { settings } = useLayout();
 
   return (
     <div className="min-h-screen bg-slate-50 py-16">
       <div className="mx-auto max-w-7xl px-4">
         <div className="mb-10">
-          <p className="text-xs font-black uppercase tracking-[0.3em] text-green-600">Noticias BWAGRO</p>
+          <p className="text-xs font-black uppercase tracking-[0.3em]" style={{ color: settings.primaryColor }}>Noticias BWAGRO</p>
           <h1 className="mt-3 text-4xl font-black text-slate-900">Mural de Informacoes do Agro</h1>
           <p className="mt-3 max-w-2xl text-slate-500">
             Leia analises, tendencias e noticias publicadas com foco no agronegocio brasileiro.
@@ -42,7 +44,7 @@ const NewsListingView: React.FC = () => {
                   <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">{item.category}</p>
                   <h2 className="mt-3 text-xl font-black text-slate-900">{item.title}</h2>
                   <p className="mt-3 text-sm leading-relaxed text-slate-500">{item.summary}</p>
-                  <div className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-green-700">
+                  <div className="mt-5 inline-flex items-center gap-2 text-sm font-bold" style={{ color: settings.primaryColor }}>
                     Ler materia
                     <ArrowRight className="h-4 w-4" />
                   </div>
