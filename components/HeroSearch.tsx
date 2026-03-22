@@ -1,10 +1,23 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ArrowRight, Search } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useLayout } from '../src/contexts/LayoutContext';
 
 const HeroSearch: React.FC = () => {
   const { settings } = useLayout();
+  const navigate = useNavigate();
+  const [query, setQuery] = useState('');
+
+  const handleSearch = (term?: string) => {
+    const searchTerm = (term ?? query).trim();
+    if (!searchTerm) {
+      navigate('/anuncios');
+      return;
+    }
+
+    navigate(`/anuncios?q=${encodeURIComponent(searchTerm)}`);
+  };
 
   return (
     <div className="relative -mt-12 z-30 max-w-5xl mx-auto px-4">
@@ -20,13 +33,26 @@ const HeroSearch: React.FC = () => {
             <input 
               type="text" 
               placeholder="O que você está procurando hoje?"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSearch();
+                }
+              }}
               className="w-full bg-slate-50 md:bg-transparent border-none rounded-lg pl-10 pr-4 h-10 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:ring-0 focus:outline-none transition-all"
             />
           </div>
 
           {/* Botão de Busca - Redesenhado para ser "esticado" e proeminente */}
           <div className="w-full md:w-auto md:min-w-[200px]">
-            <button className="w-full h-10 text-white font-semibold text-sm px-6 rounded-lg transition-all flex items-center justify-center gap-2 group/btn" style={{ backgroundColor: settings.primaryColor }}>
+            <button
+              type="button"
+              onClick={() => handleSearch()}
+              className="w-full h-10 text-white font-semibold text-sm px-6 rounded-lg transition-all flex items-center justify-center gap-2 group/btn"
+              style={{ backgroundColor: settings.primaryColor }}
+            >
               <span>Buscar Agora</span>
               <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" strokeWidth={1.5} />
             </button>
@@ -41,6 +67,8 @@ const HeroSearch: React.FC = () => {
           {['Tratores usados', 'Gado Nelore', 'Fazendas MT', 'Colheitadeiras', 'Sementes'].map((tag) => (
             <button 
               key={tag}
+              type="button"
+              onClick={() => handleSearch(tag)}
               className="text-xs bg-white border border-slate-100 px-3 py-1 rounded-lg text-slate-600 hover:bg-green-600 hover:text-white hover:border-green-600 transition-all duration-300"
             >
               {tag}

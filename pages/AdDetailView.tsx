@@ -214,6 +214,14 @@ const AdDetailView: React.FC = () => {
                     )}
                   </div>
                 </div>
+                {ad.seller?.business_description && (
+                  <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">Sobre o vendedor</p>
+                    <p className="text-sm leading-6 text-slate-600 whitespace-pre-line">
+                      {ad.seller.business_description}
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                    <div className="bg-slate-50 p-3 rounded-xl text-center">
                      <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Local</p>

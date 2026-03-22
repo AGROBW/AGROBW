@@ -9,6 +9,7 @@ import {
   LogOut,
   Menu,
   Newspaper,
+  LifeBuoy,
   Receipt,
   Search,
   Settings,
@@ -62,6 +63,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'Layout',
       path: '/admin/layout',
       icon: MonitorSmartphone,
+    },
+    {
+      label: 'Suporte',
+      path: '/admin/support',
+      icon: LifeBuoy,
     },
     {
       label: 'Auditoria & Seguranca',

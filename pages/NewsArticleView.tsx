@@ -39,11 +39,11 @@ const NewsArticleView: React.FC = () => {
   }, [slug]);
 
   if (isLoading) {
-    return <div className="min-h-screen bg-slate-50 p-10 text-center text-slate-500">Carregando materia...</div>;
+    return <div className="min-h-screen bg-slate-50 p-10 text-center text-slate-500">Carregando matéria...</div>;
   }
 
   if (!article) {
-    return <div className="min-h-screen bg-slate-50 p-10 text-center text-slate-500">Materia nao encontrada.</div>;
+    return <div className="min-h-screen bg-slate-50 p-10 text-center text-slate-500">Matéria não encontrada.</div>;
   }
 
   const sources = article.news_article_sources || [];
@@ -53,7 +53,7 @@ const NewsArticleView: React.FC = () => {
       <div className="mx-auto max-w-4xl px-4">
         <Link to="/noticias" className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-slate-600" style={{ ['--news-link-color' as any]: settings.primaryColor }}>
           <ChevronLeft className="h-4 w-4" />
-          Voltar para noticias
+          Voltar para notícias
         </Link>
 
         <article className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-sm">
@@ -65,7 +65,7 @@ const NewsArticleView: React.FC = () => {
 
           <div className="p-8 md:p-10">
             <p className="text-xs font-black uppercase tracking-[0.25em]" style={{ color: settings.primaryColor }}>
-              {article.news_ingestions?.original_portal_name || 'Noticias BWAGRO'}
+              {article.news_ingestions?.original_portal_name || 'Notícias AGRO BW'}
             </p>
             <h1 className="mt-4 text-4xl font-black leading-tight text-slate-900">{article.title}</h1>
             {article.subtitle ? <p className="mt-4 text-lg text-slate-500">{article.subtitle}</p> : null}
@@ -93,7 +93,7 @@ const NewsArticleView: React.FC = () => {
             ) : null}
 
             <div className="mt-10 rounded-2xl border border-slate-100 bg-slate-50 px-6 py-5">
-              <h2 className="text-lg font-black text-slate-900">Fontes e referencias</h2>
+              <h2 className="text-lg font-black text-slate-900">Fontes e referências</h2>
               {article.references_block ? (
                 <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-700">{article.references_block}</p>
               ) : null}

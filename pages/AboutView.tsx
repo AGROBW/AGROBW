@@ -32,7 +32,7 @@ const AboutView: React.FC = () => {
       <section className="relative h-[60vh] md:h-[80vh] flex items-center overflow-hidden">
         <div 
           className="absolute inset-0 bg-cover bg-center transition-transform duration-[10s] scale-105"
-          style={{ backgroundImage: `url(https://images.unsplash.com/photo-500382017468-9049fed747ef?q=80&w=1600&auto=format&fit=crop)` }}
+          style={{ backgroundImage: `url(https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1600&auto=format&fit=crop)` }}
         >
           <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-slate-900/40 to-white"></div>
         </div>

@@ -1,43 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, FileText, Receipt, Save, Search, Upload, XCircle } from 'lucide-react';
+import { BarChart3, Receipt, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
-
-type InvoiceStatus = 'pending' | 'available' | 'failed' | 'not_applicable';
-type FiscalAutomationStatus = 'not_requested' | 'queued' | 'processing' | 'issued' | 'failed' | 'manual';
-
-interface AdminPaymentRecord {
-  id: string;
-  user_id: string;
-  plan_id: string | null;
-  provider_payment_id: string;
-  amount: number;
-  currency: string;
-  status: string;
-  payment_method: string | null;
-  paid_at: string | null;
-  created_at: string;
-  invoice_number: string | null;
-  invoice_pdf_url: string | null;
-  invoice_storage_path: string | null;
-  invoice_xml_url: string | null;
-  invoice_status: InvoiceStatus;
-  invoice_issued_at: string | null;
-  invoice_notes: string | null;
-  fiscal_provider: string | null;
-  fiscal_external_id: string | null;
-  fiscal_status: FiscalAutomationStatus;
-  fiscal_last_attempt_at: string | null;
-  fiscal_error_message: string | null;
-  users: {
-    name: string;
-    email: string;
-  } | null;
-  plans: {
-    name: string;
-  } | null;
-}
+import PaymentsOverviewTab from '../../components/admin/payments/PaymentsOverviewTab';
+import PaymentsInvoicesTab from '../../components/admin/payments/PaymentsInvoicesTab';
+import PaymentsActionsTab from '../../components/admin/payments/PaymentsActionsTab';
+import {
+  AdminPaymentRecord,
+  InvoiceStatus,
+  invoiceStatusOptions,
+} from '../../components/admin/payments/types';
 
 const normalizeRelation = <T,>(value: T | T[] | null | undefined): T | null => {
   if (!value) {
@@ -47,40 +20,11 @@ const normalizeRelation = <T,>(value: T | T[] | null | undefined): T | null => {
   return Array.isArray(value) ? value[0] || null : value;
 };
 
-const invoiceStatusOptions: Array<{ value: InvoiceStatus; label: string }> = [
-  { value: 'pending', label: 'Em emissao' },
-  { value: 'available', label: 'Disponivel' },
-  { value: 'failed', label: 'Falha' },
-  { value: 'not_applicable', label: 'Nao aplicavel' },
-];
-
-const statusBadgeClass: Record<InvoiceStatus, string> = {
-  pending: 'bg-amber-100 text-amber-700',
-  available: 'bg-emerald-100 text-emerald-700',
-  failed: 'bg-rose-100 text-rose-700',
-  not_applicable: 'bg-slate-100 text-slate-500',
-};
-
-const fiscalAutomationBadgeClass: Record<FiscalAutomationStatus, string> = {
-  not_requested: 'bg-slate-100 text-slate-500',
-  queued: 'bg-blue-100 text-blue-700',
-  processing: 'bg-amber-100 text-amber-700',
-  issued: 'bg-emerald-100 text-emerald-700',
-  failed: 'bg-rose-100 text-rose-700',
-  manual: 'bg-violet-100 text-violet-700',
-};
-
-const fiscalAutomationLabel: Record<FiscalAutomationStatus, string> = {
-  not_requested: 'Nao solicitado',
-  queued: 'Na fila',
-  processing: 'Processando',
-  issued: 'Emitido',
-  failed: 'Falhou',
-  manual: 'Manual',
-};
+type FinanceTab = 'overview' | 'invoices' | 'actions';
 
 const PaymentsManagement: React.FC = () => {
   const { logAction } = useAdminAudit();
+  const [activeTab, setActiveTab] = useState<FinanceTab>('overview');
   const [payments, setPayments] = useState<AdminPaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -197,7 +141,7 @@ const PaymentsManagement: React.FC = () => {
 
   const formatDateTime = (value?: string | null) => {
     if (!value) {
-      return 'Nao informado';
+      return 'Não informado';
     }
 
     return new Date(value).toLocaleString('pt-BR', {
@@ -237,7 +181,7 @@ const PaymentsManagement: React.FC = () => {
       toast.error('Nenhum documento fiscal anexado a este pagamento.');
     } catch (error) {
       console.error('[PaymentsManagement] Erro ao abrir nota fiscal:', error);
-      toast.error('Nao foi possivel abrir a nota fiscal.');
+      toast.error('Não foi possível abrir a nota fiscal.');
     }
   };
 
@@ -273,7 +217,7 @@ const PaymentsManagement: React.FC = () => {
     }
 
     if (invoiceStatus === 'available' && !uploadFile && !invoiceExternalUrl && !selectedPayment.invoice_storage_path) {
-      toast.error('Para marcar como disponivel, anexe o PDF ou informe um link externo.');
+      toast.error('Para marcar como disponível, anexe o PDF ou informe um link externo.');
       return;
     }
 
@@ -314,8 +258,8 @@ const PaymentsManagement: React.FC = () => {
         await supabase.from('notifications').insert({
           user_id: selectedPayment.user_id,
           type: 'SYSTEM',
-          title: 'Nota fiscal disponivel',
-          content: 'Sua nota fiscal ja esta pronta para download na central financeira.',
+          title: 'Nota fiscal disponível',
+          content: 'Sua nota fiscal já está pronta para download na central financeira.',
           link: '/#/minha-conta/financeiro',
         });
       }
@@ -372,21 +316,83 @@ const PaymentsManagement: React.FC = () => {
       if (data?.issued) {
         toast.success('NFS-e emitida com sucesso.');
       } else if (data?.skipped) {
-        toast.info('Automacao fiscal desativada nas configuracoes.');
+        toast.info('Automação fiscal desativada nas configurações.');
       } else if (data?.alreadyIssued) {
-        toast.info('Este pagamento ja possui NFS-e emitida.');
+        toast.info('Este pagamento já possui NFS-e emitida.');
       } else {
-        toast.success('Solicitacao de emissao enviada ao provedor fiscal.');
+        toast.success('Solicitação de emissão enviada ao provedor fiscal.');
       }
 
       await loadPayments();
     } catch (error: any) {
       console.error('[PaymentsManagement] Erro ao emitir NFS-e:', error);
-      toast.error(error.message || 'Nao foi possivel emitir a NFS-e.');
+      toast.error(error.message || 'Não foi possível emitir a NFS-e.');
     } finally {
       setSaving(false);
     }
   };
+
+  const handleRefundPayment = async (payment: AdminPaymentRecord) => {
+    const confirmed = window.confirm(
+      `Confirmar estorno/cancelamento deste registro?\n\nPagamento: ${payment.provider_payment_id}\nUsuário: ${payment.users?.name || 'Usuário'}`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const newNotes = [payment.invoice_notes, 'Estorno/cancelamento registrado manualmente pelo financeiro admin.']
+        .filter(Boolean)
+        .join('\n');
+
+      const updatePayload = {
+        status: 'refunded',
+        invoice_status: payment.invoice_status === 'available' ? 'failed' : payment.invoice_status,
+        invoice_notes: newNotes || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('payments')
+        .update(updatePayload)
+        .eq('id', payment.id);
+
+      if (error) {
+        throw error;
+      }
+
+      await logAction({
+        action: ADMIN_ACTIONS.REFUND_PAYMENT,
+        resourceType: RESOURCE_TYPES.PAYMENT,
+        resourceId: payment.id,
+        oldValue: {
+          status: payment.status,
+          invoice_status: payment.invoice_status,
+          invoice_notes: payment.invoice_notes,
+        },
+        newValue: updatePayload,
+        reason: 'Estorno/cancelamento manual registrado no backoffice financeiro',
+      });
+
+      toast.success('Estorno registrado com sucesso.');
+      await loadPayments();
+      setSelectedPayment(null);
+    } catch (error: any) {
+      console.error('[PaymentsManagement] Erro ao registrar estorno:', error);
+      toast.error(error.message || 'Não foi possível registrar o estorno.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const tabs: Array<{ id: FinanceTab; label: string; icon: React.ReactNode }> = [
+    { id: 'overview', label: 'Resumo', icon: <BarChart3 className="w-4 h-4" strokeWidth={1.8} /> },
+    { id: 'invoices', label: 'Notas Emitidas', icon: <Receipt className="w-4 h-4" strokeWidth={1.8} /> },
+    { id: 'actions', label: 'Ações Fiscais', icon: <Settings2 className="w-4 h-4" strokeWidth={1.8} /> },
+  ];
 
   return (
     <div className="space-y-6">
@@ -397,271 +403,75 @@ const PaymentsManagement: React.FC = () => {
         <div>
           <h1 className="text-2xl font-black text-slate-900">Financeiro & Notas Fiscais</h1>
           <p className="text-sm text-slate-500">
-            Anexe documentos fiscais aos pagamentos e libere o download seguro para o usuario.
+            Acompanhe o resumo fiscal, consulte todas as notas emitidas e execute ações operacionais com auditoria.
           </p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col lg:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Buscar por usuario, e-mail, pagamento ou numero da nota"
-            className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-        </div>
-
-        <select
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value as 'all' | InvoiceStatus)}
-          className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-        >
-          <option value="all">Todos os status fiscais</option>
-          {invoiceStatusOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+      <div className="bg-white rounded-2xl border border-slate-200 p-2 inline-flex flex-wrap gap-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`h-10 px-4 rounded-xl text-sm font-semibold inline-flex items-center gap-2 transition-colors ${
+              activeTab === tab.id
+                ? 'bg-slate-900 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1.15fr,0.95fr] gap-6">
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pagamentos</p>
-              <h2 className="text-lg font-semibold text-slate-900">{filteredPayments.length} registro(s)</h2>
-            </div>
-          </div>
+      {activeTab === 'overview' && (
+        <PaymentsOverviewTab payments={payments} formatCurrency={formatCurrency} />
+      )}
 
-          <div className="divide-y divide-slate-100 max-h-[760px] overflow-y-auto">
-            {loading ? (
-              <div className="px-6 py-10 text-center text-sm text-slate-500">Carregando pagamentos...</div>
-            ) : filteredPayments.length === 0 ? (
-              <div className="px-6 py-10 text-center text-sm text-slate-500">Nenhum pagamento encontrado.</div>
-            ) : (
-              filteredPayments.map((payment) => (
-                <button
-                  key={payment.id}
-                  onClick={() => setSelectedPayment(payment)}
-                  className={`w-full text-left px-6 py-4 transition-colors ${
-                    selectedPayment?.id === payment.id ? 'bg-emerald-50' : 'hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        {payment.users?.name || 'Usuario sem nome'} · {payment.plans?.name || 'Plano'}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        {payment.users?.email || 'sem e-mail'} · MP {payment.provider_payment_id}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-1">Pago em {formatDateTime(payment.paid_at || payment.created_at)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-slate-900">{formatCurrency(payment.amount, payment.currency)}</p>
-                      <span className={`mt-2 inline-flex text-xs font-semibold px-2.5 py-1 rounded-full ${statusBadgeClass[payment.invoice_status]}`}>
-                        {invoiceStatusOptions.find((option) => option.value === payment.invoice_status)?.label}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
+      {activeTab === 'invoices' && (
+        <PaymentsInvoicesTab
+          loading={loading}
+          payments={filteredPayments}
+          selectedPayment={selectedPayment}
+          onSelectPayment={(payment) => {
+            setSelectedPayment(payment);
+            setActiveTab('actions');
+          }}
+          searchTerm={searchTerm}
+          onSearchTermChange={setSearchTerm}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          formatCurrency={formatCurrency}
+          formatDateTime={formatDateTime}
+        />
+      )}
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          {selectedPayment ? (
-            <div className="space-y-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pagamento selecionado</p>
-                  <h2 className="text-xl font-semibold text-slate-900">
-                    {selectedPayment.users?.name || 'Usuario'} · {selectedPayment.plans?.name || 'Plano'}
-                  </h2>
-                  <p className="text-sm text-slate-500">Transacao {selectedPayment.provider_payment_id}</p>
-                </div>
-                <button
-                  onClick={() => setSelectedPayment(null)}
-                  className="w-9 h-9 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 inline-flex items-center justify-center"
-                  title="Fechar"
-                >
-                  <XCircle className="w-4 h-4" strokeWidth={1.8} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Valor</p>
-                  <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(selectedPayment.amount, selectedPayment.currency)}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Status da cobranca</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900 capitalize">{selectedPayment.status.replace('_', ' ')}</p>
-                  <p className="text-xs text-slate-500 mt-1">{selectedPayment.payment_method || 'Mercado Pago'}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Automacao fiscal</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${fiscalAutomationBadgeClass[selectedPayment.fiscal_status || 'not_requested']}`}>
-                      {fiscalAutomationLabel[selectedPayment.fiscal_status || 'not_requested']}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {selectedPayment.fiscal_provider || 'Sem provedor'} {selectedPayment.fiscal_external_id ? `· Doc ${selectedPayment.fiscal_external_id}` : ''}
-                    </span>
-                  </div>
-                  {selectedPayment.fiscal_error_message && (
-                    <p className="mt-2 text-xs text-rose-600">{selectedPayment.fiscal_error_message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Numero da nota fiscal</label>
-                  <input
-                    type="text"
-                    value={invoiceNumber}
-                    onChange={(event) => setInvoiceNumber(event.target.value)}
-                    className="mt-2 w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="Ex.: NF-2026-000123"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Status fiscal</label>
-                    <select
-                      value={invoiceStatus}
-                      onChange={(event) => setInvoiceStatus(event.target.value as InvoiceStatus)}
-                      className="mt-2 w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    >
-                      {invoiceStatusOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Data de emissao</label>
-                    <input
-                      type="date"
-                      value={invoiceIssuedAt}
-                      onChange={(event) => setInvoiceIssuedAt(event.target.value)}
-                      className="mt-2 w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Link externo da nota fiscal</label>
-                  <input
-                    type="url"
-                    value={invoiceExternalUrl}
-                    onChange={(event) => setInvoiceExternalUrl(event.target.value)}
-                    className="mt-2 w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="https://..."
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Anexar PDF da nota fiscal</label>
-                  <label className="mt-2 w-full min-h-[92px] border border-dashed border-slate-300 rounded-2xl bg-slate-50 flex flex-col items-center justify-center cursor-pointer hover:border-green-400 transition-colors px-4 text-center">
-                    <Upload className="w-5 h-5 text-slate-500 mb-2" strokeWidth={1.6} />
-                    <span className="text-sm font-semibold text-slate-700">
-                      {uploadFile ? uploadFile.name : 'Clique para selecionar um PDF'}
-                    </span>
-                    <span className="text-xs text-slate-500 mt-1">
-                      {selectedPayment.invoice_storage_path
-                        ? 'Se enviar outro arquivo, ele substituira o atual.'
-                        : 'Apenas PDF. O arquivo ficara privado e liberado via URL assinada.'}
-                    </span>
-                    <input
-                      type="file"
-                      accept="application/pdf"
-                      className="hidden"
-                      onChange={(event) => setUploadFile(event.target.files?.[0] || null)}
-                    />
-                  </label>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Observacoes internas</label>
-                  <textarea
-                    value={invoiceNotes}
-                    onChange={(event) => setInvoiceNotes(event.target.value)}
-                    rows={4}
-                    className="mt-2 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="Ex.: NF emitida manualmente pelo ERP em 19/03."
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-sm text-slate-600">
-                <div className="flex items-center justify-between gap-3">
-                  <span>Usuario</span>
-                  <span className="font-semibold text-slate-900">{selectedPayment.users?.email || 'Nao informado'}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span>Pagamento aprovado em</span>
-                  <span className="font-semibold text-slate-900">{formatDateTime(selectedPayment.paid_at || selectedPayment.created_at)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span>Documento atual</span>
-                  <span className="font-semibold text-slate-900">{selectedPayment.invoice_number || 'Sem numero cadastrado'}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span>Ultima tentativa fiscal</span>
-                  <span className="font-semibold text-slate-900">{formatDateTime(selectedPayment.fiscal_last_attempt_at)}</span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => handleIssueNfse(selectedPayment)}
-                  disabled={saving}
-                  className="h-11 px-5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-                >
-                  <Receipt className="w-4 h-4" strokeWidth={1.8} />
-                  Reprocessar NFS-e
-                </button>
-                <button
-                  onClick={handleSaveInvoice}
-                  disabled={saving}
-                  className="h-11 px-5 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" strokeWidth={1.8} />
-                  {saving ? 'Salvando...' : 'Salvar documento fiscal'}
-                </button>
-
-                <button
-                  onClick={() => handleOpenInvoice(selectedPayment)}
-                  className="h-11 px-5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-2"
-                >
-                  <ExternalLink className="w-4 h-4" strokeWidth={1.8} />
-                  Abrir documento atual
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="h-full min-h-[520px] flex flex-col items-center justify-center text-center px-6">
-              <div className="w-16 h-16 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mb-4">
-                <FileText className="w-8 h-8" strokeWidth={1.6} />
-              </div>
-              <h2 className="text-lg font-semibold text-slate-900">Selecione um pagamento</h2>
-              <p className="text-sm text-slate-500 mt-2 max-w-md">
-                Escolha um registro na lista ao lado para anexar a nota fiscal, marcar emissao e liberar o download para o usuario.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
+      {activeTab === 'actions' && (
+        <PaymentsActionsTab
+          selectedPayment={selectedPayment}
+          saving={saving}
+          invoiceNumber={invoiceNumber}
+          onInvoiceNumberChange={setInvoiceNumber}
+          invoiceStatus={invoiceStatus}
+          onInvoiceStatusChange={setInvoiceStatus}
+          invoiceIssuedAt={invoiceIssuedAt}
+          onInvoiceIssuedAtChange={setInvoiceIssuedAt}
+          invoiceExternalUrl={invoiceExternalUrl}
+          onInvoiceExternalUrlChange={setInvoiceExternalUrl}
+          invoiceNotes={invoiceNotes}
+          onInvoiceNotesChange={setInvoiceNotes}
+          uploadFile={uploadFile}
+          onUploadFileChange={setUploadFile}
+          onCloseSelection={() => setSelectedPayment(null)}
+          onIssueNfse={handleIssueNfse}
+          onSaveInvoice={handleSaveInvoice}
+          onOpenInvoice={handleOpenInvoice}
+          onRefundPayment={handleRefundPayment}
+          formatCurrency={formatCurrency}
+          formatDateTime={formatDateTime}
+        />
+      )}
     </div>
   );
 };

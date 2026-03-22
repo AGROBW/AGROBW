@@ -5,6 +5,7 @@ import type { NewsArticleRecord, NewsArticleStatus, NewsSettingsRecord } from '.
 export interface NewsArticleDraftForm {
   id?: string;
   ingestionId?: string | null;
+  editorialCategory?: string;
   sourceUrl: string;
   originalPortalName: string;
   originalTitle: string;
@@ -49,6 +50,7 @@ const buildInitialState = (article?: NewsArticleRecord | null): NewsArticleDraft
   originalPortalName: article?.originalPortalName || '',
   originalTitle: article?.originalTitle || '',
   originalPublishedAt: article?.originalPublishedAt ? article.originalPublishedAt.slice(0, 10) : '',
+  editorialCategory: article?.editorialCategory || '',
   title: article?.title || '',
   subtitle: article?.subtitle || '',
   summary: article?.summary || '',
@@ -131,6 +133,7 @@ const NewsArticleForm: React.FC<NewsArticleFormProps> = ({
         ...prev,
         id: String(generated.id || prev.id || ''),
         ingestionId: (generated.ingestionId as string | null | undefined) ?? prev.ingestionId,
+        editorialCategory: (generated.editorialCategory as string | undefined) ?? prev.editorialCategory,
         title: generated.title ?? prev.title,
         subtitle: generated.subtitle ?? prev.subtitle,
         summary: generated.summary ?? prev.summary,

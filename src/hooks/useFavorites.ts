@@ -3,6 +3,18 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { Favorite } from '../../types'
 
+const getEffectiveAdStatus = (status: string, expiresAt?: string | null) => {
+  if (
+    (status === 'ACTIVE' || status === 'active') &&
+    expiresAt &&
+    new Date(expiresAt).getTime() <= Date.now()
+  ) {
+    return 'EXPIRED'
+  }
+
+  return status
+}
+
 export const useFavorites = () => {
   const { user } = useAuth()
   const [favorites, setFavorites] = useState<Favorite[]>([])
@@ -36,6 +48,9 @@ export const useFavorites = () => {
           views,
           is_premium,
           created_at,
+          expires_at,
+          expired_at,
+          deletion_scheduled_at,
           whatsapp
         )
       `)
@@ -65,10 +80,16 @@ export const useFavorites = () => {
             categoryId: fav.announcements.category_id,
             images: fav.announcements.images || [],
             userId: fav.announcements.user_id,
-            status: fav.announcements.status,
+            status: getEffectiveAdStatus(
+              fav.announcements.status,
+              fav.announcements.expires_at
+            ) as Favorite['ad']['status'],
             views: fav.announcements.views || 0,
             isPremium: fav.announcements.is_premium || false,
             createdAt: fav.announcements.created_at,
+            expiresAt: fav.announcements.expires_at,
+            expiredAt: fav.announcements.expired_at,
+            deletionScheduledAt: fav.announcements.deletion_scheduled_at,
             whatsapp: fav.announcements.whatsapp
           },
           priceAtFavorite: parseFloat(fav.price_at_favorite),

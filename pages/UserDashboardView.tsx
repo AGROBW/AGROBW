@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Bell, Camera, CheckCircle2, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles } from 'lucide-react';
+import { AlertCircle, Bell, Camera, CheckCircle2, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles } from 'lucide-react';
 import { AdStatus, Message, Ad, AdMetrics, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -16,8 +16,13 @@ import PlanGuard from '../components/PlanGuard';
 import MessagesView from '../components/MessagesView';
 import LeadsView from '../components/LeadsView';
 import RadarView from '../components/RadarView';
+import { getBusinessDescriptionValidationError, MAX_BUSINESS_DESCRIPTION_LENGTH } from '../src/utils/businessDescription';
 import HighlightConfirmationModal from '../components/HighlightConfirmationModal';
+import RecommendedUpgradeModal from '../components/finance/RecommendedUpgradeModal';
 import VerifiedBadge from '../components/VerifiedBadge';
+import { usePlans } from '../src/hooks/usePlans';
+import HelpCenterView from './HelpCenterView';
+import FavoritesView from './FavoritesView';
 import toast from 'react-hot-toast';
 import { useDashboardStats } from '../src/hooks/useDashboardStats';
 import { 
@@ -35,6 +40,7 @@ const Icons = {
   Favorites: () => <Heart className="w-5 h-5" strokeWidth={1.5} />,
   Radar: () => <Radar className="w-5 h-5" strokeWidth={1.5} />,
   Finance: () => <DollarSign className="w-5 h-5" strokeWidth={1.5} />,
+  Help: () => <LifeBuoy className="w-5 h-5" strokeWidth={1.5} />,
   Profile: () => <User className="w-5 h-5" strokeWidth={1.5} />,
   Logout: () => <LogOut className="w-5 h-5" strokeWidth={1.5} />,
 };
@@ -138,20 +144,20 @@ const UserDashboardView: React.FC = () => {
     };
   }, [user?.id]);
 
-  // Função para slugificar nome do usuário
+  // FunÃ§Ã£o para slugificar nome do usuÃ¡rio
   const slugify = (text: string): string => {
     return text
       .toString()
       .toLowerCase()
       .trim()
-      .replace(/\s+/g, '_') // Espaços -> underscores
+      .replace(/\s+/g, '_') // EspaÃ§os -> underscores
       .replace(/[^\w\-]+/g, '') // Remove caracteres especiais
-      .replace(/\_\_+/g, '_') // Múltiplos underscores -> um
-      .replace(/^-+/, '') // Remove hífen do início
-      .replace(/-+$/, ''); // Remove hífen do fim
+      .replace(/\_\_+/g, '_') // MÃºltiplos underscores -> um
+      .replace(/^-+/, '') // Remove hÃ­fen do inÃ­cio
+      .replace(/-+$/, ''); // Remove hÃ­fen do fim
   };
 
-  // Função auxiliar para formatar CPF ou CNPJ
+  // FunÃ§Ã£o auxiliar para formatar CPF ou CNPJ
   const formatDocument = (doc: string): string => {
     const cleanDoc = doc.replace(/\D/g, '');
     
@@ -163,40 +169,40 @@ const UserDashboardView: React.FC = () => {
       return cleanDoc.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
     }
     
-    return cleanDoc; // Retorna sem formatação se não for CPF nem CNPJ
+    return cleanDoc; // Retorna sem formataÃ§Ã£o se nÃ£o for CPF nem CNPJ
   };
 
-  // Função para extrair CPF/CNPJ de texto usando regex
+  // FunÃ§Ã£o para extrair CPF/CNPJ de texto usando regex
   const extractDocumentFromText = (text: string): string | null => {
-    // Remover quebras de linha e múltiplos espaços, mas manter espaços únicos
+    // Remover quebras de linha e mÃºltiplos espaÃ§os, mas manter espaÃ§os Ãºnicos
     const normalizedText = text.replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ');
     
-    // Regex flexível para CNPJ: aceita separadores opcionais (., -, /, espaço)
+    // Regex flexÃ­vel para CNPJ: aceita separadores opcionais (., -, /, espaÃ§o)
     // Exemplos: 61.232.149/0001-90, 61232149/0001-90, 61 232 149/0001-90
     const cnpjRegex = /\d{2}[.\s]?\d{3}[.\s]?\d{3}[/\s]?\d{4}[-\s]?\d{2}/g;
     
-    // Regex flexível para CPF: aceita separadores opcionais (., -, espaço)
+    // Regex flexÃ­vel para CPF: aceita separadores opcionais (., -, espaÃ§o)
     // Exemplos: 029.177.601-92, 029177601-92, 029 177 601-92
     const cpfRegex = /\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2}/g;
     
-    // Buscar CNPJ primeiro (14 dígitos) - prioridade para empresas
+    // Buscar CNPJ primeiro (14 dÃ­gitos) - prioridade para empresas
     const cnpjMatches = normalizedText.match(cnpjRegex);
     if (cnpjMatches && cnpjMatches.length > 0) {
-      // Remover todos os caracteres não numéricos
+      // Remover todos os caracteres nÃ£o numÃ©ricos
       const cnpj = cnpjMatches[0].replace(/\D/g, '');
       if (cnpj.length === 14) {
-        console.log('[OCR] CNPJ encontrado:', cnpjMatches[0], '→', cnpj);
+        console.log('[OCR] CNPJ encontrado:', cnpjMatches[0], 'â†’', cnpj);
         return cnpj;
       }
     }
     
-    // Buscar CPF (11 dígitos)
+    // Buscar CPF (11 dÃ­gitos)
     const cpfMatches = normalizedText.match(cpfRegex);
     if (cpfMatches && cpfMatches.length > 0) {
-      // Remover todos os caracteres não numéricos
+      // Remover todos os caracteres nÃ£o numÃ©ricos
       const cpf = cpfMatches[0].replace(/\D/g, '');
       if (cpf.length === 11) {
-        console.log('[OCR] CPF encontrado:', cpfMatches[0], '→', cpf);
+        console.log('[OCR] CPF encontrado:', cpfMatches[0], 'â†’', cpf);
         return cpf;
       }
     }
@@ -205,14 +211,14 @@ const UserDashboardView: React.FC = () => {
     return null;
   };
 
-  // Função para validar documento via OCR.space API
+  // FunÃ§Ã£o para validar documento via OCR.space API
   const validateDocumentWithOCR = async (file: File): Promise<{
     success: boolean;
     message: string;
     extractedDocument?: string;
   }> => {
     try {
-      // Preparar FormData para enviar à API
+      // Preparar FormData para enviar Ã  API
       const formData = new FormData();
       formData.append('apikey', 'K85883462288957');
       formData.append('language', 'por');
@@ -247,11 +253,11 @@ const UserDashboardView: React.FC = () => {
       if (!parsedText) {
         return {
           success: false,
-          message: '❌ Não foi possível extrair texto do documento. Verifique a qualidade da imagem.'
+          message: 'âŒ NÃ£o foi possÃ­vel extrair texto do documento. Verifique a qualidade da imagem.'
         };
       }
 
-      console.log('[OCR] Texto extraído:', parsedText);
+      console.log('[OCR] Texto extraÃ­do:', parsedText);
 
       // Extrair CPF/CNPJ do texto
       const extractedDocument = extractDocumentFromText(parsedText);
@@ -259,34 +265,34 @@ const UserDashboardView: React.FC = () => {
       if (!extractedDocument) {
         return {
           success: false,
-          message: '❌ Não foi possível identificar CPF ou CNPJ no documento.'
+          message: 'âŒ NÃ£o foi possÃ­vel identificar CPF ou CNPJ no documento.'
         };
       }
 
-      console.log('[OCR] Documento extraído:', extractedDocument);
+      console.log('[OCR] Documento extraÃ­do:', extractedDocument);
 
-      // Comparar com documento do usuário
-      const userDocument = user?.document?.replace(/\D/g, ''); // Remover formatação
+      // Comparar com documento do usuÃ¡rio
+      const userDocument = user?.document?.replace(/\D/g, ''); // Remover formataÃ§Ã£o
 
       if (!userDocument) {
         return {
           success: false,
-          message: '⚠️ Você ainda não cadastrou seu CPF/CNPJ no perfil.',
+          message: 'âš ï¸ VocÃª ainda nÃ£o cadastrou seu CPF/CNPJ no perfil.',
           extractedDocument
         };
       }
 
-      // Verificar correspondência
+      // Verificar correspondÃªncia
       if (extractedDocument === userDocument) {
         return {
           success: true,
-          message: '✅ Documento validado com sucesso! Os dados conferem.',
+          message: 'âœ… Documento validado com sucesso! Os dados conferem.',
           extractedDocument
         };
       } else {
         return {
           success: false,
-          message: `❌ Os dados do documento não batem com o seu perfil. Documento extraído: ${formatDocument(extractedDocument)} | Cadastrado: ${formatDocument(userDocument)}`,
+          message: `âŒ Os dados do documento nÃ£o batem com o seu perfil. Documento extraÃ­do: ${formatDocument(extractedDocument)} | Cadastrado: ${formatDocument(userDocument)}`,
           extractedDocument
         };
       }
@@ -295,25 +301,25 @@ const UserDashboardView: React.FC = () => {
       console.error('[OCR] Erro:', error);
       return {
         success: false,
-        message: `❌ Erro ao validar documento: ${error.message}`
+        message: `âŒ Erro ao validar documento: ${error.message}`
       };
     }
   };
 
-  // Função para upload de avatar
+  // FunÃ§Ã£o para upload de avatar
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
     // Validar tipo de arquivo
     if (!file.type.startsWith('image/')) {
-      toast.error('Por favor, selecione uma imagem válida');
+      toast.error('Por favor, selecione uma imagem vÃ¡lida');
       return;
     }
 
     // Validar tamanho (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('A imagem deve ter no máximo 5MB');
+      toast.error('A imagem deve ter no mÃ¡ximo 5MB');
       return;
     }
 
@@ -334,7 +340,7 @@ const UserDashboardView: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
-      // Obter URL pública
+      // Obter URL pÃºblica
       const { data: urlData } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
@@ -347,7 +353,7 @@ const UserDashboardView: React.FC = () => {
 
       if (updateError) throw updateError;
 
-      // Forçar atualização do contexto (recarregar usuário)
+      // ForÃ§ar atualizaÃ§Ã£o do contexto (recarregar usuÃ¡rio)
       window.location.reload();
       
       toast.success('Foto de perfil atualizada com sucesso!');
@@ -359,7 +365,7 @@ const UserDashboardView: React.FC = () => {
     }
   };
 
-  // Função para upload de documentos
+  // FunÃ§Ã£o para upload de documentos
   const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
@@ -373,7 +379,7 @@ const UserDashboardView: React.FC = () => {
 
     // Validar tamanho (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('O documento deve ter no máximo 10MB');
+      toast.error('O documento deve ter no mÃ¡ximo 10MB');
       return;
     }
 
@@ -395,15 +401,15 @@ const UserDashboardView: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
-      toast.success('Documento enviado! Iniciando validação...');
+      toast.success('Documento enviado! Iniciando validaÃ§Ã£o...');
       setIsUploadingDocument(false);
       
-      // Verificar se é PDF grande (>1MB) - análise manual
+      // Verificar se Ã© PDF grande (>1MB) - anÃ¡lise manual
       const isPDF = file.type === 'application/pdf';
       const isPDFTooLarge = isPDF && file.size > 1 * 1024 * 1024; // 1MB
       
       if (isPDFTooLarge) {
-        // PDF grande: análise manual
+        // PDF grande: anÃ¡lise manual
         const { error: updateError } = await supabase
           .from('users')
           .update({ 
@@ -414,16 +420,16 @@ const UserDashboardView: React.FC = () => {
 
         if (updateError) throw updateError;
         
-        setUploadSuccess('📄 PDF enviado! Por ser um arquivo grande, aguarde análise manual da equipe.');
+        setUploadSuccess('ðŸ“„ PDF enviado! Por ser um arquivo grande, aguarde anÃ¡lise manual da equipe.');
       } else {
-        // Imagens ou PDFs pequenos: validação OCR automática
+        // Imagens ou PDFs pequenos: validaÃ§Ã£o OCR automÃ¡tica
         setIsValidatingDocument(true);
         
         const validationResult = await validateDocumentWithOCR(file);
         setValidationResult(validationResult);
         
         if (validationResult.success) {
-          // Atualizar document_path com validação aprovada
+          // Atualizar document_path com validaÃ§Ã£o aprovada
           const { error: updateError } = await supabase
             .from('users')
             .update({ 
@@ -434,12 +440,12 @@ const UserDashboardView: React.FC = () => {
 
           if (updateError) console.error('Erro ao atualizar status:', updateError);
           
-          // Atualizar contexto de autenticação para refletir mudança sem reload
+          // Atualizar contexto de autenticaÃ§Ã£o para refletir mudanÃ§a sem reload
           await refreshStats();
           
-          // Toast especial de sucesso com celebração
+          // Toast especial de sucesso com celebraÃ§Ã£o
           toast.success(
-            '🎉 Parabéns! Sua identidade foi confirmada e você agora é um Vendedor Verificado.',
+            'ðŸŽ‰ ParabÃ©ns! Sua identidade foi confirmada e vocÃª agora Ã© um Vendedor Verificado.',
             {
               duration: 6000,
               style: {
@@ -448,13 +454,13 @@ const UserDashboardView: React.FC = () => {
                 fontWeight: 'bold',
                 padding: '16px',
               },
-              icon: '🎊',
+              icon: 'ðŸŽŠ',
             }
           );
           
-          setUploadSuccess(`✅ ${isPDF ? 'PDF' : 'Documento'} validado e enviado com sucesso!`);
+          setUploadSuccess(`âœ… ${isPDF ? 'PDF' : 'Documento'} validado e enviado com sucesso!`);
         } else {
-          // Salvar mesmo se não validado (para revisão manual)
+          // Salvar mesmo se nÃ£o validado (para revisÃ£o manual)
           const { error: updateError } = await supabase
             .from('users')
             .update({ 
@@ -469,7 +475,7 @@ const UserDashboardView: React.FC = () => {
         setIsValidatingDocument(false);
       }
       
-      // Limpar mensagens após 10 segundos
+      // Limpar mensagens apÃ³s 10 segundos
       setTimeout(() => {
         setUploadSuccess(null);
         setValidationResult(null);
@@ -485,13 +491,14 @@ const UserDashboardView: React.FC = () => {
   };
 
   const menuItems = [
-    { label: 'Visão Geral', path: '/minha-conta', icon: <Icons.Dashboard />, badge: 0 },
-    { label: 'Meus Anúncios', path: '/minha-conta/anuncios', icon: <Icons.Ads />, badge: 0 },
+    { label: 'VisÃ£o Geral', path: '/minha-conta', icon: <Icons.Dashboard />, badge: 0 },
+    { label: 'Meus AnÃºncios', path: '/minha-conta/anuncios', icon: <Icons.Ads />, badge: 0 },
     { label: 'Mensagens', path: '/minha-conta/mensagens', icon: <Icons.Messages />, badge: messagesCount },
     { label: 'Leads', path: '/minha-conta/leads', icon: <Icons.Leads />, badge: newLeadsCount },
-    { label: 'Favoritos', path: '/favoritos', icon: <Icons.Favorites />, badge: 0 },
+    { label: 'Favoritos', path: '/minha-conta/favoritos', icon: <Icons.Favorites />, badge: 0 },
     { label: 'Radar de Oportunidades', path: '/minha-conta/radar', icon: <Icons.Radar />, badge: 0 },
     { label: 'Financeiro', path: '/minha-conta/financeiro', icon: <Icons.Finance />, badge: 0 },
+    { label: 'Central de Ajuda', path: '/minha-conta/ajuda', icon: <Icons.Help />, badge: 0 },
     { label: 'Perfil', path: '/minha-conta/perfil', icon: <Icons.Profile />, badge: 0 },
   ];
 
@@ -517,7 +524,7 @@ const UserDashboardView: React.FC = () => {
   const HeatmapWidget = ({ metrics }: { metrics: AdMetrics }) => (
     <div className="bg-white p-6 rounded-xl border border-slate-100 h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
-        <h4 className="text-sm font-bold text-gray-900">Alcance por Região</h4>
+        <h4 className="text-sm font-bold text-gray-900">Alcance por RegiÃ£o</h4>
         <Icons.Dashboard />
       </div>
       
@@ -546,7 +553,7 @@ const UserDashboardView: React.FC = () => {
   const PriceThermometer = ({ ad, metrics }: { ad: Ad, metrics: AdMetrics }) => (
     <div className="bg-white p-6 rounded-xl border border-slate-100">
       <div className="flex justify-between items-center mb-6">
-        <h4 className="text-sm font-bold text-gray-900">Análise de Preço</h4>
+        <h4 className="text-sm font-bold text-gray-900">AnÃ¡lise de PreÃ§o</h4>
         <div className="text-[10px] font-bold text-green-700 px-2 py-0.5 bg-green-50 rounded uppercase">Competitivo</div>
       </div>
 
@@ -557,7 +564,7 @@ const UserDashboardView: React.FC = () => {
              <p className="text-xl font-bold text-gray-900">R$ {ad.price.toLocaleString('pt-BR')}</p>
            </div>
            <div className="text-right">
-             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Média Mercado</p>
+             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">MÃ©dia Mercado</p>
              <p className="text-lg font-semibold text-gray-600">R$ {metrics.marketAvgPrice.toLocaleString('pt-BR')}</p>
            </div>
         </div>
@@ -589,23 +596,23 @@ const UserDashboardView: React.FC = () => {
 
     if (!userAds) return null;
 
-    // Filtrar anúncios ativos com preço para o seletor
+    // Filtrar anÃºncios ativos com preÃ§o para o seletor
     const activeAdsWithPrice = userAds.filter(
       ad => ad.status === AdStatus.ACTIVE && ad.price > 0
     );
 
-    // Encontrar título do anúncio selecionado
+    // Encontrar tÃ­tulo do anÃºncio selecionado
     const selectedAd = selectedAdId 
       ? activeAdsWithPrice.find(ad => ad.id === selectedAdId)
       : null;
 
     return (
       <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-        {/* Grid Superior: 4 Cards de Estatísticas */}
+        {/* Grid Superior: 4 Cards de EstatÃ­sticas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <DashboardStatsCard
             icon={<FileText className="w-6 h-6" strokeWidth={1.5} />}
-            label="Anúncios Ativos"
+            label="AnÃºncios Ativos"
             value={dashboardStats?.total_ads || 0}
             bgColor="bg-blue-50"
             iconColor="text-blue-600"
@@ -621,7 +628,7 @@ const UserDashboardView: React.FC = () => {
           />
           <DashboardStatsCard
             icon={<Eye className="w-6 h-6" strokeWidth={1.5} />}
-            label="Visualizações"
+            label="VisualizaÃ§Ãµes"
             value={dashboardStats?.total_views.toLocaleString('pt-BR') || '0'}
             bgColor="bg-purple-50"
             iconColor="text-purple-600"
@@ -639,7 +646,7 @@ const UserDashboardView: React.FC = () => {
 
         {/* Layout Principal: 2 Colunas */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Coluna Esquerda: Módulo de Alcance (2/3) */}
+          {/* Coluna Esquerda: MÃ³dulo de Alcance (2/3) */}
           <div className="lg:col-span-2">
             <ReachModule 
               clicksByState={dashboardStats?.clicks_by_state || []}
@@ -647,7 +654,7 @@ const UserDashboardView: React.FC = () => {
             />
           </div>
 
-          {/* Coluna Direita: Módulo de Plano (1/3) */}
+          {/* Coluna Direita: MÃ³dulo de Plano (1/3) */}
           <div className="lg:col-span-1">
             {subscription?.plans || subscriptionLoading ? (
               <PlanModule
@@ -680,7 +687,7 @@ const UserDashboardView: React.FC = () => {
           </div>
         </div>
 
-        {/* Módulo de Inteligência de Preço (Full Width) */}
+        {/* MÃ³dulo de InteligÃªncia de PreÃ§o (Full Width) */}
         <div className="grid grid-cols-1">
           <PriceIntelligenceModule
             priceAnalysis={dashboardStats?.price_analysis || null}
@@ -721,7 +728,7 @@ const UserDashboardView: React.FC = () => {
                 <Inbox className="w-12 h-12 mx-auto mb-3 text-slate-300" />
                 <p className="text-sm text-slate-500">
                   {selectedAd 
-                    ? 'Nenhuma conversa iniciada para este anúncio ainda'
+                    ? 'Nenhuma conversa iniciada para este anÃºncio ainda'
                     : 'Nenhuma mensagem encontrada'
                   }
                 </p>
@@ -755,7 +762,7 @@ const UserDashboardView: React.FC = () => {
 
   const AdsDashboard = () => {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'all' | 'active' | 'pending' | 'paused' | 'blocked'>('all');
+    const [activeTab, setActiveTab] = useState<'all' | 'active' | 'pending' | 'paused' | 'blocked' | 'expired'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [removedAdIds, setRemovedAdIds] = useState<string[]>([]);
@@ -774,12 +781,14 @@ const UserDashboardView: React.FC = () => {
       const active = visibleAds.filter(a => a.status === AdStatus.ACTIVE).length;
       const pending = visibleAds.filter(a => a.status === AdStatus.PENDING).length;
       const paused = visibleAds.filter(a => a.status === AdStatus.PAUSED).length;
+      const expired = visibleAds.filter(a => a.status === AdStatus.EXPIRED).length;
       return {
         all: visibleAds.length,
         active,
         pending,
         paused,
-        blocked: 0
+        expired,
+        blocked: expired
       };
     }, [visibleAds]);
 
@@ -789,6 +798,8 @@ const UserDashboardView: React.FC = () => {
         if (activeTab === 'active') return ad.status === AdStatus.ACTIVE;
         if (activeTab === 'pending') return ad.status === AdStatus.PENDING;
         if (activeTab === 'paused') return ad.status === AdStatus.PAUSED;
+        if (activeTab === 'expired') return ad.status === AdStatus.EXPIRED;
+        if (activeTab === 'blocked') return ad.status === AdStatus.EXPIRED;
         return true;
       });
 
@@ -801,59 +812,61 @@ const UserDashboardView: React.FC = () => {
     const tabs = [
       { id: 'all', label: 'Todos', count: counts.all },
       { id: 'active', label: 'Ativos', count: counts.active },
-      { id: 'pending', label: 'Em Análise', count: counts.pending },
+      { id: 'pending', label: 'Em AnÃ¡lise', count: counts.pending },
       { id: 'paused', label: 'Pausados', count: counts.paused },
-      { id: 'blocked', label: 'Excluídos', count: counts.blocked }
+      { id: 'blocked', label: 'ExcluÃ­dos', count: counts.blocked }
     ] as const;
 
     const statusLabel: Record<string, string> = {
       [AdStatus.ACTIVE]: 'Ativo',
       [AdStatus.PAUSED]: 'Pausado',
-      [AdStatus.PENDING]: 'Em Análise',
-      [AdStatus.BLOCKED]: 'Excluído',
+      [AdStatus.PENDING]: 'Em AnÃ¡lise',
+      [AdStatus.BLOCKED]: 'ExcluÃ­do',
       [AdStatus.EXPIRED]: 'Expirado',
       [AdStatus.SOLD]: 'Vendido'
     };
 
-    // Handlers para ações
+    // Handlers para aÃ§Ãµes
     const getAdDurationLabel = (ad: Ad) => {
       if (!ad.expiresAt) {
-        return 'Validade nÃ£o informada';
+        return 'ExpiraÃ§Ã£o nÃ£o informada';
       }
 
-      const createdAt = new Date(ad.createdAt);
       const expiresAt = new Date(ad.expiresAt);
 
-      if (Number.isNaN(createdAt.getTime()) || Number.isNaN(expiresAt.getTime())) {
-        return `Validade atÃ© ${ad.expiresAt}`;
+      if (Number.isNaN(expiresAt.getTime())) {
+        return `Expira em ${ad.expiresAt}`;
       }
 
-      const durationInDays = Math.max(
-        1,
-        Math.round((expiresAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
-      );
-
-      return `DuraÃ§Ã£o: ${durationInDays} ${durationInDays === 1 ? 'dia' : 'dias'}`;
+      return `Expira em ${expiresAt.toLocaleDateString('pt-BR')}`;
     };
 
     const getAdLifetimeLabel = (ad: Ad) => {
       if (!ad.expiresAt) {
-        return 'Validade nao informada';
+        return 'ExpiraÃ§Ã£o nÃ£o informada';
       }
 
-      const createdAt = new Date(ad.createdAt);
       const expiresAt = new Date(ad.expiresAt);
 
-      if (Number.isNaN(createdAt.getTime()) || Number.isNaN(expiresAt.getTime())) {
-        return `Validade ate ${ad.expiresAt}`;
+      if (Number.isNaN(expiresAt.getTime())) {
+        return `Expira em ${ad.expiresAt}`;
       }
 
-      const durationInDays = Math.max(
-        1,
-        Math.round((expiresAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
-      );
+      return `Expira em ${expiresAt.toLocaleDateString('pt-BR')}`;
+    };
 
-      return `Duracao: ${durationInDays} ${durationInDays === 1 ? 'dia' : 'dias'}`;
+    const getExpiredRetentionLabel = (ad: Ad) => {
+      if (!ad.deletionScheduledAt) {
+        return 'Exclusao automatica em ate 90 dias';
+      }
+
+      const deletionDate = new Date(ad.deletionScheduledAt);
+
+      if (Number.isNaN(deletionDate.getTime())) {
+        return `Exclusao automatica em ${ad.deletionScheduledAt}`;
+      }
+
+      return `Exclusao automatica em ${deletionDate.toLocaleDateString('pt-BR')}`;
     };
 
     const handleTogglePause = async (ad: Ad) => {
@@ -864,12 +877,32 @@ const UserDashboardView: React.FC = () => {
         .eq('id', ad.id);
 
       if (error) {
-        toast.error('Erro ao alterar status do anúncio');
+        toast.error('Erro ao alterar status do anÃºncio');
       } else {
-        toast.success(newStatus === AdStatus.PAUSED ? 'Anúncio pausado' : 'Anúncio reativado');
+        toast.success(newStatus === AdStatus.PAUSED ? 'AnÃºncio pausado' : 'AnÃºncio reativado');
         // Atualizar lista
         window.location.reload();
       }
+    };
+
+    const handleRepublishExpiredAd = async (ad: Ad) => {
+      const { data, error } = await supabase.rpc('reactivate_expired_announcement', {
+        p_announcement_id: ad.id
+      });
+
+      if (error) {
+        toast.error('Erro ao republicar anuncio');
+        return;
+      }
+
+      if (!data?.success) {
+        toast.error(data?.error || 'Nao foi possivel republicar o anuncio');
+        return;
+      }
+
+      toast.success(data?.message || 'Anuncio republicado com sucesso');
+      await refreshUsage();
+      window.location.reload();
     };
 
     const handleDeleteClick = (ad: Ad) => {
@@ -884,14 +917,14 @@ const UserDashboardView: React.FC = () => {
       try {
         await deleteAnnouncementWithRelations(adToDelete.id);
 
-        toast.success('Anúncio excluído com sucesso');
+        toast.success('AnÃºncio excluÃ­do com sucesso');
         setRemovedAdIds((current) =>
           current.includes(adToDelete.id) ? current : [...current, adToDelete.id]
         );
         setDeleteModalOpen(false);
         setAdToDelete(null);
       } catch (error: any) {
-        toast.error('Erro ao excluir anúncio: ' + error.message);
+        toast.error('Erro ao excluir anÃºncio: ' + error.message);
       } finally {
         setIsDeleting(false);
       }
@@ -907,7 +940,7 @@ const UserDashboardView: React.FC = () => {
       <div className="space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            {tabs.filter((tab) => tab.id !== 'blocked').map((tab) => (
+            {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -917,7 +950,7 @@ const UserDashboardView: React.FC = () => {
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                {tab.label}
+                {tab.id === 'blocked' ? 'Vencidos' : tab.label}
                 <span className={`ml-2 text-xs font-semibold ${activeTab === tab.id ? 'text-slate-100' : 'text-slate-500'}`}>
                   {tab.count}
                 </span>
@@ -930,7 +963,7 @@ const UserDashboardView: React.FC = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por título ou código"
+              placeholder="Buscar por tÃ­tulo ou cÃ³digo"
               className="h-9 w-full sm:w-64 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-600/20"
             />
             <select
@@ -938,9 +971,9 @@ const UserDashboardView: React.FC = () => {
               onChange={(e) => setItemsPerPage(Number(e.target.value))}
               className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-600/20"
             >
-              <option value={5}>5 por página</option>
-              <option value={10}>10 por página</option>
-              <option value={20}>20 por página</option>
+              <option value={5}>5 por pÃ¡gina</option>
+              <option value={10}>10 por pÃ¡gina</option>
+              <option value={20}>20 por pÃ¡gina</option>
             </select>
           </div>
         </div>
@@ -961,8 +994,8 @@ const UserDashboardView: React.FC = () => {
                 <div className="mx-auto mb-4 w-10 h-10 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center">
                   <Inbox className="w-5 h-5" strokeWidth={1.5} />
                 </div>
-                <p className="text-sm font-semibold text-slate-700 mb-2">Você não possui anúncios nesta categoria no momento</p>
-                <p className="text-sm text-slate-500 mb-6">Crie um anúncio para começar a gerar oportunidades.</p>
+                <p className="text-sm font-semibold text-slate-700 mb-2">VocÃª nÃ£o possui anÃºncios nesta categoria no momento</p>
+                <p className="text-sm text-slate-500 mb-6">Crie um anÃºncio para comeÃ§ar a gerar oportunidades.</p>
                 <Link
                   to="/anunciar"
                   className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-green-700 text-white text-sm font-semibold hover:bg-green-800 transition-colors"
@@ -1015,10 +1048,10 @@ const UserDashboardView: React.FC = () => {
                       })()}
                     </div>
                     <p className="hidden text-xs text-slate-500 truncate">
-                      Código: {ad.id} | Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      CÃ³digo: {ad.id} | Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} Ã s {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     <p className="text-xs text-slate-500 truncate">
-                      Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} as {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {getAdLifetimeLabel(ad)}
+                      Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} as {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {ad.status === AdStatus.EXPIRED ? getExpiredRetentionLabel(ad) : getAdLifetimeLabel(ad)}
                     </p>
                     <p className="text-xs text-slate-500">
                       Visitas: {ad.views} | Valor: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.price)}
@@ -1030,7 +1063,9 @@ const UserDashboardView: React.FC = () => {
                       {statusLabel[ad.status] || 'Status'}
                     </span>
                     <div className="flex items-center gap-1 text-slate-400">
-                      {/* Botão de Destaques */}
+                      {/* BotÃ£o de Destaques */}
+                      {ad.status !== AdStatus.EXPIRED && (
+                        <>
                         <button
                           onClick={(e) => {
                             e.preventDefault();
@@ -1053,7 +1088,9 @@ const UserDashboardView: React.FC = () => {
                         >
                           <Sparkles className="w-4 h-4" strokeWidth={1.5} />
                         </button>
-                      {/* Botão Editar */}
+                        </>
+                      )}
+                      {/* BotÃ£o Editar */}
                       <button
                         onClick={(e) => {
                           e.preventDefault();
@@ -1061,11 +1098,24 @@ const UserDashboardView: React.FC = () => {
                           navigate(`/anunciar?edit=${ad.id}`);
                         }}
                         className="p-2 rounded-lg hover:bg-slate-50 hover:text-green-700 transition-colors" 
-                        title="Editar anúncio"
+                        title="Editar anÃºncio"
                       >
                         <Edit3 className="w-4 h-4" strokeWidth={1.5} />
                       </button>
-                      {/* Botão Pausar/Reativar */}
+                      {/* BotÃ£o Pausar/Reativar */}
+                      {ad.status === AdStatus.EXPIRED ? (
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleRepublishExpiredAd(ad);
+                          }}
+                          className="p-2 rounded-lg hover:bg-green-50 hover:text-green-700 transition-colors"
+                          title="Republicar com novo credito"
+                        >
+                          <CreditCard className="w-4 h-4" strokeWidth={1.5} />
+                        </button>
+                      ) : (
                       <button 
                         onClick={(e) => {
                           e.preventDefault();
@@ -1081,7 +1131,8 @@ const UserDashboardView: React.FC = () => {
                       >
                         <PauseCircle className="w-4 h-4" strokeWidth={1.5} />
                       </button>
-                      {/* Botão Excluir */}
+                      )}
+                      {/* BotÃ£o Excluir */}
                       <button 
                         onClick={(e) => {
                           e.preventDefault();
@@ -1089,7 +1140,7 @@ const UserDashboardView: React.FC = () => {
                           handleDeleteClick(ad);
                         }}
                         className="p-2 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors" 
-                        title="Excluir anúncio"
+                        title="Excluir anÃºncio"
                       >
                         <Trash2 className="w-4 h-4" strokeWidth={1.5} />
                       </button>
@@ -1101,12 +1152,12 @@ const UserDashboardView: React.FC = () => {
           </motion.div>
         </AnimatePresence>
 
-        {/* Modal de Confirmação de Exclusão */}
+        {/* Modal de Confirmação de ExclusÃ£o */}
         {deleteModalOpen && adToDelete && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Confirmar Exclusão</h3>
-              <p className="text-sm text-slate-600 mb-2">Tem certeza que deseja excluir este anúncio?</p>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">Confirmar ExclusÃ£o</h3>
+              <p className="text-sm text-slate-600 mb-2">Tem certeza que deseja excluir este anÃºncio?</p>
               <p className="text-sm font-semibold text-slate-800 mb-6 bg-slate-50 p-3 rounded-lg">
                 {adToDelete.title}
               </p>
@@ -1132,7 +1183,7 @@ const UserDashboardView: React.FC = () => {
                       Excluindo...
                     </>
                   ) : (
-                    'Confirmar Exclusão'
+                    'Confirmar ExclusÃ£o'
                   )}
                 </button>
               </div>
@@ -1167,17 +1218,17 @@ const UserDashboardView: React.FC = () => {
     
     // Buscar nome do plano da assinatura
     const planName = subscription?.plans?.name || 'Semente';
-    const planPrice = subscription?.plans ? 0 : 0; // Preço será calculado via RPC ou tabela de preços
+    const planPrice = subscription?.plans ? 0 : 0; // PreÃ§o serÃ¡ calculado via RPC ou tabela de preÃ§os
     
     // Formatar data de vencimento
     const periodEnd = subscription?.current_period_end 
       ? new Date(subscription.current_period_end).toLocaleDateString('pt-BR')
       : 'N/A';
     
-    // Créditos do usuário
+    // CrÃ©ditos do usuÃ¡rio
     const userCredits = user?.credits || 0;
     
-    // Verificar se é plano Impulso para mostrar banner de upgrade
+    // Verificar se Ã© plano Impulso para mostrar banner de upgrade
     const isBoostPlan = subscription?.plans?.name?.toLowerCase().includes('impulso');
 
     const statusBadge = (status: string) => {
@@ -1193,7 +1244,7 @@ const UserDashboardView: React.FC = () => {
     };
     
     const handleManagePlan = () => {
-      // Redirecionar para página de planos com ID do plano atual
+      // Redirecionar para pÃ¡gina de planos com ID do plano atual
       navigate(`/planos?current=${subscription?.plan_id || ''}`);
     };
 
@@ -1211,13 +1262,13 @@ const UserDashboardView: React.FC = () => {
             </div>
           </div>
 
-          {/* Card: Próxima Fatura */}
+          {/* Card: PrÃ³xima Fatura */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-slate-900/5 text-slate-700 flex items-center justify-center">
               <DollarSign className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Próxima Fatura</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">PrÃ³xima Fatura</p>
               <p className="text-sm font-semibold text-slate-900">
                 {nextInvoice ? `R$ ${nextInvoice.amount.toLocaleString('pt-BR')}` : 'N/A'}
               </p>
@@ -1235,13 +1286,13 @@ const UserDashboardView: React.FC = () => {
             </div>
           </div>
           
-          {/* Card: Meus Créditos */}
+          {/* Card: Meus CrÃ©ditos */}
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200 flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-green-700 text-white flex items-center justify-center">
               <Sparkles className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div>
-              <p className="text-xs font-semibold text-green-700 uppercase tracking-wider">Meus Créditos</p>
+              <p className="text-xs font-semibold text-green-700 uppercase tracking-wider">Meus CrÃ©ditos</p>
               <p className="text-sm font-bold text-green-900">{userCredits}</p>
             </div>
           </div>
@@ -1250,8 +1301,8 @@ const UserDashboardView: React.FC = () => {
         <div className="bg-white border border-slate-200 rounded-xl p-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">Gestão de Assinatura</h3>
-              <p className="text-sm text-slate-500">Acompanhe seu plano, altere forma de pagamento e visualize benefícios.</p>
+              <h3 className="text-sm font-semibold text-slate-900">GestÃ£o de Assinatura</h3>
+              <p className="text-sm text-slate-500">Acompanhe seu plano, altere forma de pagamento e visualize benefÃ­cios.</p>
             </div>
             <div className="flex gap-2">
               <button className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
@@ -1275,8 +1326,8 @@ const UserDashboardView: React.FC = () => {
                 <h4 className="text-sm font-semibold text-slate-900">Migre para o Plano Business</h4>
                 <p className="text-sm text-slate-600">Mais visibilidade e suporte dedicado para acelerar suas vendas.</p>
                 <ul className="text-sm text-slate-600 mt-3 space-y-1">
-                  <li>• Relatórios avançados de performance</li>
-                  <li>• Prioridade na busca e destaque premium</li>
+                  <li>â€¢ RelatÃ³rios avanÃ§ados de performance</li>
+                  <li>â€¢ Prioridade na busca e destaque premium</li>
                 </ul>
               </div>
               <button className="h-9 px-4 rounded-lg bg-green-700 text-white text-sm font-semibold hover:bg-green-800">
@@ -1299,7 +1350,7 @@ const UserDashboardView: React.FC = () => {
                   <th className="px-4 py-3 font-semibold">Data</th>
                   <th className="px-4 py-3 font-semibold">Valor</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold text-right">Ações</th>
+                  <th className="px-4 py-3 font-semibold text-right">AÃ§Ãµes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1368,7 +1419,7 @@ const UserDashboardView: React.FC = () => {
                         Baixar PDF
                       </a>
                     ) : (
-                      <span className="text-xs text-slate-400">PDF indisponível</span>
+                      <span className="text-xs text-slate-400">PDF indisponÃ­vel</span>
                     )}
                   </div>
                 </div>
@@ -1381,6 +1432,8 @@ const UserDashboardView: React.FC = () => {
   };
 
   const FinanceDashboard = () => {
+    const { plansRaw } = usePlans();
+    const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
     const searchParams = useMemo(() => {
       const candidates = [location.search];
       const hashQuery = window.location.hash.includes('?')
@@ -1407,8 +1460,19 @@ const UserDashboardView: React.FC = () => {
       ? new Date(subscription.current_period_end).toLocaleDateString('pt-BR')
       : 'N/A';
     const latestPayment = payments[0] || lastApprovedPayment;
-    const isBoostPlan = subscription?.plans?.name?.toLowerCase().includes('impulso');
     const fiscalDocuments = payments.filter((payment) => payment.invoiceStatus !== 'not_applicable');
+    const activePlans = useMemo(
+      () => plansRaw.filter((plan) => plan.is_active).sort((a, b) => a.position - b.position),
+      [plansRaw]
+    );
+    const currentPlanRecord = useMemo(() => {
+      if (!subscription?.plan_id) return null;
+      return activePlans.find((plan) => plan.id === subscription.plan_id) || null;
+    }, [activePlans, subscription?.plan_id]);
+    const nextRecommendedPlan = useMemo(() => {
+      if (!currentPlanRecord) return null;
+      return activePlans.find((plan) => plan.position > currentPlanRecord.position) || null;
+    }, [activePlans, currentPlanRecord]);
 
     const formatCurrency = (value: number, currency = 'BRL') =>
       new Intl.NumberFormat('pt-BR', {
@@ -1466,6 +1530,36 @@ const UserDashboardView: React.FC = () => {
 
     const handleManagePlan = () => {
       navigate(`/planos?current=${subscription?.plan_id || ''}`);
+    };
+
+    const getUpgradeHighlights = () => {
+      if (!nextRecommendedPlan) return [];
+
+      const highlights: string[] = [];
+
+      if ((nextRecommendedPlan.max_ads ?? 0) > (currentPlanRecord?.max_ads ?? 0)) {
+        const currentAds = currentPlanRecord?.max_ads ?? 0;
+        const diff = (nextRecommendedPlan.max_ads ?? 0) - currentAds;
+        highlights.push(`Mais ${diff} anúncio${diff > 1 ? 's' : ''} ativo${diff > 1 ? 's' : ''} no plano.`);
+      }
+
+      if ((nextRecommendedPlan.category_highlights_count || 0) > (currentPlanRecord?.category_highlights_count || 0)) {
+        highlights.push(`Mais destaque em categoria para ampliar a exposição dos anúncios.`);
+      }
+
+      if ((nextRecommendedPlan.home_highlight_count || 0) > (currentPlanRecord?.home_highlight_count || 0)) {
+        highlights.push(`Entrada na vitrine da home para campanhas mais fortes.`);
+      }
+
+      if ((nextRecommendedPlan.radar_max_alerts || 0) > (currentPlanRecord?.radar_max_alerts || 0)) {
+        highlights.push(`Radar com mais alertas e filtros avançados para novas oportunidades.`);
+      }
+
+      if (highlights.length === 0) {
+        return (nextRecommendedPlan.display_features || []).filter(Boolean).slice(0, 3);
+      }
+
+      return highlights.slice(0, 3);
     };
 
     const openUrl = (url?: string | null) => {
@@ -1837,20 +1931,25 @@ const UserDashboardView: React.FC = () => {
           </section>
         </div>
 
-        {isBoostPlan && (
+        {nextRecommendedPlan && (
           <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Upgrade recomendado</p>
-                <h4 className="text-sm font-semibold text-slate-900">Amplie a operacao com um plano superior</h4>
-                <p className="text-sm text-slate-600">Ganhe mais visibilidade, destaque e recursos para escalar suas vendas.</p>
+                <h4 className="text-sm font-semibold text-slate-900">
+                  Próximo passo recomendado: {nextRecommendedPlan.name}
+                </h4>
+                <p className="text-sm text-slate-600">
+                  Saia do {currentPlanRecord?.name || planName} para o {nextRecommendedPlan.name} e ganhe mais estrutura para vender.
+                </p>
                 <ul className="text-sm text-slate-600 mt-3 space-y-1">
-                  <li>- Relatorios avancados de performance</li>
-                  <li>- Maior prioridade na busca e na exposicao dos anuncios</li>
+                  {getUpgradeHighlights().map((item) => (
+                    <li key={item}>- {item}</li>
+                  ))}
                 </ul>
               </div>
               <button
-                onClick={() => navigate('/planos')}
+                onClick={() => setIsUpgradeModalOpen(true)}
                 className="h-10 px-4 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
               >
                 Fazer upgrade
@@ -1994,6 +2093,14 @@ const UserDashboardView: React.FC = () => {
             )}
           </div>
         </section>
+
+        <RecommendedUpgradeModal
+          isOpen={isUpgradeModalOpen}
+          onClose={() => setIsUpgradeModalOpen(false)}
+          currentPlan={currentPlanRecord}
+          nextPlan={nextRecommendedPlan}
+          userId={user?.id}
+        />
       </div>
     );
   };
@@ -2001,6 +2108,278 @@ const UserDashboardView: React.FC = () => {
   const ProfileDashboard = () => {
     const userName = user?.name || user?.email || 'Usuário';
     const userCity = user?.location || 'Localização não informada';
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [profileForm, setProfileForm] = useState({
+      name: '',
+      businessDescription: '',
+      whatsapp: '',
+      cep: '',
+      logradouro: '',
+      numero: '',
+      complemento: '',
+      bairro: '',
+      cidade: '',
+      estado: '',
+    });
+    const [passwordForm, setPasswordForm] = useState({
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    });
+    const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
+    const [isLoadingCep, setIsLoadingCep] = useState(false);
+    const lastLookedUpCepRef = useRef('');
+
+    useEffect(() => {
+      setProfileForm({
+        name: user?.name || '',
+        businessDescription: user?.business_description || '',
+        whatsapp: user?.whatsapp || user?.phone || '',
+        cep: user?.cep || '',
+        logradouro: user?.logradouro || '',
+        numero: user?.numero || '',
+        complemento: user?.complemento || '',
+        bairro: user?.bairro || '',
+        cidade: user?.cidade || '',
+        estado: user?.estado || '',
+      });
+    }, [
+      user?.name,
+      user?.business_description,
+      user?.whatsapp,
+      user?.phone,
+      user?.cep,
+      user?.logradouro,
+      user?.numero,
+      user?.complemento,
+      user?.bairro,
+      user?.cidade,
+      user?.estado,
+    ]);
+
+    const handleProfileFieldChange = (field: keyof typeof profileForm, value: string) => {
+      const normalizedValue = field === 'cep'
+        ? value.replace(/\D/g, '').slice(0, 8).replace(/^(\d{5})(\d{0,3}).*/, (_, first, second) => second ? `${first}-${second}` : first)
+        : field === 'businessDescription'
+          ? value.slice(0, MAX_BUSINESS_DESCRIPTION_LENGTH)
+          : value;
+
+      if (field === 'cep' && normalizedValue.replace(/\D/g, '').length < 8) {
+        lastLookedUpCepRef.current = '';
+      }
+
+      setProfileForm((prev) => ({
+        ...prev,
+        [field]: normalizedValue,
+      }));
+      setProfileErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        if (field === 'businessDescription') {
+          const descriptionError = getBusinessDescriptionValidationError(normalizedValue);
+          if (descriptionError) {
+            next.businessDescription = descriptionError;
+          }
+        }
+        return next;
+      });
+
+      if (field === 'cep') {
+        const cleanCep = normalizedValue.replace(/\D/g, '');
+        if (cleanCep.length === 8 && cleanCep !== lastLookedUpCepRef.current) {
+          void lookupCep(cleanCep);
+        }
+      }
+    };
+
+    const handlePasswordFieldChange = (field: keyof typeof passwordForm, value: string) => {
+      setPasswordForm((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+    };
+
+    const lookupCep = async (cleanCep: string) => {
+      if (cleanCep.length !== 8 || cleanCep === lastLookedUpCepRef.current) return;
+
+      setIsLoadingCep(true);
+      lastLookedUpCepRef.current = cleanCep;
+
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+        const data = await response.json();
+
+        if (data.erro) {
+          lastLookedUpCepRef.current = '';
+          setProfileErrors((prev) => ({
+            ...prev,
+            cep: 'CEP não encontrado.',
+          }));
+          return;
+        }
+
+        setProfileForm((prev) => ({
+          ...prev,
+          cep: cleanCep.replace(/^(\d{5})(\d{3})$/, '$1-$2'),
+          logradouro: data.logradouro || prev.logradouro,
+          complemento: data.complemento || prev.complemento,
+          bairro: data.bairro || prev.bairro,
+          cidade: data.localidade || prev.cidade,
+          estado: data.uf || prev.estado,
+        }));
+
+        setProfileErrors((prev) => {
+          const next = { ...prev };
+          delete next.cep;
+          delete next.logradouro;
+          delete next.bairro;
+          delete next.cidade;
+          delete next.estado;
+          return next;
+        });
+      } catch (error) {
+        console.error('Erro ao buscar CEP:', error);
+        lastLookedUpCepRef.current = '';
+        setProfileErrors((prev) => ({
+          ...prev,
+          cep: 'Não foi possível consultar o CEP agora.',
+        }));
+      } finally {
+        setIsLoadingCep(false);
+      }
+    };
+
+    const handleCepBlur = async () => {
+      const cleanCep = profileForm.cep.replace(/\D/g, '');
+      if (cleanCep.length === 8) {
+        await lookupCep(cleanCep);
+      }
+    };
+
+    const getProfileInputClass = (field?: keyof typeof profileForm) =>
+      `h-10 w-full rounded-lg border px-3 text-sm transition-colors focus:outline-none focus:ring-2 ${
+        field && profileErrors[field]
+          ? 'border-red-300 bg-red-50 focus:border-red-300 focus:ring-red-100'
+          : 'border-slate-200 focus:border-green-600 focus:ring-green-100'
+      }`;
+
+    const requiredLabelClass = 'text-xs font-semibold text-slate-500 flex items-center gap-1';
+
+    const validateProfileForm = () => {
+      const nextErrors: Record<string, string> = {};
+
+      if (!profileForm.name.trim()) nextErrors.name = 'Informe o nome ou razão social.';
+      const businessDescriptionError = getBusinessDescriptionValidationError(profileForm.businessDescription);
+      if (businessDescriptionError) nextErrors.businessDescription = businessDescriptionError;
+      if (!profileForm.whatsapp.trim()) nextErrors.whatsapp = 'Informe um WhatsApp.';
+      if (profileForm.cep.replace(/\D/g, '').length !== 8) nextErrors.cep = 'Informe um CEP válido.';
+      if (!profileForm.logradouro.trim()) nextErrors.logradouro = 'Informe o logradouro.';
+      if (!profileForm.numero.trim()) nextErrors.numero = 'Informe o número.';
+      if (!profileForm.bairro.trim()) nextErrors.bairro = 'Informe o bairro.';
+      if (!profileForm.cidade.trim()) nextErrors.cidade = 'Informe a cidade.';
+      if (!profileForm.estado.trim()) nextErrors.estado = 'Informe o estado.';
+
+      setProfileErrors(nextErrors);
+      return Object.keys(nextErrors).length === 0;
+    };
+
+    const handleSaveProfile = async () => {
+      if (!user?.id || !user?.email) {
+        toast.error('Usuário não autenticado');
+        return;
+      }
+
+      if (!validateProfileForm()) {
+        toast.error('Preencha os campos obrigatorios do perfil');
+        return;
+      }
+
+      const wantsPasswordChange = Boolean(
+        passwordForm.currentPassword || passwordForm.newPassword || passwordForm.confirmPassword
+      );
+
+      if (wantsPasswordChange) {
+        if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+          toast.error('Preencha todos os campos de senha para alterar seu acesso');
+          return;
+        }
+
+        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+          toast.error('A nova senha e a confirmação não conferem');
+          return;
+        }
+
+        if (passwordForm.newPassword.length < 6) {
+          toast.error('A nova senha deve ter pelo menos 6 caracteres');
+          return;
+        }
+      }
+
+      setIsSavingProfile(true);
+
+      try {
+        const location =
+          profileForm.cidade && profileForm.estado
+            ? `${profileForm.cidade}, ${profileForm.estado}`
+            : profileForm.cidade || '';
+
+        const { error: profileError } = await supabase
+          .from('users')
+          .update({
+            name: profileForm.name.trim(),
+            business_description: profileForm.businessDescription.trim() || null,
+            whatsapp: profileForm.whatsapp.trim(),
+            cep: profileForm.cep.trim(),
+            logradouro: profileForm.logradouro.trim(),
+            numero: profileForm.numero.trim(),
+            complemento: profileForm.complemento.trim(),
+            bairro: profileForm.bairro.trim(),
+            cidade: profileForm.cidade.trim(),
+            estado: profileForm.estado.trim(),
+            location,
+          })
+          .eq('id', user.id);
+
+        if (profileError) {
+          throw profileError;
+        }
+
+        if (wantsPasswordChange) {
+          const { error: reAuthError } = await supabase.auth.signInWithPassword({
+            email: user.email,
+            password: passwordForm.currentPassword,
+          });
+
+          if (reAuthError) {
+            toast.error('Senha atual incorreta');
+            setIsSavingProfile(false);
+            return;
+          }
+
+          const { error: passwordError } = await supabase.auth.updateUser({
+            password: passwordForm.newPassword,
+          });
+
+          if (passwordError) {
+            throw passwordError;
+          }
+
+          setPasswordForm({
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: '',
+          });
+        }
+
+        await refreshStats();
+        toast.success('Perfil atualizado com sucesso');
+      } catch (error: any) {
+        console.error('Erro ao salvar perfil:', error);
+        toast.error(error?.message || 'Não foi possível salvar as alterações do perfil');
+      } finally {
+        setIsSavingProfile(false);
+      }
+    };
 
     return (
       <div className="space-y-6">
@@ -2034,12 +2413,23 @@ const UserDashboardView: React.FC = () => {
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-sm font-semibold text-slate-900">{userName}</h3>
-              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-600">Vendedor Verificado</span>
+              {user?.document_verified && (
+                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-600">Vendedor Verificado</span>
+              )}
             </div>
             <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
               <MapPin className="w-4 h-4" strokeWidth={1.5} />
               {userCity}
             </p>
+          </div>
+          <div className="sm:self-start">
+            <button
+              onClick={handleSaveProfile}
+              disabled={isSavingProfile}
+              className="h-10 px-4 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSavingProfile ? 'Salvando...' : 'Salvar alterações'}
+            </button>
           </div>
         </div>
 
@@ -2051,12 +2441,13 @@ const UserDashboardView: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Nome / Razão Social</label>
+                <label className={requiredLabelClass}>Nome / Razão Social <span className="text-red-500">*</span></label>
                 <input
-                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
-                  value={user?.name || ''}
-                  readOnly
+                  className={getProfileInputClass('name')}
+                  value={profileForm.name}
+                  onChange={(event) => handleProfileFieldChange('name', event.target.value)}
                 />
+                {profileErrors.name && <p className="text-xs text-red-600">{profileErrors.name}</p>}
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">CPF / CNPJ</label>
@@ -2069,7 +2460,26 @@ const UserDashboardView: React.FC = () => {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-500">Descrição do Negócio</label>
-              <textarea className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none" rows={3} placeholder="Conte um pouco sobre sua atuação." />
+              <textarea
+                className={`w-full rounded-lg border px-3 py-2 text-sm resize-none transition-colors focus:outline-none focus:ring-2 ${
+                  profileErrors.businessDescription
+                    ? 'border-red-300 bg-red-50 focus:border-red-300 focus:ring-red-100'
+                    : 'border-slate-200 focus:border-green-600 focus:ring-green-100'
+                }`}
+                rows={3}
+                placeholder="Descreva sua atuação, região e diferencial sem incluir telefone, e-mail, links ou redes sociais."
+                value={profileForm.businessDescription}
+                onChange={(event) => handleProfileFieldChange('businessDescription', event.target.value)}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] text-slate-500">
+                  Esse texto aparece no bloco do vendedor da página do anúncio.
+                </p>
+                <span className="text-[11px] font-medium text-slate-400">
+                  {profileForm.businessDescription.length}/{MAX_BUSINESS_DESCRIPTION_LENGTH}
+                </span>
+              </div>
+              {profileErrors.businessDescription && <p className="text-xs text-red-600">{profileErrors.businessDescription}</p>}
             </div>
           </div>
 
@@ -2080,33 +2490,81 @@ const UserDashboardView: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">CEP</label>
+                <label className={requiredLabelClass}>CEP <span className="text-red-500">*</span></label>
+                <input
+                  className={getProfileInputClass('cep')}
+                  value={profileForm.cep}
+                  onChange={(event) => handleProfileFieldChange('cep', event.target.value)}
+                  onBlur={handleCepBlur}
+                  placeholder="00000-000"
+                />
+                {isLoadingCep && <p className="text-xs text-slate-500">Buscando endereço pelo CEP...</p>}
+                {profileErrors.cep && <p className="text-xs text-red-600">{profileErrors.cep}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className={requiredLabelClass}>WhatsApp <span className="text-red-500">*</span></label>
+                <input
+                  className={getProfileInputClass('whatsapp')}
+                  value={profileForm.whatsapp}
+                  onChange={(event) => handleProfileFieldChange('whatsapp', event.target.value)}
+                />
+                {profileErrors.whatsapp && <p className="text-xs text-red-600">{profileErrors.whatsapp}</p>}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1 sm:col-span-2">
+                <label className={requiredLabelClass}>Logradouro <span className="text-red-500">*</span></label>
+                <input
+                  className={getProfileInputClass('logradouro')}
+                  value={profileForm.logradouro}
+                  onChange={(event) => handleProfileFieldChange('logradouro', event.target.value)}
+                />
+                {profileErrors.logradouro && <p className="text-xs text-red-600">{profileErrors.logradouro}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className={requiredLabelClass}>Número <span className="text-red-500">*</span></label>
+                <input
+                  className={getProfileInputClass('numero')}
+                  value={profileForm.numero}
+                  onChange={(event) => handleProfileFieldChange('numero', event.target.value)}
+                />
+                {profileErrors.numero && <p className="text-xs text-red-600">{profileErrors.numero}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-500">Complemento</label>
                 <input
                   className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
-                  value={user?.cep || ''}
-                  readOnly
+                  value={profileForm.complemento}
+                  onChange={(event) => handleProfileFieldChange('complemento', event.target.value)}
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">WhatsApp</label>
+                <label className={requiredLabelClass}>Bairro <span className="text-red-500">*</span></label>
                 <input
-                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
-                  value={user?.whatsapp || user?.phone || ''}
-                  readOnly
+                  className={getProfileInputClass('bairro')}
+                  value={profileForm.bairro}
+                  onChange={(event) => handleProfileFieldChange('bairro', event.target.value)}
                 />
+                {profileErrors.bairro && <p className="text-xs text-red-600">{profileErrors.bairro}</p>}
               </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500">Endereço Completo</label>
-              <input
-                className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
-                value={
-                  user?.logradouro
-                    ? `${user.logradouro}${user.numero ? `, ${user.numero}` : ''}${user.bairro ? ` - ${user.bairro}` : ''}${user.cidade ? `, ${user.cidade}` : ''}${user.estado ? `/${user.estado}` : ''}`
-                    : ''
-                }
-                readOnly
-              />
+              <div className="space-y-1">
+                <label className={requiredLabelClass}>Cidade <span className="text-red-500">*</span></label>
+                <input
+                  className={getProfileInputClass('cidade')}
+                  value={profileForm.cidade}
+                  onChange={(event) => handleProfileFieldChange('cidade', event.target.value)}
+                />
+                {profileErrors.cidade && <p className="text-xs text-red-600">{profileErrors.cidade}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className={requiredLabelClass}>Estado <span className="text-red-500">*</span></label>
+                <input
+                  className={getProfileInputClass('estado')}
+                  value={profileForm.estado}
+                  onChange={(event) => handleProfileFieldChange('estado', event.target.value)}
+                />
+                {profileErrors.estado && <p className="text-xs text-red-600">{profileErrors.estado}</p>}
+              </div>
             </div>
           </div>
         </div>
@@ -2120,15 +2578,30 @@ const UserDashboardView: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">Senha Atual</label>
-                <input type="password" className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" />
+                <input
+                  type="password"
+                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  value={passwordForm.currentPassword}
+                  onChange={(event) => handlePasswordFieldChange('currentPassword', event.target.value)}
+                />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">Nova Senha</label>
-                <input type="password" className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" />
+                <input
+                  type="password"
+                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  value={passwordForm.newPassword}
+                  onChange={(event) => handlePasswordFieldChange('newPassword', event.target.value)}
+                />
               </div>
               <div className="space-y-1 sm:col-span-2">
                 <label className="text-xs font-semibold text-slate-500">Confirmação</label>
-                <input type="password" className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm" />
+                <input
+                  type="password"
+                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  value={passwordForm.confirmPassword}
+                  onChange={(event) => handlePasswordFieldChange('confirmPassword', event.target.value)}
+                />
               </div>
             </div>
             <div className="flex items-center justify-between border-t border-slate-100 pt-4">
@@ -2193,7 +2666,7 @@ const UserDashboardView: React.FC = () => {
                   </div>
                 )}
                 
-                {/* Resultado da Validação OCR */}
+                {/* Resultado da ValidaÃ§Ã£o OCR */}
                 {validationResult && (
                   <div className={`mt-3 p-3 border rounded-lg ${
                     validationResult.success 
@@ -2204,11 +2677,11 @@ const UserDashboardView: React.FC = () => {
                       <div className="flex-shrink-0 mt-0.5">
                         {validationResult.success ? (
                           <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">✓</span>
+                            <span className="text-white text-xs font-bold">âœ“</span>
                           </div>
                         ) : (
                           <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">✕</span>
+                            <span className="text-white text-xs font-bold">âœ•</span>
                           </div>
                         )}
                       </div>
@@ -2220,7 +2693,7 @@ const UserDashboardView: React.FC = () => {
                         </p>
                         {!validationResult.success && (
                           <p className="text-xs text-slate-600 mt-2">
-                            💡 Dica: Certifique-se de que a imagem está nítida e o documento está bem enquadrado.
+                            ðŸ’¡ Dica: Certifique-se de que a imagem estÃ¡ nÃ­tida e o documento estÃ¡ bem enquadrado.
                           </p>
                         )}
                       </div>
@@ -2303,8 +2776,10 @@ const UserDashboardView: React.FC = () => {
           <Route path="/anuncios" element={<AdsDashboard />} />
           <Route path="/mensagens" element={<MessagesView />} />
           <Route path="/leads" element={<LeadsView />} />
+          <Route path="/favoritos" element={<FavoritesView embedded />} />
           <Route path="/radar" element={<RadarView />} />
           <Route path="/financeiro" element={<FinanceDashboard />} />
+          <Route path="/ajuda" element={<HelpCenterView />} />
           <Route path="/perfil" element={<ProfileDashboard />} />
           <Route path="*" element={<HomeDashboard />} />
         </Routes>
@@ -2314,3 +2789,6 @@ const UserDashboardView: React.FC = () => {
 };
 
 export default UserDashboardView;
+
+
+

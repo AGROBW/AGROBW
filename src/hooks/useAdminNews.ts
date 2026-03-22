@@ -5,10 +5,13 @@ import type {
   NewsArticleStatus,
   NewsGenerationJobRecord,
   NewsIngestionRecord,
+  NewsSocialPublicationRecord,
+  NewsSocialSettingsRecord,
   NewsSettingsRecord,
   NewsSourceCaptureType,
   NewsSourceRecord,
 } from '../../types';
+import { classifyNewsEditorialCategory, normalizeEditorialCategory } from '../utils/newsEditorialCategory';
 
 type DashboardData = {
   totalArticles: number;
@@ -22,6 +25,7 @@ type DashboardData = {
 type ArticlePayload = {
   id?: string;
   ingestionId?: string | null;
+  editorialCategory?: string | null;
   sourceUrl?: string | null;
   originalPortalName?: string | null;
   originalTitle?: string | null;
@@ -47,6 +51,7 @@ type GenerateResult = {
   data: {
     id: string;
     ingestionId?: string | null;
+    editorialCategory?: string | null;
     title: string;
     subtitle: string;
     summary: string;
@@ -81,6 +86,15 @@ const mapArticle = (row: any): NewsArticleRecord => ({
   id: row.id,
   ingestionId: row.ingestion_id ?? null,
   legacyNewsId: row.legacy_news_id ?? null,
+  editorialCategory:
+    normalizeEditorialCategory(row.editorial_category) ||
+    classifyNewsEditorialCategory({
+      title: row.title,
+      subtitle: row.subtitle,
+      summary: row.summary,
+      content: row.content,
+      portalName: row.news_ingestions?.original_portal_name,
+    }),
   title: row.title,
   subtitle: row.subtitle ?? null,
   summary: row.summary ?? null,
@@ -128,6 +142,50 @@ const mapSettings = (row: any): NewsSettingsRecord => ({
   updatedAt: row.updated_at,
 });
 
+const mapSocialSettings = (row: any): NewsSocialSettingsRecord => ({
+  id: row.id,
+  instagramEnabled: row.instagram_enabled,
+  instagramUsername: row.instagram_username ?? null,
+  instagramBusinessAccountId: row.instagram_business_account_id ?? null,
+  instagramAccessToken: row.instagram_access_token ?? null,
+  defaultInstagramStoryImageUrl: row.default_instagram_story_image_url ?? null,
+  defaultInstagramStoryImagePath: row.default_instagram_story_image_path ?? null,
+  linkedinEnabled: row.linkedin_enabled,
+  linkedinProfileType: row.linkedin_profile_type,
+  linkedinProfileLabel: row.linkedin_profile_label ?? null,
+  linkedinAuthorUrn: row.linkedin_author_urn ?? null,
+  linkedinAccessToken: row.linkedin_access_token ?? null,
+  defaultLinkedinImageUrl: row.default_linkedin_image_url ?? null,
+  defaultLinkedinImagePath: row.default_linkedin_image_path ?? null,
+  autoPublishInstagramStory: row.auto_publish_instagram_story,
+  autoPublishLinkedinPost: row.auto_publish_linkedin_post,
+  instagramStoryTemplate: row.instagram_story_template ?? null,
+  linkedinPostTemplate: row.linkedin_post_template ?? null,
+  articleUrlBase: row.article_url_base ?? null,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+const mapSocialPublication = (row: any): NewsSocialPublicationRecord => ({
+  id: row.id,
+  articleId: row.article_id,
+  platform: row.platform,
+  publicationType: row.publication_type,
+  status: row.status,
+  targetLabel: row.target_label ?? null,
+  articleTitle: row.article_title ?? null,
+  articleSlug: row.article_slug ?? null,
+  externalPublicationId: row.external_publication_id ?? null,
+  externalPublicationUrl: row.external_publication_url ?? null,
+  caption: row.caption ?? null,
+  requestPayload: row.request_payload ?? null,
+  responsePayload: row.response_payload ?? null,
+  errorMessage: row.error_message ?? null,
+  publishedAt: row.published_at ?? null,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
 export const useAdminNews = () => {
   const [dashboard, setDashboard] = useState<DashboardData>({
     totalArticles: 0,
@@ -140,6 +198,8 @@ export const useAdminNews = () => {
   const [articles, setArticles] = useState<NewsArticleRecord[]>([]);
   const [sources, setSources] = useState<NewsSourceRecord[]>([]);
   const [settings, setSettings] = useState<NewsSettingsRecord | null>(null);
+  const [socialSettings, setSocialSettings] = useState<NewsSocialSettingsRecord | null>(null);
+  const [socialPublications, setSocialPublications] = useState<NewsSocialPublicationRecord[]>([]);
   const [jobs, setJobs] = useState<NewsGenerationJobRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -234,13 +294,37 @@ export const useAdminNews = () => {
     );
   };
 
+  const fetchSocialSettings = async () => {
+    const { data, error } = await supabase.from('news_social_settings').select('*').limit(1).maybeSingle();
+    if (error) throw error;
+    setSocialSettings(data ? mapSocialSettings(data) : null);
+  };
+
+  const fetchSocialPublications = async () => {
+    const { data, error } = await supabase
+      .from('news_social_publications')
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .limit(30);
+    if (error) throw error;
+    setSocialPublications((data || []).map(mapSocialPublication));
+  };
+
   const refreshAll = async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
       setIsLoading(true);
     }
     setError(null);
     try {
-      await Promise.all([fetchDashboard(), fetchArticles(), fetchSources(), fetchSettings(), fetchJobs()]);
+      await Promise.all([
+        fetchDashboard(),
+        fetchArticles(),
+        fetchSources(),
+        fetchSettings(),
+        fetchJobs(),
+        fetchSocialSettings(),
+        fetchSocialPublications(),
+      ]);
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar modulo de noticias');
     } finally {
@@ -300,6 +384,178 @@ export const useAdminNews = () => {
     if (error) return { error: error.message };
     await refreshAll();
     return { error: null };
+  };
+
+  const saveSocialSettings = async (payload: Partial<NewsSocialSettingsRecord>) => {
+    const currentId = socialSettings?.id;
+    const dbPayload = {
+      instagram_enabled: payload.instagramEnabled ?? socialSettings?.instagramEnabled ?? false,
+      instagram_username: payload.instagramUsername ?? socialSettings?.instagramUsername ?? null,
+      instagram_business_account_id:
+        payload.instagramBusinessAccountId ?? socialSettings?.instagramBusinessAccountId ?? null,
+      instagram_access_token: payload.instagramAccessToken ?? socialSettings?.instagramAccessToken ?? null,
+      default_instagram_story_image_url:
+        payload.defaultInstagramStoryImageUrl ?? socialSettings?.defaultInstagramStoryImageUrl ?? null,
+      default_instagram_story_image_path:
+        payload.defaultInstagramStoryImagePath ?? socialSettings?.defaultInstagramStoryImagePath ?? null,
+      linkedin_enabled: payload.linkedinEnabled ?? socialSettings?.linkedinEnabled ?? false,
+      linkedin_profile_type: payload.linkedinProfileType ?? socialSettings?.linkedinProfileType ?? 'organization',
+      linkedin_profile_label: payload.linkedinProfileLabel ?? socialSettings?.linkedinProfileLabel ?? null,
+      linkedin_author_urn: payload.linkedinAuthorUrn ?? socialSettings?.linkedinAuthorUrn ?? null,
+      linkedin_access_token: payload.linkedinAccessToken ?? socialSettings?.linkedinAccessToken ?? null,
+      default_linkedin_image_url:
+        payload.defaultLinkedinImageUrl ?? socialSettings?.defaultLinkedinImageUrl ?? null,
+      default_linkedin_image_path:
+        payload.defaultLinkedinImagePath ?? socialSettings?.defaultLinkedinImagePath ?? null,
+      auto_publish_instagram_story:
+        payload.autoPublishInstagramStory ?? socialSettings?.autoPublishInstagramStory ?? false,
+      auto_publish_linkedin_post:
+        payload.autoPublishLinkedinPost ?? socialSettings?.autoPublishLinkedinPost ?? true,
+      instagram_story_template:
+        payload.instagramStoryTemplate ?? socialSettings?.instagramStoryTemplate ?? null,
+      linkedin_post_template: payload.linkedinPostTemplate ?? socialSettings?.linkedinPostTemplate ?? null,
+      article_url_base: payload.articleUrlBase ?? socialSettings?.articleUrlBase ?? null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const query = currentId
+      ? supabase.from('news_social_settings').update(dbPayload).eq('id', currentId)
+      : supabase.from('news_social_settings').insert(dbPayload);
+
+    const { error } = await query;
+    if (error) return { error: error.message };
+    await refreshAll({ silent: true });
+    return { error: null };
+  };
+
+  const buildArticleUrl = (slug: string) => {
+    const explicitBase = socialSettings?.articleUrlBase?.trim();
+    if (explicitBase) {
+      return `${explicitBase.replace(/\/+$/, '')}/${slug}`;
+    }
+
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}/#/noticias/${slug}`;
+    }
+
+    return `/noticias/${slug}`;
+  };
+
+  const applyTemplate = (template: string | null | undefined, article: NewsArticleRecord) => {
+    const url = buildArticleUrl(article.slug);
+    return (template || '')
+      .replaceAll('{{title}}', article.title || '')
+      .replaceAll('{{summary}}', article.summary || '')
+      .replaceAll('{{url}}', url);
+  };
+
+  const queueSocialPublications = async (article: NewsArticleRecord) => {
+    if (!socialSettings) return;
+
+    const rows: any[] = [];
+    const instagramImageUrl =
+      socialSettings.defaultInstagramStoryImageUrl || article.featuredImageUrl || null;
+    const linkedinImageUrl =
+      socialSettings.defaultLinkedinImageUrl || article.featuredImageUrl || null;
+
+    if (socialSettings.instagramEnabled && socialSettings.autoPublishInstagramStory) {
+      const canPublishInstagram =
+        Boolean(socialSettings.instagramAccessToken) &&
+        Boolean(socialSettings.instagramBusinessAccountId) &&
+        Boolean(instagramImageUrl);
+
+      rows.push({
+        article_id: article.id,
+        platform: 'instagram',
+        publication_type: 'story',
+        status: canPublishInstagram ? 'queued' : 'disabled',
+        target_label: socialSettings.instagramUsername ?? null,
+        article_title: article.title,
+        article_slug: article.slug,
+        caption: applyTemplate(socialSettings.instagramStoryTemplate, article),
+        request_payload: {
+          articleTitle: article.title,
+          articleSlug: article.slug,
+          articleUrl: buildArticleUrl(article.slug),
+          imageUrl: instagramImageUrl,
+        },
+        error_message: canPublishInstagram
+          ? null
+          : 'Instagram precisa de Business Account ID, access token e uma arte padr�o ou imagem destacada para publicar story.',
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    if (socialSettings.linkedinEnabled && socialSettings.autoPublishLinkedinPost) {
+      rows.push({
+        article_id: article.id,
+        platform: 'linkedin',
+        publication_type: 'post',
+        status: socialSettings.linkedinAccessToken ? 'queued' : 'disabled',
+        target_label: socialSettings.linkedinProfileLabel ?? null,
+        article_title: article.title,
+        article_slug: article.slug,
+        caption: applyTemplate(socialSettings.linkedinPostTemplate, article),
+        request_payload: {
+          articleTitle: article.title,
+          articleSlug: article.slug,
+          articleUrl: buildArticleUrl(article.slug),
+          imageUrl: linkedinImageUrl,
+          authorUrn: socialSettings.linkedinAuthorUrn,
+          profileType: socialSettings.linkedinProfileType,
+        },
+        error_message: socialSettings.linkedinAccessToken
+          ? null
+          : 'LinkedIn sem access token configurado.',
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    if (rows.length === 0) return;
+
+    const { error } = await supabase.from('news_social_publications').upsert(rows, {
+      onConflict: 'article_id,platform',
+    });
+
+    if (error) {
+      console.error('[useAdminNews] Erro ao enfileirar publicações sociais:', error);
+    } else {
+      await fetchSocialPublications();
+
+      const hasLinkedinQueued = rows.some((row) => row.platform === 'linkedin' && row.status === 'queued');
+      if (hasLinkedinQueued) {
+        const invokeResult = await supabase.functions.invoke('publish-news-social', {
+          method: 'POST',
+          body: {
+            articleId: article.id,
+            platform: 'linkedin',
+          },
+        });
+
+        if (invokeResult.error) {
+          console.error('[useAdminNews] Erro ao disparar publicação social:', invokeResult.error);
+        } else {
+          await fetchSocialPublications();
+        }
+      }
+
+      const hasInstagramQueued = rows.some((row) => row.platform === 'instagram' && row.status === 'queued');
+      if (hasInstagramQueued) {
+        const invokeResult = await supabase.functions.invoke('publish-news-social', {
+          method: 'POST',
+          body: {
+            articleId: article.id,
+            platform: 'instagram',
+          },
+        });
+
+        if (invokeResult.error) {
+          console.error('[useAdminNews] Erro ao disparar publicação do Instagram:', invokeResult.error);
+        } else {
+          await fetchSocialPublications();
+        }
+      }
+    }
   };
 
   const createCapture = async (sourceUrl: string) => {
@@ -401,6 +657,15 @@ export const useAdminNews = () => {
 
     const dbPayload = {
       ingestion_id: ingestionId,
+      editorial_category:
+        normalizeEditorialCategory(payload.editorialCategory) ||
+        classifyNewsEditorialCategory({
+          title: payload.title,
+          subtitle: payload.subtitle,
+          summary: payload.summary,
+          content: payload.content,
+          portalName: payload.originalPortalName,
+        }),
       title: payload.title,
       subtitle: payload.subtitle ?? null,
       summary: payload.summary ?? null,
@@ -443,6 +708,30 @@ export const useAdminNews = () => {
         .from('news_articles')
         .update({ published_at: publishedAt, updated_at: nowIso })
         .eq('id', articleId);
+
+      await queueSocialPublications({
+        id: articleId,
+        ingestionId: payload.ingestionId ?? null,
+        editorialCategory: payload.editorialCategory ?? null,
+        title: payload.title,
+        subtitle: payload.subtitle ?? null,
+        summary: payload.summary ?? null,
+        content: payload.content ?? null,
+        agroImpact: payload.agroImpact ?? null,
+        referencesBlock: payload.referencesBlock ?? null,
+        slug,
+        status: payload.status,
+        featuredImageUrl: payload.featuredImageUrl ?? null,
+        featuredImagePath: null,
+        publishedAt,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        sourceUrl: payload.sourceUrl ?? null,
+        originalPortalName: payload.originalPortalName ?? null,
+        originalTitle: payload.originalTitle ?? null,
+        originalPublishedAt: payload.originalPublishedAt ?? null,
+        sourceName: null,
+      });
     }
 
     await refreshAll();
@@ -462,6 +751,7 @@ export const useAdminNews = () => {
       originalTitle: article.originalTitle,
       originalPublishedAt: article.originalPublishedAt,
       title: article.title,
+      editorialCategory: article.editorialCategory,
       subtitle: article.subtitle,
       summary: article.summary,
       content: article.content,
@@ -495,6 +785,7 @@ export const useAdminNews = () => {
       originalTitle: article.originalTitle,
       originalPublishedAt: article.originalPublishedAt,
       title: `${article.title} (Copia)`,
+      editorialCategory: article.editorialCategory,
       subtitle: article.subtitle,
       summary: article.summary,
       content: article.content,
@@ -521,6 +812,8 @@ export const useAdminNews = () => {
     articles,
     sources,
     settings,
+    socialSettings,
+    socialPublications,
     jobs,
     isLoading,
     error,
@@ -528,6 +821,7 @@ export const useAdminNews = () => {
     fetchArticles,
     upsertSource,
     deleteSource,
+    saveSocialSettings,
     saveSettings,
     createCapture,
     generateArticleFromIngestion,

@@ -42,3 +42,13 @@ entrypoint = "./functions/generate-news-article/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/delete-announcement/index.ts"
+
+[functions.notify-support-ticket-update]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/notify-support-ticket-update/index.ts"
+
+[functions.publish-news-social]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/publish-news-social/index.ts"

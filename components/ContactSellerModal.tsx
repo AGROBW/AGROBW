@@ -95,6 +95,28 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
 
     try {
       // 1. Verificar se já existe um chat
+      const { data: announcementData, error: announcementError } = await supabase
+        .from('announcements')
+        .select('status, expires_at')
+        .eq('id', announcementId)
+        .single();
+
+      if (announcementError || !announcementData) {
+        toast.error('Nao foi possivel validar o anuncio antes do contato.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const isExpiredByDate =
+        !!announcementData.expires_at &&
+        new Date(announcementData.expires_at).getTime() <= Date.now();
+
+      if (announcementData.status !== 'ACTIVE' || isExpiredByDate) {
+        toast.error('Este anuncio expirou e nao aceita novos contatos.');
+        setIsSubmitting(false);
+        return;
+      }
+
       const { data: existingChat, error: checkError } = await supabase
         .from('chats')
         .select('id')

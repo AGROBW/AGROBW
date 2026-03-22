@@ -18,10 +18,10 @@ const NewsGrid: React.FC = () => {
               <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 12%, white)`, color: settings.primaryColor }}>
                 <Newspaper className="h-4 w-4" strokeWidth={1.5} />
               </span>
-              Mural de Informacoes BWAGRO
+              Mural de Informações AGRO BW
             </h2>
             <p className="mt-2 max-w-xl text-sm text-slate-500">
-              Fique por dentro das principais noticias e tendencias do agronegocio que impactam o seu dia a dia no campo.
+              Fique por dentro das principais notícias e tendências do agronegócio que impactam o seu dia a dia no campo.
             </p>
           </div>
           <Link
@@ -29,7 +29,7 @@ const NewsGrid: React.FC = () => {
             className="mt-6 border-b pb-1 text-sm font-semibold uppercase tracking-widest transition-all md:mt-0"
             style={{ borderColor: settings.secondaryColor, color: settings.secondaryColor }}
           >
-            Ver todas as materias
+            Ver todas as matérias
           </Link>
         </div>
 
@@ -40,7 +40,7 @@ const NewsGrid: React.FC = () => {
             ))
           ) : news.length === 0 ? (
             <div className="col-span-full rounded-xl border border-slate-100 bg-white p-8 text-center">
-              <p className="text-sm text-slate-500">Nenhuma noticia disponivel no momento.</p>
+              <p className="text-sm text-slate-500">Nenhuma notícia disponível no momento.</p>
             </div>
           ) : (
             news.map((item) => <NewsCard key={item.id} news={item} />)

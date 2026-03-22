@@ -5,6 +5,12 @@ import { useAuth } from '../contexts/AuthContext'
 import { Chat, Message, LeadStatus } from '../../types'
 import { LEAD_STATUS } from '../../constants/status'
 
+const isAnnouncementFrozen = (status?: string | null, expiresAt?: string | null) => {
+  if (status === 'EXPIRED') return true
+  if (!expiresAt) return false
+  return new Date(expiresAt).getTime() <= Date.now()
+}
+
 export const useChats = (announcementId?: string | null) => {
   const { user } = useAuth()
   const [chats, setChats] = useState<Chat[]>([])
@@ -46,6 +52,11 @@ export const useChats = (announcementId?: string | null) => {
         adTitle: chat.ad_title,
         adPrice: parseFloat(chat.ad_price) || 0,
         adImage: chat.ad_image,
+        adStatus: chat.announcement_status,
+        adExpiresAt: chat.announcement_expires_at,
+        adExpiredAt: chat.announcement_expired_at,
+        adDeletionScheduledAt: chat.announcement_deletion_scheduled_at,
+        isFrozen: isAnnouncementFrozen(chat.announcement_status, chat.announcement_expires_at),
         sellerId: chat.seller_id,
         sellerName: chat.seller_name,
         buyerId: chat.buyer_id,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { NewsItem } from '../../types'
+import { classifyNewsEditorialCategory, normalizeEditorialCategory } from '../utils/newsEditorialCategory'
 
 export const useNews = () => {
   const [news, setNews] = useState<NewsItem[]>([])
@@ -17,6 +18,7 @@ export const useNews = () => {
           title,
           summary,
           slug,
+          editorial_category,
           featured_image_url,
           published_at,
           news_ingestions (
@@ -29,7 +31,13 @@ export const useNews = () => {
       if (!articlesError && (articlesData || []).length > 0) {
         const mapped: NewsItem[] = (articlesData || []).map((item: any) => ({
           id: item.id,
-          category: item.news_ingestions?.original_portal_name || 'Mercado',
+          category:
+            normalizeEditorialCategory(item.editorial_category) ||
+            classifyNewsEditorialCategory({
+              title: item.title,
+              summary: item.summary,
+              portalName: item.news_ingestions?.original_portal_name,
+            }),
           date: item.published_at,
           title: item.title,
           summary: item.summary,

@@ -769,6 +769,16 @@ const AdCreationView: React.FC = () => {
     }
   };
 
+  const buildAnnouncementExpiresAt = () => {
+    const durationDays = subscription?.plans?.ad_duration_days;
+    if (durationDays === null || durationDays === undefined) return null;
+    if (durationDays <= 0) return null;
+
+    const expiresAt = new Date();
+    expiresAt.setUTCDate(expiresAt.getUTCDate() + durationDays);
+    return expiresAt.toISOString();
+  };
+
   const handleSubmitAd = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -836,6 +846,7 @@ const AdCreationView: React.FC = () => {
         images: Array.isArray(formData.images) ? formData.images : [],
         user_id: userId,
         status: AdStatus.ACTIVE,
+        expires_at: buildAnnouncementExpiresAt(),
         is_premium: !!formData.isPremium,
         whatsapp: user?.whatsapp || user?.phone || null
       };

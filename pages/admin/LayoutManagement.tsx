@@ -5,13 +5,24 @@ import LayoutBrandSection from '../../components/admin/layout/LayoutBrandSection
 import LayoutColorsSection from '../../components/admin/layout/LayoutColorsSection';
 import LayoutIdentitySection from '../../components/admin/layout/LayoutIdentitySection';
 import LayoutPreviewPanel from '../../components/admin/layout/LayoutPreviewPanel';
+import LayoutSocialLinksSection from '../../components/admin/layout/LayoutSocialLinksSection';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { useLayoutSettings } from '../../src/hooks/useLayoutSettings';
+import { supabase } from '../../src/lib/supabaseClient';
+
+const normalizeOptionalUrl = (value: string | null | undefined) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+};
 
 const LayoutManagement: React.FC = () => {
   const { settings, isLoading, saveSettings, defaultSettings } = useLayoutSettings();
   const { logAction } = useAdminAudit();
   const [saving, setSaving] = useState(false);
+  const [uploadingField, setUploadingField] = useState<'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | null>(null);
   const [formData, setFormData] = useState({
     siteName: defaultSettings.siteName,
     siteShortName: defaultSettings.siteShortName || '',
@@ -25,6 +36,12 @@ const LayoutManagement: React.FC = () => {
     logoLightUrl: defaultSettings.logoLightUrl || '',
     logoDarkUrl: defaultSettings.logoDarkUrl || '',
     faviconUrl: defaultSettings.faviconUrl || '',
+    facebookUrl: defaultSettings.facebookUrl || '',
+    instagramUrl: defaultSettings.instagramUrl || '',
+    youtubeUrl: defaultSettings.youtubeUrl || '',
+    linkedinUrl: defaultSettings.linkedinUrl || '',
+    whatsappUrl: defaultSettings.whatsappUrl || '',
+    tiktokUrl: defaultSettings.tiktokUrl || '',
     primaryColor: defaultSettings.primaryColor,
     secondaryColor: defaultSettings.secondaryColor,
     accentColor: defaultSettings.accentColor,
@@ -53,6 +70,12 @@ const LayoutManagement: React.FC = () => {
       logoLightUrl: settings.logoLightUrl || '',
       logoDarkUrl: settings.logoDarkUrl || '',
       faviconUrl: settings.faviconUrl || '',
+      facebookUrl: settings.facebookUrl || '',
+      instagramUrl: settings.instagramUrl || '',
+      youtubeUrl: settings.youtubeUrl || '',
+      linkedinUrl: settings.linkedinUrl || '',
+      whatsappUrl: settings.whatsappUrl || '',
+      tiktokUrl: settings.tiktokUrl || '',
       primaryColor: settings.primaryColor,
       secondaryColor: settings.secondaryColor,
       accentColor: settings.accentColor,
@@ -68,6 +91,47 @@ const LayoutManagement: React.FC = () => {
 
   const handleChange = (field: keyof typeof formData, value: string) => {
     setFormData((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleAssetUpload = async (
+    field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl',
+    file: File,
+  ) => {
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/svg+xml', 'image/x-icon'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Selecione uma imagem válida para a identidade visual.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('O arquivo deve ter no máximo 5MB.');
+      return;
+    }
+
+    setUploadingField(field);
+    try {
+      const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
+      const filePath = `layout/${field}-${Date.now()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from('layout_assets')
+        .upload(filePath, file, {
+          upsert: true,
+          contentType: file.type,
+          cacheControl: '3600',
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data } = supabase.storage.from('layout_assets').getPublicUrl(filePath);
+      setFormData((current) => ({ ...current, [field]: data.publicUrl }));
+      toast.success('Imagem enviada. Clique em "Salvar layout" para publicar a alteração.');
+    } catch (error: any) {
+      toast.error(error.message || 'Não foi possível enviar a imagem.');
+    } finally {
+      setUploadingField(null);
+    }
   };
 
   const handleSave = async () => {
@@ -92,6 +156,12 @@ const LayoutManagement: React.FC = () => {
       logoLightUrl: formData.logoLightUrl || null,
       logoDarkUrl: formData.logoDarkUrl || null,
       faviconUrl: formData.faviconUrl || null,
+      facebookUrl: normalizeOptionalUrl(formData.facebookUrl),
+      instagramUrl: normalizeOptionalUrl(formData.instagramUrl),
+      youtubeUrl: normalizeOptionalUrl(formData.youtubeUrl),
+      linkedinUrl: normalizeOptionalUrl(formData.linkedinUrl),
+      whatsappUrl: normalizeOptionalUrl(formData.whatsappUrl),
+      tiktokUrl: normalizeOptionalUrl(formData.tiktokUrl),
     };
 
     const { error } = await saveSettings(payload);
@@ -149,7 +219,7 @@ const LayoutManagement: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr,0.9fr]">
         <div className="space-y-6">
-          <LayoutBrandSection formData={formData} onChange={handleChange} />
+          <LayoutBrandSection formData={formData} onChange={handleChange} onUpload={handleAssetUpload} uploadingField={uploadingField} />
           <LayoutIdentitySection
             formData={{
               siteTagline: formData.siteTagline,
@@ -173,6 +243,17 @@ const LayoutManagement: React.FC = () => {
               successColor: formData.successColor,
               warningColor: formData.warningColor,
               errorColor: formData.errorColor,
+            }}
+            onChange={handleChange}
+          />
+          <LayoutSocialLinksSection
+            formData={{
+              facebookUrl: formData.facebookUrl,
+              instagramUrl: formData.instagramUrl,
+              youtubeUrl: formData.youtubeUrl,
+              linkedinUrl: formData.linkedinUrl,
+              whatsappUrl: formData.whatsappUrl,
+              tiktokUrl: formData.tiktokUrl,
             }}
             onChange={handleChange}
           />

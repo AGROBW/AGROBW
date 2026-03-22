@@ -1,47 +1,53 @@
-
 import React from 'react';
 import { ArrowRight } from 'lucide-react';
 import { NewsItem } from '../types';
+import { getNewsEditorialCategoryStyle } from '../src/utils/newsEditorialCategory';
 
 interface NewsCardProps {
   news: NewsItem;
 }
 
 const NewsCard: React.FC<NewsCardProps> = ({ news }) => {
+  const badgeStyle = getNewsEditorialCategoryStyle(news.category);
+  const linkColor = badgeStyle.color === '#ffffff' ? '#0f766e' : badgeStyle.color;
+
   return (
-    <a 
+    <a
       href={news.link}
-      className="group block bg-white rounded-xl overflow-hidden transition-all duration-300 border border-slate-100 h-full"
+      className="group block h-full overflow-hidden rounded-xl border border-slate-100 bg-white transition-all duration-300"
     >
-      {/* Image Container with Badge */}
       <div className="relative h-40 overflow-hidden">
-        <img 
-          src={news.imageUrl} 
-          alt={news.title} 
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+        <img
+          src={news.imageUrl}
+          alt={news.title}
+          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
         />
-        <div className="absolute top-3 left-3 z-10 bg-slate-900 text-white text-[10px] font-semibold uppercase px-2.5 py-1 rounded-md tracking-widest">
+        <div
+          className="absolute left-3 top-3 z-10 rounded-md px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest"
+          style={{ background: badgeStyle.background, color: badgeStyle.color }}
+        >
           {news.category}
         </div>
-        <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors"></div>
+        <div className="absolute inset-0 bg-black/5 transition-colors group-hover:bg-transparent" />
       </div>
 
-      {/* Content */}
       <div className="p-5">
-        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
           {news.date}
         </p>
-        <h3 className="text-sm font-semibold text-slate-800 mb-2 line-clamp-2 leading-tight group-hover:text-green-700 transition-colors">
+        <h3 className="mb-2 line-clamp-2 text-sm font-semibold leading-tight text-slate-800 transition-colors group-hover:opacity-90">
           {news.title}
         </h3>
-        <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed">
+        <p className="line-clamp-2 text-sm leading-relaxed text-slate-500">
           {news.summary}
         </p>
-        
-        {/* Visual Cue for Link */}
-        <div className="mt-4 flex items-center gap-2 text-green-700 font-semibold text-xs uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+
+        <div
+          className="mt-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest opacity-0 transition-opacity group-hover:opacity-100"
+          style={{ color: linkColor }}
+        >
           Ler notícia completa
-          <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
+          <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
         </div>
       </div>
     </a>

@@ -21,6 +21,62 @@ const trimToNull = (value?: string | null) => {
   return trimmed ? trimmed : null;
 };
 
+const NEWS_EDITORIAL_CATEGORIES = [
+  'Mercado',
+  'Graos',
+  'Pecuaria',
+  'Maquinas',
+  'Insumos',
+  'Clima',
+  'Politica Agro',
+  'Credito Rural',
+  'Tecnologia',
+  'Logistica',
+  'Sustentabilidade',
+] as const;
+
+const normalizeText = (value?: string | null) =>
+  (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+const normalizeEditorialCategory = (value?: string | null) => {
+  if (!value) return null;
+  const normalized = normalizeText(value);
+  return NEWS_EDITORIAL_CATEGORIES.find((category) => normalizeText(category) === normalized) || null;
+};
+
+const classifyEditorialCategory = (input: {
+  title?: string | null;
+  subtitle?: string | null;
+  summary?: string | null;
+  content?: string | null;
+  portalName?: string | null;
+}) => {
+  const text = normalizeText([input.title, input.subtitle, input.summary, input.content, input.portalName].filter(Boolean).join(' '));
+  const groups = [
+    { category: 'Graos', keywords: ['soja', 'milho', 'safra', 'colheita', 'trigo', 'cafe', 'arroz', 'farelo'] },
+    { category: 'Pecuaria', keywords: ['boi', 'gado', 'pecuaria', 'frigorifico', 'leite', 'suino', 'aves'] },
+    { category: 'Maquinas', keywords: ['trator', 'colheitadeira', 'pulverizador', 'maquina', 'implemento'] },
+    { category: 'Insumos', keywords: ['fertilizante', 'adubo', 'defensivo', 'semente', 'insumo'] },
+    { category: 'Clima', keywords: ['chuva', 'seca', 'clima', 'estiagem', 'temperatura'] },
+    { category: 'Politica Agro', keywords: ['governo', 'congresso', 'plano safra', 'tributo', 'reforma'] },
+    { category: 'Credito Rural', keywords: ['credito rural', 'financiamento', 'bndes', 'juros', 'seguro rural'] },
+    { category: 'Tecnologia', keywords: ['tecnologia', 'agtech', 'inovacao', 'drone', 'automacao'] },
+    { category: 'Logistica', keywords: ['porto', 'frete', 'escoamento', 'ferrovia', 'rodovia'] },
+    { category: 'Sustentabilidade', keywords: ['sustentabilidade', 'carbono', 'ambiental', 'regenerativa'] },
+  ] as const;
+
+  for (const group of groups) {
+    if (group.keywords.some((keyword) => text.includes(normalizeText(keyword)))) {
+      return group.category;
+    }
+  }
+
+  return 'Mercado';
+};
+
 const slugify = (value: string) =>
   value
     .normalize('NFD')
@@ -176,6 +232,7 @@ Regras adicionais:
 - Gere subtitulo curto.
 - Gere resumo em linha com a regra: ${settings?.summary_rule || 'Gerar resumo em ate 320 caracteres.'}
 - Gere um bloco "Impacto no Agro" pratico e orientado ao negocio.
+- Classifique a materia em apenas uma categoria editorial dentre estas opcoes: ${NEWS_EDITORIAL_CATEGORIES.join(', ')}.
 - O conteudo principal deve ser estruturado em paragrafos, sem markdown.
 - Nao inclua o bloco de referencias na resposta. Isso sera montado pelo sistema.
 
@@ -229,13 +286,17 @@ ${String(ingestion.extracted_text).slice(0, Number(settings?.max_extracted_chara
           responseSchema: {
             type: 'object',
             properties: {
+              editorialCategory: {
+                type: 'string',
+                enum: [...NEWS_EDITORIAL_CATEGORIES],
+              },
               title: { type: 'string' },
               subtitle: { type: 'string' },
               summary: { type: 'string' },
               content: { type: 'string' },
               agroImpact: { type: 'string' },
             },
-            required: ['title', 'subtitle', 'summary', 'content', 'agroImpact'],
+            required: ['editorialCategory', 'title', 'subtitle', 'summary', 'content', 'agroImpact'],
           },
         },
       }),
@@ -314,6 +375,15 @@ ${String(ingestion.extracted_text).slice(0, Number(settings?.max_extracted_chara
 
     const articlePayload = {
       ingestion_id: ingestion.id,
+      editorial_category:
+        normalizeEditorialCategory(generated.editorialCategory) ||
+        classifyEditorialCategory({
+          title: generated.title,
+          subtitle: generated.subtitle,
+          summary: generated.summary,
+          content: generated.content,
+          portalName,
+        }),
       title: trimToNull(generated.title),
       subtitle: trimToNull(generated.subtitle),
       summary: trimToNull(generated.summary),
@@ -373,6 +443,7 @@ ${String(ingestion.extracted_text).slice(0, Number(settings?.max_extracted_chara
       data: {
         id: article.id,
         ingestionId: article.ingestion_id ?? null,
+        editorialCategory: article.editorial_category ?? 'Mercado',
         title: article.title,
         subtitle: article.subtitle ?? '',
         summary: article.summary ?? '',

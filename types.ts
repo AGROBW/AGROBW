@@ -52,6 +52,8 @@ export interface Ad {
   isPremium: boolean;
   createdAt: string;
   expiresAt?: string;
+  expiredAt?: string;
+  deletionScheduledAt?: string;
   whatsapp: string;
   technicalDetails?: TechnicalDetail[];
   healthScore?: number; // 0-100
@@ -65,6 +67,7 @@ export interface Ad {
     document_verified?: boolean;
     cidade?: string;
     estado?: string;
+    business_description?: string;
   };
 }
 
@@ -110,6 +113,7 @@ export interface User {
   document_path?: string; // Caminho do documento de verificação
   document_verified?: boolean; // Status de validação OCR do documento
   whatsapp?: string;
+  business_description?: string;
   cep?: string;
   logradouro?: string;
   numero?: string;
@@ -160,6 +164,8 @@ export type NewsSourceCaptureType = 'manual_url' | 'scraping' | 'api' | 'rss';
 export type NewsArticleStatus = 'draft' | 'in_review' | 'published' | 'archived';
 export type NewsCaptureStatus = 'pending' | 'captured' | 'failed';
 export type NewsGenerationStatus = 'queued' | 'processing' | 'completed' | 'failed';
+export type NewsSocialPlatform = 'instagram' | 'linkedin';
+export type NewsSocialPublicationStatus = 'queued' | 'processing' | 'published' | 'failed' | 'disabled';
 
 export interface NewsSourceRecord {
   id: string;
@@ -195,6 +201,7 @@ export interface NewsArticleRecord {
   id: string;
   ingestionId?: string | null;
   legacyNewsId?: string | null;
+  editorialCategory?: string | null;
   title: string;
   subtitle?: string | null;
   summary?: string | null;
@@ -243,6 +250,50 @@ export interface NewsSettingsRecord {
   updatedAt: string;
 }
 
+export interface NewsSocialSettingsRecord {
+  id: string;
+  instagramEnabled: boolean;
+  instagramUsername?: string | null;
+  instagramBusinessAccountId?: string | null;
+  instagramAccessToken?: string | null;
+  defaultInstagramStoryImageUrl?: string | null;
+  defaultInstagramStoryImagePath?: string | null;
+  linkedinEnabled: boolean;
+  linkedinProfileType: 'member' | 'organization';
+  linkedinProfileLabel?: string | null;
+  linkedinAuthorUrn?: string | null;
+  linkedinAccessToken?: string | null;
+  defaultLinkedinImageUrl?: string | null;
+  defaultLinkedinImagePath?: string | null;
+  autoPublishInstagramStory: boolean;
+  autoPublishLinkedinPost: boolean;
+  instagramStoryTemplate?: string | null;
+  linkedinPostTemplate?: string | null;
+  articleUrlBase?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewsSocialPublicationRecord {
+  id: string;
+  articleId: string;
+  platform: NewsSocialPlatform;
+  publicationType: 'story' | 'post';
+  status: NewsSocialPublicationStatus;
+  targetLabel?: string | null;
+  articleTitle?: string | null;
+  articleSlug?: string | null;
+  externalPublicationId?: string | null;
+  externalPublicationUrl?: string | null;
+  caption?: string | null;
+  requestPayload?: Record<string, unknown> | null;
+  responsePayload?: Record<string, unknown> | null;
+  errorMessage?: string | null;
+  publishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Message {
   id: string;
   chatId: string;
@@ -266,6 +317,11 @@ export interface Chat {
   adTitle: string;
   adPrice: number;
   adImage: string;
+  adStatus?: AdStatus;
+  adExpiresAt?: string;
+  adExpiredAt?: string;
+  adDeletionScheduledAt?: string;
+  isFrozen?: boolean;
   sellerId: string;
   sellerName: string;
   buyerId: string;
@@ -422,6 +478,12 @@ export interface LayoutSettings {
   logoLightUrl?: string | null;
   logoDarkUrl?: string | null;
   faviconUrl?: string | null;
+  facebookUrl?: string | null;
+  instagramUrl?: string | null;
+  youtubeUrl?: string | null;
+  linkedinUrl?: string | null;
+  whatsappUrl?: string | null;
+  tiktokUrl?: string | null;
   primaryColor: string;
   secondaryColor: string;
   accentColor: string;
@@ -490,4 +552,36 @@ export interface PriceDropNotification {
   channels: ('email' | 'push')[]; // Canais utilizados
   emailSent: boolean;
   pushSent: boolean;
+}
+
+export type SupportTicketStatus = 'open' | 'in_progress' | 'waiting_user' | 'resolved' | 'closed';
+export type SupportTicketPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type SupportTicketCategory = 'announcements' | 'billing' | 'plans' | 'messages' | 'technical' | 'other';
+export type SupportTicketSenderType = 'user' | 'admin';
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  subject: string;
+  category: SupportTicketCategory;
+  priority: SupportTicketPriority;
+  status: SupportTicketStatus;
+  description?: string | null;
+  assignedAdminId?: string | null;
+  lastMessageAt: string;
+  createdAt: string;
+  updatedAt: string;
+  requesterName?: string | null;
+  requesterEmail?: string | null;
+}
+
+export interface SupportTicketMessage {
+  id: string;
+  ticketId: string;
+  senderType: SupportTicketSenderType;
+  senderUserId?: string | null;
+  senderAdminId?: string | null;
+  senderName: string;
+  message: string;
+  createdAt: string;
 }

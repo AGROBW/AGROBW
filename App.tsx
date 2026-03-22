@@ -39,6 +39,7 @@ const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const PaymentsManagement = lazy(() => import('./pages/admin/PaymentsManagement'));
 const NewsManagement = lazy(() => import('./pages/admin/NewsManagement'));
 const LayoutManagement = lazy(() => import('./pages/admin/LayoutManagement'));
+const SupportTicketsManagement = lazy(() => import('./pages/admin/SupportTicketsManagement'));
 const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'));
 const SettingsView = lazy(() => import('./pages/admin/SettingsView'));
 
@@ -114,10 +115,10 @@ const AppContent: React.FC = () => {
             <Route path="/noticias" element={<NewsListingView />} />
             <Route path="/noticias/:slug" element={<NewsArticleView />} />
             
-            {/* Redirects para páginas institucionais (agora no CMS) */}
-            <Route path="/quem-somos" element={<Navigate to="/p/quem-somos" replace />} />
-            <Route path="/termos-de-uso" element={<Navigate to="/p/termos-de-uso" replace />} />
-            <Route path="/privacidade" element={<Navigate to="/p/politica-de-privacidade" replace />} />
+            {/* Páginas institucionais com layout próprio */}
+            <Route path="/quem-somos" element={<AboutView />} />
+            <Route path="/termos-de-uso" element={<TermsView />} />
+            <Route path="/privacidade" element={<PrivacyView />} />
             
             <Route path="/login" element={<LoginView />} />
             <Route path="/cadastro" element={<RegisterView />} />
@@ -152,7 +153,7 @@ const AppContent: React.FC = () => {
               path="/favoritos" 
               element={
                 <RequireAuth>
-                  <FavoritesView />
+                  <Navigate to="/minha-conta/favoritos" replace />
                 </RequireAuth>
               } 
             />
@@ -184,6 +185,7 @@ const AppContent: React.FC = () => {
               <Route path="payments" element={<PaymentsManagement />} />
               <Route path="news" element={<NewsManagement />} />
               <Route path="layout" element={<LayoutManagement />} />
+              <Route path="support" element={<SupportTicketsManagement />} />
               <Route path="audit" element={<AuditLogs />} />
               <Route path="settings" element={<SettingsView />} />
             </Route>

@@ -13,6 +13,7 @@ const AdsListingView: React.FC = () => {
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const catSlug = searchParams.get('categoria');
   const subSlug = searchParams.get('sub');
+  const queryTerm = searchParams.get('q')?.trim() || '';
 
   // Encontrar o nome da categoria para o título
   const activeCategory = useMemo(() => 
@@ -21,7 +22,8 @@ const AdsListingView: React.FC = () => {
 
   // Lógica de Filtragem
   const { ads, isLoading } = usePublicAds({
-    category: catSlug || undefined
+    category: catSlug || undefined,
+    search: queryTerm || undefined
   });
 
   const filteredAds = useMemo(() => {
@@ -45,8 +47,9 @@ const AdsListingView: React.FC = () => {
                 <span>Classificados</span>
               </div>
               <h1 className="text-4xl font-black text-slate-900 font-display">
-                {activeCategory ? activeCategory.name : 'Todos os Anúncios'}
+                {queryTerm ? `Resultados para "${queryTerm}"` : activeCategory ? activeCategory.name : 'Todos os Anúncios'}
                 {subSlug && <span className="text-green-600 block text-lg font-bold mt-1">Subcategoria: {subSlug.replace('-', ' ')}</span>}
+                {!subSlug && queryTerm && activeCategory && <span className="text-green-600 block text-lg font-bold mt-1">Categoria: {activeCategory.name}</span>}
               </h1>
             </div>
             

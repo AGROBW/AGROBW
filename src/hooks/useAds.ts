@@ -3,6 +3,18 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { Ad } from '../../types'
 
+const getEffectiveAdStatus = (status: string, expiresAt?: string | null) => {
+  if (
+    (status === 'ACTIVE' || status === 'active') &&
+    expiresAt &&
+    new Date(expiresAt).getTime() <= Date.now()
+  ) {
+    return 'EXPIRED';
+  }
+
+  return status;
+};
+
 export const deleteAnnouncementWithRelations = async (announcementId: string) => {
   const { data, error } = await supabase.functions.invoke('delete-announcement', {
     method: 'POST',
@@ -71,11 +83,13 @@ export const useUserAds = () => {
           categorySlug: ad.categories?.slug,
           images: ad.images || [],
           userId: ad.user_id,
-          status: ad.status,
+          status: getEffectiveAdStatus(ad.status, ad.expires_at) as Ad['status'],
           views: ad.views || 0,
           isPremium: ad.is_premium || false,
           createdAt: ad.created_at,
           expiresAt: ad.expires_at,
+          expiredAt: ad.expired_at,
+          deletionScheduledAt: ad.deletion_scheduled_at,
           whatsapp: ad.whatsapp,
           highlightCategory: ad.highlight_category || false,
           highlightCategoryUntil: ad.highlight_category_until,
@@ -172,10 +186,13 @@ export const usePublicAds = (filters?: {
           categorySlug: ad.categories?.slug,
           images: ad.images || [],
           userId: ad.user_id,
-          status: ad.status,
+          status: getEffectiveAdStatus(ad.status, ad.expires_at) as Ad['status'],
           views: ad.views || 0,
           isPremium: ad.is_premium || false,
           createdAt: ad.created_at,
+          expiresAt: ad.expires_at,
+          expiredAt: ad.expired_at,
+          deletionScheduledAt: ad.deletion_scheduled_at,
           whatsapp: ad.whatsapp,
           highlightCategory: ad.highlight_category || false,
           highlightCategoryUntil: ad.highlight_category_until,
@@ -183,7 +200,7 @@ export const usePublicAds = (filters?: {
           highlightHomeUntil: ad.highlight_home_until,
           seller: ad.seller ? (Array.isArray(ad.seller) ? ad.seller[0] : ad.seller) : undefined
         }))
-        setAds(mappedAds)
+        setAds(mappedAds.filter((ad) => ad.status === 'ACTIVE'))
       }
       setIsLoading(false)
     }
@@ -228,10 +245,13 @@ export const useAllAds = () => {
           categorySlug: ad.category_slug,
           images: ad.images || [],
           userId: ad.user_id,
-          status: ad.status,
+          status: getEffectiveAdStatus(ad.status, ad.expires_at) as Ad['status'],
           views: ad.views || 0,
           isPremium: ad.is_premium || false,
           createdAt: ad.created_at,
+          expiresAt: ad.expires_at,
+          expiredAt: ad.expired_at,
+          deletionScheduledAt: ad.deletion_scheduled_at,
           whatsapp: ad.whatsapp,
           highlightCategory: ad.highlight_category || false,
           highlightCategoryUntil: ad.highlight_category_until,
@@ -298,7 +318,7 @@ export const useAd = (adId: string | undefined) => {
         
         const { data: sellerList, error: sellerError } = await supabase
           .from('vendedores_publicos')
-          .select('name, avatar, document_verified, cidade, estado')
+          .select('name, avatar, document_verified, cidade, estado, business_description')
           .eq('id', adData.user_id)
         
         console.log('[useAd] Resultado da busca:', { sellerList, sellerError })
@@ -344,10 +364,13 @@ export const useAd = (adId: string | undefined) => {
         categorySlug: data.categories?.slug,
         images: data.images || [],
         userId: data.user_id,
-        status: data.status,
+        status: getEffectiveAdStatus(data.status, data.expires_at) as Ad['status'],
         views: data.views || 0,
         isPremium: data.is_premium || false,
         createdAt: data.created_at,
+        expiresAt: data.expires_at,
+        expiredAt: data.expired_at,
+        deletionScheduledAt: data.deletion_scheduled_at,
         whatsapp: data.whatsapp,
         technicalDetails: technicalDetailsArray.length > 0 ? technicalDetailsArray : undefined,
         healthScore: data.health_score,

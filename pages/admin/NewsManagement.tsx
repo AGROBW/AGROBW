@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { BarChart3, FileText, Globe, Newspaper, Settings } from 'lucide-react';
+import { BarChart3, FileText, Globe, Newspaper, Settings, Share2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAdminNews } from '../../src/hooks/useAdminNews';
 import type { NewsArticleRecord, NewsSettingsRecord, NewsSourceRecord } from '../../types';
@@ -8,8 +8,9 @@ import NewsArticleForm, { NewsArticleDraftForm } from '../../components/admin/ne
 import NewsArticlesTable from '../../components/admin/news/NewsArticlesTable';
 import NewsSourcesPanel from '../../components/admin/news/NewsSourcesPanel';
 import NewsSettingsPanel from '../../components/admin/news/NewsSettingsPanel';
+import NewsSocialPanel from '../../components/admin/news/NewsSocialPanel';
 
-type NewsTab = 'dashboard' | 'new' | 'drafts' | 'published' | 'sources' | 'settings';
+type NewsTab = 'dashboard' | 'new' | 'drafts' | 'published' | 'sources' | 'social' | 'settings';
 
 const NewsManagement: React.FC = () => {
   const {
@@ -17,6 +18,8 @@ const NewsManagement: React.FC = () => {
     articles,
     sources,
     settings,
+    socialSettings,
+    socialPublications,
     isLoading,
     error,
     createCapture,
@@ -28,6 +31,7 @@ const NewsManagement: React.FC = () => {
     deleteArticle,
     upsertSource,
     deleteSource,
+    saveSocialSettings,
     saveSettings,
   } = useAdminNews();
   const [activeTab, setActiveTab] = useState<NewsTab>('dashboard');
@@ -110,6 +114,7 @@ const NewsManagement: React.FC = () => {
     { id: 'drafts' as NewsTab, label: 'Rascunhos', icon: FileText },
     { id: 'published' as NewsTab, label: 'Publicadas', icon: Globe },
     { id: 'sources' as NewsTab, label: 'Fontes', icon: Newspaper },
+    { id: 'social' as NewsTab, label: 'Rede Social', icon: Share2 },
     { id: 'settings' as NewsTab, label: 'Configuracoes', icon: Settings },
   ];
 
@@ -288,6 +293,21 @@ const NewsManagement: React.FC = () => {
               return;
             }
             toast.success('Configuracoes salvas com sucesso.');
+          }}
+        />
+      ) : null}
+
+      {!isLoading && activeTab === 'social' ? (
+        <NewsSocialPanel
+          settings={socialSettings}
+          publications={socialPublications}
+          onSave={async (payload) => {
+            const result = await saveSocialSettings(payload);
+            if (result.error) {
+              toast.error(result.error);
+              return;
+            }
+            toast.success('Configurações de rede social salvas com sucesso.');
           }}
         />
       ) : null}

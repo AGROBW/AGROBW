@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Search, X, Check, CheckCheck, Circle, Loader2, ArrowLeft } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Send, Search, Check, CheckCheck, Circle, Loader2, ArrowLeft, AlertCircle, Lock } from 'lucide-react';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useChats, useMessages } from '../src/hooks/useMessages';
 import { formatDistanceToNow } from 'date-fns';
@@ -22,6 +22,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const { messages, isLoading: messagesLoading, sendMessage } = useMessages(selectedChatId);
   
   const selectedChat = chats.find(c => c.id === selectedChatId);
+  const isSelectedChatFrozen = !!selectedChat?.isFrozen;
   
   // Debug: Log dos dados do chat selecionado
   useEffect(() => {
@@ -49,7 +50,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   });
   
   const handleSendMessage = async () => {
-    if (!messageText.trim() || !selectedChatId) return;
+    if (!messageText.trim() || !selectedChatId || isSelectedChatFrozen) return;
     
     const success = await sendMessage(messageText);
     if (success) {
@@ -135,7 +136,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between mb-1">
                       <h3 className="font-bold text-sm text-slate-900 truncate">
-                        {getOtherUserName(chat)}
+                        {chat.isFrozen ? 'Interacao congelada' : getOtherUserName(chat)}
                       </h3>
                       <span className="text-xs text-slate-400 flex-shrink-0 ml-2">
                         {formatTime(chat.lastMessageTime)}
@@ -157,6 +158,12 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                         </span>
                       )}
                     </div>
+                    {chat.isFrozen && (
+                      <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                        <Lock className="w-3 h-3" />
+                        Anuncio expirado
+                      </span>
+                    )}
                   </div>
                 </div>
               </button>
@@ -190,28 +197,52 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
             
             <div className="flex-1 min-w-0">
               <h3 className="font-bold text-sm text-slate-900 truncate">
-                {getOtherUserName(selectedChat)}
+                {isSelectedChatFrozen ? 'Interacao congelada' : getOtherUserName(selectedChat)}
               </h3>
               <p className="text-xs text-slate-500 truncate">
                 {selectedChat.adTitle}
               </p>
             </div>
             
-            <div className="text-right">
-              <p className="text-sm font-bold text-green-700">
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL'
-                }).format(selectedChat.adPrice)}
-              </p>
-            </div>
+            {!isSelectedChatFrozen && (
+              <div className="text-right">
+                <p className="text-sm font-bold text-green-700">
+                  {new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                  }).format(selectedChat.adPrice)}
+                </p>
+              </div>
+            )}
           </div>
+
+          {isSelectedChatFrozen && (
+            <div className="mx-4 mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800">Anuncio expirado</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Esta conversa foi congelada porque o anuncio venceu. Nenhuma nova mensagem pode ser enviada e os dados da negociacao ficaram bloqueados.
+                </p>
+              </div>
+            </div>
+          )}
           
           {/* Mensagens */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
             {messagesLoading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-6 h-6 text-green-600 animate-spin" />
+              </div>
+            ) : isSelectedChatFrozen ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center max-w-md">
+                  <Lock className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                  <p className="text-slate-700 text-sm font-semibold">Conversa bloqueada</p>
+                  <p className="text-slate-500 text-xs mt-2">
+                    O historico deste anuncio expirado foi congelado. Republicar o anuncio exige um novo credito e nao reabre esta conversa automaticamente.
+                  </p>
+                </div>
               </div>
             ) : messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
@@ -289,12 +320,13 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                placeholder="Digite sua mensagem..."
-                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder={isSelectedChatFrozen ? 'Anuncio expirado. Conversa bloqueada.' : 'Digite sua mensagem...'}
+                disabled={isSelectedChatFrozen}
+                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
               />
               <button
                 onClick={handleSendMessage}
-                disabled={!messageText.trim()}
+                disabled={!messageText.trim() || isSelectedChatFrozen}
                 className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-bold"
               >
                 <Send className="w-4 h-4" />
@@ -305,11 +337,13 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
         </div>
         
         {/* Sidebar de Inteligência Logística */}
-        <LogisticsSidebar 
-          chatId={selectedChatId}
-          adPrice={selectedChat.adPrice}
-          adTitle={selectedChat.adTitle}
-        />
+        {!isSelectedChatFrozen && (
+          <LogisticsSidebar 
+            chatId={selectedChatId}
+            adPrice={selectedChat.adPrice}
+            adTitle={selectedChat.adTitle}
+          />
+        )}
         </>
       ) : (
         <div className="hidden md:flex flex-1 items-center justify-center bg-slate-50">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ImageIcon, Type } from 'lucide-react';
+import { ImageIcon, Loader2, Type, UploadCloud } from 'lucide-react';
 
 type LayoutBrandFormData = {
   siteName: string;
@@ -19,11 +19,80 @@ type LayoutBrandFormData = {
 interface LayoutBrandSectionProps {
   formData: LayoutBrandFormData;
   onChange: (field: keyof LayoutBrandFormData, value: string) => void;
+  onUpload: (field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl', file: File) => Promise<void>;
+  uploadingField: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | null;
 }
 
 const inputClassName = 'rounded-xl border border-slate-200 px-4 py-3 text-sm';
 
-const LayoutBrandSection: React.FC<LayoutBrandSectionProps> = ({ formData, onChange }) => {
+const uploadTargets: Array<{
+  field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl';
+  label: string;
+  helper: string;
+  accept: string;
+}> = [
+  { field: 'logoUrl', label: 'Logo principal', helper: 'Usada na maior parte do site.', accept: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml' },
+  { field: 'logoLightUrl', label: 'Logo clara', helper: 'Ideal para fundos escuros.', accept: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml' },
+  { field: 'logoDarkUrl', label: 'Logo escura', helper: 'Ideal para fundos claros.', accept: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml' },
+  { field: 'faviconUrl', label: 'Favicon', helper: 'Ícone da aba do navegador.', accept: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml,image/x-icon' },
+];
+
+const LayoutBrandSection: React.FC<LayoutBrandSectionProps> = ({ formData, onChange, onUpload, uploadingField }) => {
+  const renderAssetCard = (
+    field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl',
+    label: string,
+    helper: string,
+    accept: string,
+  ) => {
+    const value = formData[field];
+    const isUploading = uploadingField === field;
+
+    return (
+      <div key={field} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">{label}</p>
+            <p className="text-xs text-slate-500">{helper}</p>
+          </div>
+          {value ? (
+            <div className="flex h-14 min-w-[56px] items-center justify-center rounded-xl border border-slate-200 bg-white p-2">
+              <img src={value} alt={label} className="max-h-10 max-w-[120px] object-contain" />
+            </div>
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white text-slate-400">
+              <ImageIcon className="h-5 w-5" />
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+            {isUploading ? 'Enviando...' : 'Selecionar imagem'}
+            <input
+              type="file"
+              accept={accept}
+              className="hidden"
+              disabled={isUploading}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                await onUpload(field, file);
+                e.currentTarget.value = '';
+              }}
+            />
+          </label>
+          <input
+            className={`${inputClassName} w-full`}
+            value={value}
+            onChange={(e) => onChange(field, e.target.value)}
+            placeholder={`URL da ${label.toLowerCase()}`}
+          />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6">
       <div className="mb-5 flex items-center gap-3">
@@ -45,10 +114,10 @@ const LayoutBrandSection: React.FC<LayoutBrandSectionProps> = ({ formData, onCha
         <input className={inputClassName} value={formData.seoTitle} onChange={(e) => onChange('seoTitle', e.target.value)} placeholder="Titulo SEO padrao" />
         <input className={`${inputClassName} md:col-span-2`} value={formData.siteTagline} onChange={(e) => onChange('siteTagline', e.target.value)} placeholder="Slogan / tagline" />
         <textarea className={`${inputClassName} md:col-span-2`} rows={3} value={formData.seoDescription} onChange={(e) => onChange('seoDescription', e.target.value)} placeholder="Descricao SEO padrao" />
-        <input className={`${inputClassName} md:col-span-2`} value={formData.logoUrl} onChange={(e) => onChange('logoUrl', e.target.value)} placeholder="URL da logo principal" />
-        <input className={inputClassName} value={formData.logoLightUrl} onChange={(e) => onChange('logoLightUrl', e.target.value)} placeholder="URL da logo clara" />
-        <input className={inputClassName} value={formData.logoDarkUrl} onChange={(e) => onChange('logoDarkUrl', e.target.value)} placeholder="URL da logo escura" />
-        <input className={`${inputClassName} md:col-span-2`} value={formData.faviconUrl} onChange={(e) => onChange('faviconUrl', e.target.value)} placeholder="URL do favicon" />
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+        {uploadTargets.map(({ field, label, helper, accept }) => renderAssetCard(field, label, helper, accept))}
       </div>
 
       <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4">
