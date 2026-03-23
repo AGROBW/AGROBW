@@ -32,6 +32,12 @@ type CapturePreview = {
   captureError?: string | null;
 };
 
+const buildSummaryFromText = (text: string) => {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  return normalized.slice(0, 220).trim() + (normalized.length > 220 ? '...' : '');
+};
+
 interface NewsArticleFormProps {
   initialArticle?: NewsArticleRecord | null;
   settings?: NewsSettingsRecord | null;
@@ -116,6 +122,11 @@ const NewsArticleForm: React.FC<NewsArticleFormProps> = ({
           : prev.originalPublishedAt,
         featuredImageUrl: result.featuredImageUrl || prev.featuredImageUrl,
         title: prev.title || result.originalTitle || prev.originalTitle,
+        summary: prev.summary || buildSummaryFromText(result.extractedText || ''),
+        content: prev.content || result.extractedText || '',
+        referencesBlock:
+          prev.referencesBlock ||
+          [result.originalPortalName, result.sourceUrl].filter(Boolean).join('\n'),
       }));
     }
     setCapturing(false);

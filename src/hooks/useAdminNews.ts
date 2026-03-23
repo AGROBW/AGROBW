@@ -82,6 +82,12 @@ const slugify = (value: string) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 120);
 
+const buildSummaryFromExtractedText = (text: string | null | undefined) => {
+  const normalized = (text || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+  return normalized.length > 220 ? `${normalized.slice(0, 220).trim()}...` : normalized;
+};
+
 const mapArticle = (row: any): NewsArticleRecord => ({
   id: row.id,
   ingestionId: row.ingestion_id ?? null,
@@ -687,6 +693,9 @@ export const useAdminNews = () => {
     const slug = slugify(payload.slug?.trim() || resolvedTitle);
     const nowIso = new Date().toISOString();
     let ingestionId = payload.ingestionId ?? null;
+    let extractedTextFallback: string | null = null;
+    let originalPortalNameFallback = payload.originalPortalName ?? null;
+    let sourceUrlFallback = payload.sourceUrl ?? null;
 
     if (!ingestionId && payload.sourceUrl) {
       const captureResult = await createCapture(payload.sourceUrl);
@@ -704,7 +713,33 @@ export const useAdminNews = () => {
           updated_at: nowIso,
         })
         .eq('id', ingestionId);
+
+      extractedTextFallback = captureResult.data.extractedText ?? null;
+      originalPortalNameFallback = captureResult.data.originalPortalName ?? originalPortalNameFallback;
+      sourceUrlFallback = captureResult.data.sourceUrl ?? sourceUrlFallback;
     }
+
+    if (ingestionId && (!payload.summary?.trim() || !payload.content?.trim() || !payload.referencesBlock?.trim())) {
+      const { data: ingestionData } = await supabase
+        .from('news_ingestions')
+        .select('source_url, original_portal_name, extracted_text')
+        .eq('id', ingestionId)
+        .maybeSingle();
+
+      if (ingestionData) {
+        extractedTextFallback = ingestionData.extracted_text ?? extractedTextFallback;
+        originalPortalNameFallback = ingestionData.original_portal_name ?? originalPortalNameFallback;
+        sourceUrlFallback = ingestionData.source_url ?? sourceUrlFallback;
+      }
+    }
+
+    const resolvedSummary =
+      payload.summary?.trim() || buildSummaryFromExtractedText(extractedTextFallback) || null;
+    const resolvedContent = payload.content?.trim() || extractedTextFallback || null;
+    const resolvedReferences =
+      payload.referencesBlock?.trim() ||
+      [originalPortalNameFallback, sourceUrlFallback].filter(Boolean).join('\n') ||
+      null;
 
     const dbPayload = {
       ingestion_id: ingestionId,
@@ -719,10 +754,10 @@ export const useAdminNews = () => {
         }),
       title: resolvedTitle,
       subtitle: payload.subtitle ?? null,
-      summary: payload.summary ?? null,
-      content: payload.content ?? null,
+      summary: resolvedSummary,
+      content: resolvedContent,
       agro_impact: payload.agroImpact ?? null,
-      references_block: payload.referencesBlock ?? null,
+      references_block: resolvedReferences,
       slug,
       status: payload.status,
       featured_image_url: payload.featuredImageUrl ?? null,
@@ -766,10 +801,10 @@ export const useAdminNews = () => {
         editorialCategory: payload.editorialCategory ?? null,
         title: payload.title,
         subtitle: payload.subtitle ?? null,
-        summary: payload.summary ?? null,
-        content: payload.content ?? null,
+        summary: resolvedSummary,
+        content: resolvedContent,
         agroImpact: payload.agroImpact ?? null,
-        referencesBlock: payload.referencesBlock ?? null,
+        referencesBlock: resolvedReferences,
         slug,
         status: payload.status,
         featuredImageUrl: payload.featuredImageUrl ?? null,

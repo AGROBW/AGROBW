@@ -10,6 +10,9 @@ interface NewsCardProps {
 const NewsCard: React.FC<NewsCardProps> = ({ news }) => {
   const badgeStyle = getNewsEditorialCategoryStyle(news.category);
   const linkColor = badgeStyle.color === '#ffffff' ? '#0f766e' : badgeStyle.color;
+  const formattedDate = news.date
+    ? new Date(news.date).toLocaleDateString('pt-BR')
+    : '';
 
   return (
     <a
@@ -31,9 +34,9 @@ const NewsCard: React.FC<NewsCardProps> = ({ news }) => {
         <div className="absolute inset-0 bg-black/5 transition-colors group-hover:bg-transparent" />
       </div>
 
-      <div className="p-5">
+        <div className="p-5">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-          {news.date}
+          {formattedDate}
         </p>
         <h3 className="mb-2 line-clamp-2 text-sm font-semibold leading-tight text-slate-800 transition-colors group-hover:opacity-90">
           {news.title}
