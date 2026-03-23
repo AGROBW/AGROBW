@@ -32,6 +32,9 @@ const NewsManagement: React.FC = () => {
     upsertSource,
     deleteSource,
     saveSocialSettings,
+    startMetaInstagramConnection,
+    completeMetaInstagramConnection,
+    validateMetaInstagramConnection,
     saveSettings,
   } = useAdminNews();
   const [activeTab, setActiveTab] = useState<NewsTab>('dashboard');
@@ -301,6 +304,9 @@ const NewsManagement: React.FC = () => {
         <NewsSocialPanel
           settings={socialSettings}
           publications={socialPublications}
+          onStartMetaConnect={startMetaInstagramConnection}
+          onCompleteMetaConnect={completeMetaInstagramConnection}
+          onValidateMetaConnect={validateMetaInstagramConnection}
           onSave={async (payload) => {
             const result = await saveSocialSettings(payload);
             if (result.error) {

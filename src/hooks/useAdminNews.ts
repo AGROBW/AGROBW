@@ -148,6 +148,14 @@ const mapSocialSettings = (row: any): NewsSocialSettingsRecord => ({
   instagramUsername: row.instagram_username ?? null,
   instagramBusinessAccountId: row.instagram_business_account_id ?? null,
   instagramAccessToken: row.instagram_access_token ?? null,
+  metaUserAccessToken: row.meta_user_access_token ?? null,
+  facebookPageId: row.facebook_page_id ?? null,
+  facebookPageName: row.facebook_page_name ?? null,
+  facebookPageAccessToken: row.facebook_page_access_token ?? null,
+  instagramConnectionStatus: row.instagram_connection_status ?? null,
+  instagramConnectedAt: row.instagram_connected_at ?? null,
+  instagramTokenExpiresAt: row.instagram_token_expires_at ?? null,
+  instagramTokenLastValidatedAt: row.instagram_token_last_validated_at ?? null,
   defaultInstagramStoryImageUrl: row.default_instagram_story_image_url ?? null,
   defaultInstagramStoryImagePath: row.default_instagram_story_image_path ?? null,
   linkedinEnabled: row.linkedin_enabled,
@@ -388,33 +396,63 @@ export const useAdminNews = () => {
 
   const saveSocialSettings = async (payload: Partial<NewsSocialSettingsRecord>) => {
     const currentId = socialSettings?.id;
+    const hasField = <K extends keyof NewsSocialSettingsRecord>(field: K) =>
+      Object.prototype.hasOwnProperty.call(payload, field);
     const dbPayload = {
-      instagram_enabled: payload.instagramEnabled ?? socialSettings?.instagramEnabled ?? false,
-      instagram_username: payload.instagramUsername ?? socialSettings?.instagramUsername ?? null,
-      instagram_business_account_id:
-        payload.instagramBusinessAccountId ?? socialSettings?.instagramBusinessAccountId ?? null,
-      instagram_access_token: payload.instagramAccessToken ?? socialSettings?.instagramAccessToken ?? null,
-      default_instagram_story_image_url:
-        payload.defaultInstagramStoryImageUrl ?? socialSettings?.defaultInstagramStoryImageUrl ?? null,
-      default_instagram_story_image_path:
-        payload.defaultInstagramStoryImagePath ?? socialSettings?.defaultInstagramStoryImagePath ?? null,
-      linkedin_enabled: payload.linkedinEnabled ?? socialSettings?.linkedinEnabled ?? false,
-      linkedin_profile_type: payload.linkedinProfileType ?? socialSettings?.linkedinProfileType ?? 'organization',
-      linkedin_profile_label: payload.linkedinProfileLabel ?? socialSettings?.linkedinProfileLabel ?? null,
-      linkedin_author_urn: payload.linkedinAuthorUrn ?? socialSettings?.linkedinAuthorUrn ?? null,
-      linkedin_access_token: payload.linkedinAccessToken ?? socialSettings?.linkedinAccessToken ?? null,
-      default_linkedin_image_url:
-        payload.defaultLinkedinImageUrl ?? socialSettings?.defaultLinkedinImageUrl ?? null,
-      default_linkedin_image_path:
-        payload.defaultLinkedinImagePath ?? socialSettings?.defaultLinkedinImagePath ?? null,
-      auto_publish_instagram_story:
-        payload.autoPublishInstagramStory ?? socialSettings?.autoPublishInstagramStory ?? false,
-      auto_publish_linkedin_post:
-        payload.autoPublishLinkedinPost ?? socialSettings?.autoPublishLinkedinPost ?? true,
-      instagram_story_template:
-        payload.instagramStoryTemplate ?? socialSettings?.instagramStoryTemplate ?? null,
-      linkedin_post_template: payload.linkedinPostTemplate ?? socialSettings?.linkedinPostTemplate ?? null,
-      article_url_base: payload.articleUrlBase ?? socialSettings?.articleUrlBase ?? null,
+      instagram_enabled: hasField('instagramEnabled')
+        ? payload.instagramEnabled
+        : socialSettings?.instagramEnabled ?? false,
+      instagram_username: hasField('instagramUsername')
+        ? payload.instagramUsername
+        : socialSettings?.instagramUsername ?? null,
+      instagram_business_account_id: hasField('instagramBusinessAccountId')
+        ? payload.instagramBusinessAccountId
+        : socialSettings?.instagramBusinessAccountId ?? null,
+      instagram_access_token: hasField('instagramAccessToken')
+        ? payload.instagramAccessToken
+        : socialSettings?.instagramAccessToken ?? null,
+      default_instagram_story_image_url: hasField('defaultInstagramStoryImageUrl')
+        ? payload.defaultInstagramStoryImageUrl
+        : socialSettings?.defaultInstagramStoryImageUrl ?? null,
+      default_instagram_story_image_path: hasField('defaultInstagramStoryImagePath')
+        ? payload.defaultInstagramStoryImagePath
+        : socialSettings?.defaultInstagramStoryImagePath ?? null,
+      linkedin_enabled: hasField('linkedinEnabled')
+        ? payload.linkedinEnabled
+        : socialSettings?.linkedinEnabled ?? false,
+      linkedin_profile_type: hasField('linkedinProfileType')
+        ? payload.linkedinProfileType
+        : socialSettings?.linkedinProfileType ?? 'organization',
+      linkedin_profile_label: hasField('linkedinProfileLabel')
+        ? payload.linkedinProfileLabel
+        : socialSettings?.linkedinProfileLabel ?? null,
+      linkedin_author_urn: hasField('linkedinAuthorUrn')
+        ? payload.linkedinAuthorUrn
+        : socialSettings?.linkedinAuthorUrn ?? null,
+      linkedin_access_token: hasField('linkedinAccessToken')
+        ? payload.linkedinAccessToken
+        : socialSettings?.linkedinAccessToken ?? null,
+      default_linkedin_image_url: hasField('defaultLinkedinImageUrl')
+        ? payload.defaultLinkedinImageUrl
+        : socialSettings?.defaultLinkedinImageUrl ?? null,
+      default_linkedin_image_path: hasField('defaultLinkedinImagePath')
+        ? payload.defaultLinkedinImagePath
+        : socialSettings?.defaultLinkedinImagePath ?? null,
+      auto_publish_instagram_story: hasField('autoPublishInstagramStory')
+        ? payload.autoPublishInstagramStory
+        : socialSettings?.autoPublishInstagramStory ?? false,
+      auto_publish_linkedin_post: hasField('autoPublishLinkedinPost')
+        ? payload.autoPublishLinkedinPost
+        : socialSettings?.autoPublishLinkedinPost ?? true,
+      instagram_story_template: hasField('instagramStoryTemplate')
+        ? payload.instagramStoryTemplate
+        : socialSettings?.instagramStoryTemplate ?? null,
+      linkedin_post_template: hasField('linkedinPostTemplate')
+        ? payload.linkedinPostTemplate
+        : socialSettings?.linkedinPostTemplate ?? null,
+      article_url_base: hasField('articleUrlBase')
+        ? payload.articleUrlBase
+        : socialSettings?.articleUrlBase ?? null,
       updated_at: new Date().toISOString(),
     };
 
@@ -462,6 +500,7 @@ export const useAdminNews = () => {
       const canPublishInstagram =
         Boolean(socialSettings.instagramAccessToken) &&
         Boolean(socialSettings.instagramBusinessAccountId) &&
+        socialSettings.instagramConnectionStatus !== 'expired' &&
         Boolean(instagramImageUrl);
 
       rows.push({
@@ -551,6 +590,17 @@ export const useAdminNews = () => {
 
         if (invokeResult.error) {
           console.error('[useAdminNews] Erro ao disparar publicação do Instagram:', invokeResult.error);
+          try {
+            const errorBody = await invokeResult.error.context?.json?.();
+            console.error('[useAdminNews] Corpo da resposta de publish-news-social (Instagram):', errorBody);
+          } catch {
+            try {
+              const errorText = await invokeResult.error.context?.text?.();
+              console.error('[useAdminNews] Corpo da resposta de publish-news-social (Instagram):', errorText);
+            } catch {
+              console.error('[useAdminNews] Erro ao ler corpo da resposta de publish-news-social (Instagram)');
+            }
+          }
         } else {
           await fetchSocialPublications();
         }
@@ -807,6 +857,74 @@ export const useAdminNews = () => {
     refreshAll();
   }, []);
 
+  const startMetaInstagramConnection = async () => {
+    const { data, error } = await supabase.functions.invoke('start-meta-social-connection', {
+      method: 'POST',
+      body: {
+        appOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+      },
+    });
+
+    if (error || !data?.success) {
+      return {
+        error: data?.error || error?.message || 'Nao foi possivel iniciar a conexao com a Meta.',
+        data: null,
+      };
+    }
+
+    return {
+      error: null,
+      data: data.data as { authUrl: string; state: string; redirectUri: string },
+    };
+  };
+
+  const completeMetaInstagramConnection = async (code: string, state: string, redirectUri: string) => {
+    const { data, error } = await supabase.functions.invoke('complete-meta-social-connection', {
+      method: 'POST',
+      body: {
+        code,
+        state,
+        redirectUri,
+      },
+    });
+
+    if (error || !data?.success) {
+      return {
+        error: data?.error || error?.message || 'Nao foi possivel concluir a conexao com a Meta.',
+        data: null,
+      };
+    }
+
+    await fetchSocialSettings();
+    return {
+      error: null,
+      data: data.data as {
+        facebookPageId: string;
+        facebookPageName: string;
+        instagramBusinessAccountId: string;
+        instagramUsername: string | null;
+        expiresAt: string | null;
+      },
+    };
+  };
+
+  const validateMetaInstagramConnection = async () => {
+    const { data, error } = await supabase.functions.invoke('validate-meta-social-connection', {
+      method: 'POST',
+      body: {},
+    });
+
+    if (error || !data?.success) {
+      return {
+        error: data?.error || error?.message || 'Nao foi possivel validar a conexao da Meta.',
+        data: null,
+      };
+    }
+
+    await fetchSocialSettings();
+    return { error: null, data: data.data as { status: string; expiresAt: string | null } };
+  };
+
   return {
     dashboard,
     articles,
@@ -822,6 +940,9 @@ export const useAdminNews = () => {
     upsertSource,
     deleteSource,
     saveSocialSettings,
+    startMetaInstagramConnection,
+    completeMetaInstagramConnection,
+    validateMetaInstagramConnection,
     saveSettings,
     createCapture,
     generateArticleFromIngestion,

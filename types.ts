@@ -166,6 +166,7 @@ export type NewsCaptureStatus = 'pending' | 'captured' | 'failed';
 export type NewsGenerationStatus = 'queued' | 'processing' | 'completed' | 'failed';
 export type NewsSocialPlatform = 'instagram' | 'linkedin';
 export type NewsSocialPublicationStatus = 'queued' | 'processing' | 'published' | 'failed' | 'disabled';
+export type NewsSocialConnectionStatus = 'disconnected' | 'connected' | 'expiring_soon' | 'expired' | 'error';
 
 export interface NewsSourceRecord {
   id: string;
@@ -256,6 +257,14 @@ export interface NewsSocialSettingsRecord {
   instagramUsername?: string | null;
   instagramBusinessAccountId?: string | null;
   instagramAccessToken?: string | null;
+  metaUserAccessToken?: string | null;
+  facebookPageId?: string | null;
+  facebookPageName?: string | null;
+  facebookPageAccessToken?: string | null;
+  instagramConnectionStatus?: NewsSocialConnectionStatus | null;
+  instagramConnectedAt?: string | null;
+  instagramTokenExpiresAt?: string | null;
+  instagramTokenLastValidatedAt?: string | null;
   defaultInstagramStoryImageUrl?: string | null;
   defaultInstagramStoryImagePath?: string | null;
   linkedinEnabled: boolean;

@@ -52,3 +52,18 @@ entrypoint = "./functions/notify-support-ticket-update/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/publish-news-social/index.ts"
+
+[functions.start-meta-social-connection]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/start-meta-social-connection/index.ts"
+
+[functions.complete-meta-social-connection]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/complete-meta-social-connection/index.ts"
+
+[functions.validate-meta-social-connection]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/validate-meta-social-connection/index.ts"
