@@ -16,6 +16,8 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) =>
     },
   });
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const uploadLinkedinImage = async (params: {
   accessToken: string;
   authorUrn: string;
@@ -336,6 +338,55 @@ serve(async (req) => {
       }
 
       const creationId = (createContainerJson as any).id;
+      let isContainerReady = false;
+      let containerStatusPayload: Record<string, unknown> = {};
+
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        await sleep(attempt === 0 ? 1200 : 1800);
+
+        const statusUrl = new URL(`https://graph.facebook.com/${graphVersion}/${creationId}`);
+        statusUrl.searchParams.set('fields', 'status_code');
+        statusUrl.searchParams.set('access_token', socialSettings.instagram_access_token);
+
+        const statusResponse = await fetch(statusUrl);
+        const statusJson = await statusResponse.json().catch(() => ({}));
+        containerStatusPayload = statusJson;
+
+        if (statusResponse.ok && (statusJson as any)?.status_code === 'FINISHED') {
+          isContainerReady = true;
+          break;
+        }
+
+        if ((statusJson as any)?.status_code === 'ERROR') {
+          break;
+        }
+      }
+
+      if (!isContainerReady) {
+        const instagramProcessingFailed = (containerStatusPayload as any)?.status_code === 'ERROR';
+        const errorMessage =
+          (containerStatusPayload as any)?.error?.message ||
+          (instagramProcessingFailed
+            ? 'Instagram reportou erro ao processar a media do story'
+            : 'Media ID is not available');
+
+        await supabaseAdmin
+          .from('news_social_publications')
+          .update({
+            status: 'failed',
+            error_message: errorMessage,
+            request_payload: {
+              ...(publication.request_payload as any),
+              creationId,
+            },
+            response_payload: containerStatusPayload,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', publication.id);
+
+        return jsonResponse({ success: false, error: errorMessage, response: containerStatusPayload }, 502);
+      }
+
       const publishResponse = await fetch(
         `https://graph.facebook.com/${graphVersion}/${socialSettings.instagram_business_account_id}/media_publish`,
         {
