@@ -50,7 +50,7 @@ const NewsArticlesTable: React.FC<NewsArticlesTableProps> = ({
               <tr key={article.id} className="border-b border-slate-50 last:border-b-0">
                 <td className="px-3 py-4">
                   <div>
-                    <p className="font-semibold text-slate-900">{article.title}</p>
+                    <p className="font-semibold text-slate-900">{article.title || article.originalTitle || 'Materia sem titulo'}</p>
                     <p className="mt-1 text-xs text-slate-500">{article.slug}</p>
                   </div>
                 </td>

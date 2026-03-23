@@ -683,7 +683,8 @@ export const useAdminNews = () => {
   };
 
   const saveArticle = async (payload: ArticlePayload) => {
-    const slug = slugify(payload.slug?.trim() || payload.title);
+    const resolvedTitle = payload.title.trim() || payload.originalTitle?.trim() || 'Materia sem titulo';
+    const slug = slugify(payload.slug?.trim() || resolvedTitle);
     const nowIso = new Date().toISOString();
     let ingestionId = payload.ingestionId ?? null;
 
@@ -697,7 +698,7 @@ export const useAdminNews = () => {
       await supabase
         .from('news_ingestions')
         .update({
-          original_title: payload.originalTitle ?? payload.title,
+          original_title: payload.originalTitle ?? resolvedTitle,
           original_portal_name: payload.originalPortalName ?? null,
           original_published_at: payload.originalPublishedAt ?? null,
           updated_at: nowIso,
@@ -710,13 +711,13 @@ export const useAdminNews = () => {
       editorial_category:
         normalizeEditorialCategory(payload.editorialCategory) ||
         classifyNewsEditorialCategory({
-          title: payload.title,
+          title: resolvedTitle,
           subtitle: payload.subtitle,
           summary: payload.summary,
           content: payload.content,
           portalName: payload.originalPortalName,
         }),
-      title: payload.title,
+      title: resolvedTitle,
       subtitle: payload.subtitle ?? null,
       summary: payload.summary ?? null,
       content: payload.content ?? null,

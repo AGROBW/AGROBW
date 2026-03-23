@@ -115,6 +115,7 @@ const NewsArticleForm: React.FC<NewsArticleFormProps> = ({
           ? result.originalPublishedAt.slice(0, 10)
           : prev.originalPublishedAt,
         featuredImageUrl: result.featuredImageUrl || prev.featuredImageUrl,
+        title: prev.title || result.originalTitle || prev.originalTitle,
       }));
     }
     setCapturing(false);
