@@ -910,6 +910,32 @@ const UserDashboardView: React.FC = () => {
       return `Expira em ${expiresAt.toLocaleDateString('pt-BR')}`;
     };
 
+    const getHighlightLifetimeLabel = (ad: Ad) => {
+      const categoryUntil = (ad as any).highlight_category_until || (ad as any).highlightCategoryUntil;
+      const homeUntil = (ad as any).highlight_home_until || (ad as any).highlightHomeUntil;
+      const parts: string[] = [];
+
+      if (categoryUntil) {
+        const categoryDate = new Date(categoryUntil);
+        parts.push(
+          Number.isNaN(categoryDate.getTime())
+            ? `Categoria até ${categoryUntil}`
+            : `Categoria até ${categoryDate.toLocaleDateString('pt-BR')}`
+        );
+      }
+
+      if (homeUntil) {
+        const homeDate = new Date(homeUntil);
+        parts.push(
+          Number.isNaN(homeDate.getTime())
+            ? `Home até ${homeUntil}`
+            : `Home até ${homeDate.toLocaleDateString('pt-BR')}`
+        );
+      }
+
+      return parts.join(' | ');
+    };
+
     const getExpiredRetentionLabel = (ad: Ad) => {
       if (!ad.deletionScheduledAt) {
         return 'Exclusão automática conforme o prazo do plano';
@@ -1130,7 +1156,8 @@ const UserDashboardView: React.FC = () => {
                       Código: {ad.id} | Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     <p className="text-xs text-slate-500 truncate">
-                      Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} as {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {ad.status === AdStatus.EXPIRED ? getExpiredRetentionLabel(ad) : getAdLifetimeLabel(ad)}
+                      Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} as {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {ad.status === AdStatus.EXPIRED ? getExpiredRetentionLabel(ad) : `Anuncio ${getAdLifetimeLabel(ad).toLowerCase()}`}
+                      {getHighlightLifetimeLabel(ad) ? ` | Destaque ${getHighlightLifetimeLabel(ad).replace('Categoria', 'categoria').replace('Home', 'home')}` : ''}
                     </p>
                     <p className="text-xs text-slate-500">
                       Visitas: {ad.views} | Valor: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.price)}
