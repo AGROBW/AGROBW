@@ -34,6 +34,43 @@ const AdsListingView: React.FC = () => {
     });
   }, [ads, subSlug]);
 
+  const sortedAds = useMemo(() => {
+    const now = Date.now();
+    const isHomeHighlightActive = (ad: typeof filteredAds[number]) =>
+      Boolean(ad.highlightHome && (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil).getTime() > now));
+    const isCategoryHighlightActive = (ad: typeof filteredAds[number]) =>
+      Boolean(ad.highlightCategory && (!ad.highlightCategoryUntil || new Date(ad.highlightCategoryUntil).getTime() > now));
+
+    return [...filteredAds].sort((a, b) => {
+      const aHome = isHomeHighlightActive(a) ? 1 : 0;
+      const bHome = isHomeHighlightActive(b) ? 1 : 0;
+      const aCategory = isCategoryHighlightActive(a) ? 1 : 0;
+      const bCategory = isCategoryHighlightActive(b) ? 1 : 0;
+
+      if (catSlug) {
+        if (aCategory !== bCategory) {
+          return bCategory - aCategory;
+        }
+
+        if (aHome !== bHome) {
+          return bHome - aHome;
+        }
+      } else {
+        if (aHome !== bHome) {
+          return bHome - aHome;
+        }
+
+        if (aCategory !== bCategory) {
+          return bCategory - aCategory;
+        }
+      }
+
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [filteredAds, catSlug]);
+
   return (
     <div className="bg-gray-50 min-h-screen pb-20">
       {/* Page Header */}
@@ -54,7 +91,7 @@ const AdsListingView: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-2xl border border-gray-100">
-              <span className="text-xs font-bold text-slate-500 ml-4">{filteredAds.length} resultados encontrados</span>
+              <span className="text-xs font-bold text-slate-500 ml-4">{sortedAds.length} resultados encontrados</span>
                <select className="bg-white border-none rounded-xl text-sm font-bold text-slate-700 py-2.5 px-4 shadow-sm focus:ring-2 focus:ring-green-500 outline-none">
                  <option>Mais Recentes</option>
                  <option>Menor Preço</option>
@@ -74,10 +111,10 @@ const AdsListingView: React.FC = () => {
               <div key={i} className="bg-white rounded-xl h-72 animate-pulse border border-slate-100"></div>
             ))}
           </div>
-        ) : filteredAds.length > 0 ? (
+        ) : sortedAds.length > 0 ? (
           /* Results Grid */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {filteredAds.map(ad => (
+            {sortedAds.map(ad => (
               <AdCard key={ad.id} ad={ad} />
             ))}
           </div>

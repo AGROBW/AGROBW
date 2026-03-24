@@ -64,23 +64,17 @@ const Home: React.FC = () => {
     Boolean(ad.highlightHome && (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date()));
   const hasActiveCategoryHighlight = (ad: any) =>
     Boolean(ad.highlightCategory && (!ad.highlightCategoryUntil || new Date(ad.highlightCategoryUntil) > new Date()));
-  const hasAnyActiveHighlight = (ad: any) => hasActiveHomeHighlight(ad) || hasActiveCategoryHighlight(ad);
 
   const highlightedAds = ads
-    .filter((ad) => hasAnyActiveHighlight(ad))
+    .filter((ad) => hasActiveHomeHighlight(ad))
     .sort((a, b) => {
-      const homePriorityA = hasActiveHomeHighlight(a) ? 1 : 0;
-      const homePriorityB = hasActiveHomeHighlight(b) ? 1 : 0;
-      if (homePriorityA !== homePriorityB) {
-        return homePriorityB - homePriorityA;
-      }
       const dateA = new Date(a.createdAt || 0).getTime();
       const dateB = new Date(b.createdAt || 0).getTime();
       return dateB - dateA;
     });
 
   const recentAds = ads
-    .filter((ad) => !hasAnyActiveHighlight(ad))
+    .filter((ad) => !hasActiveHomeHighlight(ad) && !hasActiveCategoryHighlight(ad))
     .sort((a, b) => {
       const dateA = new Date(a.createdAt || 0).getTime();
       const dateB = new Date(b.createdAt || 0).getTime();

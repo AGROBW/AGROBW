@@ -161,10 +161,7 @@ export const usePublicAds = (filters?: {
         query = query.eq('state', filters.state)
       }
 
-      query = query
-        .order('highlight_category', { ascending: false })
-        .order('highlight_home', { ascending: false })
-        .order('created_at', { ascending: false })
+      query = query.order('created_at', { ascending: false })
 
       const { data, error } = await query
 

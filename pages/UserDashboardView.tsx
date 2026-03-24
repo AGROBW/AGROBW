@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Bell, Camera, CheckCircle2, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles } from 'lucide-react';
+import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles } from 'lucide-react';
 import { AdStatus, Message, Ad, AdMetrics, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -27,6 +27,7 @@ import HelpCenterView from './HelpCenterView';
 import FavoritesView from './FavoritesView';
 import toast from 'react-hot-toast';
 import { useDashboardStats } from '../src/hooks/useDashboardStats';
+import { useRadar } from '../src/hooks/useRadar';
 import { 
   DashboardStatsCard, 
   ReachModule, 
@@ -37,6 +38,7 @@ import { initiateBoosterCheckout } from '../services/mercadoPagoService';
 
 const Icons = {
   Dashboard: () => <LayoutGrid className="w-5 h-5" strokeWidth={1.5} />,
+  Plan: () => <CreditCard className="w-5 h-5" strokeWidth={1.5} />,
   Ads: () => <FileText className="w-5 h-5" strokeWidth={1.5} />,
   Messages: () => <MessageSquare className="w-5 h-5" strokeWidth={1.5} />,
   Leads: () => <Inbox className="w-5 h-5" strokeWidth={1.5} />,
@@ -90,7 +92,6 @@ const UserDashboardView: React.FC = () => {
   const {
     boosters,
     purchases: boosterPurchases,
-    usageHistory: boosterUsageHistory,
     summary: boosterSummary,
     isLoading: boostersLoading,
     refresh: refreshBoosters,
@@ -503,6 +504,7 @@ const UserDashboardView: React.FC = () => {
 
   const menuItems = [
     { label: 'Visão Geral', path: '/minha-conta', icon: <Icons.Dashboard />, badge: 0 },
+    { label: 'Meu Plano', path: '/minha-conta/meu-plano', icon: <Icons.Plan />, badge: 0 },
     { label: 'Meus Anúncios', path: '/minha-conta/anuncios', icon: <Icons.Ads />, badge: 0 },
     { label: 'Mensagens', path: '/minha-conta/mensagens', icon: <Icons.Messages />, badge: messagesCount },
     { label: 'Leads', path: '/minha-conta/leads', icon: <Icons.Leads />, badge: newLeadsCount },
@@ -651,7 +653,7 @@ const UserDashboardView: React.FC = () => {
 
     if (!userAds) return null;
 
-    // Filtrar anÃºncios ativos com preÃ§o para o seletor
+    // Filtrar anúncios ativos com preço para o seletor
     const activeAdsWithPrice = userAds.filter(
       ad => ad.status === AdStatus.ACTIVE && ad.price > 0
     );
@@ -667,7 +669,7 @@ const UserDashboardView: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <DashboardStatsCard
             icon={<FileText className="w-6 h-6" strokeWidth={1.5} />}
-            label="AnÃºncios Ativos"
+            label="Anúncios Ativos"
             value={dashboardStats?.total_ads || 0}
             bgColor="bg-blue-50"
             iconColor="text-blue-600"
@@ -683,7 +685,7 @@ const UserDashboardView: React.FC = () => {
           />
           <DashboardStatsCard
             icon={<Eye className="w-6 h-6" strokeWidth={1.5} />}
-            label="VisualizaÃ§Ãµes"
+            label="Visualizações"
             value={dashboardStats?.total_views.toLocaleString('pt-BR') || '0'}
             bgColor="bg-purple-50"
             iconColor="text-purple-600"
@@ -699,47 +701,11 @@ const UserDashboardView: React.FC = () => {
           />
         </div>
 
-        {/* Layout Principal: 2 Colunas */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Coluna Esquerda: MÃ³dulo de Alcance (2/3) */}
-          <div className="lg:col-span-2">
-            <ReachModule 
-              clicksByState={dashboardStats?.clicks_by_state || []}
-              loading={dashboardLoading}
-            />
-          </div>
-
-          {/* Coluna Direita: MÃ³dulo de Plano (1/3) */}
-          <div className="lg:col-span-1">
-            {subscription?.plans || subscriptionLoading ? (
-              <PlanModule
-                planName={subscription?.plans?.name || 'Sem plano ativo'}
-                adsUsed={usage.adsUsed}
-                adsLimit={usage.adsLimit}
-                categoryHighlightsUsed={usage.categoryHighlightsUsed}
-                categoryHighlightsLimit={usage.categoryHighlightsLimit}
-                homeHighlightsUsed={usage.homeHighlightsUsed}
-                homeHighlightsLimit={usage.homeHighlightsLimit}
-                periodEndDate={usage.periodEndDate?.toISOString()}
-                loading={subscriptionLoading}
-                rpcAdsCount={dashboardStats?.total_ads}
-                rpcHomeHighlights={dashboardStats?.home_highlights}
-              />
-            ) : (
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h4 className="text-sm font-bold text-slate-900">Plano Atual</h4>
-                  <div className="px-3 py-1 bg-slate-100 border border-slate-200 rounded-full">
-                    <span className="text-xs font-bold text-slate-700">Sem plano ativo</span>
-                  </div>
-                </div>
-                <div className="space-y-3 text-sm text-slate-600">
-                  <p>Esta conta ainda nao possui assinatura vinculada.</p>
-                  <p>Assim que o plano Start for atribuido, os limites corretos aparecerao aqui.</p>
-                </div>
-              </div>
-            )}
-          </div>
+        <div className="grid grid-cols-1 gap-6">
+          <ReachModule 
+            clicksByState={dashboardStats?.clicks_by_state || []}
+            loading={dashboardLoading}
+          />
         </div>
 
         {/* MÃ³dulo de InteligÃªncia de PreÃ§o (Full Width) */}
@@ -820,6 +786,7 @@ const UserDashboardView: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'all' | 'active' | 'pending' | 'paused' | 'blocked' | 'expired'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [isBoosterExpanded, setIsBoosterExpanded] = useState(false);
     const [removedAdIds, setRemovedAdIds] = useState<string[]>([]);
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [adToDelete, setAdToDelete] = useState<Ad | null>(null);
@@ -1061,25 +1028,47 @@ const UserDashboardView: React.FC = () => {
 
         {boosters[0] && (
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <button
+              type="button"
+              onClick={() => setIsBoosterExpanded((prev) => !prev)}
+              className="flex w-full items-start justify-between gap-4 text-left"
+            >
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">Booster avulso</p>
-                <h3 className="text-base font-semibold text-slate-900">Compre mais creditos de destaque sem trocar de plano</h3>
-                <p className="text-sm text-slate-500">
-                  O combo usa primeiro o saldo do plano e depois passa a consumir os creditos extras comprados.
+                <h3 className="mt-1 text-base font-semibold text-slate-900">Compre mais creditos de destaque sem trocar de plano</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Clique para {isBoosterExpanded ? 'ocultar' : 'ver'} detalhes e comprar o combo.
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                Limite de {boosters[0].maxPurchasesPer30Days} compra(s) a cada 30 dias
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  Limite de {boosters[0].maxPurchasesPer30Days} compra(s) a cada 30 dias
+                </div>
+                <span className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition-transform ${isBoosterExpanded ? 'rotate-180' : ''}`}>
+                  <ChevronDown className="h-4 w-4" strokeWidth={1.75} />
+                </span>
               </div>
-            </div>
-            <HighlightBoosterCard
-              booster={boosters[0]}
-              summary={boosterSummary}
-              onPurchase={handleBoosterPurchase}
-              loading={boostersLoading}
-              compact
-            />
+            </button>
+
+            <AnimatePresence initial={false}>
+              {isBoosterExpanded && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                  animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <HighlightBoosterCard
+                    booster={boosters[0]}
+                    summary={boosterSummary}
+                    onPurchase={handleBoosterPurchase}
+                    loading={boostersLoading}
+                    compact
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -1533,6 +1522,253 @@ const UserDashboardView: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
+    );
+  };
+
+  const MyPlanDashboard = () => {
+    const { plansRaw } = usePlans();
+    const { alerts } = useRadar();
+    const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+
+    const activePlans = useMemo(
+      () => plansRaw.filter((plan) => plan.is_active).sort((a, b) => a.position - b.position),
+      [plansRaw]
+    );
+    const currentPlanRecord = useMemo(() => {
+      if (!subscription?.plan_id) return null;
+      return activePlans.find((plan) => plan.id === subscription.plan_id) || null;
+    }, [activePlans, subscription?.plan_id]);
+    const nextRecommendedPlan = useMemo(() => {
+      if (!currentPlanRecord) return null;
+      return activePlans.find((plan) => plan.position > currentPlanRecord.position) || null;
+    }, [activePlans, currentPlanRecord]);
+
+    const cycleEndLabel = usage.periodEndDate
+      ? usage.periodEndDate.toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        })
+      : 'Nao disponivel';
+
+    const formatCurrency = (value: number, currency = 'BRL') =>
+      new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency,
+      }).format(value || 0);
+
+    const planBenefits = [
+      {
+        label: 'Anuncios ativos',
+        value: usage.adsLimit === null ? 'Ilimitado' : `${usage.adsUsed} de ${usage.adsLimit}`,
+      },
+      {
+        label: 'Destaques em categoria',
+        value: `${usage.categoryHighlightsUsed} de ${usage.categoryHighlightsLimit}`,
+      },
+      {
+        label: 'Destaques na home',
+        value: `${usage.homeHighlightsUsed} de ${usage.homeHighlightsLimit}`,
+      },
+      {
+        label: 'Contato com lead',
+        value: currentPlanRecord?.lead_contact_limit_days ? `${currentPlanRecord.lead_contact_limit_days} dias` : 'Nao incluso',
+      },
+      {
+        label: 'Duracao do anuncio',
+        value: currentPlanRecord?.ad_duration_days ? `${currentPlanRecord.ad_duration_days} dias` : 'Nao definido',
+      },
+      {
+        label: 'Exclusao apos vencimento',
+        value: currentPlanRecord?.expired_deletion_days ? `${currentPlanRecord.expired_deletion_days} dias` : 'Nao definido',
+      },
+    ];
+
+    const includedFeatures = [
+      currentPlanRecord?.has_verification_badge ? 'Selo de verificação' : null,
+      currentPlanRecord?.has_seller_store ? 'Loja do vendedor' : null,
+      currentPlanRecord?.has_email_marketing ? 'E-mail marketing' : null,
+      (currentPlanRecord?.social_campaigns_per_month || 0) > 0 ? `${currentPlanRecord?.social_campaigns_per_month} campanha(s) social por mes` : null,
+      (currentPlanRecord?.radar_max_alerts || 0) > 0 ? `Radar com ${currentPlanRecord?.radar_max_alerts} alerta(s)` : null,
+      currentPlanRecord?.radar_has_radius ? 'Filtro por raio no radar' : null,
+      currentPlanRecord?.radar_has_keywords ? 'Filtro por palavras-chave no radar' : null,
+      currentPlanRecord?.radar_has_price_filter ? 'Filtro por preco no radar' : null,
+    ].filter(Boolean) as string[];
+
+    const boosterCategoryTotal = boosterPurchases.reduce((total, purchase) => total + purchase.categoryCreditsTotal, 0);
+    const boosterHomeTotal = boosterPurchases.reduce((total, purchase) => total + purchase.homeCreditsTotal, 0);
+    const boosterCategoryUsed = Math.max(0, boosterCategoryTotal - boosterSummary.categoryRemaining);
+    const boosterHomeUsed = Math.max(0, boosterHomeTotal - boosterSummary.homeRemaining);
+    const radarAlertsUsed = alerts.length;
+
+    const getUpgradeHighlights = () => {
+      if (!nextRecommendedPlan) return [];
+
+      const highlights: string[] = [];
+
+      if ((nextRecommendedPlan.max_ads ?? 0) > (currentPlanRecord?.max_ads ?? 0)) {
+        const currentAds = currentPlanRecord?.max_ads ?? 0;
+        const diff = (nextRecommendedPlan.max_ads ?? 0) - currentAds;
+        highlights.push(`Mais ${diff} anúncio${diff > 1 ? 's' : ''} ativo${diff > 1 ? 's' : ''} no plano.`);
+      }
+
+      if ((nextRecommendedPlan.category_highlights_count || 0) > (currentPlanRecord?.category_highlights_count || 0)) {
+        highlights.push('Mais destaque em categoria para ampliar a exposição dos anúncios.');
+      }
+
+      if ((nextRecommendedPlan.home_highlight_count || 0) > (currentPlanRecord?.home_highlight_count || 0)) {
+        highlights.push('Entrada na vitrine da home para campanhas mais fortes.');
+      }
+
+      if ((nextRecommendedPlan.radar_max_alerts || 0) > (currentPlanRecord?.radar_max_alerts || 0)) {
+        highlights.push('Radar com mais alertas e filtros avançados para novas oportunidades.');
+      }
+
+      if (highlights.length === 0) {
+        return (nextRecommendedPlan.display_features || []).filter(Boolean).slice(0, 3);
+      }
+
+      return highlights.slice(0, 3);
+    };
+
+    return (
+      <div className="space-y-6">
+        <section className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#f8fafc_0%,#ffffff_38%,#ecfdf5_100%)] p-6 shadow-[0_30px_80px_-48px_rgba(15,23,42,0.35)]">
+          <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-green-100/70 blur-3xl" />
+          <div className="pointer-events-none absolute -left-10 bottom-0 h-40 w-40 rounded-full bg-amber-100/60 blur-3xl" />
+
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-green-700">Central da assinatura</p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
+                {currentPlanRecord?.name || subscription?.plans?.name || 'Meu Plano'}
+              </h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">
+                Acompanhe o consumo do ciclo, os recursos ativos do seu plano e os creditos extras usados nas campanhas de destaque.
+              </p>
+            </div>
+
+            <div className="w-full max-w-sm">
+              <div className="rounded-2xl border border-white/70 bg-white/85 px-5 py-4 backdrop-blur shadow-sm">
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Validade do contato lead
+                </span>
+                <span className="mt-2 block text-lg font-semibold text-slate-900">
+                  {currentPlanRecord?.lead_contact_limit_days ? `${currentPlanRecord.lead_contact_limit_days} dias` : 'Nao incluso'}
+                </span>
+                <p className="mt-1 text-xs text-slate-500">
+                  Por quantos dias o contato fica liberado dentro do plano.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[0.92fr,1.08fr] gap-6">
+          <div>
+            {subscription?.plans || subscriptionLoading ? (
+              <PlanModule
+                planName={subscription?.plans?.name || 'Sem plano ativo'}
+                adsUsed={usage.adsUsed}
+                adsLimit={usage.adsLimit ?? 0}
+                categoryHighlightsUsed={usage.categoryHighlightsUsed}
+                categoryHighlightsLimit={usage.categoryHighlightsLimit}
+                homeHighlightsUsed={usage.homeHighlightsUsed}
+                homeHighlightsLimit={usage.homeHighlightsLimit}
+                categoryHighlightsBoosterRemaining={boosterSummary.categoryRemaining}
+                homeHighlightsBoosterRemaining={boosterSummary.homeRemaining}
+                radarMaxAlerts={currentPlanRecord?.radar_max_alerts || 0}
+                boosterCategoryUsed={boosterCategoryUsed}
+                boosterCategoryLimit={boosterCategoryTotal}
+                boosterHomeUsed={boosterHomeUsed}
+                boosterHomeLimit={boosterHomeTotal}
+                radarAlertsUsed={radarAlertsUsed}
+                boosterPurchasesLast30Days={boosterSummary.purchasesLast30Days}
+                boosterMaxPurchasesPer30Days={boosters[0]?.maxPurchasesPer30Days || 0}
+                periodEndDate={usage.periodEndDate?.toISOString()}
+                loading={subscriptionLoading}
+              />
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h4 className="text-sm font-bold text-slate-900">Meu Plano</h4>
+                  <div className="px-3 py-1 bg-slate-100 border border-slate-200 rounded-full">
+                    <span className="text-xs font-bold text-slate-700">Sem plano ativo</span>
+                  </div>
+                </div>
+                <div className="space-y-3 text-sm text-slate-600">
+                  <p>Esta conta ainda nao possui assinatura vinculada.</p>
+                  <p>Assim que um plano for atribuido, os limites e beneficios aparecerao aqui.</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            <section className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_18px_45px_-35px_rgba(15,23,42,0.32)]">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-700/10 text-green-700">
+                  <ShieldCheck className="w-5 h-5" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Beneficios inclusos</p>
+                  <h3 className="text-lg font-semibold text-slate-900">Recursos ativos do seu plano</h3>
+                </div>
+              </div>
+
+              {includedFeatures.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
+                  Nenhum beneficio adicional configurado para este plano no momento.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {includedFeatures.map((feature) => (
+                    <div key={feature} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" strokeWidth={1.75} />
+                      <span className="text-sm font-medium text-slate-700">{feature}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        </section>
+
+        {nextRecommendedPlan && (
+          <section className="overflow-hidden rounded-[24px] border border-green-100 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_52%,#f0fdf4_100%)] p-5 shadow-[0_18px_45px_-35px_rgba(22,163,74,0.42)]">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Upgrade recomendado</p>
+                <h4 className="text-sm font-semibold text-slate-900">
+                  Próximo passo recomendado: {nextRecommendedPlan.name}
+                </h4>
+                <p className="text-sm text-slate-600">
+                  Saia do {currentPlanRecord?.name || subscription?.plans?.name || 'plano atual'} para o {nextRecommendedPlan.name} e ganhe mais estrutura para vender.
+                </p>
+                <ul className="text-sm text-slate-600 mt-3 space-y-1">
+                  {getUpgradeHighlights().map((item) => (
+                    <li key={item}>- {item}</li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                onClick={() => setIsUpgradeModalOpen(true)}
+                className="h-10 px-4 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
+              >
+                Fazer upgrade
+              </button>
+            </div>
+          </section>
+        )}
+
+        <RecommendedUpgradeModal
+          isOpen={isUpgradeModalOpen}
+          onClose={() => setIsUpgradeModalOpen(false)}
+          currentPlan={currentPlanRecord}
+          nextPlan={nextRecommendedPlan}
+          userId={user?.id}
+        />
       </div>
     );
   };
@@ -2036,84 +2272,6 @@ const UserDashboardView: React.FC = () => {
             </div>
           </section>
         </div>
-
-        {boosters[0] && (
-          <section className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
-            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">Booster de destaques</p>
-                <h3 className="text-lg font-semibold text-slate-900">Saldo extra para campanhas pontuais</h3>
-                <p className="text-sm text-slate-500">
-                  Seus creditos extras continuam validos mesmo sem assinatura ativa e entram em uso so depois do saldo do plano.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <span className="block text-xs uppercase tracking-[0.16em] text-slate-400 font-semibold">Categoria</span>
-                  <span className="text-xl font-bold text-slate-900">{boosterSummary.categoryRemaining}</span>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <span className="block text-xs uppercase tracking-[0.16em] text-slate-400 font-semibold">Home</span>
-                  <span className="text-xl font-bold text-slate-900">{boosterSummary.homeRemaining}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-[0.95fr,1.05fr] gap-5">
-              <HighlightBoosterCard
-                booster={boosters[0]}
-                summary={boosterSummary}
-                onPurchase={handleBoosterPurchase}
-                loading={boostersLoading}
-              />
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <div className="flex items-center justify-between gap-4 mb-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Historico do booster</p>
-                    <h4 className="text-base font-semibold text-slate-900">Compras e consumo</h4>
-                  </div>
-                  <span className="text-xs text-slate-500">
-                    {boosterSummary.purchasesLast30Days} compra(s) nos ultimos 30 dias
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  {boosterPurchases.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
-                      Nenhum booster comprado ainda.
-                    </div>
-                  ) : (
-                    boosterPurchases.slice(0, 3).map((purchase) => (
-                      <div key={purchase.id} className="rounded-xl border border-slate-200 bg-white p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="font-semibold text-slate-900">{purchase.boosterName}</p>
-                            <p className="text-xs text-slate-500">
-                              {new Date(purchase.creditedAt).toLocaleString('pt-BR')}
-                            </p>
-                          </div>
-                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                            Creditado
-                          </span>
-                        </div>
-                        <div className="mt-3 text-sm text-slate-600">
-                          Saldo restante: {purchase.categoryCreditsRemaining}/{purchase.categoryCreditsTotal} categoria · {purchase.homeCreditsRemaining}/{purchase.homeCreditsTotal} home
-                        </div>
-                      </div>
-                    ))
-                  )}
-
-                  {boosterUsageHistory.length > 0 && (
-                    <p className="text-xs text-slate-500">
-                      {boosterUsageHistory.length} compra(s) ja tiveram uso e nao sao reembolsaveis.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
 
         {nextRecommendedPlan && (
           <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
@@ -2962,6 +3120,7 @@ const UserDashboardView: React.FC = () => {
           <Route path="/leads" element={<LeadsView />} />
           <Route path="/favoritos" element={<FavoritesView embedded />} />
           <Route path="/radar" element={<RadarView />} />
+          <Route path="/meu-plano" element={<MyPlanDashboard />} />
           <Route path="/financeiro" element={<FinanceDashboard />} />
           <Route path="/ajuda" element={<HelpCenterView />} />
           <Route path="/perfil" element={<ProfileDashboard />} />

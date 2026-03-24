@@ -342,7 +342,7 @@ const PlansManagement: React.FC = () => {
               <CheckCircle className="h-5 w-5 text-green-600" />
               Limites de Anuncios
             </h3>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
               <FieldShell label="Maximo de Anuncios" hint="Deixe vazio para ilimitado.">
                 <input type="number" value={formData.max_ads ?? ''} onChange={(e) => handleChange('max_ads', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 2" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
               </FieldShell>
@@ -354,12 +354,6 @@ const PlansManagement: React.FC = () => {
               </FieldShell>
               <FieldShell label="Limite Contato Lead (dias)" hint="Por quantos dias o contato fica liberado.">
                 <input type="number" value={formData.lead_contact_limit_days ?? ''} onChange={(e) => handleChange('lead_contact_limit_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 30" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
-              </FieldShell>
-              <FieldShell label="Destaques por Categoria" hint="Quantidade incluida no plano.">
-                <input type="number" value={formData.category_highlights_count ?? 0} onChange={(e) => handleChange('category_highlights_count', parseInt(e.target.value, 10) || 0)} placeholder="0" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
-              </FieldShell>
-              <FieldShell label="Destaques na Home" hint="Quantidade incluida no plano.">
-                <input type="number" value={formData.home_highlight_count ?? 0} onChange={(e) => handleChange('home_highlight_count', parseInt(e.target.value, 10) || 0)} placeholder="0" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
               </FieldShell>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, MessageSquare, Eye, Inbox, TrendingUp, TrendingDown, AlertCircle, Sparkles, Package } from 'lucide-react';
+import { FileText, MessageSquare, Eye, Inbox, TrendingUp, TrendingDown, AlertCircle, Sparkles, Package, Radar } from 'lucide-react';
 import { DashboardStats, StateClicks, PriceAnalysis } from '../src/hooks/useDashboardStats';
 import { Ad } from '../types';
 import { useLayout } from '../src/contexts/LayoutContext';
@@ -772,6 +772,16 @@ interface PlanModuleProps {
   categoryHighlightsLimit: number;
   homeHighlightsUsed: number;
   homeHighlightsLimit: number;
+  categoryHighlightsBoosterRemaining?: number;
+  homeHighlightsBoosterRemaining?: number;
+  radarMaxAlerts?: number;
+  boosterCategoryUsed?: number;
+  boosterCategoryLimit?: number;
+  boosterHomeUsed?: number;
+  boosterHomeLimit?: number;
+  radarAlertsUsed?: number;
+  boosterPurchasesLast30Days?: number;
+  boosterMaxPurchasesPer30Days?: number;
   periodEndDate?: string;
   loading?: boolean;
   // Dados opcionais da RPC (priorizados quando disponíveis)
@@ -787,6 +797,16 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
   categoryHighlightsLimit,
   homeHighlightsUsed,
   homeHighlightsLimit,
+  categoryHighlightsBoosterRemaining = 0,
+  homeHighlightsBoosterRemaining = 0,
+  radarMaxAlerts = 0,
+  boosterCategoryUsed = 0,
+  boosterCategoryLimit = 0,
+  boosterHomeUsed = 0,
+  boosterHomeLimit = 0,
+  radarAlertsUsed = 0,
+  boosterPurchasesLast30Days = 0,
+  boosterMaxPurchasesPer30Days = 0,
   periodEndDate,
   loading = false,
   rpcAdsCount,
@@ -823,6 +843,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
   };
 
   const adsPercentage = calculatePercentage(finalAdsUsed, adsLimit);
+  const boosterWindowRemaining = Math.max(0, boosterMaxPurchasesPer30Days - boosterPurchasesLast30Days);
 
   return (
     <div 
@@ -907,11 +928,123 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
           )}
         </div>
 
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="w-4 h-4" style={{ color: settings.primaryColor }} />
+            <span className="text-xs font-medium text-slate-700">Booster Categoria</span>
+          </div>
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="text-2xl font-bold text-slate-900">{boosterCategoryUsed}</span>
+            <span className="text-sm text-slate-500">de</span>
+            <span className="text-2xl font-bold text-slate-600">{boosterCategoryLimit}</span>
+          </div>
+          {boosterCategoryLimit > 0 && (
+            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 ${getProgressColor(boosterCategoryUsed, boosterCategoryLimit)}`}
+                style={{
+                  width: `${calculatePercentage(boosterCategoryUsed, boosterCategoryLimit)}%`,
+                  backgroundColor: getProgressColor(boosterCategoryUsed, boosterCategoryLimit)
+                    ? undefined
+                    : settings.primaryColor,
+                }}
+              />
+            </div>
+          )}
+          <p className="mt-2 text-[11px] text-slate-500">
+            Saldo extra atual: {categoryHighlightsBoosterRemaining} campanha(s) por categoria
+          </p>
+        </div>
+
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-4 h-4" style={{ color: settings.accentColor }} />
+            <span className="text-xs font-medium text-slate-700">Booster Home</span>
+          </div>
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="text-2xl font-bold text-slate-900">{boosterHomeUsed}</span>
+            <span className="text-sm text-slate-500">de</span>
+            <span className="text-2xl font-bold text-slate-600">{boosterHomeLimit}</span>
+          </div>
+          {boosterHomeLimit > 0 && (
+            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 ${getProgressColor(boosterHomeUsed, boosterHomeLimit)}`}
+                style={{
+                  width: `${calculatePercentage(boosterHomeUsed, boosterHomeLimit)}%`,
+                  backgroundColor: getProgressColor(boosterHomeUsed, boosterHomeLimit)
+                    ? undefined
+                    : settings.accentColor,
+                }}
+              />
+            </div>
+          )}
+          <p className="mt-2 text-[11px] text-slate-500">
+            Saldo extra atual: {homeHighlightsBoosterRemaining} campanha(s) na home
+          </p>
+        </div>
+
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+          <div className="flex items-center gap-2 mb-2">
+            <Radar className="w-4 h-4" style={{ color: settings.primaryColor }} />
+            <span className="text-xs font-medium text-slate-700">Radar de Oportunidades</span>
+          </div>
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="text-2xl font-bold text-slate-900">{radarAlertsUsed}</span>
+            <span className="text-sm text-slate-500">de</span>
+            <span className="text-2xl font-bold text-slate-600">{radarMaxAlerts}</span>
+          </div>
+          {radarMaxAlerts > 0 && (
+            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 ${getProgressColor(radarAlertsUsed, radarMaxAlerts)}`}
+                style={{
+                  width: `${calculatePercentage(radarAlertsUsed, radarMaxAlerts)}%`,
+                  backgroundColor: getProgressColor(radarAlertsUsed, radarMaxAlerts)
+                    ? undefined
+                    : settings.primaryColor,
+                }}
+              />
+            </div>
+          )}
+          <p className="mt-2 text-[11px] text-slate-500">
+            Máximo de alertas disponíveis no plano
+          </p>
+        </div>
+
+        {boosterMaxPurchasesPer30Days > 0 && (
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-4 h-4" style={{ color: settings.accentColor }} />
+              <span className="text-xs font-medium text-slate-700">Janela de Compra</span>
+            </div>
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="text-2xl font-bold text-slate-900">{boosterPurchasesLast30Days}</span>
+              <span className="text-sm text-slate-500">de</span>
+              <span className="text-2xl font-bold text-slate-600">{boosterMaxPurchasesPer30Days}</span>
+            </div>
+            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 ${getProgressColor(boosterPurchasesLast30Days, boosterMaxPurchasesPer30Days)}`}
+                style={{
+                  width: `${calculatePercentage(boosterPurchasesLast30Days, boosterMaxPurchasesPer30Days)}%`,
+                  backgroundColor: getProgressColor(boosterPurchasesLast30Days, boosterMaxPurchasesPer30Days)
+                    ? undefined
+                    : settings.accentColor,
+                }}
+              />
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">
+              {boosterWindowRemaining} compra(s) restante(s) em 30 dias
+            </p>
+          </div>
+        )}
+
         {/* Info do Ciclo */}
         {periodEndDate && (
           <div className="pt-3 border-t border-slate-200">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-1">
-              Ciclo atual termina em:
+              Validade do plano:
             </p>
             <p className="text-xs font-bold text-slate-900">
               {new Date(periodEndDate).toLocaleDateString('pt-BR', {
