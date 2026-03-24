@@ -19,6 +19,7 @@ export interface Plan {
   comparison: Record<string, string | boolean>;
   max_ads: number | null;
   ad_duration_days: number | null;
+  expired_deletion_days: number | null;
   lead_contact_limit_days: number | null;
   category_highlights_count: number;
   category_highlight_days: number | null;
@@ -54,6 +55,7 @@ export interface UpdatePlanData {
   comparison?: Record<string, string | boolean>;
   max_ads?: number | null;
   ad_duration_days?: number | null;
+  expired_deletion_days?: number | null;
   lead_contact_limit_days?: number | null;
   category_highlights_count?: number;
   category_highlight_days?: number | null;

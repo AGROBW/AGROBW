@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Check, ChevronDown, Loader2, X } from 'lucide-react';
-import { PRICING_FAQ, PRICING_FEATURES } from '../constants';
+import { PRICING_FAQ } from '../constants';
 import { usePlans } from '../src/hooks/usePlans';
 import { useAuth } from '../src/contexts/AuthContext';
 import {
@@ -8,10 +8,14 @@ import {
   calculateYearlyTotal,
   getCustomPlanContactLink,
   initiateCheckout,
+  initiateBoosterCheckout,
   isCustomPlan,
 } from '../services/mercadoPagoService';
 import toast from 'react-hot-toast';
 import { useLayout } from '../src/contexts/LayoutContext';
+import { Plan } from '../src/hooks/usePlans';
+import { useHighlightBoosters } from '../src/hooks/useHighlightBoosters';
+import HighlightBoosterCard from '../components/boosters/HighlightBoosterCard';
 
 type BillingCycle = 'monthly' | 'yearly';
 
@@ -41,6 +45,19 @@ const formatComparisonValue = (value: unknown): string | boolean => {
   return String(value);
 };
 
+type ComparisonRow = {
+  id: string;
+  label: string;
+  getValue: (plan: Plan) => string | boolean;
+};
+
+const humanizeComparisonKey = (key: string) =>
+  key
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 const PricingView: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
@@ -48,15 +65,124 @@ const PricingView: React.FC = () => {
   const { plansRaw, isLoading: plansLoading } = usePlans();
   const { user } = useAuth();
   const { settings } = useLayout();
+  const {
+    boosters,
+    summary: boosterSummary,
+    isLoading: boostersLoading,
+    refresh: refreshBoosters,
+  } = useHighlightBoosters();
 
-  const comparisonRows = useMemo(
-    () =>
-      PRICING_FEATURES.map((feature) => ({
-        id: feature.id,
-        label: feature.label,
-      })),
-    []
-  );
+  const comparisonRows = useMemo<ComparisonRow[]>(() => {
+    const baseRows: ComparisonRow[] = [
+      {
+        id: 'max_ads',
+        label: 'Máximo de anúncios ativos',
+        getValue: (plan) => (plan.max_ads === null ? 'Ilimitado' : String(plan.max_ads)),
+      },
+      {
+        id: 'ad_duration_days',
+        label: 'Duração do anúncio',
+        getValue: (plan) => formatNumericValue(plan.ad_duration_days, ' dias'),
+      },
+      {
+        id: 'expired_deletion_days',
+        label: 'Exclusão após vencimento',
+        getValue: (plan) => formatNumericValue(plan.expired_deletion_days, ' dias'),
+      },
+      {
+        id: 'lead_contact_limit_days',
+        label: 'Contato com leads',
+        getValue: (plan) => formatNumericValue(plan.lead_contact_limit_days, ' dias'),
+      },
+      {
+        id: 'category_highlights_count',
+        label: 'Destaques por categoria',
+        getValue: (plan) => String(plan.category_highlights_count || 0),
+      },
+      {
+        id: 'category_highlight_days',
+        label: 'Duração do destaque na categoria',
+        getValue: (plan) =>
+          (plan.category_highlights_count || 0) > 0
+            ? formatNumericValue(plan.category_highlight_days, ' dias')
+            : '-',
+      },
+      {
+        id: 'home_highlight_count',
+        label: 'Destaques na home',
+        getValue: (plan) => String(plan.home_highlight_count || 0),
+      },
+      {
+        id: 'home_highlight_days',
+        label: 'Duração do destaque na home',
+        getValue: (plan) =>
+          (plan.home_highlight_count || 0) > 0
+            ? formatNumericValue(plan.home_highlight_days, ' dias')
+            : '-',
+      },
+      {
+        id: 'has_verification_badge',
+        label: 'Selo de verificação',
+        getValue: (plan) => plan.has_verification_badge,
+      },
+      {
+        id: 'has_seller_store',
+        label: 'Loja do vendedor',
+        getValue: (plan) => plan.has_seller_store,
+      },
+      {
+        id: 'has_email_marketing',
+        label: 'E-mail marketing',
+        getValue: (plan) => plan.has_email_marketing,
+      },
+      {
+        id: 'social_campaigns_per_month',
+        label: 'Campanhas sociais por mês',
+        getValue: (plan) =>
+          plan.social_campaigns_per_month && plan.social_campaigns_per_month > 0
+            ? String(plan.social_campaigns_per_month)
+            : '-',
+      },
+      {
+        id: 'radar_max_alerts',
+        label: 'Alertas do radar',
+        getValue: (plan) => String(plan.radar_max_alerts || 0),
+      },
+      {
+        id: 'radar_has_radius',
+        label: 'Filtro por raio no radar',
+        getValue: (plan) => plan.radar_has_radius,
+      },
+      {
+        id: 'radar_has_keywords',
+        label: 'Filtro por palavras-chave',
+        getValue: (plan) => plan.radar_has_keywords,
+      },
+      {
+        id: 'radar_has_price_filter',
+        label: 'Filtro por faixa de preço',
+        getValue: (plan) => plan.radar_has_price_filter,
+      },
+    ];
+
+    const extraKeys = Array.from(
+      new Set(
+        plansRaw.flatMap((plan) =>
+          Object.keys(plan.comparison || {}).filter(
+            (key) => !baseRows.some((row) => row.id === key)
+          )
+        )
+      )
+    );
+
+    const extraRows: ComparisonRow[] = extraKeys.map((key) => ({
+      id: key,
+      label: humanizeComparisonKey(key),
+      getValue: (plan) => formatComparisonValue(plan.comparison?.[key] ?? '-'),
+    }));
+
+    return [...baseRows, ...extraRows];
+  }, [plansRaw]);
 
   const getDisplayPrice = (monthlyPrice: number, yearlyPrice: number) => {
     if (billingCycle === 'monthly') {
@@ -110,30 +236,16 @@ const PricingView: React.FC = () => {
   const getPlanFooterCaption = (plan: (typeof plansRaw)[number]) =>
     plan.footer_caption?.trim() || getDefaultSpotlight(plan);
 
-  const getComparisonValue = (plan: (typeof plansRaw)[number], featureId: string): string | boolean => {
-    const directValue = plan.comparison?.[featureId];
+  const getComparisonValue = (
+    plan: (typeof plansRaw)[number],
+    row: ComparisonRow
+  ): string | boolean => {
+    const directValue = plan.comparison?.[row.id];
     if (directValue !== undefined) {
       return formatComparisonValue(directValue);
     }
 
-    const fallbackMap: Record<string, string | boolean> = {
-      photos: formatNumericValue(plan.max_ads),
-      ad_validity:
-        plan.ad_duration_days && plan.ad_duration_days < 9999
-          ? `${plan.ad_duration_days} dias`
-          : 'Publicacao permanente',
-      highlight_badge: plan.has_verification_badge,
-      click_reports: true,
-      whatsapp_button: plan.lead_contact_limit_days !== null,
-      search_priority:
-        (plan.home_highlight_count || 0) > 0
-          ? 'Alta'
-          : (plan.category_highlights_count || 0) > 0
-            ? 'Media'
-            : 'Padrao',
-    };
-
-    return formatComparisonValue(fallbackMap[featureId] ?? '-');
+    return formatComparisonValue(row.getValue(plan));
   };
 
   const handleSubscribe = async (
@@ -186,6 +298,56 @@ const PricingView: React.FC = () => {
       toast.dismiss('checkout-loading');
       console.error('Erro ao iniciar checkout:', err);
       toast.error('Erro inesperado ao processar checkout.');
+    } finally {
+      setLoadingPlanId(null);
+    }
+  };
+
+  const handleBoosterPurchase = async () => {
+    const booster = boosters[0];
+
+    if (!booster) {
+      toast.error('Nenhum booster disponivel no momento.');
+      return;
+    }
+
+    if (!user) {
+      toast.error('Voce precisa estar logado para comprar um booster.');
+      setTimeout(() => {
+        window.location.href = '/#/login?redirect=/pricing';
+      }, 1500);
+      return;
+    }
+
+    if (!boosterSummary.canPurchase) {
+      toast.error('Voce atingiu o limite de 2 boosters a cada 30 dias.');
+      return;
+    }
+
+    setLoadingPlanId(`booster-${booster.id}`);
+    toast.loading('Preparando checkout do booster...', { id: 'booster-checkout-loading' });
+
+    try {
+      const result = await initiateBoosterCheckout({
+        boosterId: booster.id,
+        boosterName: booster.name,
+        boosterDescription: booster.description || booster.name,
+        amount: booster.monthlyPrice,
+        userId: user.id,
+      });
+
+      toast.dismiss('booster-checkout-loading');
+
+      if (result.success) {
+        toast.success('Redirecionando para checkout...');
+        await refreshBoosters();
+      } else {
+        toast.error(result.error || 'Erro ao processar checkout do booster.');
+      }
+    } catch (err) {
+      toast.dismiss('booster-checkout-loading');
+      console.error('Erro ao iniciar checkout do booster:', err);
+      toast.error('Erro inesperado ao processar checkout do booster.');
     } finally {
       setLoadingPlanId(null);
     }
@@ -320,8 +482,26 @@ const PricingView: React.FC = () => {
                   </ul>
 
                   <div className="mt-auto pt-6">
-                    <div className="mb-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
-                      {getPlanFooterCaption(plan)}
+                    <div
+                      className="relative mb-4 overflow-hidden rounded-2xl border px-4 py-4 text-sm font-semibold text-slate-700 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.4)]"
+                      style={{
+                        borderColor: `color-mix(in srgb, ${settings.primaryColor} 28%, #e2e8f0)`,
+                        background: `linear-gradient(135deg, color-mix(in srgb, ${settings.primaryColor} 11%, white) 0%, color-mix(in srgb, ${settings.accentColor} 12%, white) 100%)`
+                      }}
+                    >
+                      <div
+                        className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                        style={{ background: `linear-gradient(90deg, transparent, ${settings.accentColor}, transparent)` }}
+                      />
+                      <div
+                        className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full opacity-30"
+                        style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 30%, white)` }}
+                      />
+                      <div className="relative">
+                        <p className="leading-relaxed text-slate-700">
+                          {getPlanFooterCaption(plan)}
+                        </p>
+                      </div>
                     </div>
 
                     <button
@@ -358,6 +538,51 @@ const PricingView: React.FC = () => {
           )}
         </div>
       </section>
+
+      {(boostersLoading || boosters.length > 0) && (
+        <section className="mx-auto max-w-7xl px-4 pt-12">
+          <div className="rounded-[2rem] border border-slate-200 bg-white/90 p-6 shadow-[0_24px_80px_-50px_rgba(15,23,42,0.35)] backdrop-blur">
+            <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-400">
+                  Booster Avulso
+                </p>
+                <h2 className="text-2xl font-black text-slate-950">Mais destaque quando sua campanha pedir reforco</h2>
+                <p className="mt-2 max-w-2xl text-sm text-slate-500">
+                  Compra exclusiva para reforcar vitrines sem banalizar os planos. O consumo continua usando primeiro os creditos do plano e depois o saldo extra do booster.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Limite de compra</span>
+                <span className="font-bold text-slate-900">Ate 2 boosters a cada 30 dias</span>
+              </div>
+            </div>
+
+            {boostersLoading ? (
+              <div className="h-[220px] animate-pulse rounded-[1.5rem] border border-slate-100 bg-slate-50" />
+            ) : (
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr,0.8fr]">
+                <HighlightBoosterCard
+                  booster={boosters[0]}
+                  summary={boosterSummary}
+                  onPurchase={handleBoosterPurchase}
+                  loading={loadingPlanId === `booster-${boosters[0].id}`}
+                />
+                <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Como funciona</p>
+                  <ul className="mt-4 space-y-3 text-sm text-slate-600">
+                    <li>O combo adiciona 5 destaques em categoria e 5 destaques na home.</li>
+                    <li>Os creditos extras nao expiram e continuam validos mesmo se o plano for cancelado.</li>
+                    <li>Quando voce aplica um destaque, o sistema consome primeiro o saldo do plano.</li>
+                    <li>Depois disso, o uso passa automaticamente para o saldo do booster.</li>
+                    <li>Se houver uso, a compra deixa de ser reembolsavel.</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="mx-auto max-w-6xl overflow-hidden px-4 py-28">
         <div className="mb-14 text-center">
@@ -399,7 +624,7 @@ const PricingView: React.FC = () => {
                   >
                     <td className="px-8 py-5 text-sm font-bold text-slate-700">{feature.label}</td>
                     {plansRaw.map((plan) => {
-                      const value = getComparisonValue(plan, feature.id);
+                      const value = getComparisonValue(plan, feature);
                       return (
                         <td key={plan.id} className="px-6 py-5 text-center">
                           {typeof value === 'boolean' ? (

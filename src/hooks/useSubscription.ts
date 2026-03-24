@@ -1,5 +1,6 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { endAppSync, startAppSync } from '../lib/appSyncStatus';
 import { useAuth } from '../contexts/AuthContext';
 
 export type UserSubscription = {
@@ -34,6 +35,8 @@ export type UsageStats = {
   categoryHighlightsLimit: number;
   homeHighlightsUsed: number;
   homeHighlightsLimit: number;
+  categoryHighlightsBoosterRemaining: number;
+  homeHighlightsBoosterRemaining: number;
   isWithinPeriod: boolean;
   periodEndDate: Date | null;
   periodStartDate: Date | null;
@@ -49,14 +52,35 @@ export const useSubscription = () => {
     categoryHighlightsLimit: 0,
     homeHighlightsUsed: 0,
     homeHighlightsLimit: 0,
+    categoryHighlightsBoosterRemaining: 0,
+    homeHighlightsBoosterRemaining: 0,
     isWithinPeriod: true,
     periodEndDate: null,
     periodStartDate: null
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const retryTimeoutRef = useRef<number | null>(null);
 
-  // Buscar assinatura ativa do usuário
+  const clearRetry = () => {
+    if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
+      window.clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleRetry = (fn: () => Promise<void>) => {
+    if (typeof window === 'undefined' || retryTimeoutRef.current !== null) return;
+
+    retryTimeoutRef.current = window.setTimeout(() => {
+      retryTimeoutRef.current = null;
+      startAppSync();
+      void fn().finally(() => {
+        endAppSync();
+      });
+    }, 5000);
+  };
+
   const fetchSubscription = async () => {
     if (!user?.id) {
       setSubscription(null);
@@ -95,85 +119,119 @@ export const useSubscription = () => {
       if (subscriptionError) throw subscriptionError;
 
       setSubscription(data as UserSubscription | null);
+      clearRetry();
     } catch (err: any) {
       console.error('[useSubscription] Erro ao buscar assinatura:', err);
       setError(err.message);
       setSubscription(null);
+      scheduleRetry(fetchSubscription);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Buscar estatísticas de uso do ciclo atual
   const fetchUsage = async () => {
-    if (!user?.id || !subscription) {
+    if (!user?.id) {
       return;
     }
 
     try {
-      const periodStart = new Date(subscription.current_period_start);
-      const periodEnd = new Date(subscription.current_period_end);
+      const periodStart = subscription ? new Date(subscription.current_period_start) : null;
+      const periodEnd = subscription ? new Date(subscription.current_period_end) : null;
       const now = new Date();
-      const isWithinPeriod = now >= periodStart && now <= periodEnd;
+      const isWithinPeriod = periodStart && periodEnd ? now >= periodStart && now <= periodEnd : false;
 
-      // Contar anúncios criados no período atual
-      const { count: adsCount, error: adsError } = await supabase
-        .from('announcements')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .in('status', ['active', 'ACTIVE'])
-        .gte('created_at', subscription.current_period_start);
+      let adsCount = 0;
+      let categoryHighlightsCount = 0;
+      let homeHighlightsCount = 0;
 
-      if (adsError) throw adsError;
+      if (subscription) {
+        const { count: adsCountData, error: adsError } = await supabase
+          .from('announcements')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .in('status', ['active', 'ACTIVE'])
+          .gte('created_at', subscription.current_period_start);
 
-      // Contar destaques de categoria no período atual
-      const { count: categoryHighlightsCount, error: categoryError } = await supabase
-        .from('announcement_highlights_history')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('highlight_type', 'category')
-        .gte('applied_at', subscription.current_period_start)
-        .lte('applied_at', subscription.current_period_end);
+        if (adsError) throw adsError;
+        adsCount = adsCountData || 0;
 
-      if (categoryError) throw categoryError;
+        const { count: categoryHighlightsCountData, error: categoryError } = await supabase
+          .from('announcement_highlights_history')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('highlight_type', 'category')
+          .eq('credit_source', 'plan')
+          .gte('applied_at', subscription.current_period_start)
+          .lte('applied_at', subscription.current_period_end);
 
-      // Contar destaques de home no período atual (anúncios atualmente destacados)
-      const { count: homeHighlightsCount, error: homeError } = await supabase
-        .from('announcements')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('highlight_home', true)
-        .in('status', ['active', 'ACTIVE']);
+        if (categoryError) throw categoryError;
+        categoryHighlightsCount = categoryHighlightsCountData || 0;
 
-      if (homeError) throw homeError;
+        const { count: homeHighlightsCountData, error: homeError } = await supabase
+          .from('announcement_highlights_history')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('highlight_type', 'home')
+          .eq('credit_source', 'plan')
+          .gte('applied_at', subscription.current_period_start)
+          .lte('applied_at', subscription.current_period_end);
+
+        if (homeError) throw homeError;
+        homeHighlightsCount = homeHighlightsCountData || 0;
+      }
+
+      const { data: boosterSummary, error: boosterError } = await supabase.rpc('get_my_highlight_booster_summary');
+
+      if (boosterError) throw boosterError;
 
       setUsage({
-        adsUsed: adsCount || 0,
+        adsUsed: adsCount,
         adsLimit: subscription.plans?.max_ads ?? null,
-        categoryHighlightsUsed: categoryHighlightsCount || 0,
+        categoryHighlightsUsed: categoryHighlightsCount,
         categoryHighlightsLimit: subscription.plans?.category_highlights_count || 0,
-        homeHighlightsUsed: homeHighlightsCount || 0,
+        homeHighlightsUsed: homeHighlightsCount,
         homeHighlightsLimit: subscription.plans?.home_highlight_count || 0,
-        isWithinPeriod,
+        categoryHighlightsBoosterRemaining: Number(boosterSummary?.category_remaining ?? 0),
+        homeHighlightsBoosterRemaining: Number(boosterSummary?.home_remaining ?? 0),
+        isWithinPeriod: !!isWithinPeriod,
         periodEndDate: periodEnd,
         periodStartDate: periodStart
       });
+      clearRetry();
     } catch (err: any) {
       console.error('[useSubscription] Erro ao buscar uso:', err);
+      scheduleRetry(fetchUsage);
     }
   };
 
   useEffect(() => {
-    fetchSubscription();
+    void fetchSubscription();
+    return () => clearRetry();
   }, [user?.id]);
 
   useEffect(() => {
-    if (subscription) {
-      fetchUsage();
-    }
-  }, [subscription, user?.id]);
+    void fetchUsage();
+  }, [subscription?.id, user?.id]);
 
-  // Verificar se pode criar mais anúncios
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user?.id) return;
+
+    const handleOnline = () => {
+      startAppSync();
+      const tasks: Promise<void>[] = [fetchSubscription()];
+      if (subscription) {
+        tasks.push(fetchUsage());
+      }
+      void Promise.all(tasks).finally(() => {
+        endAppSync();
+      });
+    };
+
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [user?.id, subscription?.id]);
+
   const canCreateAd = useMemo(() => {
     if (!subscription?.plans) return false;
     const maxAds = subscription.plans.max_ads;
@@ -181,21 +239,16 @@ export const useSubscription = () => {
     return usage.adsUsed < maxAds;
   }, [subscription, usage.adsUsed]);
 
-  // Verificar se pode aplicar destaque de categoria
   const canApplyCategoryHighlight = useMemo(() => {
-    if (!subscription?.plans) return false;
-    const limit = subscription.plans.category_highlights_count || 0;
-    return usage.categoryHighlightsUsed < limit && usage.isWithinPeriod;
-  }, [subscription, usage.categoryHighlightsUsed, usage.isWithinPeriod]);
+    const limit = subscription?.plans?.category_highlights_count || 0;
+    return (usage.categoryHighlightsUsed < limit && usage.isWithinPeriod) || usage.categoryHighlightsBoosterRemaining > 0;
+  }, [subscription, usage.categoryHighlightsUsed, usage.categoryHighlightsBoosterRemaining, usage.isWithinPeriod]);
 
-  // Verificar se pode aplicar destaque de home
   const canApplyHomeHighlight = useMemo(() => {
-    if (!subscription?.plans) return false;
-    const limit = subscription.plans.home_highlight_count || 0;
-    return usage.homeHighlightsUsed < limit && usage.isWithinPeriod;
-  }, [subscription, usage.homeHighlightsUsed, usage.isWithinPeriod]);
+    const limit = subscription?.plans?.home_highlight_count || 0;
+    return (usage.homeHighlightsUsed < limit && usage.isWithinPeriod) || usage.homeHighlightsBoosterRemaining > 0;
+  }, [subscription, usage.homeHighlightsUsed, usage.homeHighlightsBoosterRemaining, usage.isWithinPeriod]);
 
-  // Mensagem de erro para limite de anúncios
   const adLimitMessage = useMemo(() => {
     if (!subscription?.plans) return '';
     const planName = subscription.plans.name;
@@ -203,7 +256,6 @@ export const useSubscription = () => {
     return `Você atingiu o limite de anúncios do seu plano ${planName} (${maxAds} anúncios). Faça um upgrade para publicar mais.`;
   }, [subscription]);
 
-  // Atualizar uso (para chamar após criar anúncio ou aplicar destaque)
   const refreshUsage = async () => {
     await fetchUsage();
   };

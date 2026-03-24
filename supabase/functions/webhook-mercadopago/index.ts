@@ -148,9 +148,16 @@ serve(async (req) => {
     });
 
     const externalReference = String(payment.external_reference || '');
-    const [userId, planId, billingCycle] = externalReference.split('|');
+    const externalParts = externalReference.split('|');
+    const itemType = externalParts[0] === 'booster' || externalParts[0] === 'plan' ? externalParts[0] : 'plan';
+    const [, userId, resourceId, billingCycle] =
+      itemType === 'plan' || itemType === 'booster'
+        ? externalParts
+        : [null, externalParts[0], externalParts[1], externalParts[2]];
+    const planId = itemType === 'plan' ? resourceId : null;
+    const boosterId = itemType === 'booster' ? resourceId : null;
 
-    if (!userId || !planId || !billingCycle) {
+    if (!userId || !resourceId || !billingCycle) {
       await supabaseAdmin
         .from('webhook_logs')
         .update({
@@ -166,14 +173,17 @@ serve(async (req) => {
     const paymentRecordBase = {
       user_id: userId,
       plan_id: planId,
+      booster_id: boosterId,
       provider: 'mercadopago',
       provider_payment_id: String(payment.id),
       provider_preference_id: payment.metadata?.preference_id || null,
       external_reference: externalReference,
-      billing_cycle: billingCycle,
+      billing_cycle: itemType === 'booster' ? null : billingCycle,
       description:
         payment.description ||
-        `Assinatura BWAGRO - ${billingCycle === 'yearly' ? 'Anual' : 'Mensal'}`,
+        (itemType === 'booster'
+          ? 'Booster de destaques BWAGRO'
+          : `Assinatura BWAGRO - ${billingCycle === 'yearly' ? 'Anual' : 'Mensal'}`),
       amount: Number(payment.transaction_amount || 0),
       currency: payment.currency_id || 'BRL',
       status: normalizedStatus,
@@ -185,6 +195,9 @@ serve(async (req) => {
       updated_at: new Date().toISOString(),
       metadata: {
         mercadopago_id: payment.id,
+        item_type: itemType,
+        item_name: payment.description || null,
+        booster_id: boosterId,
         live_mode: payment.live_mode ?? null,
         order_id: payment.order?.id ?? null,
         status_detail: payment.status_detail ?? null,
@@ -258,66 +271,84 @@ serve(async (req) => {
         return textResponse('Payment already processed');
       }
 
-      const { data: activeSubscription } = await supabaseAdmin
-        .from('user_subscriptions')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .order('current_period_end', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      let subscriptionId: string | null = null;
 
-      if (activeSubscription?.id) {
-        await supabaseAdmin
+      if (itemType === 'plan' && planId) {
+        const { data: activeSubscription } = await supabaseAdmin
           .from('user_subscriptions')
-          .update({
-            status: 'expired',
+          .select('id')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .order('current_period_end', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (activeSubscription?.id) {
+          await supabaseAdmin
+            .from('user_subscriptions')
+            .update({
+              status: 'expired',
+            })
+            .eq('id', activeSubscription.id);
+        }
+
+        const periodStart = new Date().toISOString();
+        const periodEndDate = new Date();
+        periodEndDate.setUTCDate(periodEndDate.getUTCDate() + (billingCycle === 'yearly' ? 365 : 30));
+
+        const { data: subscription, error: subscriptionError } = await supabaseAdmin
+          .from('user_subscriptions')
+          .insert({
+            user_id: userId,
+            plan_id: planId,
+            status: 'active',
+            current_period_start: periodStart,
+            current_period_end: periodEndDate.toISOString(),
+            cancel_at_period_end: false,
+            trial_end_date: null,
           })
-          .eq('id', activeSubscription.id);
+          .select('id')
+          .single();
+
+        if (subscriptionError) {
+          console.error('Failed to create subscription:', subscriptionError);
+
+          await supabaseAdmin
+            .from('webhook_logs')
+            .update({
+              processed: false,
+              error_message: subscriptionError.message,
+            })
+            .eq('id', webhookLog?.id);
+
+          return textResponse('Processing error', 500);
+        }
+
+        subscriptionId = subscription.id;
       }
 
-      const periodStart = new Date().toISOString();
-      const periodEndDate = new Date();
-      periodEndDate.setUTCDate(periodEndDate.getUTCDate() + (billingCycle === 'yearly' ? 365 : 30));
-
-      const { data: subscription, error: subscriptionError } = await supabaseAdmin
-        .from('user_subscriptions')
-        .insert({
-          user_id: userId,
-          plan_id: planId,
-          status: 'active',
-          current_period_start: periodStart,
-          current_period_end: periodEndDate.toISOString(),
-          cancel_at_period_end: false,
-          trial_end_date: null,
-        })
-        .select('id')
-        .single();
-
-      if (subscriptionError) {
-        console.error('Failed to create subscription:', subscriptionError);
-
-        await supabaseAdmin
-          .from('webhook_logs')
-          .update({
-            processed: false,
-            error_message: subscriptionError.message,
-          })
-          .eq('id', webhookLog?.id);
-
-        return textResponse('Processing error', 500);
-      }
+      const paymentUpdatePayload =
+        itemType === 'booster'
+          ? {
+              subscription_id: null,
+              status: 'approved',
+              invoice_status: 'not_applicable',
+              fiscal_status: 'not_requested',
+              paid_at: payment.date_approved || new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }
+          : {
+              subscription_id: subscriptionId,
+              status: 'approved',
+              invoice_status: 'pending',
+              fiscal_status: 'queued',
+              paid_at: payment.date_approved || new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
 
       const { error: approvedPaymentUpdateError } = await supabaseAdmin
         .from('payments')
-        .update({
-          subscription_id: subscription.id,
-          status: 'approved',
-          invoice_status: 'pending',
-          fiscal_status: 'queued',
-          paid_at: payment.date_approved || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .update(paymentUpdatePayload)
         .eq('provider_payment_id', String(payment.id));
 
       if (approvedPaymentUpdateError) {
@@ -335,24 +366,65 @@ serve(async (req) => {
         admin_email: userProfile?.email || 'unknown@unknown',
         admin_name: userProfile?.name || userProfile?.email || 'Unknown User',
         action: 'SUBSCRIPTION_ACTIVATED',
-        resource_type: 'SUBSCRIPTION',
-        resource_id: subscription.id,
+        resource_type: itemType === 'booster' ? 'payment' : 'SUBSCRIPTION',
+        resource_id: itemType === 'booster' ? String(payment.id) : subscriptionId,
         new_value: {
           plan_id: planId,
+          booster_id: boosterId,
           billing_cycle: billingCycle,
           mp_payment_id: String(payment.id),
           amount: payment.transaction_amount,
+          item_type: itemType,
         },
-        reason: 'Assinatura ativada via pagamento Mercado Pago',
+        reason: itemType === 'booster' ? 'Booster creditado via pagamento Mercado Pago' : 'Assinatura ativada via pagamento Mercado Pago',
       });
 
-      await supabaseAdmin.from('notifications').insert({
-        user_id: userId,
-        type: 'SYSTEM',
-        title: 'Pagamento Aprovado!',
-        content: 'Sua assinatura foi ativada com sucesso. Aproveite todos os recursos do seu plano.',
-        link: '/#/minha-conta/financeiro',
-      });
+      if (itemType === 'booster' && boosterId) {
+        const { data: approvedPaymentRecord } = await supabaseAdmin
+          .from('payments')
+          .select('id')
+          .eq('provider_payment_id', String(payment.id))
+          .maybeSingle();
+
+        const { data: boosterCreditResult, error: boosterCreditError } = await supabaseAdmin.rpc(
+          'register_highlight_booster_purchase',
+          {
+            p_user_id: userId,
+            p_booster_id: boosterId,
+            p_payment_id: approvedPaymentRecord?.id || null,
+            p_provider_payment_id: String(payment.id),
+            p_amount: Number(payment.transaction_amount || 0),
+          }
+        );
+
+        if (boosterCreditError || !boosterCreditResult?.success) {
+          await supabaseAdmin
+            .from('webhook_logs')
+            .update({
+              processed: false,
+              error_message: boosterCreditError?.message || boosterCreditResult?.error || 'Failed to credit booster',
+            })
+            .eq('id', webhookLog?.id);
+
+          return textResponse('Failed to credit booster', 500);
+        }
+
+        await supabaseAdmin.from('notifications').insert({
+          user_id: userId,
+          type: 'SYSTEM',
+          title: 'Booster creditado com sucesso',
+          content: `Seu booster foi ativado com ${boosterCreditResult.category_credits} destaque(s) em categoria e ${boosterCreditResult.home_credits} destaque(s) na home.`,
+          link: '/#/minha-conta/meus-anuncios',
+        });
+      } else {
+        await supabaseAdmin.from('notifications').insert({
+          user_id: userId,
+          type: 'SYSTEM',
+          title: 'Pagamento Aprovado!',
+          content: 'Sua assinatura foi ativada com sucesso. Aproveite todos os recursos do seu plano.',
+          link: '/#/minha-conta/financeiro',
+        });
+      }
 
       const { data: approvedPaymentRecord } = await supabaseAdmin
         .from('payments')
@@ -362,7 +434,7 @@ serve(async (req) => {
 
       const internalAutomationSecret = Deno.env.get('INTERNAL_AUTOMATION_SECRET');
 
-      if (approvedPaymentRecord?.id && internalAutomationSecret) {
+      if (itemType === 'plan' && approvedPaymentRecord?.id && internalAutomationSecret) {
         try {
           await fetch(`${supabaseUrl}/functions/v1/issue-nfse`, {
             method: 'POST',

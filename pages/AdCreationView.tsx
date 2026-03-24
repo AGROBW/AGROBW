@@ -8,7 +8,25 @@ import { useSubscription } from '../src/hooks/useSubscription';
 import { useAuth } from '../src/contexts/AuthContext';
 import { supabase } from '../src/lib/supabaseClient';
 import { toast } from 'sonner';
-import { Trash2, GripVertical, AlertCircle, Eye, Heart, MapPin, X } from 'lucide-react';
+import {
+  Trash2,
+  GripVertical,
+  AlertCircle,
+  Eye,
+  Heart,
+  MapPin,
+  X,
+  PawPrint,
+  Cog,
+  Leaf,
+  Home,
+  Wrench,
+  Sprout,
+  Package,
+  Building2,
+  Trees,
+  LucideIcon,
+} from 'lucide-react';
 import { censorContactData } from '../src/utils/censorContact';
 import imageCompression from 'browser-image-compression';
 import { motion } from 'framer-motion';
@@ -244,6 +262,46 @@ const AdCreationView: React.FC = () => {
   });
 
   // Persistência de rascunho
+  const categoryIconMap: Record<string, LucideIcon> = {
+    animais: PawPrint,
+    maquinas: Cog,
+    insumos: Leaf,
+    imoveis: Home,
+    servicos: Wrench,
+    sementes: Sprout,
+    pecas: Wrench,
+    'maquinas-equipamentos': Cog,
+    implementos: Wrench,
+    fazendas: Building2,
+    'imoveis-rurais': Home,
+    'armazenagem-de-produtos': Building2,
+    'alimentos-em-geral': Package,
+    'arvores-adultas-mudas': Trees,
+    'tratores-agricolas': Cog,
+    'maquinas-pesadas': Cog,
+    'fertilizantes-agricolas': Leaf,
+    'colheitadeiras-colhedoras': Cog,
+    'alimentos-para-nutricao-animal': PawPrint,
+  };
+
+  const resolveCategoryIcon = (category: { slug: string; name: string }) => {
+    const normalizedSlug = category.slug?.toLowerCase() || '';
+    const normalizedName = category.name?.toLowerCase() || '';
+
+    const directMatch = categoryIconMap[normalizedSlug];
+    if (directMatch) return directMatch;
+
+    if (normalizedSlug.includes('animal') || normalizedName.includes('animal')) return PawPrint;
+    if (normalizedSlug.includes('maquina') || normalizedSlug.includes('trator') || normalizedSlug.includes('colheit')) return Cog;
+    if (normalizedSlug.includes('insumo') || normalizedSlug.includes('fertiliz') || normalizedSlug.includes('nutricao')) return Leaf;
+    if (normalizedSlug.includes('imove') || normalizedSlug.includes('fazenda')) return Home;
+    if (normalizedSlug.includes('servic')) return Wrench;
+    if (normalizedSlug.includes('sement') || normalizedSlug.includes('muda') || normalizedSlug.includes('arvore')) return Sprout;
+    if (normalizedSlug.includes('armazen')) return Building2;
+
+    return Package;
+  };
+
   useEffect(() => {
     const draft = localStorage.getItem('bwagro_ad_draft');
     if (draft) setFormData(JSON.parse(draft));
@@ -979,24 +1037,33 @@ const AdCreationView: React.FC = () => {
       case 'CATEGORY':
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-            {(dbCategories.length > 0 ? dbCategories : CATEGORIES).map(cat => (
+            {(dbCategories.length > 0 ? dbCategories : CATEGORIES).map(cat => {
+              const Icon = resolveCategoryIcon(cat);
+
+              return (
               <button
                 key={cat.id}
                 onClick={() => handleCategorySelect(cat)}
                 className={`p-8 rounded-[2rem] border-2 transition-all text-center group ${formData.categorySlug === cat.slug ? 'border-green-600 bg-green-50 shadow-lg' : 'border-slate-100 hover:border-green-200 hover:bg-slate-50'}`}
               >
                 {'icon' in cat ? (
-                  <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">
+                  <div className="hidden">
                     {cat.icon || categoryIcons[cat.slug] || '📦'}
                   </div>
                 ) : (
-                  <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">
+                  <div className="hidden">
                     {CATEGORIES.find(base => base.slug === cat.slug)?.icon || categoryIcons[cat.slug] || '📦'}
                   </div>
                 )}
+                <div className="mb-4 flex justify-center">
+                  <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border transition-all ${formData.categorySlug === cat.slug ? 'border-green-200 bg-white text-green-700 shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600 group-hover:border-green-200 group-hover:bg-white group-hover:text-green-700'}`}>
+                    <Icon className="h-7 w-7" strokeWidth={1.8} />
+                  </div>
+                </div>
                 <div className="font-black text-slate-800">{cat.name}</div>
               </button>
-            ))}
+            );
+            })}
           </div>
         );
 

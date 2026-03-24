@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { setRememberDevicePreference, supabase } from '../lib/supabaseClient'
+import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { User, UserRole } from '../../types'
 import { toast } from 'sonner'
 
@@ -80,9 +81,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [stats, setStats] = useState<UserStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const fetchingRef = useRef(false)
+  const retryTimeoutRef = useRef<number | null>(null)
 
-  // Buscar dados do usuário
-  const fetchUserStatus = async (userId: string, canSetState?: () => boolean) => {
+  const clearRetryTimeout = () => {
+    if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
+      window.clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
+  }
+
+  const fetchUserStatus = async (
+    userId: string,
+    canSetState?: () => boolean,
+    options?: { silent?: boolean }
+  ) => {
     try {
       const { data: userData, error: userError } = await supabase
         .from('users')
@@ -95,12 +107,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('userId:', userId)
         console.error('erro:', userError)
         console.groupEnd()
-        toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
+        if (!options?.silent) {
+          toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
+        }
         console.debug('[Auth] fetchUserStatus completou com erro')
         return null
       }
 
-      const user: User = {
+      const mappedUser: User = {
         id: userData.id,
         email: userData.email,
         name: userData.name || 'Usuário',
@@ -126,8 +140,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       if (!canSetState || canSetState()) {
-        setUser(user)
+        setUser(mappedUser)
       }
+
       console.debug('[Auth] fetchUserStatus completou com sucesso')
       return userData
     } catch (err: any) {
@@ -135,14 +150,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('userId:', userId)
       console.error('erro:', err?.message || err)
       console.groupEnd()
-      toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
+      if (!options?.silent) {
+        toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
+      }
       console.debug('[Auth] fetchUserStatus completou com erro')
       return null
     }
   }
 
-  // Buscar estatísticas via função get_user_stats
-  const fetchStats = async (userId: string, canSetState?: () => boolean) => {
+  const fetchStats = async (
+    userId: string,
+    canSetState?: () => boolean,
+    options?: { silent?: boolean }
+  ) => {
     try {
       const { data, error } = await supabase.rpc('get_user_stats', {
         user_uuid: userId
@@ -153,59 +173,99 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('userId:', userId)
         console.error('erro:', error)
         console.groupEnd()
-        toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
+        if (!options?.silent) {
+          toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
+        }
         console.debug('[Auth] fetchStats completou com erro (retornando defaults)')
         if (!canSetState || canSetState()) {
           setStats(defaultStats)
         }
-        return
+        return false
       }
 
       if (!canSetState || canSetState()) {
         setStats(data as UserStats)
       }
+
       console.debug('[Auth] fetchStats completou com sucesso')
+      return true
     } catch (err: any) {
       console.groupCollapsed('[Auth] Erro inesperado ao buscar estatísticas')
       console.error('userId:', userId)
       console.error('erro:', err?.message || err)
       console.groupEnd()
-      toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
+      if (!options?.silent) {
+        toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
+      }
       console.debug('[Auth] fetchStats completou com erro (retornando defaults)')
       if (!canSetState || canSetState()) {
         setStats(defaultStats)
+      }
+      return false
+    }
+  }
+
+  const scheduleRetry = (userId: string, canSetState?: () => boolean) => {
+    if (typeof window === 'undefined' || retryTimeoutRef.current !== null) return
+
+    retryTimeoutRef.current = window.setTimeout(() => {
+      retryTimeoutRef.current = null
+      void loadAuthenticatedState(userId, { silent: true, canSetState })
+    }, 5000)
+  }
+
+  const loadAuthenticatedState = async (
+    userId: string,
+    options?: { silent?: boolean; canSetState?: () => boolean }
+  ) => {
+    if (fetchingRef.current) return
+
+    fetchingRef.current = true
+    clearRetryTimeout()
+    if (options?.silent) {
+      startAppSync()
+    }
+
+    try {
+      const [userData, statsLoaded] = await Promise.all([
+        fetchUserStatus(userId, options?.canSetState, { silent: options?.silent }),
+        fetchStats(userId, options?.canSetState, { silent: options?.silent })
+      ])
+
+      if (!userData || !statsLoaded) {
+        scheduleRetry(userId, options?.canSetState)
+      }
+    } catch (err: any) {
+      console.error('[Auth] Erro ao sincronizar sessão autenticada:', err)
+      scheduleRetry(userId, options?.canSetState)
+    } finally {
+      if (options?.silent) {
+        endAppSync()
+      }
+      fetchingRef.current = false
+      if (!options?.canSetState || options.canSetState()) {
+        setIsLoading(false)
       }
     }
   }
 
   const refreshStats = async () => {
-    if (supabaseUser && !fetchingRef.current) {
-      fetchingRef.current = true
-      try {
-        await Promise.all([
-          fetchUserStatus(supabaseUser.id),
-          fetchStats(supabaseUser.id)
-        ])
-      } catch (err: any) {
-        console.error('Erro ao atualizar dados:', err)
-      } finally {
-        fetchingRef.current = false
-      }
+    if (supabaseUser?.id && !fetchingRef.current) {
+      await loadAuthenticatedState(supabaseUser.id)
     }
   }
 
-  // Configurar listener de autenticação
   useEffect(() => {
-    let isMounted = true;
+    let isMounted = true
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.debug('[Auth] onAuthStateChange', {
         event,
         hasSession: !!session,
         userId: session?.user?.id,
         isMounted
       })
-      
+
       if (isMounted) {
         setSupabaseUser(session?.user ?? null)
         if (session?.user) {
@@ -224,39 +284,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
 
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-        // Evita fetches duplicados - se já está buscando, ignora
-        if (fetchingRef.current) {
-          if (event === 'INITIAL_SESSION') {
-            console.debug('[Auth] Ignorando INITIAL_SESSION pois SIGNED_IN já está em andamento')
-            return
-          }
-          console.debug('[Auth] Ignorando evento pois fetches já estão em andamento')
-          return
-        }
-        
-        // Só faz fetch se NÃO temos user carregado ainda
-        if (!user && isMounted) {
-          fetchingRef.current = true
-          console.debug('[Auth] Iniciando fetches', { userId: session.user.id })
-          
-          try {
-            fetchUserStatus(session.user.id, () => isMounted)
-            fetchStats(session.user.id, () => isMounted)
-            console.debug('[Auth] Fetches completadas com sucesso')
-          } catch (err) {
-            console.error('[Auth] Erro durante fetches:', err)
-          } finally {
-            fetchingRef.current = false
-            if (isMounted) {
-              console.debug('[Auth] Finalizando fetches', { userId: session.user.id })
-            }
-          }
-        } else if (isMounted) {
-          console.debug('[Auth] Pulando fetches pois user já está carregado', {user: !!user})
-          setIsLoading(false)
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && session?.user) {
+        if (isMounted) {
+          console.debug('[Auth] Iniciando sincronização autenticada', { userId: session.user.id, event })
+          void loadAuthenticatedState(session.user.id, {
+            silent: event !== 'SIGNED_IN',
+            canSetState: () => isMounted
+          })
         }
       } else if (event === 'SIGNED_OUT') {
+        clearRetryTimeout()
         if (isMounted) {
           setUser(null)
           setStats(null)
@@ -269,11 +306,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     return () => {
       isMounted = false
+      clearRetryTimeout()
       subscription.unsubscribe()
     }
   }, [])
 
-  // Função de login
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleOnline = () => {
+      if (supabaseUser?.id) {
+        void loadAuthenticatedState(supabaseUser.id, { silent: true })
+      }
+    }
+
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [supabaseUser?.id])
+
   const signIn = async (email: string, password: string, rememberDevice = true) => {
     setRememberDevicePreference(rememberDevice)
 
@@ -281,26 +331,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       email,
       password
     })
-    
+
     if (error) {
       return { error }
     }
-    
-    // Verificar se o usuário está suspenso
+
     if (data?.user?.id) {
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('is_suspended, suspension_reason, name')
         .eq('id', data.user.id)
         .single()
-      
+
       if (!userError && userData?.is_suspended) {
-        // Fazer logout imediatamente
         await supabase.auth.signOut()
-        
-        // Retornar erro customizado com informações de suspensão
-        return { 
-          error: { 
+
+        return {
+          error: {
             message: 'USER_SUSPENDED',
             suspension_reason: userData.suspension_reason || 'Sua conta foi suspensa.',
             user_name: userData.name
@@ -308,13 +355,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
 
-      // ✅ Atualizar last_login após login bem-sucedido
       await supabase
         .from('users')
         .update({ last_login: new Date().toISOString() })
         .eq('id', data.user.id)
     }
-    
+
     return { error }
   }
 
@@ -325,7 +371,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return { error }
   }
 
-  // Função de cadastro
   const signUp = async (
     email: string,
     password: string,
@@ -347,7 +392,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const onlyDigits = (value?: string) => (value ?? '').replace(/\D/g, '')
     const cleanPhone = onlyDigits(phone)
     const cleanDocument = onlyDigits(additionalData?.document)
-    // Criar conta no Supabase Auth
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -378,11 +423,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { error: authError }
     }
 
-    return { error: null }
+    return { error: null, data: authData }
   }
 
-  // Função de logout
   const signOut = async () => {
+    clearRetryTimeout()
     await supabase.auth.signOut()
     setUser(null)
     setStats(null)

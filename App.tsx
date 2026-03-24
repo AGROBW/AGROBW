@@ -4,6 +4,7 @@ import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'reac
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LayoutProvider } from './src/contexts/LayoutContext';
+import { useAppSyncStatus } from './src/lib/appSyncStatus';
 import { ProtectedAdminRoute } from './components/ProtectedAdminRoute';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -96,11 +97,21 @@ class RouteErrorBoundary extends React.Component<{ children: React.ReactNode }, 
 
 const AppContent: React.FC = () => {
   const location = useLocation();
+  const { isSyncing } = useAppSyncStatus();
   const isAdminPath = location.pathname.startsWith('/admin');
   const isUserAreaPath = location.pathname.startsWith('/minha-conta');
 
   return (
     <div className="min-h-screen flex flex-col font-sans antialiased text-slate-900">
+      {isSyncing ? (
+        <div className="fixed inset-x-0 top-4 z-[70] flex justify-center px-4 pointer-events-none">
+          <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 shadow-lg backdrop-blur-sm">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+            Atualizando...
+          </div>
+        </div>
+      ) : null}
+
       {!isAdminPath && <Header />}
       
       <main className="flex-grow">

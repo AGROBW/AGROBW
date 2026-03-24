@@ -405,6 +405,7 @@ export interface PaymentRecord {
   userId: string;
   subscriptionId?: string | null;
   planId?: string | null;
+  boosterId?: string | null;
   provider: string;
   providerPaymentId: string;
   providerPreferenceId?: string | null;
@@ -435,6 +436,44 @@ export interface PaymentRecord {
   updatedAt: string;
   metadata?: Record<string, unknown>;
   planName?: string | null;
+  itemType?: 'plan' | 'booster' | null;
+  itemName?: string | null;
+}
+
+export interface HighlightBoosterRecord {
+  id: string;
+  name: string;
+  description?: string | null;
+  monthlyPrice: number;
+  categoryCredits: number;
+  homeCredits: number;
+  maxPurchasesPer30Days: number;
+  buttonText: string;
+  isActive: boolean;
+  position: number;
+}
+
+export interface HighlightBoosterPurchaseRecord {
+  id: string;
+  boosterId: string;
+  boosterName: string;
+  amount: number;
+  status: 'credited' | 'cancelled' | 'refunded';
+  categoryCreditsTotal: number;
+  categoryCreditsRemaining: number;
+  homeCreditsTotal: number;
+  homeCreditsRemaining: number;
+  creditedAt: string;
+  createdAt: string;
+  paymentId?: string | null;
+  providerPaymentId?: string | null;
+}
+
+export interface HighlightBoosterSummary {
+  categoryRemaining: number;
+  homeRemaining: number;
+  purchasesLast30Days: number;
+  canPurchase: boolean;
 }
 
 export interface FiscalSettings {

@@ -7,6 +7,9 @@ export interface CheckoutRequest {
   billingCycle: 'monthly' | 'yearly';
   amount: number;
   userId: string;
+  itemType?: 'plan' | 'booster';
+  boosterId?: string;
+  itemName?: string;
 }
 
 export interface CheckoutResponse {
@@ -198,6 +201,30 @@ export const initiateCheckout = async (
       error: err instanceof Error ? err.message : 'Erro ao iniciar checkout.',
     };
   }
+};
+
+export interface BoosterCheckoutRequest {
+  boosterId: string;
+  boosterName: string;
+  boosterDescription?: string;
+  amount: number;
+  userId: string;
+}
+
+export const initiateBoosterCheckout = async (
+  request: BoosterCheckoutRequest
+): Promise<{ success: boolean; error?: string }> => {
+  return initiateCheckout({
+    planId: request.boosterId,
+    planName: request.boosterName,
+    planDescription: request.boosterDescription,
+    billingCycle: 'monthly',
+    amount: request.amount,
+    userId: request.userId,
+    itemType: 'booster',
+    boosterId: request.boosterId,
+    itemName: request.boosterName,
+  });
 };
 
 export const formatPrice = (price: number): string => {

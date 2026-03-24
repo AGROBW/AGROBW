@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
+import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { useAuth } from '../contexts/AuthContext'
 import { Chat, Message, LeadStatus } from '../../types'
 import { LEAD_STATUS } from '../../constants/status'
@@ -16,37 +17,54 @@ export const useChats = (announcementId?: string | null) => {
   const [chats, setChats] = useState<Chat[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const retryTimeoutRef = useRef<number | null>(null)
 
-  const fetchChats = async () => {
+  const clearRetry = () => {
+    if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
+      window.clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
+  }
+
+  const fetchChats = async (silent = false) => {
     if (!user) {
       setChats([])
       setIsLoading(false)
       return
     }
 
-    setIsLoading(true)
-    
-    // Construir query base
-    let query = supabase
-      .from('chats_full') // Usar a VIEW criada no schema
-      .select('*')
-      .or(`seller_id.eq.${user.id},buyer_id.eq.${user.id}`);
-    
-    // Adicionar filtro de anúncio se fornecido
-    if (announcementId) {
-      query = query.eq('announcement_id', announcementId);
+    if (!silent) {
+      setIsLoading(true)
+    } else {
+      startAppSync()
     }
-    
-    // Ordenar por última mensagem
-    query = query.order('last_message_time', { ascending: false });
 
-    const { data, error } = await query;
+    let query = supabase
+      .from('chats_full')
+      .select('*')
+      .or(`seller_id.eq.${user.id},buyer_id.eq.${user.id}`)
+
+    if (announcementId) {
+      query = query.eq('announcement_id', announcementId)
+    }
+
+    query = query.order('last_message_time', { ascending: false })
+
+    const { data, error } = await query
 
     if (error) {
       setError(error.message)
       console.error('Erro ao buscar chats:', error)
+      if (typeof window !== 'undefined' && retryTimeoutRef.current === null) {
+        retryTimeoutRef.current = window.setTimeout(() => {
+          retryTimeoutRef.current = null
+          void fetchChats(true)
+        }, 5000)
+      }
     } else {
-      const mappedChats: Chat[] = data.map(chat => ({
+      clearRetry()
+      setError(null)
+      const mappedChats: Chat[] = (data || []).map(chat => ({
         id: chat.id,
         adId: chat.announcement_id,
         adTitle: chat.ad_title,
@@ -67,22 +85,31 @@ export const useChats = (announcementId?: string | null) => {
         status: chat.status,
         createdAt: chat.created_at
       }))
-      
-      // Debug: Log dos chats mapeados
-      console.log('[useChats] Total de chats:', mappedChats.length);
-      if (mappedChats.length > 0) {
-        console.log('[useChats] Primeiro chat mapeado:', mappedChats[0]);
-        console.log('[useChats] Preço do primeiro chat:', mappedChats[0].adPrice);
-      }
-      
+
       setChats(mappedChats)
     }
+
     setIsLoading(false)
+    if (silent) {
+      endAppSync()
+    }
   }
 
   useEffect(() => {
-    fetchChats()
-  }, [user, announcementId])
+    void fetchChats()
+    return () => clearRetry()
+  }, [user?.id, announcementId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user?.id) return
+
+    const handleOnline = () => {
+      void fetchChats(true)
+    }
+
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [user?.id, announcementId])
 
   return { chats, isLoading, error, refreshChats: fetchChats }
 }
@@ -93,62 +120,62 @@ export const useMessages = (chatId: string | null) => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
+  const retryTimeoutRef = useRef<number | null>(null)
 
-  /**
-   * Marca todas as mensagens de um chat como lidas e atualiza os contadores
-   */
+  const clearRetry = () => {
+    if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
+      window.clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
+  }
+
   const markAsRead = async (targetChatId: string) => {
-    if (!user) return;
+    if (!user) return
 
     try {
-      // 1. Buscar informações do chat para determinar o papel do usuário
       const { data: chatData, error: chatError } = await supabase
         .from('chats')
         .select('seller_id, buyer_id, unread_count_seller, unread_count_buyer')
         .eq('id', targetChatId)
-        .single();
+        .single()
 
       if (chatError || !chatData) {
-        console.error('[markAsRead] Erro ao buscar chat:', chatError);
-        return;
+        console.error('[markAsRead] Erro ao buscar chat:', chatError)
+        return
       }
 
-      const isSeller = chatData.seller_id === user.id;
-      const isBuyer = chatData.buyer_id === user.id;
+      const isSeller = chatData.seller_id === user.id
+      const isBuyer = chatData.buyer_id === user.id
 
       if (!isSeller && !isBuyer) {
-        console.warn('[markAsRead] Usuário não é participante do chat');
-        return;
+        console.warn('[markAsRead] Usuário não é participante do chat')
+        return
       }
 
-      // 2. Marcar mensagens como lidas (apenas as recebidas)
       const { error: messagesError } = await supabase
         .from('messages')
         .update({ is_read: true })
         .eq('chat_id', targetChatId)
         .neq('sender_id', user.id)
-        .eq('is_read', false);
+        .eq('is_read', false)
 
       if (messagesError) {
-        console.error('[markAsRead] Erro ao marcar mensagens como lidas:', messagesError);
+        console.error('[markAsRead] Erro ao marcar mensagens como lidas:', messagesError)
       }
 
-      // 3. Zerar o contador apropriado no chat
-      const updateField = isSeller ? 'unread_count_seller' : 'unread_count_buyer';
+      const updateField = isSeller ? 'unread_count_seller' : 'unread_count_buyer'
       const { error: chatUpdateError } = await supabase
         .from('chats')
         .update({ [updateField]: 0 })
-        .eq('id', targetChatId);
+        .eq('id', targetChatId)
 
       if (chatUpdateError) {
-        console.error('[markAsRead] Erro ao atualizar contador do chat:', chatUpdateError);
+        console.error('[markAsRead] Erro ao atualizar contador do chat:', chatUpdateError)
       }
-
-      console.log(`[markAsRead] Chat ${targetChatId} marcado como lido para ${isSeller ? 'vendedor' : 'comprador'}`);
     } catch (err) {
-      console.error('[markAsRead] Erro inesperado:', err);
+      console.error('[markAsRead] Erro inesperado:', err)
     }
-  };
+  }
 
   useEffect(() => {
     if (!chatId || !user) {
@@ -157,8 +184,13 @@ export const useMessages = (chatId: string | null) => {
       return
     }
 
-    const fetchMessages = async () => {
-      setIsLoading(true)
+    const fetchMessages = async (silent = false) => {
+      if (!silent) {
+        setIsLoading(true)
+      } else {
+        startAppSync()
+      }
+
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -171,8 +203,16 @@ export const useMessages = (chatId: string | null) => {
       if (error) {
         setError(error.message)
         console.error('Erro ao buscar mensagens:', error)
+        if (typeof window !== 'undefined' && retryTimeoutRef.current === null) {
+          retryTimeoutRef.current = window.setTimeout(() => {
+            retryTimeoutRef.current = null
+            void fetchMessages(true)
+          }, 5000)
+        }
       } else {
-        const mappedMessages: Message[] = data.map(msg => ({
+        clearRetry()
+        setError(null)
+        const mappedMessages: Message[] = (data || []).map(msg => ({
           id: msg.id,
           chatId: msg.chat_id,
           senderId: msg.sender_id,
@@ -183,17 +223,19 @@ export const useMessages = (chatId: string | null) => {
           senderAvatar: msg.users?.avatar,
           isFiltered: msg.is_filtered
         }))
-        setMessages(mappedMessages)
 
-        // Marcar mensagens como lidas automaticamente ao selecionar o chat
-        await markAsRead(chatId);
+        setMessages(mappedMessages)
+        await markAsRead(chatId)
       }
+
       setIsLoading(false)
+      if (silent) {
+        endAppSync()
+      }
     }
 
-    fetchMessages()
+    void fetchMessages()
 
-    // Configurar Realtime
     const newChannel = supabase
       .channel(`messages:${chatId}`)
       .on(
@@ -205,7 +247,6 @@ export const useMessages = (chatId: string | null) => {
           filter: `chat_id=eq.${chatId}`
         },
         async (payload) => {
-          // Buscar dados do usuário que enviou
           const { data: userData } = await supabase
             .from('users')
             .select('name, avatar')
@@ -226,9 +267,8 @@ export const useMessages = (chatId: string | null) => {
 
           setMessages(prev => [...prev, newMessage])
 
-          // Marcar como lida automaticamente se não for do próprio usuário
           if (payload.new.sender_id !== user.id) {
-            await markAsRead(chatId);
+            await markAsRead(chatId)
           }
         }
       )
@@ -237,9 +277,55 @@ export const useMessages = (chatId: string | null) => {
     setChannel(newChannel)
 
     return () => {
+      clearRetry()
       newChannel.unsubscribe()
     }
-  }, [chatId, user])
+  }, [chatId, user?.id])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !chatId || !user?.id) return
+
+    const handleOnline = () => {
+      setIsLoading(true)
+      startAppSync()
+      void supabase
+        .from('messages')
+        .select(`
+          *,
+          users (name, avatar)
+        `)
+        .eq('chat_id', chatId)
+        .order('created_at', { ascending: true })
+        .then(async ({ data, error }) => {
+          if (error) {
+            setError(error.message)
+            setIsLoading(false)
+            endAppSync()
+            return
+          }
+
+          clearRetry()
+          setError(null)
+          setMessages((data || []).map(msg => ({
+            id: msg.id,
+            chatId: msg.chat_id,
+            senderId: msg.sender_id,
+            senderName: msg.users?.name || 'Usuário',
+            content: msg.content,
+            timestamp: msg.created_at,
+            isRead: msg.is_read,
+            senderAvatar: msg.users?.avatar,
+            isFiltered: msg.is_filtered
+          })))
+          await markAsRead(chatId)
+          setIsLoading(false)
+          endAppSync()
+        })
+    }
+
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [chatId, user?.id])
 
   const sendMessage = async (content: string): Promise<boolean> => {
     if (!chatId || !user || !content.trim()) return false
@@ -259,13 +345,11 @@ export const useMessages = (chatId: string | null) => {
       return false
     }
 
-    // Marcar pendências como lidas ao enviar nova mensagem
-    await markAsRead(chatId);
-
+    await markAsRead(chatId)
     return true
   }
 
-  return { messages, isLoading, error, sendMessage, markAsRead }
+  return { messages, isLoading, error, sendMessage, markAsRead, channel }
 }
 
 export const useLeadStatus = (chatId: string | null) => {
@@ -294,15 +378,14 @@ export const useLeadStatus = (chatId: string | null) => {
       setIsLoading(false)
     }
 
-    fetchLeadStatus()
-  }, [chatId, user])
+    void fetchLeadStatus()
+  }, [chatId, user?.id])
 
   const unlockLead = async (): Promise<{ success: boolean; message: string }> => {
     if (!chatId || !user) {
       return { success: false, message: 'Dados inválidos' }
     }
 
-    // Verificar créditos do usuário
     const { data: userData } = await supabase
       .from('users')
       .select('credits')
@@ -313,7 +396,6 @@ export const useLeadStatus = (chatId: string | null) => {
       return { success: false, message: 'Créditos insuficientes' }
     }
 
-    // Atualizar status do lead (o trigger deduzirá os créditos automaticamente)
     const { error } = await supabase
       .from('leads')
       .update({ status: LEAD_STATUS.CONTACTED })

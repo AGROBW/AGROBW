@@ -5,6 +5,9 @@ interface PreferenceRequest {
   planId: string;
   billingCycle: 'monthly' | 'yearly';
   userId: string;
+  itemType?: 'plan' | 'booster';
+  boosterId?: string;
+  itemName?: string;
 }
 
 interface PlanRecord {
@@ -15,6 +18,16 @@ interface PlanRecord {
   yearly_price: number;
   is_active: boolean;
   button_text: string;
+}
+
+interface BoosterRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  monthly_price: number;
+  is_active: boolean;
+  button_text: string | null;
+  max_purchases_per_30_days: number | null;
 }
 
 const corsHeaders = {
@@ -91,7 +104,7 @@ serve(async (req) => {
     }
 
     const body: PreferenceRequest = await req.json();
-    const { planId, billingCycle, userId } = body;
+    const { planId, billingCycle, userId, itemType = 'plan', boosterId } = body;
 
     if (!planId || !billingCycle || userId !== user.id) {
       return jsonResponse(
@@ -103,39 +116,112 @@ serve(async (req) => {
       );
     }
 
-    const { data: plan, error: planError } = await supabaseAdmin
-      .from('plans')
-      .select('id, name, description, monthly_price, yearly_price, is_active, button_text')
-      .eq('id', planId)
-      .maybeSingle();
+    let amount = 0;
+    let itemTitle = '';
+    let itemDescription = '';
+    let resourceId = planId;
 
-    if (planError || !plan) {
-      return jsonResponse(
-        {
-          success: false,
-          error: 'Plano nao encontrado',
-          details: planError?.message || 'Plan not found',
-        },
-        404
-      );
+    if (itemType === 'booster') {
+      const effectiveBoosterId = boosterId || planId;
+      const { data: booster, error: boosterError } = await supabaseAdmin
+        .from('highlight_boosters')
+        .select('id, name, description, monthly_price, is_active, button_text, max_purchases_per_30_days')
+        .eq('id', effectiveBoosterId)
+        .maybeSingle();
+
+      if (boosterError || !booster) {
+        return jsonResponse(
+          {
+            success: false,
+            error: 'Booster nao encontrado',
+            details: boosterError?.message || 'Booster not found',
+          },
+          404
+        );
+      }
+
+      if (!booster.is_active) {
+        return jsonResponse(
+          {
+            success: false,
+            error: 'Booster inativo',
+          },
+          400
+        );
+      }
+
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { count: recentPurchasesCount, error: limitError } = await supabaseAdmin
+        .from('user_highlight_booster_purchases')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('booster_id', effectiveBoosterId)
+        .eq('status', 'credited')
+        .gte('created_at', thirtyDaysAgo);
+
+      if (limitError) {
+        return jsonResponse(
+          {
+            success: false,
+            error: 'Erro ao validar limite do booster',
+            details: limitError.message,
+          },
+          500
+        );
+      }
+
+      if ((recentPurchasesCount || 0) >= Number(booster.max_purchases_per_30_days || 2)) {
+        return jsonResponse(
+          {
+            success: false,
+            error: `Limite de ${Number(booster.max_purchases_per_30_days || 2)} booster(s) a cada 30 dias atingido.`,
+          },
+          400
+        );
+      }
+
+      amount = Number(booster.monthly_price || 0);
+      itemTitle = booster.name;
+      itemDescription = booster.description || `Compra do booster ${booster.name}`;
+      resourceId = effectiveBoosterId;
+    } else {
+      const { data: plan, error: planError } = await supabaseAdmin
+        .from('plans')
+        .select('id, name, description, monthly_price, yearly_price, is_active, button_text')
+        .eq('id', planId)
+        .maybeSingle();
+
+      if (planError || !plan) {
+        return jsonResponse(
+          {
+            success: false,
+            error: 'Plano nao encontrado',
+            details: planError?.message || 'Plan not found',
+          },
+          404
+        );
+      }
+
+      if (!plan.is_active) {
+        return jsonResponse(
+          {
+            success: false,
+            error: 'Plano inativo',
+          },
+          400
+        );
+      }
+
+      amount = resolveAmount(plan as PlanRecord, billingCycle);
+      itemTitle = `${plan.name} - ${billingCycle === 'monthly' ? 'Mensal' : 'Anual'}`;
+      itemDescription = plan.description || `Assinatura ${plan.name}`;
     }
 
-    if (!plan.is_active) {
-      return jsonResponse(
-        {
-          success: false,
-          error: 'Plano inativo',
-        },
-        400
-      );
-    }
-
-    const amount = resolveAmount(plan as PlanRecord, billingCycle);
     if (amount <= 0) {
       return jsonResponse(
         {
           success: false,
-          error: 'Plano sem valor valido para checkout',
+          error: 'Item sem valor valido para checkout',
           details: `billingCycle=${billingCycle}`,
         },
         400
@@ -165,16 +251,19 @@ serve(async (req) => {
       .eq('id', user.id)
       .maybeSingle();
 
-    const externalReference = `${user.id}|${plan.id}|${billingCycle}`;
+    const externalReference =
+      itemType === 'booster'
+        ? `booster|${user.id}|${resourceId}|one_time`
+        : `plan|${user.id}|${resourceId}|${billingCycle}`;
     const projectFunctionsBaseUrl = `${supabaseUrl}/functions/v1`;
     const siteUrl = Deno.env.get('SITE_URL') || 'https://bwagro.com.br';
 
     const preference = {
       items: [
         {
-          id: plan.id,
-          title: `${plan.name} - ${billingCycle === 'monthly' ? 'Mensal' : 'Anual'}`,
-          description: plan.description || `Assinatura ${plan.name}`,
+          id: resourceId,
+          title: itemTitle,
+          description: itemDescription,
           quantity: 1,
           unit_price: amount,
           currency_id: 'BRL',
@@ -192,7 +281,10 @@ serve(async (req) => {
       notification_url: `${projectFunctionsBaseUrl}/webhook-mercadopago`,
       metadata: {
         user_id: user.id,
-        plan_id: plan.id,
+        item_type: itemType,
+        plan_id: itemType === 'plan' ? resourceId : null,
+        booster_id: itemType === 'booster' ? resourceId : null,
+        item_name: itemTitle,
         billing_cycle: billingCycle,
       },
     };
@@ -228,11 +320,12 @@ serve(async (req) => {
       admin_name: profile?.name || user.email || 'Unknown User',
       action: 'CHECKOUT_CREATED',
       resource_type: 'PLAN',
-      resource_id: plan.id,
+      resource_id: resourceId,
       new_value: {
         preference_id: mpData.id,
         amount,
         billing_cycle: billingCycle,
+        item_type: itemType,
       },
       reason: 'Preferencia de pagamento criada com sucesso',
     });

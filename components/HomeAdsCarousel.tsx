@@ -11,6 +11,7 @@ interface HomeAdsCarouselProps<T> {
   skeletonCount?: number;
   eyebrow?: string;
   centeredHeader?: boolean;
+  headerAction?: React.ReactNode;
   sectionClassName?: string;
   sectionStyle?: React.CSSProperties;
   footer?: React.ReactNode;
@@ -33,6 +34,7 @@ function HomeAdsCarousel<T>({
   skeletonCount = 4,
   eyebrow,
   centeredHeader = false,
+  headerAction,
   sectionClassName = '',
   sectionStyle,
   footer,
@@ -122,28 +124,31 @@ function HomeAdsCarousel<T>({
             <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
           </div>
 
-          {showControls ? (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => scrollToPage(activePage - 1)}
-                disabled={activePage === 0}
-                className="rounded-lg border border-slate-200 p-2 transition-all disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ color: settings.textColor }}
-              >
-                <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollToPage(activePage + 1)}
-                disabled={activePage >= maxPage}
-                className="rounded-lg border border-slate-200 p-2 transition-all disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ color: settings.textColor }}
-              >
-                <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
-              </button>
-            </div>
-          ) : null}
+          <div className={`flex items-center gap-3 ${centeredHeader ? 'justify-center' : 'md:justify-end'}`}>
+            {headerAction}
+            {showControls ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => scrollToPage(activePage - 1)}
+                  disabled={activePage === 0}
+                  className="rounded-lg border border-slate-200 p-2 transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                  style={{ color: settings.textColor }}
+                >
+                  <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollToPage(activePage + 1)}
+                  disabled={activePage >= maxPage}
+                  className="rounded-lg border border-slate-200 p-2 transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                  style={{ color: settings.textColor }}
+                >
+                  <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {isLoading ? (

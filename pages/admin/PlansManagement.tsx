@@ -55,6 +55,7 @@ const makeEmptyForm = (position: number): UpdatePlanData => ({
   is_popular: false,
   max_ads: null,
   ad_duration_days: 30,
+  expired_deletion_days: 90,
   lead_contact_limit_days: 30,
   category_highlights_count: 0,
   category_highlight_days: null,
@@ -86,6 +87,7 @@ const mapPlanToForm = (plan: Plan): UpdatePlanData => ({
   is_popular: plan.is_popular,
   max_ads: plan.max_ads,
   ad_duration_days: plan.ad_duration_days,
+  expired_deletion_days: plan.expired_deletion_days,
   lead_contact_limit_days: plan.lead_contact_limit_days,
   category_highlights_count: plan.category_highlights_count,
   category_highlight_days: plan.category_highlight_days,
@@ -340,12 +342,15 @@ const PlansManagement: React.FC = () => {
               <CheckCircle className="h-5 w-5 text-green-600" />
               Limites de Anuncios
             </h3>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-6">
               <FieldShell label="Maximo de Anuncios" hint="Deixe vazio para ilimitado.">
                 <input type="number" value={formData.max_ads ?? ''} onChange={(e) => handleChange('max_ads', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 2" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
               </FieldShell>
               <FieldShell label="Duracao do Anuncio (dias)" hint="Tempo que cada anuncio fica ativo.">
                 <input type="number" value={formData.ad_duration_days ?? ''} onChange={(e) => handleChange('ad_duration_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 60" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Exclusao apos vencimento (dias)" hint="Quantos dias o anuncio vencido fica disponivel para republicacao antes da exclusao automatica.">
+                <input type="number" value={formData.expired_deletion_days ?? ''} onChange={(e) => handleChange('expired_deletion_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 90" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
               </FieldShell>
               <FieldShell label="Limite Contato Lead (dias)" hint="Por quantos dias o contato fica liberado.">
                 <input type="number" value={formData.lead_contact_limit_days ?? ''} onChange={(e) => handleChange('lead_contact_limit_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 30" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
@@ -519,6 +524,7 @@ const PlansManagement: React.FC = () => {
 
             <div className="mb-4 text-sm text-gray-600">
               <p>Max. anuncios: <strong className="text-gray-900">{plan.max_ads ?? 'Ilimitado'}</strong></p>
+              <p>Exclusao apos vencimento: <strong className="text-gray-900">{plan.expired_deletion_days ?? 90} dias</strong></p>
               <p>Contato lead: <strong className="text-gray-900">{plan.lead_contact_limit_days ?? 'Sob consulta'} dias</strong></p>
               <p>Radar: <strong className="text-gray-900">{plan.radar_max_alerts}</strong></p>
             </div>

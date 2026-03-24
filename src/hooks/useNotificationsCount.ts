@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
+import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { useAuth } from '../contexts/AuthContext'
 
 interface NotificationCounts {
@@ -14,8 +15,27 @@ export const useNotificationsCount = (): NotificationCounts => {
   const [messagesCount, setMessagesCount] = useState(0)
   const [notificationsCount, setNotificationsCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const retryTimeoutRef = useRef<number | null>(null)
 
-  // Função para buscar contador de mensagens não lidas
+  const clearRetry = () => {
+    if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
+      window.clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
+  }
+
+  const scheduleRetry = () => {
+    if (typeof window === 'undefined' || retryTimeoutRef.current !== null) return
+
+    retryTimeoutRef.current = window.setTimeout(() => {
+      retryTimeoutRef.current = null
+      startAppSync()
+      void Promise.all([fetchMessagesCount(), fetchNotificationsCount()]).finally(() => {
+        endAppSync()
+      })
+    }, 5000)
+  }
+
   const fetchMessagesCount = async () => {
     if (!user) {
       setMessagesCount(0)
@@ -23,7 +43,6 @@ export const useNotificationsCount = (): NotificationCounts => {
     }
 
     try {
-      // Buscar soma de unread_count dos chats do usuário
       const { data, error } = await supabase
         .from('chats')
         .select('unread_count_seller, unread_count_buyer, seller_id, buyer_id')
@@ -31,24 +50,25 @@ export const useNotificationsCount = (): NotificationCounts => {
 
       if (error) throw error
 
-      // Somar apenas o contador correto baseado no papel do usuário em cada chat
-      const totalUnread = data.reduce((sum, chat) => {
+      const totalUnread = (data || []).reduce((sum, chat) => {
         if (chat.seller_id === user.id) {
           return sum + (chat.unread_count_seller || 0)
-        } else if (chat.buyer_id === user.id) {
+        }
+        if (chat.buyer_id === user.id) {
           return sum + (chat.unread_count_buyer || 0)
         }
         return sum
       }, 0)
 
       setMessagesCount(totalUnread)
+      clearRetry()
     } catch (error) {
       console.error('Erro ao buscar contador de mensagens:', error)
       setMessagesCount(0)
+      scheduleRetry()
     }
   }
 
-  // Função para buscar contador de notificações não lidas
   const fetchNotificationsCount = async () => {
     if (!user) {
       setNotificationsCount(0)
@@ -65,13 +85,14 @@ export const useNotificationsCount = (): NotificationCounts => {
       if (error) throw error
 
       setNotificationsCount(count || 0)
+      clearRetry()
     } catch (error) {
       console.error('Erro ao buscar contador de notificações:', error)
       setNotificationsCount(0)
+      scheduleRetry()
     }
   }
 
-  // Buscar contadores iniciais
   useEffect(() => {
     if (!user) {
       setMessagesCount(0)
@@ -86,117 +107,116 @@ export const useNotificationsCount = (): NotificationCounts => {
       setIsLoading(false)
     }
 
-    fetchCounts()
-  }, [user])
+    void fetchCounts()
 
-  // Setup Realtime para chats
+    return () => clearRetry()
+  }, [user?.id])
+
   useEffect(() => {
     if (!user) return
 
     let chatsChannel: RealtimeChannel | null = null
 
-    const setupChatsRealtime = async () => {
-      chatsChannel = supabase
-        .channel('chats_count_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // INSERT, UPDATE, DELETE
-            schema: 'public',
-            table: 'chats',
-            filter: `seller_id=eq.${user.id}`
-          },
-          (payload) => {
-            console.log('[useNotificationsCount] Chat mudou (seller):', payload)
-            fetchMessagesCount()
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'chats',
-            filter: `buyer_id=eq.${user.id}`
-          },
-          (payload) => {
-            console.log('[useNotificationsCount] Chat mudou (buyer):', payload)
-            fetchMessagesCount()
-          }
-        )
-        .subscribe()
-    }
-
-    setupChatsRealtime()
+    chatsChannel = supabase
+      .channel('chats_count_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chats',
+          filter: `seller_id=eq.${user.id}`
+        },
+        () => {
+          void fetchMessagesCount()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chats',
+          filter: `buyer_id=eq.${user.id}`
+        },
+        () => {
+          void fetchMessagesCount()
+        }
+      )
+      .subscribe()
 
     return () => {
       if (chatsChannel) {
         supabase.removeChannel(chatsChannel)
       }
     }
-  }, [user])
+  }, [user?.id])
 
-  // Setup Realtime para notifications
   useEffect(() => {
     if (!user) return
 
     let notificationsChannel: RealtimeChannel | null = null
 
-    const setupNotificationsRealtime = async () => {
-      notificationsChannel = supabase
-        .channel('notifications_count_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            console.log('[useNotificationsCount] Nova notificação inserida:', payload)
-            // Incrementar diretamente para resposta imediata
-            setNotificationsCount(prev => prev + 1)
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            console.log('[useNotificationsCount] Notificação atualizada:', payload)
-            // Refetch para garantir precisão
-            fetchNotificationsCount()
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'DELETE',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            console.log('[useNotificationsCount] Notificação deletada:', payload)
-            fetchNotificationsCount()
-          }
-        )
-        .subscribe()
-    }
-
-    setupNotificationsRealtime()
+    notificationsChannel = supabase
+      .channel('notifications_count_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          setNotificationsCount(prev => prev + 1)
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          void fetchNotificationsCount()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          void fetchNotificationsCount()
+        }
+      )
+      .subscribe()
 
     return () => {
       if (notificationsChannel) {
         supabase.removeChannel(notificationsChannel)
       }
     }
-  }, [user])
+  }, [user?.id])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user?.id) return
+
+    const handleOnline = () => {
+      startAppSync()
+      void Promise.all([fetchMessagesCount(), fetchNotificationsCount()]).finally(() => {
+        endAppSync()
+      })
+    }
+
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [user?.id])
 
   return {
     messagesCount,

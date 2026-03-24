@@ -12,6 +12,8 @@ import { useSubscription } from '../src/hooks/useSubscription';
 import { supabase } from '../src/lib/supabaseClient';
 import { useInvoices } from '../src/hooks/useInvoices';
 import { usePayments } from '../src/hooks/usePayments';
+import { useHighlightBoosters } from '../src/hooks/useHighlightBoosters';
+import HighlightBoosterCard from '../components/boosters/HighlightBoosterCard';
 import PlanGuard from '../components/PlanGuard';
 import MessagesView from '../components/MessagesView';
 import LeadsView from '../components/LeadsView';
@@ -31,6 +33,7 @@ import {
   PriceIntelligenceModule, 
   PlanModule 
 } from '../components/DashboardModules';
+import { initiateBoosterCheckout } from '../services/mercadoPagoService';
 
 const Icons = {
   Dashboard: () => <LayoutGrid className="w-5 h-5" strokeWidth={1.5} />,
@@ -84,6 +87,14 @@ const UserDashboardView: React.FC = () => {
     pendingFiscalDocumentsCount,
     isLoading: paymentsLoading,
   } = usePayments();
+  const {
+    boosters,
+    purchases: boosterPurchases,
+    usageHistory: boosterUsageHistory,
+    summary: boosterSummary,
+    isLoading: boostersLoading,
+    refresh: refreshBoosters,
+  } = useHighlightBoosters();
   const [newLeadsCount, setNewLeadsCount] = useState(0);
   
   // Estados para upload
@@ -491,8 +502,8 @@ const UserDashboardView: React.FC = () => {
   };
 
   const menuItems = [
-    { label: 'VisÃ£o Geral', path: '/minha-conta', icon: <Icons.Dashboard />, badge: 0 },
-    { label: 'Meus AnÃºncios', path: '/minha-conta/anuncios', icon: <Icons.Ads />, badge: 0 },
+    { label: 'Visão Geral', path: '/minha-conta', icon: <Icons.Dashboard />, badge: 0 },
+    { label: 'Meus Anúncios', path: '/minha-conta/anuncios', icon: <Icons.Ads />, badge: 0 },
     { label: 'Mensagens', path: '/minha-conta/mensagens', icon: <Icons.Messages />, badge: messagesCount },
     { label: 'Leads', path: '/minha-conta/leads', icon: <Icons.Leads />, badge: newLeadsCount },
     { label: 'Favoritos', path: '/minha-conta/favoritos', icon: <Icons.Favorites />, badge: 0 },
@@ -505,6 +516,50 @@ const UserDashboardView: React.FC = () => {
   const handleLogout = async () => {
     await signOut();
     navigate('/login');
+  };
+
+  const handleBoosterPurchase = async () => {
+    const booster = boosters[0];
+
+    if (!booster) {
+      toast.error('Nenhum booster disponivel no momento.');
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error('Voce precisa estar logado para comprar um booster.');
+      return;
+    }
+
+    if (!boosterSummary.canPurchase) {
+      toast.error('Voce atingiu o limite de 2 boosters a cada 30 dias.');
+      return;
+    }
+
+    toast.loading('Preparando checkout do booster...', { id: 'booster-dashboard-checkout' });
+
+    try {
+      const result = await initiateBoosterCheckout({
+        boosterId: booster.id,
+        boosterName: booster.name,
+        boosterDescription: booster.description || booster.name,
+        amount: booster.monthlyPrice,
+        userId: user.id,
+      });
+
+      toast.dismiss('booster-dashboard-checkout');
+
+      if (result.success) {
+        toast.success('Redirecionando para checkout...');
+        await refreshBoosters();
+      } else {
+        toast.error(result.error || 'Erro ao processar checkout do booster.');
+      }
+    } catch (error) {
+      toast.dismiss('booster-dashboard-checkout');
+      console.error('[UserDashboard] Erro ao iniciar checkout do booster:', error);
+      toast.error('Erro inesperado ao processar checkout do booster.');
+    }
   };
 
   // --- WIDGET COMPONENTS ---
@@ -812,7 +867,7 @@ const UserDashboardView: React.FC = () => {
     const tabs = [
       { id: 'all', label: 'Todos', count: counts.all },
       { id: 'active', label: 'Ativos', count: counts.active },
-      { id: 'pending', label: 'Em AnÃ¡lise', count: counts.pending },
+      { id: 'pending', label: 'Em Análise', count: counts.pending },
       { id: 'paused', label: 'Pausados', count: counts.paused },
       { id: 'blocked', label: 'ExcluÃ­dos', count: counts.blocked }
     ] as const;
@@ -820,8 +875,8 @@ const UserDashboardView: React.FC = () => {
     const statusLabel: Record<string, string> = {
       [AdStatus.ACTIVE]: 'Ativo',
       [AdStatus.PAUSED]: 'Pausado',
-      [AdStatus.PENDING]: 'Em AnÃ¡lise',
-      [AdStatus.BLOCKED]: 'ExcluÃ­do',
+      [AdStatus.PENDING]: 'Em Análise',
+      [AdStatus.BLOCKED]: 'Excluído',
       [AdStatus.EXPIRED]: 'Expirado',
       [AdStatus.SOLD]: 'Vendido'
     };
@@ -829,13 +884,13 @@ const UserDashboardView: React.FC = () => {
     // Handlers para aÃ§Ãµes
     const getAdDurationLabel = (ad: Ad) => {
       if (!ad.expiresAt) {
-        return 'ExpiraÃ§Ã£o nÃ£o informada';
+        return 'Expiração não informada';
       }
 
       const expiresAt = new Date(ad.expiresAt);
 
       if (Number.isNaN(expiresAt.getTime())) {
-        return `Expira em ${ad.expiresAt}`;
+      return `Expira em ${ad.expiresAt}`;
       }
 
       return `Expira em ${expiresAt.toLocaleDateString('pt-BR')}`;
@@ -843,7 +898,7 @@ const UserDashboardView: React.FC = () => {
 
     const getAdLifetimeLabel = (ad: Ad) => {
       if (!ad.expiresAt) {
-        return 'ExpiraÃ§Ã£o nÃ£o informada';
+        return 'Expiração não informada';
       }
 
       const expiresAt = new Date(ad.expiresAt);
@@ -857,16 +912,16 @@ const UserDashboardView: React.FC = () => {
 
     const getExpiredRetentionLabel = (ad: Ad) => {
       if (!ad.deletionScheduledAt) {
-        return 'Exclusao automatica em ate 90 dias';
+        return 'Exclusão automática conforme o prazo do plano';
       }
 
       const deletionDate = new Date(ad.deletionScheduledAt);
 
       if (Number.isNaN(deletionDate.getTime())) {
-        return `Exclusao automatica em ${ad.deletionScheduledAt}`;
+      return `Exclusão automática em ${ad.deletionScheduledAt}`;
       }
 
-      return `Exclusao automatica em ${deletionDate.toLocaleDateString('pt-BR')}`;
+      return `Exclusão automática em ${deletionDate.toLocaleDateString('pt-BR')}`;
     };
 
     const handleTogglePause = async (ad: Ad) => {
@@ -877,9 +932,9 @@ const UserDashboardView: React.FC = () => {
         .eq('id', ad.id);
 
       if (error) {
-        toast.error('Erro ao alterar status do anÃºncio');
+        toast.error('Erro ao alterar status do anúncio');
       } else {
-        toast.success(newStatus === AdStatus.PAUSED ? 'AnÃºncio pausado' : 'AnÃºncio reativado');
+        toast.success(newStatus === AdStatus.PAUSED ? 'Anúncio pausado' : 'Anúncio reativado');
         // Atualizar lista
         window.location.reload();
       }
@@ -891,16 +946,16 @@ const UserDashboardView: React.FC = () => {
       });
 
       if (error) {
-        toast.error('Erro ao republicar anuncio');
+        toast.error('Erro ao republicar anúncio');
         return;
       }
 
       if (!data?.success) {
-        toast.error(data?.error || 'Nao foi possivel republicar o anuncio');
+        toast.error(data?.error || 'Não foi possível republicar o anúncio');
         return;
       }
 
-      toast.success(data?.message || 'Anuncio republicado com sucesso');
+      toast.success(data?.message || 'Anúncio republicado com sucesso');
       await refreshUsage();
       window.location.reload();
     };
@@ -917,14 +972,14 @@ const UserDashboardView: React.FC = () => {
       try {
         await deleteAnnouncementWithRelations(adToDelete.id);
 
-        toast.success('AnÃºncio excluÃ­do com sucesso');
+        toast.success('Anúncio excluído com sucesso');
         setRemovedAdIds((current) =>
           current.includes(adToDelete.id) ? current : [...current, adToDelete.id]
         );
         setDeleteModalOpen(false);
         setAdToDelete(null);
       } catch (error: any) {
-        toast.error('Erro ao excluir anÃºncio: ' + error.message);
+        toast.error('Erro ao excluir anúncio: ' + error.message);
       } finally {
         setIsDeleting(false);
       }
@@ -963,7 +1018,7 @@ const UserDashboardView: React.FC = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por tÃ­tulo ou cÃ³digo"
+              placeholder="Buscar por título ou código"
               className="h-9 w-full sm:w-64 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-600/20"
             />
             <select
@@ -971,12 +1026,36 @@ const UserDashboardView: React.FC = () => {
               onChange={(e) => setItemsPerPage(Number(e.target.value))}
               className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-600/20"
             >
-              <option value={5}>5 por pÃ¡gina</option>
-              <option value={10}>10 por pÃ¡gina</option>
-              <option value={20}>20 por pÃ¡gina</option>
+              <option value={5}>5 por página</option>
+              <option value={10}>10 por página</option>
+              <option value={20}>20 por página</option>
             </select>
           </div>
         </div>
+
+        {boosters[0] && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">Booster avulso</p>
+                <h3 className="text-base font-semibold text-slate-900">Compre mais creditos de destaque sem trocar de plano</h3>
+                <p className="text-sm text-slate-500">
+                  O combo usa primeiro o saldo do plano e depois passa a consumir os creditos extras comprados.
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                Limite de {boosters[0].maxPurchasesPer30Days} compra(s) a cada 30 dias
+              </div>
+            </div>
+            <HighlightBoosterCard
+              booster={boosters[0]}
+              summary={boosterSummary}
+              onPurchase={handleBoosterPurchase}
+              loading={boostersLoading}
+              compact
+            />
+          </div>
+        )}
 
         <AnimatePresence mode="wait">
           <motion.div
@@ -994,8 +1073,8 @@ const UserDashboardView: React.FC = () => {
                 <div className="mx-auto mb-4 w-10 h-10 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center">
                   <Inbox className="w-5 h-5" strokeWidth={1.5} />
                 </div>
-                <p className="text-sm font-semibold text-slate-700 mb-2">VocÃª nÃ£o possui anÃºncios nesta categoria no momento</p>
-                <p className="text-sm text-slate-500 mb-6">Crie um anÃºncio para comeÃ§ar a gerar oportunidades.</p>
+                <p className="text-sm font-semibold text-slate-700 mb-2">Você não possui anúncios nesta categoria no momento</p>
+                <p className="text-sm text-slate-500 mb-6">Crie um anúncio para começar a gerar oportunidades.</p>
                 <Link
                   to="/anunciar"
                   className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-green-700 text-white text-sm font-semibold hover:bg-green-800 transition-colors"
@@ -1048,7 +1127,7 @@ const UserDashboardView: React.FC = () => {
                       })()}
                     </div>
                     <p className="hidden text-xs text-slate-500 truncate">
-                      CÃ³digo: {ad.id} | Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} Ã s {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      Código: {ad.id} | Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     <p className="text-xs text-slate-500 truncate">
                       Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} as {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {ad.status === AdStatus.EXPIRED ? getExpiredRetentionLabel(ad) : getAdLifetimeLabel(ad)}
@@ -1063,7 +1142,7 @@ const UserDashboardView: React.FC = () => {
                       {statusLabel[ad.status] || 'Status'}
                     </span>
                     <div className="flex items-center gap-1 text-slate-400">
-                      {/* BotÃ£o de Destaques */}
+                      {/* Botão de Destaques */}
                       {ad.status !== AdStatus.EXPIRED && (
                         <>
                         <button
@@ -1090,7 +1169,7 @@ const UserDashboardView: React.FC = () => {
                         </button>
                         </>
                       )}
-                      {/* BotÃ£o Editar */}
+                      {/* Botão Editar */}
                       <button
                         onClick={(e) => {
                           e.preventDefault();
@@ -1600,9 +1679,9 @@ const UserDashboardView: React.FC = () => {
         <tr><td>Status</td><td><span class="badge">${paymentStatusLabel[payment.status]}</span></td></tr>
         <tr><td>Cliente</td><td>${user?.name || 'Nao informado'}</td></tr>
         <tr><td>E-mail</td><td>${user?.email || 'Nao informado'}</td></tr>
-        <tr><td>Plano</td><td>${payment.planName || payment.description || 'Assinatura BWAGRO'}</td></tr>
+        <tr><td>Item</td><td>${payment.itemName || payment.planName || payment.description || 'Assinatura BWAGRO'}</td></tr>
         <tr><td>Valor</td><td>${formatCurrency(payment.amount, payment.currency)}</td></tr>
-        <tr><td>Ciclo</td><td>${payment.billingCycle === 'yearly' ? 'Anual' : 'Mensal'}</td></tr>
+        <tr><td>Ciclo</td><td>${payment.itemType === 'booster' ? 'Compra avulsa' : payment.billingCycle === 'yearly' ? 'Anual' : 'Mensal'}</td></tr>
         <tr><td>Forma de pagamento</td><td>${payment.paymentMethod || 'Mercado Pago'}</td></tr>
         <tr><td>ID da transacao</td><td>${payment.providerPaymentId}</td></tr>
         <tr><td>Data de aprovacao</td><td>${formatDateTime(payment.paidAt || payment.createdAt)}</td></tr>
@@ -1760,7 +1839,7 @@ const UserDashboardView: React.FC = () => {
                   Ultimo pagamento confirmado
                 </p>
                 <h3 className="text-xl font-semibold text-slate-900">
-                  {latestPayment?.planName || latestPayment?.description || 'Nenhum pagamento aprovado ainda'}
+                  {latestPayment?.itemName || latestPayment?.planName || latestPayment?.description || 'Nenhum pagamento aprovado ainda'}
                 </h3>
                 <p className="text-sm text-slate-500">
                   Central de comprovantes, ciclo da assinatura e documentos fiscais.
@@ -1791,7 +1870,7 @@ const UserDashboardView: React.FC = () => {
                       {formatCurrency(latestPayment.amount, latestPayment.currency)}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      {latestPayment.billingCycle === 'yearly' ? 'Ciclo anual' : 'Ciclo mensal'}
+                      {latestPayment.itemType === 'booster' ? 'Compra avulsa' : latestPayment.billingCycle === 'yearly' ? 'Ciclo anual' : 'Ciclo mensal'}
                     </p>
                   </div>
 
@@ -1889,7 +1968,7 @@ const UserDashboardView: React.FC = () => {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">
-                          {payment.planName || payment.description || 'Assinatura BWAGRO'}
+                          {payment.itemName || payment.planName || payment.description || 'Assinatura BWAGRO'}
                         </p>
                         <p className="text-xs text-slate-500">
                           Pagamento {payment.providerPaymentId}
@@ -1930,6 +2009,84 @@ const UserDashboardView: React.FC = () => {
             </div>
           </section>
         </div>
+
+        {boosters[0] && (
+          <section className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">Booster de destaques</p>
+                <h3 className="text-lg font-semibold text-slate-900">Saldo extra para campanhas pontuais</h3>
+                <p className="text-sm text-slate-500">
+                  Seus creditos extras continuam validos mesmo sem assinatura ativa e entram em uso so depois do saldo do plano.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <span className="block text-xs uppercase tracking-[0.16em] text-slate-400 font-semibold">Categoria</span>
+                  <span className="text-xl font-bold text-slate-900">{boosterSummary.categoryRemaining}</span>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <span className="block text-xs uppercase tracking-[0.16em] text-slate-400 font-semibold">Home</span>
+                  <span className="text-xl font-bold text-slate-900">{boosterSummary.homeRemaining}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[0.95fr,1.05fr] gap-5">
+              <HighlightBoosterCard
+                booster={boosters[0]}
+                summary={boosterSummary}
+                onPurchase={handleBoosterPurchase}
+                loading={boostersLoading}
+              />
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="flex items-center justify-between gap-4 mb-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Historico do booster</p>
+                    <h4 className="text-base font-semibold text-slate-900">Compras e consumo</h4>
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    {boosterSummary.purchasesLast30Days} compra(s) nos ultimos 30 dias
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {boosterPurchases.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
+                      Nenhum booster comprado ainda.
+                    </div>
+                  ) : (
+                    boosterPurchases.slice(0, 3).map((purchase) => (
+                      <div key={purchase.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="font-semibold text-slate-900">{purchase.boosterName}</p>
+                            <p className="text-xs text-slate-500">
+                              {new Date(purchase.creditedAt).toLocaleString('pt-BR')}
+                            </p>
+                          </div>
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                            Creditado
+                          </span>
+                        </div>
+                        <div className="mt-3 text-sm text-slate-600">
+                          Saldo restante: {purchase.categoryCreditsRemaining}/{purchase.categoryCreditsTotal} categoria · {purchase.homeCreditsRemaining}/{purchase.homeCreditsTotal} home
+                        </div>
+                      </div>
+                    ))
+                  )}
+
+                  {boosterUsageHistory.length > 0 && (
+                    <p className="text-xs text-slate-500">
+                      {boosterUsageHistory.length} compra(s) ja tiveram uso e nao sao reembolsaveis.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {nextRecommendedPlan && (
           <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
@@ -1973,7 +2130,7 @@ const UserDashboardView: React.FC = () => {
             <table className="w-full text-sm">
               <thead className="bg-slate-50">
                 <tr className="text-left text-slate-500">
-                  <th className="px-6 py-3 font-semibold">Plano</th>
+                  <th className="px-6 py-3 font-semibold">Item</th>
                   <th className="px-6 py-3 font-semibold">Data</th>
                   <th className="px-6 py-3 font-semibold">Valor</th>
                   <th className="px-6 py-3 font-semibold">Status</th>
@@ -2000,10 +2157,10 @@ const UserDashboardView: React.FC = () => {
                       <td className="px-6 py-4">
                         <div>
                           <p className="font-semibold text-slate-900">
-                            {payment.planName || payment.description || 'Assinatura BWAGRO'}
+                            {payment.itemName || payment.planName || payment.description || 'Assinatura BWAGRO'}
                           </p>
                           <p className="text-xs text-slate-500">
-                            {payment.billingCycle === 'yearly' ? 'Cobranca anual' : 'Cobranca mensal'}
+                            {payment.itemType === 'booster' ? 'Compra avulsa' : payment.billingCycle === 'yearly' ? 'Cobranca anual' : 'Cobranca mensal'}
                           </p>
                         </div>
                       </td>
@@ -2060,7 +2217,7 @@ const UserDashboardView: React.FC = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-900">
-                        {payment.planName || payment.description || 'Assinatura BWAGRO'}
+                        {payment.itemName || payment.planName || payment.description || 'Assinatura BWAGRO'}
                       </p>
                       <p className="text-xs text-slate-500">
                         {formatDateTime(payment.paidAt || payment.createdAt)}

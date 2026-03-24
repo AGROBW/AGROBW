@@ -8,6 +8,7 @@ const mapPaymentRecord = (row: any): PaymentRecord => ({
   userId: row.user_id,
   subscriptionId: row.subscription_id ?? null,
   planId: row.plan_id ?? null,
+  boosterId: row.booster_id ?? null,
   provider: row.provider ?? 'mercadopago',
   providerPaymentId: String(row.provider_payment_id ?? ''),
   providerPreferenceId: row.provider_preference_id ?? null,
@@ -38,6 +39,8 @@ const mapPaymentRecord = (row: any): PaymentRecord => ({
   updatedAt: row.updated_at,
   metadata: row.metadata ?? {},
   planName: row.plan_name ?? row.plans?.name ?? null,
+  itemType: row.metadata?.item_type ?? 'plan',
+  itemName: row.metadata?.item_name ?? row.plan_name ?? row.plans?.name ?? row.description ?? null,
 });
 
 export const usePayments = () => {
