@@ -187,11 +187,11 @@ export const useSubscription = () => {
 
       setUsage({
         adsUsed: adsCount,
-        adsLimit: subscription.plans?.max_ads ?? null,
+        adsLimit: subscription?.plans?.max_ads ?? null,
         categoryHighlightsUsed: categoryHighlightsCount,
-        categoryHighlightsLimit: subscription.plans?.category_highlights_count || 0,
+        categoryHighlightsLimit: subscription?.plans?.category_highlights_count || 0,
         homeHighlightsUsed: homeHighlightsCount,
-        homeHighlightsLimit: subscription.plans?.home_highlight_count || 0,
+        homeHighlightsLimit: subscription?.plans?.home_highlight_count || 0,
         categoryHighlightsBoosterRemaining: Number(boosterSummary?.category_remaining ?? 0),
         homeHighlightsBoosterRemaining: Number(boosterSummary?.home_remaining ?? 0),
         isWithinPeriod: !!isWithinPeriod,

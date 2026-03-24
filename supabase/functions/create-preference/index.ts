@@ -319,7 +319,7 @@ serve(async (req) => {
       admin_email: profile?.email || user.email || 'unknown@unknown',
       admin_name: profile?.name || user.email || 'Unknown User',
       action: 'CHECKOUT_CREATED',
-      resource_type: 'PLAN',
+      resource_type: itemType === 'booster' ? 'PAYMENT' : 'PLAN',
       resource_id: resourceId,
       new_value: {
         preference_id: mpData.id,
@@ -336,7 +336,7 @@ serve(async (req) => {
       initPoint: mpData.init_point,
       sandboxInitPoint: mpData.sandbox_init_point,
       amount,
-      planName: plan.name,
+      planName: itemTitle,
     });
   } catch (error) {
     console.error('Edge function error:', error);
