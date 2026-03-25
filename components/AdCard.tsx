@@ -12,9 +12,10 @@ import { useLayout } from '../src/contexts/LayoutContext';
 
 interface AdCardProps {
   ad: Ad;
+  highlightDisplayMode?: 'auto' | 'home' | 'category' | 'none';
 }
 
-const AdCard: React.FC<AdCardProps> = ({ ad }) => {
+const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) => {
   const { user } = useAuth();
   const { toggleFavorite, isFavorited } = useFavorites();
   const { settings } = useLayout();
@@ -67,7 +68,23 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
   // Verificar se o destaque está ativo (não expirado)
   const isCategoryHighlightActive = ad.highlightCategory && (!ad.highlightCategoryUntil || new Date(ad.highlightCategoryUntil) > new Date());
   const isHomeHighlightActive = ad.highlightHome && (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date());
-  const hasActiveHighlight = isCategoryHighlightActive || isHomeHighlightActive;
+  const shouldShowHomeHighlight =
+    highlightDisplayMode === 'home'
+      ? true
+      : highlightDisplayMode === 'category'
+        ? false
+        : highlightDisplayMode === 'none'
+          ? false
+          : isHomeHighlightActive;
+  const shouldShowCategoryHighlight =
+    highlightDisplayMode === 'category'
+      ? true
+      : highlightDisplayMode === 'home'
+        ? false
+        : highlightDisplayMode === 'none'
+          ? false
+          : isCategoryHighlightActive;
+  const hasActiveHighlight = shouldShowCategoryHighlight || shouldShowHomeHighlight;
   const categoryHighlightStyle = {
     borderColor: '#93c5fd',
     boxShadow: '0 12px 30px -18px rgba(59, 130, 246, 0.28)',
@@ -78,19 +95,19 @@ const AdCard: React.FC<AdCardProps> = ({ ad }) => {
       hasActiveHighlight 
         ? 'border-2 shadow-lg' 
         : 'border border-slate-100'
-    }`} style={isHomeHighlightActive ? { borderColor: settings.accentColor, boxShadow: `0 12px 30px -18px ${settings.accentColor}66` } : isCategoryHighlightActive ? categoryHighlightStyle : undefined}>
+    }`} style={shouldShowHomeHighlight ? { borderColor: settings.accentColor, boxShadow: `0 12px 30px -18px ${settings.accentColor}66` } : shouldShowCategoryHighlight ? categoryHighlightStyle : undefined}>
       {/* Badge de Destaque */}
       {hasActiveHighlight && (
         <div
           className="absolute top-4 left-4 z-10 flex items-center gap-1 text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg animate-pulse"
           style={
-            isHomeHighlightActive
+            shouldShowHomeHighlight
               ? { background: `linear-gradient(90deg, ${settings.accentColor}, color-mix(in srgb, ${settings.accentColor} 82%, white))`, color: settings.secondaryColor }
               : { background: 'linear-gradient(90deg, #dbeafe, #eff6ff)', color: '#1d4ed8' }
           }
         >
           <Sparkles className="w-3 h-3" strokeWidth={2.5} />
-          {isHomeHighlightActive ? 'HOME' : 'CATEGORIA'}
+          {shouldShowHomeHighlight ? 'HOME' : 'CATEGORIA'}
         </div>
       )}
       

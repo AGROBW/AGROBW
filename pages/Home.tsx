@@ -137,7 +137,7 @@ const Home: React.FC = () => {
         renderItem={(ad) =>
           isAdValid(ad) ? (
             <AdCardErrorBoundary>
-              <AdCard ad={ad} />
+              <AdCard ad={ad} highlightDisplayMode="home" />
             </AdCardErrorBoundary>
           ) : (
             <AdFallbackCard />
