@@ -58,6 +58,21 @@ const mapPurchase = (row: any): HighlightBoosterPurchaseRecord => ({
   providerPaymentId: row.provider_payment_id ?? null,
 });
 
+const parseNumericInput = (value: string, fallback = 0) => {
+  const normalized = value
+    .replace(/[^\d,.-]/g, '')
+    .replace(/\.(?=.*\.)/g, '')
+    .replace(',', '.')
+    .trim();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const PaymentsBoostersTab: React.FC = () => {
   const [boosters, setBoosters] = useState<HighlightBoosterRecord[]>([]);
   const [purchases, setPurchases] = useState<HighlightBoosterPurchaseRecord[]>([]);
@@ -119,17 +134,38 @@ const PaymentsBoostersTab: React.FC = () => {
       return;
     }
 
+    const monthlyPrice = parseNumericInput(form.monthlyPrice, NaN);
+    const categoryCredits = parseNumericInput(form.categoryCredits, NaN);
+    const homeCredits = parseNumericInput(form.homeCredits, NaN);
+    const position = parseNumericInput(form.position, 1);
+    const maxPurchasesPer30Days = parseNumericInput(form.maxPurchasesPer30Days, 2);
+
+    if (!Number.isFinite(monthlyPrice) || monthlyPrice < 0) {
+      toast.error('Informe um preço válido para o booster.');
+      return;
+    }
+
+    if (!Number.isFinite(categoryCredits) || categoryCredits < 0) {
+      toast.error('Informe uma quantidade válida de créditos em categoria.');
+      return;
+    }
+
+    if (!Number.isFinite(homeCredits) || homeCredits < 0) {
+      toast.error('Informe uma quantidade válida de créditos na home.');
+      return;
+    }
+
     setSaving(true);
     const payload = {
       name: form.name.trim(),
       description: form.description.trim() || null,
-      monthly_price: Number(form.monthlyPrice || 0),
-      category_credits: Number(form.categoryCredits || 0),
-      home_credits: Number(form.homeCredits || 0),
+      monthly_price: monthlyPrice,
+      category_credits: categoryCredits,
+      home_credits: homeCredits,
       is_active: form.isActive,
-      position: Number(form.position || 1),
+      position,
       button_text: form.buttonText.trim() || 'Comprar booster',
-      max_purchases_per_30_days: Number(form.maxPurchasesPer30Days || 2),
+      max_purchases_per_30_days: maxPurchasesPer30Days,
       updated_at: new Date().toISOString(),
     };
 
