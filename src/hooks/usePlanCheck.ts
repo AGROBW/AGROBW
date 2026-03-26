@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserAds } from './useAds'
 import { toast } from 'sonner'
-import { getSubscriptionUsageWindow } from '../utils/subscriptionUsageWindow'
+import { getEffectiveLeadContactLimitDays, getSubscriptionUsageWindow } from '../utils/subscriptionUsageWindow'
 
 type SubscriptionRow = {
   id: string
@@ -30,6 +30,8 @@ export const usePlanCheck = () => {
     name: 'Start Agro',
     max_ads: 2,
     lead_contact_limit_days: 14,
+    lead_contact_limit_days_monthly: 14,
+    lead_contact_limit_days_yearly: 14,
     has_verification_badge: false,
     has_seller_store: false,
     has_email_marketing: false
@@ -47,7 +49,7 @@ export const usePlanCheck = () => {
       try {
         const { data, error } = await supabase
           .from('user_subscriptions')
-          .select('id,status,current_period_start,current_period_end,cancel_at_period_end,trial_end_date, plans (id,name,max_ads,lead_contact_limit_days,has_verification_badge,has_seller_store,has_email_marketing)')
+          .select('id,status,current_period_start,current_period_end,cancel_at_period_end,trial_end_date, plans (id,name,max_ads,lead_contact_limit_days,lead_contact_limit_days_monthly,lead_contact_limit_days_yearly,has_verification_badge,has_seller_store,has_email_marketing)')
           .eq('user_id', user.id)
           .order('current_period_end', { ascending: false })
           .limit(1)
@@ -92,7 +94,7 @@ export const usePlanCheck = () => {
   }
 
   const canViewLead = (adCreatedAt: string) => {
-    const limit = plan?.lead_contact_limit_days
+    const limit = getEffectiveLeadContactLimitDays(plan, !!usageWindow?.isAnnualContract)
     if (!limit) return true
     const created = new Date(adCreatedAt)
     const now = new Date()

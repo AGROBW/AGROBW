@@ -4,6 +4,12 @@ export type SubscriptionUsageWindow = {
   isAnnualContract: boolean;
 };
 
+export type LeadContactPlanLike = {
+  lead_contact_limit_days?: number | null;
+  lead_contact_limit_days_monthly?: number | null;
+  lead_contact_limit_days_yearly?: number | null;
+};
+
 const ANNUAL_THRESHOLD_DAYS = 45;
 
 const addMonthsUtc = (date: Date, months: number) => {
@@ -47,4 +53,23 @@ export const getSubscriptionUsageWindow = (
     usageEnd,
     isAnnualContract,
   };
+};
+
+export const getEffectiveLeadContactLimitDays = (
+  plan: LeadContactPlanLike | null | undefined,
+  isAnnualContract: boolean
+) => {
+  if (!plan) {
+    return null;
+  }
+
+  const cycleSpecificLimit = isAnnualContract
+    ? plan.lead_contact_limit_days_yearly
+    : plan.lead_contact_limit_days_monthly;
+
+  if (cycleSpecificLimit !== null && cycleSpecificLimit !== undefined) {
+    return cycleSpecificLimit;
+  }
+
+  return plan.lead_contact_limit_days ?? null;
 };

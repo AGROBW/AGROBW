@@ -21,6 +21,8 @@ export interface Plan {
   ad_duration_days: number | null;
   expired_deletion_days: number | null;
   lead_contact_limit_days: number | null;
+  lead_contact_limit_days_monthly: number | null;
+  lead_contact_limit_days_yearly: number | null;
   category_highlights_count: number;
   category_highlight_days: number | null;
   home_highlight_count: number;
@@ -57,6 +59,8 @@ export interface UpdatePlanData {
   ad_duration_days?: number | null;
   expired_deletion_days?: number | null;
   lead_contact_limit_days?: number | null;
+  lead_contact_limit_days_monthly?: number | null;
+  lead_contact_limit_days_yearly?: number | null;
   category_highlights_count?: number;
   category_highlight_days?: number | null;
   home_highlight_count?: number;

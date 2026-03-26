@@ -57,6 +57,8 @@ const makeEmptyForm = (position: number): UpdatePlanData => ({
   ad_duration_days: 30,
   expired_deletion_days: 90,
   lead_contact_limit_days: 30,
+  lead_contact_limit_days_monthly: 30,
+  lead_contact_limit_days_yearly: 30,
   category_highlights_count: 0,
   category_highlight_days: null,
   home_highlight_count: 0,
@@ -89,6 +91,8 @@ const mapPlanToForm = (plan: Plan): UpdatePlanData => ({
   ad_duration_days: plan.ad_duration_days,
   expired_deletion_days: plan.expired_deletion_days,
   lead_contact_limit_days: plan.lead_contact_limit_days,
+  lead_contact_limit_days_monthly: plan.lead_contact_limit_days_monthly ?? plan.lead_contact_limit_days,
+  lead_contact_limit_days_yearly: plan.lead_contact_limit_days_yearly ?? plan.lead_contact_limit_days,
   category_highlights_count: plan.category_highlights_count,
   category_highlight_days: plan.category_highlight_days,
   home_highlight_count: plan.home_highlight_count,
@@ -179,11 +183,19 @@ const PlansManagement: React.FC = () => {
       return;
     }
 
+    const normalizedLeadLimit =
+      formData.lead_contact_limit_days_monthly ?? formData.lead_contact_limit_days ?? null;
+
+    const payload: UpdatePlanData = {
+      ...formData,
+      lead_contact_limit_days: normalizedLeadLimit,
+    };
+
     setSaving(true);
 
     try {
       if (isCreating) {
-        const { data, error } = await createPlan(formData);
+        const { data, error } = await createPlan(payload);
         if (error) {
           toast.error(error);
           return;
@@ -192,8 +204,8 @@ const PlansManagement: React.FC = () => {
           action: ADMIN_ACTIONS.CREATE_PAGE,
           resourceType: RESOURCE_TYPES.PLAN,
           resourceId: data?.id || '',
-          newValue: formData,
-          reason: `Plano "${formData.name}" criado`,
+          newValue: payload,
+          reason: `Plano "${payload.name}" criado`,
         });
         toast.success('Plano criado com sucesso.');
         handleCancel();
@@ -201,7 +213,7 @@ const PlansManagement: React.FC = () => {
       }
 
       if (editingPlan) {
-        const { error } = await updatePlan(editingPlan.id, formData);
+        const { error } = await updatePlan(editingPlan.id, payload);
         if (error) {
           toast.error(error);
           return;
@@ -211,8 +223,8 @@ const PlansManagement: React.FC = () => {
           resourceType: RESOURCE_TYPES.PLAN,
           resourceId: editingPlan.id,
           oldValue: mapPlanToForm(editingPlan),
-          newValue: formData,
-          reason: `Plano "${formData.name}" atualizado`,
+          newValue: payload,
+          reason: `Plano "${payload.name}" atualizado`,
         });
         toast.success('Plano atualizado com sucesso.');
         handleCancel();
@@ -352,8 +364,11 @@ const PlansManagement: React.FC = () => {
               <FieldShell label="Exclusao apos vencimento (dias)" hint="Quantos dias o anuncio vencido fica disponivel para republicacao antes da exclusao automatica.">
                 <input type="number" value={formData.expired_deletion_days ?? ''} onChange={(e) => handleChange('expired_deletion_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 90" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
               </FieldShell>
-              <FieldShell label="Limite Contato Lead (dias)" hint="Por quantos dias o contato fica liberado.">
-                <input type="number" value={formData.lead_contact_limit_days ?? ''} onChange={(e) => handleChange('lead_contact_limit_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 30" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              <FieldShell label="Contato Lead - Mensal (dias)" hint="Janela de acesso aos contatos para assinaturas mensais.">
+                <input type="number" value={formData.lead_contact_limit_days_monthly ?? formData.lead_contact_limit_days ?? ''} onChange={(e) => handleChange('lead_contact_limit_days_monthly', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 30" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Contato Lead - Anual (dias)" hint="Janela de acesso aos contatos para assinaturas anuais.">
+                <input type="number" value={formData.lead_contact_limit_days_yearly ?? formData.lead_contact_limit_days ?? ''} onChange={(e) => handleChange('lead_contact_limit_days_yearly', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 60 ou 365" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
               </FieldShell>
             </div>
           </div>
@@ -519,7 +534,8 @@ const PlansManagement: React.FC = () => {
             <div className="mb-4 text-sm text-gray-600">
               <p>Max. anuncios: <strong className="text-gray-900">{plan.max_ads ?? 'Ilimitado'}</strong></p>
               <p>Exclusao apos vencimento: <strong className="text-gray-900">{plan.expired_deletion_days ?? 90} dias</strong></p>
-              <p>Contato lead: <strong className="text-gray-900">{plan.lead_contact_limit_days ?? 'Sob consulta'} dias</strong></p>
+              <p>Contato lead mensal: <strong className="text-gray-900">{plan.lead_contact_limit_days_monthly ?? plan.lead_contact_limit_days ?? 'Sob consulta'} dias</strong></p>
+              <p>Contato lead anual: <strong className="text-gray-900">{plan.lead_contact_limit_days_yearly ?? plan.lead_contact_limit_days ?? 'Sob consulta'} dias</strong></p>
               <p>Radar: <strong className="text-gray-900">{plan.radar_max_alerts}</strong></p>
             </div>
 

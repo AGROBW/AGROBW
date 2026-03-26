@@ -80,7 +80,13 @@ const UserDashboardView: React.FC = () => {
   const { user, stats, signOut, refreshStats } = useAuth();
   const { ads, isLoading: adsLoading } = useUserAds();
   const { messagesCount, notificationsCount, isLoading: countsLoading } = useNotificationsCount();
-  const { subscription, usage, isLoading: subscriptionLoading, refreshUsage } = useSubscription();
+  const {
+    subscription,
+    usage,
+    isLoading: subscriptionLoading,
+    refreshUsage,
+    effectiveLeadContactLimitDays,
+  } = useSubscription();
   const [userAds, setUserAds] = useState<Ad[]>([]);
   const [userAdsLoading, setUserAdsLoading] = useState(false);
   const {
@@ -1574,7 +1580,7 @@ const UserDashboardView: React.FC = () => {
       },
       {
         label: 'Contato com lead',
-        value: currentPlanRecord?.lead_contact_limit_days ? `${currentPlanRecord.lead_contact_limit_days} dias` : 'Nao incluso',
+        value: effectiveLeadContactLimitDays ? `${effectiveLeadContactLimitDays} dias` : 'Nao incluso',
       },
       {
         label: 'Duracao do anuncio',
@@ -1656,10 +1662,10 @@ const UserDashboardView: React.FC = () => {
                   Validade do contato lead
                 </span>
                 <span className="mt-2 block text-lg font-semibold text-slate-900">
-                  {currentPlanRecord?.lead_contact_limit_days ? `${currentPlanRecord.lead_contact_limit_days} dias` : 'Nao incluso'}
+                  {effectiveLeadContactLimitDays ? `${effectiveLeadContactLimitDays} dias` : 'Nao incluso'}
                 </span>
                 <p className="mt-1 text-xs text-slate-500">
-                  Os contatos ficam disponíveis por até {currentPlanRecord?.lead_contact_limit_days ?? 0} dias.
+                  Os contatos ficam disponíveis por até {effectiveLeadContactLimitDays ?? 0} dias.
                 </p>
               </div>
             </div>

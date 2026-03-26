@@ -16,6 +16,7 @@ import { useLayout } from '../src/contexts/LayoutContext';
 import { Plan } from '../src/hooks/usePlans';
 import { useHighlightBoosters } from '../src/hooks/useHighlightBoosters';
 import HighlightBoosterCard from '../components/boosters/HighlightBoosterCard';
+import { getEffectiveLeadContactLimitDays } from '../src/utils/subscriptionUsageWindow';
 
 type BillingCycle = 'monthly' | 'yearly';
 
@@ -24,6 +25,9 @@ const formatCurrency = (value: number) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+
+const getBillingCycleLabel = (billingCycle: BillingCycle) =>
+  billingCycle === 'monthly' ? 'Mensal' : 'Anual';
 
 const formatNumericValue = (value: number | null | undefined, suffix = '') => {
   if (value === null || value === undefined) {
@@ -91,8 +95,15 @@ const PricingView: React.FC = () => {
       },
       {
         id: 'lead_contact_limit_days',
-        label: 'Contato com leads',
-        getValue: (plan) => formatNumericValue(plan.lead_contact_limit_days, ' dias'),
+        label:
+          billingCycle === 'monthly'
+            ? 'Contato com leads no plano mensal'
+            : 'Contato com leads no plano anual',
+        getValue: (plan) =>
+          formatNumericValue(
+            getEffectiveLeadContactLimitDays(plan, billingCycle === 'yearly'),
+            ' dias'
+          ),
       },
       {
         id: 'category_highlights_count',
@@ -182,7 +193,7 @@ const PricingView: React.FC = () => {
     }));
 
     return [...baseRows, ...extraRows];
-  }, [plansRaw]);
+  }, [billingCycle, plansRaw]);
 
   const getDisplayPrice = (monthlyPrice: number, yearlyPrice: number) => {
     if (billingCycle === 'monthly') {
@@ -200,7 +211,10 @@ const PricingView: React.FC = () => {
     const summary = [
       `Ate ${formatNumericValue(plan.max_ads)} anuncios ativos`,
       `${plan.category_highlights_count || 0} destaques por categoria`,
-      `${formatNumericValue(plan.lead_contact_limit_days, ' dias')} de contato com leads`,
+      `${formatNumericValue(
+        getEffectiveLeadContactLimitDays(plan, billingCycle === 'yearly'),
+        ' dias'
+      )} de contato com leads`,
     ];
 
     if ((plan.home_highlight_count || 0) > 0) {
@@ -235,6 +249,15 @@ const PricingView: React.FC = () => {
 
   const getPlanFooterCaption = (plan: (typeof plansRaw)[number]) =>
     plan.footer_caption?.trim() || getDefaultSpotlight(plan);
+
+  const getCheckoutSummary = (plan: Plan) => {
+    if (billingCycle === 'monthly') {
+      return `Assinatura mensal de R$ ${formatCurrency(plan.monthly_price)}.`;
+    }
+
+    const yearlyTotal = calculateYearlyTotal(plan.monthly_price, plan.yearly_price);
+    return `Assinatura anual de R$ ${formatCurrency(yearlyTotal)} cobrados de uma vez.`;
+  };
 
   const getComparisonValue = (
     plan: (typeof plansRaw)[number],
@@ -290,7 +313,7 @@ const PricingView: React.FC = () => {
       toast.dismiss('checkout-loading');
 
       if (result.success) {
-        toast.success('Redirecionando para checkout...');
+        toast.success(`Redirecionando para checkout ${getBillingCycleLabel(billingCycle).toLowerCase()}...`);
       } else {
         toast.error(result.error || 'Erro ao processar checkout.');
       }
@@ -459,6 +482,26 @@ const PricingView: React.FC = () => {
                   </div>
 
                   <div className="rounded-[1.5rem] bg-slate-950 p-5 text-white">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <span
+                        className="inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]"
+                        style={{
+                          backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)`,
+                          color: settings.primaryColor,
+                        }}
+                      >
+                        {getBillingCycleLabel(billingCycle)}
+                      </span>
+                      {billingCycle === 'yearly' && plan.yearly_price > 0 ? (
+                        <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                          Pagamento a vista anual
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                          Renovacao mensal
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-base font-bold text-slate-400">R$</span>
                       <span className="text-5xl font-black tracking-tighter">
@@ -514,6 +557,9 @@ const PricingView: React.FC = () => {
                         <p className="leading-relaxed text-slate-700">
                           {getPlanFooterCaption(plan)}
                         </p>
+                        <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                          {getCheckoutSummary(plan)}
+                        </p>
                       </div>
                     </div>
 
@@ -541,7 +587,7 @@ const PricingView: React.FC = () => {
                           Processando...
                         </>
                       ) : (
-                        plan.button_text || 'Assinar agora'
+                        `${plan.button_text || 'Assinar'} ${getBillingCycleLabel(billingCycle)}`
                       )}
                     </button>
                   </div>

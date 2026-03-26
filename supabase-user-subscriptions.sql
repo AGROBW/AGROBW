@@ -75,11 +75,23 @@ select
   p.id as plan_id,
   p.name as plan_name,
   p.max_ads,
-  p.lead_contact_limit_days,
-  (select count(*) from public.ads a where a.user_id = u.id) as ads_count,
-  greatest(p.max_ads - (select count(*) from public.ads a where a.user_id = u.id), 0) as ads_remaining,
+  public.resolve_lead_contact_limit_days(
+    ls.current_period_start,
+    ls.current_period_end,
+    p.lead_contact_limit_days_monthly,
+    p.lead_contact_limit_days_yearly,
+    p.lead_contact_limit_days
+  ) as lead_contact_limit_days,
+  (select count(*) from public.announcements a where a.user_id = u.id) as ads_count,
+  greatest(p.max_ads - (select count(*) from public.announcements a where a.user_id = u.id), 0) as ads_remaining,
   greatest(
-    p.lead_contact_limit_days - (extract(day from (now() - ls.current_period_start))::int),
+    public.resolve_lead_contact_limit_days(
+      ls.current_period_start,
+      ls.current_period_end,
+      p.lead_contact_limit_days_monthly,
+      p.lead_contact_limit_days_yearly,
+      p.lead_contact_limit_days
+    ) - (extract(day from (now() - ls.current_period_start))::int),
     0
   ) as lead_days_remaining,
   greatest(extract(day from (ls.current_period_end - now()))::int, 0) as period_days_remaining
@@ -98,7 +110,7 @@ declare
   start_plan_id uuid;
   start_lead_days int;
 begin
-  select id, lead_contact_limit_days
+  select id, coalesce(lead_contact_limit_days_monthly, lead_contact_limit_days)
     into start_plan_id, start_lead_days
   from public.plans
   where name = 'Start'

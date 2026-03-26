@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { endAppSync, startAppSync } from '../lib/appSyncStatus';
 import { useAuth } from '../contexts/AuthContext';
-import { getSubscriptionUsageWindow } from '../utils/subscriptionUsageWindow';
+import { getEffectiveLeadContactLimitDays, getSubscriptionUsageWindow } from '../utils/subscriptionUsageWindow';
 
 export type UserSubscription = {
   id: string;
@@ -23,6 +23,8 @@ export type UserSubscription = {
     home_highlight_count: number;
     ad_duration_days: number | null;
     lead_contact_limit_days: number | null;
+    lead_contact_limit_days_monthly: number | null;
+    lead_contact_limit_days_yearly: number | null;
     has_verification_badge: boolean;
     has_seller_store: boolean;
     has_email_marketing: boolean;
@@ -105,6 +107,8 @@ export const useSubscription = () => {
             home_highlight_count,
             ad_duration_days,
             lead_contact_limit_days,
+            lead_contact_limit_days_monthly,
+            lead_contact_limit_days_yearly,
             has_verification_badge,
             has_seller_store,
             has_email_marketing
@@ -244,6 +248,15 @@ export const useSubscription = () => {
     return usage.adsUsed < maxAds;
   }, [subscription, usage.adsUsed]);
 
+  const effectiveLeadContactLimitDays = useMemo(() => {
+    if (!subscription?.plans) return null;
+    const usageWindow = getSubscriptionUsageWindow(
+      subscription.current_period_start,
+      subscription.current_period_end
+    );
+    return getEffectiveLeadContactLimitDays(subscription.plans, usageWindow.isAnnualContract);
+  }, [subscription]);
+
   const canApplyCategoryHighlight = useMemo(() => {
     const limit = subscription?.plans?.category_highlights_count || 0;
     return (usage.categoryHighlightsUsed < limit && usage.isWithinPeriod) || usage.categoryHighlightsBoosterRemaining > 0;
@@ -273,6 +286,7 @@ export const useSubscription = () => {
     canCreateAd,
     canApplyCategoryHighlight,
     canApplyHomeHighlight,
+    effectiveLeadContactLimitDays,
     adLimitMessage,
     refreshUsage,
     refetch: fetchSubscription

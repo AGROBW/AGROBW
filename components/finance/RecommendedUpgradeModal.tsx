@@ -27,6 +27,9 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   });
 
+const getBillingCycleLabel = (billingCycle: BillingCycle) =>
+  billingCycle === 'monthly' ? 'Mensal' : 'Anual';
+
 const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
   isOpen,
   onClose,
@@ -90,6 +93,10 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
         : nextPlan.monthly_price;
 
   const yearlySavings = calculateYearlySavings(nextPlan.monthly_price, nextPlan.yearly_price);
+  const checkoutSummary =
+    billingCycle === 'monthly'
+      ? `Assinatura mensal de R$ ${formatCurrency(nextPlan.monthly_price)}.`
+      : `Assinatura anual de R$ ${formatCurrency(calculateYearlyTotal(nextPlan.monthly_price, nextPlan.yearly_price))} cobrados de uma vez.`;
 
   const handleSubscribe = async () => {
     if (!userId) {
@@ -127,7 +134,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
         return;
       }
 
-      toast.success('Checkout aberto em uma nova aba.');
+      toast.success(`Checkout ${getBillingCycleLabel(billingCycle).toLowerCase()} aberto em uma nova aba.`);
       onClose();
     } catch (error) {
       console.error('Erro ao iniciar upgrade:', error);
@@ -219,6 +226,26 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
             </div>
 
             <div className="rounded-[1.25rem] md:rounded-[1.5rem] bg-slate-950 p-4 md:p-5 text-white">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <span
+                  className="inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]"
+                  style={{
+                    backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)`,
+                    color: settings.primaryColor,
+                  }}
+                >
+                  {getBillingCycleLabel(billingCycle)}
+                </span>
+                {billingCycle === 'yearly' ? (
+                  <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                    Pagamento a vista anual
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                    Renovacao mensal
+                  </span>
+                )}
+              </div>
               <div className="flex items-baseline gap-1">
                 <span className="text-base font-bold text-slate-400">R$</span>
                 <span className="text-4xl md:text-5xl font-black tracking-tighter">{formatCurrency(displayPrice)}</span>
@@ -234,6 +261,9 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
                   {nextPlan.price_caption?.trim() || 'Pacote robusto para escalar suas vendas.'}
                 </p>
               )}
+              <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+                {checkoutSummary}
+              </p>
             </div>
 
             <div className="mt-4 md:mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
@@ -281,7 +311,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
                 style={{ backgroundColor: settings.primaryColor }}
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {loading ? 'Preparando checkout...' : `Assinar ${nextPlan.name}`}
+                {loading ? 'Preparando checkout...' : `Assinar ${nextPlan.name} ${getBillingCycleLabel(billingCycle)}`}
               </button>
             </div>
           </div>
