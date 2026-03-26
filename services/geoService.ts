@@ -11,6 +11,15 @@ interface GeoCoordinates {
   formatted_address?: string;
 }
 
+interface GeoAddressInput {
+  cep?: string | null;
+  street?: string | null;
+  number?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+}
+
 interface ViaCepResponse {
   cep: string;
   logradouro: string;
@@ -105,6 +114,28 @@ async function geocodeWithFallbacks(addressCandidates: string[]): Promise<GeoCoo
   return null;
 }
 
+function buildAddressCandidates(address?: GeoAddressInput | null): string[] {
+  if (!address) return [];
+
+  const clean = (value?: string | null) => (value ?? '').trim();
+  const cep = clean(address.cep);
+  const street = clean(address.street);
+  const number = clean(address.number);
+  const neighborhood = clean(address.neighborhood);
+  const city = clean(address.city);
+  const state = clean(address.state);
+
+  const candidates = [
+    [street, number, neighborhood, city, state, 'Brasil'].filter(Boolean).join(', '),
+    [street, neighborhood, city, state, 'Brasil'].filter(Boolean).join(', '),
+    [neighborhood, city, state, 'Brasil'].filter(Boolean).join(', '),
+    [city, state, 'Brasil'].filter(Boolean).join(', '),
+    [cep, 'Brasil'].filter(Boolean).join(', ')
+  ];
+
+  return Array.from(new Set(candidates.filter(Boolean)));
+}
+
 /**
  * Converte CEP em coordenadas geográficas
  * Retorna latitude e longitude ou null se não conseguir
@@ -138,6 +169,34 @@ export async function cepToCoordinates(cep: string): Promise<GeoCoordinates | nu
     return coordinates;
   } catch (error) {
     console.error('Erro ao converter CEP em coordenadas:', error);
+    return null;
+  }
+}
+
+export async function addressToCoordinates(
+  primaryAddress?: GeoAddressInput | null,
+  fallbackAddresses: GeoAddressInput[] = []
+): Promise<GeoCoordinates | null> {
+  try {
+    const normalizedAddresses = [primaryAddress, ...fallbackAddresses].filter(Boolean) as GeoAddressInput[];
+    const cleanPrimaryCep = (primaryAddress?.cep ?? '').replace(/\D/g, '');
+
+    const addressCandidates = normalizedAddresses.flatMap((address) => buildAddressCandidates(address));
+
+    if (cleanPrimaryCep.length === 8) {
+      const viaCepCoordinates = await cepToCoordinates(cleanPrimaryCep);
+      if (viaCepCoordinates) {
+        return viaCepCoordinates;
+      }
+    }
+
+    if (addressCandidates.length === 0) {
+      return null;
+    }
+
+    return geocodeWithFallbacks(addressCandidates);
+  } catch (error) {
+    console.error('Erro ao converter endereco em coordenadas:', error);
     return null;
   }
 }
@@ -199,10 +258,20 @@ export function formatCep(cep: string): string {
 export async function updateUserCoordinates(
   userId: string,
   cep: string,
-  supabase: any
+  supabase: any,
+  address?: GeoAddressInput | null
 ): Promise<boolean> {
   try {
-    const coordinates = await cepToCoordinates(cep);
+    const coordinates = await addressToCoordinates(
+      {
+        cep,
+        street: address?.street,
+        number: address?.number,
+        neighborhood: address?.neighborhood,
+        city: address?.city,
+        state: address?.state
+      }
+    );
     
     if (!coordinates) {
       return false;
@@ -235,10 +304,22 @@ export async function updateUserCoordinates(
 export async function updateAnnouncementCoordinates(
   announcementId: string,
   cep: string,
-  supabase: any
+  supabase: any,
+  primaryAddress?: GeoAddressInput | null,
+  fallbackAddress?: GeoAddressInput | null
 ): Promise<boolean> {
   try {
-    const coordinates = await cepToCoordinates(cep);
+    const coordinates = await addressToCoordinates(
+      {
+        cep,
+        street: primaryAddress?.street,
+        number: primaryAddress?.number,
+        neighborhood: primaryAddress?.neighborhood,
+        city: primaryAddress?.city,
+        state: primaryAddress?.state
+      },
+      fallbackAddress ? [fallbackAddress] : []
+    );
     
     if (!coordinates) {
       return false;
@@ -311,6 +392,7 @@ export async function findAnnouncementsWithinRadius(
 
 export default {
   cepToCoordinates,
+  addressToCoordinates,
   calculateDistance,
   isValidCep,
   formatCep,

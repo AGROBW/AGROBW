@@ -2689,7 +2689,13 @@ const UserDashboardView: React.FC = () => {
 
         const cleanCep = profileForm.cep.replace(/\D/g, '');
         if (cleanCep.length === 8) {
-          const geoUpdated = await updateUserCoordinates(user.id, cleanCep, supabase);
+          const geoUpdated = await updateUserCoordinates(user.id, cleanCep, supabase, {
+            street: profileForm.logradouro,
+            number: profileForm.numero,
+            neighborhood: profileForm.bairro,
+            city: profileForm.cidade,
+            state: profileForm.estado
+          });
           if (!geoUpdated) {
             console.warn('[Profile] Não foi possível atualizar coordenadas do usuário após salvar o perfil.');
           }

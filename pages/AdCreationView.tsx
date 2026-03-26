@@ -1016,7 +1016,23 @@ const AdCreationView: React.FC = () => {
       console.log('[Publish] Anúncio publicado com sucesso:', announcementId);
 
       if (cleanCep) {
-        const geoUpdated = await updateAnnouncementCoordinates(announcementId, cleanCep, supabase);
+        const geoUpdated = await updateAnnouncementCoordinates(
+          announcementId,
+          cleanCep,
+          supabase,
+          {
+            city: formData.location?.city,
+            state: formData.location?.state
+          },
+          {
+            cep: user?.cep,
+            street: user?.logradouro,
+            number: user?.numero,
+            neighborhood: user?.bairro,
+            city: user?.cidade,
+            state: user?.estado
+          }
+        );
         if (!geoUpdated) {
           console.warn('[Ads] Não foi possível atualizar coordenadas do anúncio após publicação:', announcementId);
         }
