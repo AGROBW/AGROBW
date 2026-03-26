@@ -10,6 +10,11 @@ export type LeadContactPlanLike = {
   lead_contact_limit_days_yearly?: number | null;
 };
 
+export type PlanValidityPlanLike = {
+  plan_validity_days_monthly?: number | null;
+  plan_validity_days_yearly?: number | null;
+};
+
 const ANNUAL_THRESHOLD_DAYS = 45;
 
 const addMonthsUtc = (date: Date, months: number) => {
@@ -72,4 +77,24 @@ export const getEffectiveLeadContactLimitDays = (
   }
 
   return plan.lead_contact_limit_days ?? null;
+};
+
+export const getEffectivePlanValidityDays = (
+  plan: PlanValidityPlanLike | null | undefined,
+  billingCycle: 'monthly' | 'yearly'
+) => {
+  if (!plan) {
+    return billingCycle === 'yearly' ? 365 : 30;
+  }
+
+  const cycleSpecificLimit =
+    billingCycle === 'yearly'
+      ? plan.plan_validity_days_yearly
+      : plan.plan_validity_days_monthly;
+
+  if (cycleSpecificLimit !== null && cycleSpecificLimit !== undefined) {
+    return cycleSpecificLimit;
+  }
+
+  return billingCycle === 'yearly' ? 365 : 30;
 };

@@ -10,6 +10,7 @@ export interface Plan {
   card_eyebrow: string | null;
   price_caption: string | null;
   footer_caption: string | null;
+  show_footer_card: boolean;
   monthly_price: number;
   yearly_price: number;
   features: string[];
@@ -23,6 +24,8 @@ export interface Plan {
   lead_contact_limit_days: number | null;
   lead_contact_limit_days_monthly: number | null;
   lead_contact_limit_days_yearly: number | null;
+  plan_validity_days_monthly: number | null;
+  plan_validity_days_yearly: number | null;
   category_highlights_count: number;
   category_highlight_days: number | null;
   home_highlight_count: number;
@@ -48,6 +51,7 @@ export interface UpdatePlanData {
   card_eyebrow?: string;
   price_caption?: string;
   footer_caption?: string;
+  show_footer_card?: boolean;
   monthly_price?: number;
   yearly_price?: number;
   features?: string[];
@@ -61,6 +65,8 @@ export interface UpdatePlanData {
   lead_contact_limit_days?: number | null;
   lead_contact_limit_days_monthly?: number | null;
   lead_contact_limit_days_yearly?: number | null;
+  plan_validity_days_monthly?: number | null;
+  plan_validity_days_yearly?: number | null;
   category_highlights_count?: number;
   category_highlight_days?: number | null;
   home_highlight_count?: number;

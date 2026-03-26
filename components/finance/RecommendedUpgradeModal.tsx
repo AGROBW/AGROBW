@@ -256,11 +256,11 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
                   Cobrança anual: R$ {formatCurrency(nextPlan.yearly_price)}
                   {yearlySavings.amount > 0 ? ` | economia de ${yearlySavings.percentage}%` : ''}
                 </p>
-              ) : (
+              ) : nextPlan.price_caption?.trim() ? (
                 <p className="mt-3 text-sm font-semibold text-slate-400">
-                  {nextPlan.price_caption?.trim() || 'Pacote robusto para escalar suas vendas.'}
+                  {nextPlan.price_caption.trim()}
                 </p>
-              )}
+              ) : null}
               <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
                 {checkoutSummary}
               </p>

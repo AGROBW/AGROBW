@@ -41,12 +41,42 @@ const FieldShell: React.FC<{
   </label>
 );
 
+const ToggleSwitch: React.FC<{
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  hint?: string;
+}> = ({ checked, onChange, label, hint }) => (
+  <div className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3">
+    <div className="pr-4">
+      <p className="text-sm font-medium text-gray-700">{label}</p>
+      {hint ? <p className="mt-1 text-xs text-gray-400">{hint}</p> : null}
+    </div>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+        checked ? 'bg-green-600' : 'bg-slate-300'
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+          checked ? 'translate-x-5' : 'translate-x-0.5'
+        }`}
+      />
+    </button>
+  </div>
+);
+
 const makeEmptyForm = (position: number): UpdatePlanData => ({
   name: '',
   description: '',
   card_eyebrow: 'Plano BWAGRO',
   price_caption: '',
   footer_caption: '',
+  show_footer_card: true,
   monthly_price: 0,
   yearly_price: 0,
   button_text: 'Escolher Plano',
@@ -59,6 +89,8 @@ const makeEmptyForm = (position: number): UpdatePlanData => ({
   lead_contact_limit_days: 30,
   lead_contact_limit_days_monthly: 30,
   lead_contact_limit_days_yearly: 30,
+  plan_validity_days_monthly: 30,
+  plan_validity_days_yearly: 365,
   category_highlights_count: 0,
   category_highlight_days: null,
   home_highlight_count: 0,
@@ -81,6 +113,7 @@ const mapPlanToForm = (plan: Plan): UpdatePlanData => ({
   card_eyebrow: plan.card_eyebrow || 'Plano BWAGRO',
   price_caption: plan.price_caption || '',
   footer_caption: plan.footer_caption || '',
+  show_footer_card: plan.show_footer_card ?? true,
   monthly_price: plan.monthly_price,
   yearly_price: plan.yearly_price,
   button_text: plan.button_text,
@@ -93,6 +126,8 @@ const mapPlanToForm = (plan: Plan): UpdatePlanData => ({
   lead_contact_limit_days: plan.lead_contact_limit_days,
   lead_contact_limit_days_monthly: plan.lead_contact_limit_days_monthly ?? plan.lead_contact_limit_days,
   lead_contact_limit_days_yearly: plan.lead_contact_limit_days_yearly ?? plan.lead_contact_limit_days,
+  plan_validity_days_monthly: plan.plan_validity_days_monthly ?? 30,
+  plan_validity_days_yearly: plan.plan_validity_days_yearly ?? 365,
   category_highlights_count: plan.category_highlights_count,
   category_highlight_days: plan.category_highlight_days,
   home_highlight_count: plan.home_highlight_count,
@@ -306,6 +341,14 @@ const PlansManagement: React.FC = () => {
               <FieldShell label="Frase de Rodape do Card" hint="Mensagem de apoio exibida perto do botao do card.">
                 <input value={formData.footer_caption || ''} onChange={(e) => handleChange('footer_caption', e.target.value)} placeholder="Frase de rodape do card" className="w-full rounded-lg border border-gray-300 px-4 py-2 md:col-span-2" />
               </FieldShell>
+              <div className="md:col-span-2">
+                <ToggleSwitch
+                  checked={formData.show_footer_card ?? true}
+                  onChange={(checked) => handleChange('show_footer_card', checked)}
+                  label="Exibir card informativo inferior"
+                  hint="Ativa ou oculta o bloco de apoio exibido acima do botao do plano."
+                />
+              </div>
               <FieldShell label="Preco Mensal (R$)">
                 <input type="number" value={formData.monthly_price ?? 0} onChange={(e) => handleChange('monthly_price', parseFloat(e.target.value) || 0)} placeholder="0,00" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
               </FieldShell>
@@ -363,6 +406,12 @@ const PlansManagement: React.FC = () => {
               </FieldShell>
               <FieldShell label="Exclusao apos vencimento (dias)" hint="Quantos dias o anuncio vencido fica disponivel para republicacao antes da exclusao automatica.">
                 <input type="number" value={formData.expired_deletion_days ?? ''} onChange={(e) => handleChange('expired_deletion_days', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 90" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Validade do Plano - Mensal (dias)" hint="Quantidade de dias da assinatura quando o plano for comprado no ciclo mensal.">
+                <input type="number" value={formData.plan_validity_days_monthly ?? ''} onChange={(e) => handleChange('plan_validity_days_monthly', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 30" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Validade do Plano - Anual (dias)" hint="Quantidade de dias da assinatura quando o plano for comprado no ciclo anual.">
+                <input type="number" value={formData.plan_validity_days_yearly ?? ''} onChange={(e) => handleChange('plan_validity_days_yearly', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 365" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
               </FieldShell>
               <FieldShell label="Contato Lead - Mensal (dias)" hint="Janela de acesso aos contatos para assinaturas mensais.">
                 <input type="number" value={formData.lead_contact_limit_days_monthly ?? formData.lead_contact_limit_days ?? ''} onChange={(e) => handleChange('lead_contact_limit_days_monthly', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 30" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
@@ -508,6 +557,9 @@ const PlansManagement: React.FC = () => {
                 <div className="mb-1 flex items-center gap-2">
                   <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
                   {plan.is_popular && <Star className="h-5 w-5 fill-yellow-500 text-yellow-500" />}
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${plan.show_footer_card !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                    Card {plan.show_footer_card !== false ? 'ativo' : 'oculto'}
+                  </span>
                 </div>
                 <p className="text-sm text-gray-600">{plan.description}</p>
               </div>
@@ -516,7 +568,7 @@ const PlansManagement: React.FC = () => {
 
             <div className="mb-4 rounded-2xl bg-slate-950 p-4 text-white">
               <div className="text-2xl font-bold text-green-400">R$ {plan.monthly_price.toFixed(2)}/mes</div>
-              <div className="mt-2 text-sm text-slate-300">{plan.price_caption || 'Sem frase de preco'}</div>
+              {plan.price_caption ? <div className="mt-2 text-sm text-slate-300">{plan.price_caption}</div> : null}
             </div>
 
             <div className="mb-4 space-y-2">
@@ -529,11 +581,15 @@ const PlansManagement: React.FC = () => {
               {(plan.display_features || []).length === 0 && <p className="text-sm italic text-gray-400">Nenhuma descricao cadastrada.</p>}
             </div>
 
-            <div className="mb-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">{plan.footer_caption || 'Sem rodape definido'}</div>
+            {plan.show_footer_card && plan.footer_caption ? (
+              <div className="mb-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">{plan.footer_caption}</div>
+            ) : null}
 
             <div className="mb-4 text-sm text-gray-600">
               <p>Max. anuncios: <strong className="text-gray-900">{plan.max_ads ?? 'Ilimitado'}</strong></p>
               <p>Exclusao apos vencimento: <strong className="text-gray-900">{plan.expired_deletion_days ?? 90} dias</strong></p>
+              <p>Validade mensal: <strong className="text-gray-900">{plan.plan_validity_days_monthly ?? 30} dias</strong></p>
+              <p>Validade anual: <strong className="text-gray-900">{plan.plan_validity_days_yearly ?? 365} dias</strong></p>
               <p>Contato lead mensal: <strong className="text-gray-900">{plan.lead_contact_limit_days_monthly ?? plan.lead_contact_limit_days ?? 'Sob consulta'} dias</strong></p>
               <p>Contato lead anual: <strong className="text-gray-900">{plan.lead_contact_limit_days_yearly ?? plan.lead_contact_limit_days ?? 'Sob consulta'} dias</strong></p>
               <p>Radar: <strong className="text-gray-900">{plan.radar_max_alerts}</strong></p>

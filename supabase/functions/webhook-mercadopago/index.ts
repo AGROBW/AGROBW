@@ -65,6 +65,12 @@ const resolveInvoiceStatus = (status: PaymentRowStatus) => {
   return 'pending';
 };
 
+const resolvePlanValidityDays = (
+  billingCycle: string | null | undefined,
+  monthlyDays: number | null | undefined,
+  yearlyDays: number | null | undefined
+) => (billingCycle === 'yearly' ? yearlyDays ?? 365 : monthlyDays ?? 30);
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return textResponse('ok');
@@ -274,6 +280,26 @@ serve(async (req) => {
       let subscriptionId: string | null = null;
 
       if (itemType === 'plan' && planId) {
+        const { data: selectedPlan, error: selectedPlanError } = await supabaseAdmin
+          .from('plans')
+          .select('plan_validity_days_monthly, plan_validity_days_yearly')
+          .eq('id', planId)
+          .maybeSingle();
+
+        if (selectedPlanError) {
+          console.error('Failed to load selected plan validity:', selectedPlanError);
+
+          await supabaseAdmin
+            .from('webhook_logs')
+            .update({
+              processed: false,
+              error_message: selectedPlanError.message,
+            })
+            .eq('id', webhookLog?.id);
+
+          return textResponse('Failed to load plan', 500);
+        }
+
         const { data: activeSubscription } = await supabaseAdmin
           .from('user_subscriptions')
           .select('id')
@@ -294,7 +320,14 @@ serve(async (req) => {
 
         const periodStart = new Date().toISOString();
         const periodEndDate = new Date();
-        periodEndDate.setUTCDate(periodEndDate.getUTCDate() + (billingCycle === 'yearly' ? 365 : 30));
+        periodEndDate.setUTCDate(
+          periodEndDate.getUTCDate() +
+            resolvePlanValidityDays(
+              billingCycle,
+              selectedPlan?.plan_validity_days_monthly,
+              selectedPlan?.plan_validity_days_yearly
+            )
+        );
 
         const { data: subscription, error: subscriptionError } = await supabaseAdmin
           .from('user_subscriptions')

@@ -16,7 +16,10 @@ import { useLayout } from '../src/contexts/LayoutContext';
 import { Plan } from '../src/hooks/usePlans';
 import { useHighlightBoosters } from '../src/hooks/useHighlightBoosters';
 import HighlightBoosterCard from '../components/boosters/HighlightBoosterCard';
-import { getEffectiveLeadContactLimitDays } from '../src/utils/subscriptionUsageWindow';
+import {
+  getEffectiveLeadContactLimitDays,
+  getEffectivePlanValidityDays,
+} from '../src/utils/subscriptionUsageWindow';
 
 type BillingCycle = 'monthly' | 'yearly';
 
@@ -92,6 +95,15 @@ const PricingView: React.FC = () => {
         id: 'expired_deletion_days',
         label: 'Exclusão após vencimento',
         getValue: (plan) => formatNumericValue(plan.expired_deletion_days, ' dias'),
+      },
+      {
+        id: 'plan_validity_days',
+        label:
+          billingCycle === 'monthly'
+            ? 'Validade do plano no ciclo mensal'
+            : 'Validade do plano no ciclo anual',
+        getValue: (plan) =>
+          formatNumericValue(getEffectivePlanValidityDays(plan, billingCycle), ' dias'),
       },
       {
         id: 'lead_contact_limit_days',
@@ -222,41 +234,6 @@ const PricingView: React.FC = () => {
     }
 
     return summary;
-  };
-
-  const getDefaultSpotlight = (plan: (typeof plansRaw)[number]) => {
-    if (plan.is_popular) {
-      return 'Mais escolhido por produtores ativos';
-    }
-
-    if (isCustomPlan(plan.name)) {
-      return 'Plano consultivo para operacoes maiores';
-    }
-
-    if (plan.monthly_price === 0) {
-      return 'Entrada ideal para validar a plataforma';
-    }
-
-    if (plan.has_seller_store || plan.has_verification_badge) {
-      return 'Pacote robusto para marca e operacao profissional';
-    }
-
-    return 'Equilibrio entre visibilidade, recorrencia e conversao';
-  };
-
-  const getPlanPriceCaption = (plan: (typeof plansRaw)[number]) =>
-    plan.price_caption?.trim() || getDefaultSpotlight(plan);
-
-  const getPlanFooterCaption = (plan: (typeof plansRaw)[number]) =>
-    plan.footer_caption?.trim() || getDefaultSpotlight(plan);
-
-  const getCheckoutSummary = (plan: Plan) => {
-    if (billingCycle === 'monthly') {
-      return `Assinatura mensal de R$ ${formatCurrency(plan.monthly_price)}.`;
-    }
-
-    const yearlyTotal = calculateYearlyTotal(plan.monthly_price, plan.yearly_price);
-    return `Assinatura anual de R$ ${formatCurrency(yearlyTotal)} cobrados de uma vez.`;
   };
 
   const getComparisonValue = (
@@ -521,11 +498,11 @@ const PricingView: React.FC = () => {
                           Beneficios operacionais renovados mensalmente.
                         </p>
                       </div>
-                    ) : (
+                    ) : plan.price_caption?.trim() ? (
                       <p className="mt-3 text-sm font-semibold text-slate-400">
-                        {getPlanPriceCaption(plan)}
+                        {plan.price_caption.trim()}
                       </p>
-                    )}
+                    ) : null}
                   </div>
 
                   <ul className="mt-6 min-h-[176px] space-y-3 overflow-y-auto pr-2">
@@ -538,30 +515,29 @@ const PricingView: React.FC = () => {
                   </ul>
 
                   <div className="mt-auto pt-6">
-                    <div
-                      className="relative mb-4 overflow-hidden rounded-2xl border px-4 py-4 text-sm font-semibold text-slate-700 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.4)]"
-                      style={{
-                        borderColor: `color-mix(in srgb, ${settings.primaryColor} 28%, #e2e8f0)`,
-                        background: `linear-gradient(135deg, color-mix(in srgb, ${settings.primaryColor} 11%, white) 0%, color-mix(in srgb, ${settings.accentColor} 12%, white) 100%)`
-                      }}
-                    >
+                    {plan.show_footer_card !== false && plan.footer_caption?.trim() ? (
                       <div
-                        className="pointer-events-none absolute inset-x-0 top-0 h-px"
-                        style={{ background: `linear-gradient(90deg, transparent, ${settings.accentColor}, transparent)` }}
-                      />
-                      <div
-                        className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full opacity-30"
-                        style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 30%, white)` }}
-                      />
-                      <div className="relative">
-                        <p className="leading-relaxed text-slate-700">
-                          {getPlanFooterCaption(plan)}
-                        </p>
-                        <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                          {getCheckoutSummary(plan)}
-                        </p>
+                        className="relative mb-4 overflow-hidden rounded-2xl border px-4 py-4 text-sm font-semibold text-slate-700 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.4)]"
+                        style={{
+                          borderColor: `color-mix(in srgb, ${settings.primaryColor} 28%, #e2e8f0)`,
+                          background: `linear-gradient(135deg, color-mix(in srgb, ${settings.primaryColor} 11%, white) 0%, color-mix(in srgb, ${settings.accentColor} 12%, white) 100%)`
+                        }}
+                      >
+                        <div
+                          className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                          style={{ background: `linear-gradient(90deg, transparent, ${settings.accentColor}, transparent)` }}
+                        />
+                        <div
+                          className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full opacity-30"
+                          style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 30%, white)` }}
+                        />
+                        <div className="relative">
+                          <p className="leading-relaxed text-slate-700">
+                            {plan.footer_caption.trim()}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    ) : null}
 
                     <button
                       onClick={() =>

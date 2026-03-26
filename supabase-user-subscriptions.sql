@@ -3,6 +3,21 @@
 -- ======================================================
 -- Execute no SQL Editor do Supabase Dashboard
 
+create or replace function public.resolve_plan_validity_days(
+  p_billing_cycle text,
+  p_monthly_days integer,
+  p_yearly_days integer
+)
+returns integer
+language sql
+immutable
+as $$
+  select case
+    when lower(coalesce(p_billing_cycle, 'monthly')) = 'yearly' then coalesce(p_yearly_days, 365)
+    else coalesce(p_monthly_days, 30)
+  end;
+$$;
+
 -- 1) Tabela user_subscriptions
 create table if not exists public.user_subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -109,9 +124,13 @@ as $$
 declare
   start_plan_id uuid;
   start_lead_days int;
+  start_plan_validity_days int;
 begin
-  select id, coalesce(lead_contact_limit_days_monthly, lead_contact_limit_days)
-    into start_plan_id, start_lead_days
+  select
+    id,
+    coalesce(lead_contact_limit_days_monthly, lead_contact_limit_days),
+    public.resolve_plan_validity_days('monthly', plan_validity_days_monthly, plan_validity_days_yearly)
+    into start_plan_id, start_lead_days, start_plan_validity_days
   from public.plans
   where name = 'Start'
   limit 1;
@@ -133,7 +152,7 @@ begin
     start_plan_id,
     'active',
     now(),
-    now() + interval '30 days',
+    now() + (coalesce(start_plan_validity_days, 30) || ' days')::interval,
     false,
     case when start_lead_days is not null then now() + (start_lead_days || ' days')::interval else null end
   );

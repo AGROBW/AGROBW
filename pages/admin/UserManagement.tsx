@@ -19,6 +19,7 @@ import {
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { toast } from 'sonner';
+import { getEffectivePlanValidityDays } from '../../src/utils/subscriptionUsageWindow';
 
 interface User {
   id: string;
@@ -61,7 +62,13 @@ const UserManagement: React.FC = () => {
   const [suspensionReason, setSuspensionReason] = useState('');
   const [newPlan, setNewPlan] = useState<string>('');
   const [newRole, setNewRole] = useState<string>('');
-  const [availablePlans, setAvailablePlans] = useState<Array<{ id: string; name: string; monthly_price: number }>>([]);
+  const [availablePlans, setAvailablePlans] = useState<Array<{
+    id: string;
+    name: string;
+    monthly_price: number;
+    plan_validity_days_monthly: number | null;
+    plan_validity_days_yearly: number | null;
+  }>>([]);
 
   const PAGE_SIZE = 20;
 
@@ -90,7 +97,7 @@ const UserManagement: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('plans')
-        .select('id, name, monthly_price')
+        .select('id, name, monthly_price, plan_validity_days_monthly, plan_validity_days_yearly')
         .eq('is_active', true)
         .order('position', { ascending: true });
 
@@ -245,7 +252,8 @@ const UserManagement: React.FC = () => {
         if (error) throw error;
       } else {
         const currentPeriodStart = new Date().toISOString();
-        const currentPeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const validityDays = getEffectivePlanValidityDays(selectedPlan, 'monthly');
+        const currentPeriodEnd = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000).toISOString();
         const trialEndDate = selectedPlan.monthly_price > 0 ? null : currentPeriodEnd;
 
         const { error } = await supabase
