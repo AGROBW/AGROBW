@@ -7,6 +7,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 import ContactSellerModal from '../components/ContactSellerModal';
 import VerifiedBadge from '../components/VerifiedBadge';
 import toast from 'react-hot-toast';
+import { censorContactData } from '../src/utils/censorContact';
 
 // Mapa de ícones para renderizar dinamicamente
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -61,6 +62,7 @@ const AdDetailView: React.FC = () => {
     style: 'currency',
     currency: 'BRL',
   }).format(priceToDisplay);
+  const safeDescription = censorContactData(ad.description || '').censored;
 
   return (
     <div className="bg-gray-50 pb-20">
@@ -148,7 +150,7 @@ const AdDetailView: React.FC = () => {
             </div>
             <div className="text-slate-600 leading-relaxed space-y-4">
               <p className="whitespace-pre-line text-lg">
-                {ad.description}
+                {safeDescription}
               </p>
               <div className="pt-6 border-t border-gray-50 flex items-center gap-2 text-sm font-bold text-slate-400">
                 <Clock className="w-4 h-4" strokeWidth={1.5} />
@@ -182,17 +184,6 @@ const AdDetailView: React.FC = () => {
                   Fale com o Vendedor
                 </button>
                 
-                {ad.whatsapp && (
-                  <a 
-                    href={`https://wa.me/${ad.whatsapp.replace(/\D/g, '')}?text=Olá! Tenho interesse no anúncio: ${encodeURIComponent(ad.title)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-3 w-full py-5 border-2 border-green-600 text-green-600 rounded-2xl font-bold transition-all hover:bg-green-50 active:scale-95"
-                  >
-                    <MessageCircle className="w-5 h-5" strokeWidth={1.5} />
-                    Conversar via WhatsApp
-                  </a>
-                )}
               </div>
 
               <div className="pt-8 border-t border-gray-50 space-y-4">

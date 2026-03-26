@@ -4,12 +4,14 @@ import { supabase } from '../lib/supabaseClient';
 interface LeadData {
   id: string;
   buyerName: string;
-  buyerEmail: string;
+  buyerEmail: string | null;
   buyerPhone: string | null;
   buyerCep: string | null;
-  initialMessage: string;
+  initialMessage: string | null;
   status: string;
   createdAt: string;
+  contactExpiresAt: string | null;
+  isLocked: boolean;
 }
 
 export const useLeadData = (chatId: string | null) => {
@@ -40,13 +42,15 @@ export const useLeadData = (chatId: string | null) => {
       } else if (data) {
         setLead({
           id: data.id,
-          buyerName: data.buyer_name,
-          buyerEmail: data.buyer_email,
-          buyerPhone: data.buyer_phone,
-          buyerCep: data.buyer_cep,
-          initialMessage: data.initial_message,
+          buyerName: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? 'Lead bloqueado' : data.buyer_name,
+          buyerEmail: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? null : data.buyer_email,
+          buyerPhone: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? null : data.buyer_phone,
+          buyerCep: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? null : data.buyer_cep,
+          initialMessage: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? null : data.initial_message,
           status: data.status,
-          createdAt: data.created_at
+          createdAt: data.created_at,
+          contactExpiresAt: data.contact_expires_at ?? null,
+          isLocked: !!data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now()
         });
       } else {
         setLead(null);

@@ -1,4 +1,4 @@
-// =====================================================
+﻿// =====================================================
 // HOOK: useRadar
 // =====================================================
 // Gerencia alertas de oportunidades e matches
@@ -37,7 +37,7 @@ export interface OpportunityMatch {
   match_score: number;
   match_reason: any;
   created_at: string;
-  // Dados do anúncio (via join)
+  // Dados do anÃºncio (via join)
   announcement?: {
     id: string;
     title: string;
@@ -64,7 +64,7 @@ interface PlanLimits {
   price_filter: boolean;
 }
 
-// Limites padrão (fallback se não conseguir buscar do banco)
+// Limites padrÃ£o (fallback se nÃ£o conseguir buscar do banco)
 const DEFAULT_LIMITS: PlanLimits = {
   alerts: 1,
   radius: false,
@@ -84,12 +84,53 @@ export const useRadar = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Buscar limites do plano do usuário
+  const mapPlanLimits = (planData?: {
+    radar_max_alerts?: number | null;
+    radar_has_radius?: boolean | null;
+    radar_has_keywords?: boolean | null;
+    radar_has_price_filter?: boolean | null;
+  } | null): PlanLimits => ({
+    alerts: Number(planData?.radar_max_alerts ?? 0),
+    radius: Boolean(planData?.radar_has_radius),
+    keywords: Boolean(planData?.radar_has_keywords),
+    price_filter: Boolean(planData?.radar_has_price_filter)
+  });
+
+  // Buscar limites do plano do usuario
   const fetchPlanLimits = useCallback(async () => {
     if (!user?.id) return;
 
     try {
-      // Buscar dados do usuário incluindo plan (nome do plano)
+      const { data: subscriptionData, error: subscriptionError } = await supabase
+        .from('user_subscriptions')
+        .select(`
+          current_period_end,
+          plans (
+            name,
+            radar_max_alerts,
+            radar_has_radius,
+            radar_has_keywords,
+            radar_has_price_filter
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .gte('current_period_end', new Date().toISOString())
+        .order('current_period_end', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (subscriptionError) throw subscriptionError;
+
+      const subscriptionPlan = Array.isArray(subscriptionData?.plans)
+        ? subscriptionData?.plans[0]
+        : subscriptionData?.plans;
+
+      if (subscriptionPlan) {
+        setPlanLimits(mapPlanLimits(subscriptionPlan));
+        return;
+      }
+
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('plan')
@@ -103,38 +144,27 @@ export const useRadar = () => {
         return;
       }
 
-      // Normalizar nome do plano (remover hífens, espaços, lowercase)
-      const normalizedPlan = userData.plan.toLowerCase().replace(/[\s-]/g, '');
-
-      // Buscar configurações do Radar no plano
-      // Tenta encontrar por nome exato ou normalizado
-      const { data: planData, error: planError } = await supabase
+      const normalizePlanName = (value: string) => value.toLowerCase().replace(/[\\s-]/g, '');
+      const { data: plansData, error: plansError } = await supabase
         .from('plans')
-        .select('radar_max_alerts, radar_has_radius, radar_has_keywords, radar_has_price_filter, name')
-        .or(`name.ilike.${userData.plan},name.ilike.%${userData.plan}%`)
-        .single();
+        .select('name, radar_max_alerts, radar_has_radius, radar_has_keywords, radar_has_price_filter');
 
-      if (planError && planError.code !== 'PGRST116') throw planError;
+      if (plansError) throw plansError;
 
-      // Se não encontrou, usar limites padrão
-      if (!planData) {
-        setPlanLimits(DEFAULT_LIMITS);
-        return;
-      }
-
-      setPlanLimits({
-        alerts: planData?.radar_max_alerts || 0,
-        radius: planData?.radar_has_radius || false,
-        keywords: planData?.radar_has_keywords || false,
-        price_filter: planData?.radar_has_price_filter || false
+      const normalizedUserPlan = normalizePlanName(userData.plan);
+      const matchedPlan = (plansData || []).find((plan) => {
+        const normalizedPlanName = normalizePlanName(plan.name || '');
+        return normalizedPlanName === normalizedUserPlan || normalizedPlanName.includes(normalizedUserPlan);
       });
+
+      setPlanLimits(matchedPlan ? mapPlanLimits(matchedPlan) : DEFAULT_LIMITS);
     } catch (err: any) {
       console.error('Erro ao buscar limites do plano:', err);
       setPlanLimits(DEFAULT_LIMITS);
     }
   }, [user?.id]);
 
-  // Buscar alertas do usuário
+  // Buscar alertas do usuÃ¡rio
   const fetchAlerts = useCallback(async () => {
     if (!user?.id) return;
 
@@ -154,7 +184,7 @@ export const useRadar = () => {
     }
   }, [user?.id]);
 
-  // Buscar matches do usuário
+  // Buscar matches do usuÃ¡rio
   const fetchMatches = useCallback(async () => {
     if (!user?.id) return;
 
@@ -193,7 +223,7 @@ export const useRadar = () => {
     }
   }, [user?.id]);
 
-  // Buscar estatísticas (usando RPC para evitar erro 406)
+  // Buscar estatÃ­sticas (usando RPC para evitar erro 406)
   const fetchStats = useCallback(async () => {
     if (!user?.id) return;
 
@@ -203,7 +233,7 @@ export const useRadar = () => {
 
       if (error) throw error;
 
-      // A função RPC retorna array, então pegamos o primeiro elemento
+      // A funÃ§Ã£o RPC retorna array, entÃ£o pegamos o primeiro elemento
       const statsData = Array.isArray(data) && data.length > 0 ? data[0] : null;
 
       setStats(statsData || {
@@ -214,40 +244,40 @@ export const useRadar = () => {
         last_match_date: null
       });
     } catch (err: any) {
-      console.error('Erro ao buscar estatísticas:', err);
+      console.error('Erro ao buscar estatÃ­sticas:', err);
     }
   }, [user?.id]);
 
   // Criar novo alerta
   const createAlert = async (alertData: Partial<OpportunityAlert>) => {
-    if (!user?.id) throw new Error('Usuário não autenticado');
+    if (!user?.id) throw new Error('UsuÃ¡rio nÃ£o autenticado');
 
     // Verificar limite do plano
     if (planLimits.alerts === 0) {
-      throw new Error('Seu plano não tem acesso ao Radar de Oportunidades. Faça upgrade para usar.');
+      throw new Error('Seu plano nÃ£o tem acesso ao Radar de Oportunidades. FaÃ§a upgrade para usar.');
     }
 
     if (alerts.length >= planLimits.alerts) {
-      throw new Error(`Seu plano permite apenas ${planLimits.alerts} alerta(s). Faça upgrade para criar mais.`);
+      throw new Error(`Seu plano permite apenas ${planLimits.alerts} alerta(s). FaÃ§a upgrade para criar mais.`);
     }
 
     // Validar recursos do plano
     if (alertData.radius_km && alertData.radius_km > 0 && !planLimits.radius) {
-      throw new Error('Filtro por raio geográfico não disponível no seu plano. Faça upgrade.');
+      throw new Error('Filtro por raio geogrÃ¡fico nÃ£o disponÃ­vel no seu plano. FaÃ§a upgrade.');
     }
 
     if (alertData.keywords && alertData.keywords.length > 0 && !planLimits.keywords) {
-      throw new Error('Filtro por palavras-chave não disponível no seu plano. Faça upgrade.');
+      throw new Error('Filtro por palavras-chave nÃ£o disponÃ­vel no seu plano. FaÃ§a upgrade.');
     }
 
     if ((alertData.min_price || alertData.max_price) && !planLimits.price_filter) {
-      throw new Error('Filtro por preço não disponível no seu plano. Faça upgrade.');
+      throw new Error('Filtro por preÃ§o nÃ£o disponÃ­vel no seu plano. FaÃ§a upgrade.');
     }
 
     try {
-      // Se o alerta usa raio, garantir que o usuário tem coordenadas
+      // Se o alerta usa raio, garantir que o usuÃ¡rio tem coordenadas
       if (alertData.radius_km && alertData.radius_km > 0) {
-        // Buscar dados do usuário
+        // Buscar dados do usuÃ¡rio
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('cep, latitude, longitude, geo_updated_at')
@@ -256,17 +286,17 @@ export const useRadar = () => {
 
         if (userError) throw userError;
 
-        // Se não tem coordenadas ou estão desatualizadas (mais de 30 dias)
+        // Se nÃ£o tem coordenadas ou estÃ£o desatualizadas (mais de 30 dias)
         const needsUpdate = !userData?.latitude || 
                            !userData?.longitude || 
                            !userData?.geo_updated_at ||
                            (new Date().getTime() - new Date(userData.geo_updated_at).getTime()) > 30 * 24 * 60 * 60 * 1000;
 
         if (needsUpdate && userData?.cep) {
-          console.log('Atualizando coordenadas do usuário...');
+          console.log('Atualizando coordenadas do usuÃ¡rio...');
           await updateUserCoordinates(user.id, userData.cep, supabase);
         } else if (!userData?.cep) {
-          throw new Error('CEP não cadastrado no perfil. Atualize seu perfil para usar filtro por raio.');
+          throw new Error('CEP nÃ£o cadastrado no perfil. Atualize seu perfil para usar filtro por raio.');
         }
       }
 
@@ -282,7 +312,17 @@ export const useRadar = () => {
 
       if (error) throw error;
 
+      const { error: retroactiveMatchError } = await supabase.rpc('match_existing_announcements_to_alert', {
+        p_alert_id: data.id
+      });
+
+      if (retroactiveMatchError) {
+        console.error('Erro ao processar matching retroativo do alerta:', retroactiveMatchError);
+      }
+
       await fetchAlerts();
+      await fetchMatches();
+      await fetchStats();
       return data;
     } catch (err: any) {
       console.error('Erro ao criar alerta:', err);
@@ -292,7 +332,7 @@ export const useRadar = () => {
 
   // Atualizar alerta
   const updateAlert = async (alertId: string, updates: Partial<OpportunityAlert>) => {
-    if (!user?.id) throw new Error('Usuário não autenticado');
+    if (!user?.id) throw new Error('UsuÃ¡rio nÃ£o autenticado');
 
     try {
       const { data, error } = await supabase
@@ -305,7 +345,19 @@ export const useRadar = () => {
 
       if (error) throw error;
 
+      if (data?.status === 'ativo') {
+        const { error: retroactiveMatchError } = await supabase.rpc('match_existing_announcements_to_alert', {
+          p_alert_id: data.id
+        });
+
+        if (retroactiveMatchError) {
+          console.error('Erro ao reprocessar matching retroativo do alerta:', retroactiveMatchError);
+        }
+      }
+
       await fetchAlerts();
+      await fetchMatches();
+      await fetchStats();
       return data;
     } catch (err: any) {
       console.error('Erro ao atualizar alerta:', err);
@@ -315,7 +367,7 @@ export const useRadar = () => {
 
   // Deletar alerta
   const deleteAlert = async (alertId: string) => {
-    if (!user?.id) throw new Error('Usuário não autenticado');
+    if (!user?.id) throw new Error('UsuÃ¡rio nÃ£o autenticado');
 
     try {
       const { error } = await supabase
@@ -336,7 +388,7 @@ export const useRadar = () => {
   // Alternar status do alerta (ativo/pausado)
   const toggleAlertStatus = async (alertId: string) => {
     const alert = alerts.find(a => a.id === alertId);
-    if (!alert) throw new Error('Alerta não encontrado');
+    if (!alert) throw new Error('Alerta nÃ£o encontrado');
 
     const newStatus = alert.status === 'ativo' ? 'pausado' : 'ativo';
     return updateAlert(alertId, { status: newStatus });
@@ -344,7 +396,7 @@ export const useRadar = () => {
 
   // Marcar match como visualizado
   const markMatchAsViewed = async (matchId: string) => {
-    if (!user?.id) throw new Error('Usuário não autenticado');
+    if (!user?.id) throw new Error('UsuÃ¡rio nÃ£o autenticado');
 
     try {
       const { error } = await supabase
@@ -368,7 +420,7 @@ export const useRadar = () => {
 
   // Descartar match
   const dismissMatch = async (matchId: string) => {
-    if (!user?.id) throw new Error('Usuário não autenticado');
+    if (!user?.id) throw new Error('UsuÃ¡rio nÃ£o autenticado');
 
     try {
       const { error } = await supabase
@@ -389,7 +441,7 @@ export const useRadar = () => {
     }
   };
 
-  // Obter limites do plano do usuário
+  // Obter limites do plano do usuÃ¡rio
   // Carregar dados iniciais
   useEffect(() => {
     if (!user?.id) {
@@ -415,7 +467,7 @@ export const useRadar = () => {
   useEffect(() => {
     if (!user?.id) return;
 
-    console.log('🔔 Iniciando subscription para matches do usuário:', user.id);
+    console.log('ðŸ”” Iniciando subscription para matches do usuÃ¡rio:', user.id);
 
     // Subscribe a novos matches
     const matchesSubscription = supabase
@@ -429,7 +481,7 @@ export const useRadar = () => {
           filter: `user_id=eq.${user.id}`
         },
         async (payload) => {
-          console.log('✨ Novo match recebido via Real-time!', payload);
+          console.log('âœ¨ Novo match recebido via Real-time!', payload);
           
           // Atualizar matches e stats imediatamente
           try {
@@ -459,7 +511,7 @@ export const useRadar = () => {
                 announcement: match.announcements
               }));
               setMatches(mappedMatches);
-              console.log('✅ Matches atualizados:', mappedMatches.length);
+              console.log('âœ… Matches atualizados:', mappedMatches.length);
             }
 
             // Buscar stats atualizadas
@@ -473,24 +525,24 @@ export const useRadar = () => {
                 unviewed_matches: 0,
                 last_match_date: null
               });
-              console.log('✅ Stats atualizadas:', stats);
+              console.log('âœ… Stats atualizadas:', stats);
             }
           } catch (err) {
-            console.error('❌ Erro ao processar novo match via Real-time:', err);
+            console.error('âŒ Erro ao processar novo match via Real-time:', err);
           }
         }
       )
       .subscribe((status) => {
-        console.log('📡 Status da subscription:', status);
+        console.log('ðŸ“¡ Status da subscription:', status);
         if (status === 'SUBSCRIBED') {
-          console.log('✅ Subscription ativa para matches!');
+          console.log('âœ… Subscription ativa para matches!');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('❌ Erro na subscription:', status);
+          console.error('âŒ Erro na subscription:', status);
         }
       });
 
     return () => {
-      console.log('🔌 Desconectando subscription de matches');
+      console.log('ðŸ”Œ Desconectando subscription de matches');
       matchesSubscription.unsubscribe();
     };
   }, [user?.id]);

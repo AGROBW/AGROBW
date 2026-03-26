@@ -4,7 +4,7 @@
 // Interface completa para gerenciar alertas e visualizar matches
 // =====================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Radar, 
@@ -27,10 +27,15 @@ import {
 } from 'lucide-react';
 import { useRadar, OpportunityAlert, OpportunityMatch } from '../src/hooks/useRadar';
 import { useAuth } from '../src/contexts/AuthContext';
+import { useSubscription } from '../src/hooks/useSubscription';
+import { usePlans } from '../src/hooks/usePlans';
+import RecommendedUpgradeModal from './finance/RecommendedUpgradeModal';
 import toast from 'react-hot-toast';
 
 const RadarView: React.FC = () => {
   const { user } = useAuth();
+  const { subscription } = useSubscription();
+  const { plansRaw } = usePlans();
   const {
     alerts,
     matches,
@@ -53,8 +58,21 @@ const RadarView: React.FC = () => {
   const [categories, setCategories] = useState<any[]>([]);
   const [badgeAnimation, setBadgeAnimation] = useState(false);
   const [prevUnviewedCount, setPrevUnviewedCount] = useState(0);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  const userPlan = user?.plan || 'seed';
+  const activePlans = useMemo(
+    () => (plansRaw || []).filter((plan) => plan.is_active).sort((a, b) => a.position - b.position),
+    [plansRaw]
+  );
+  const currentPlanRecord = useMemo(() => {
+    if (!subscription?.plan_id) return null;
+    return activePlans.find((plan) => plan.id === subscription.plan_id) || null;
+  }, [activePlans, subscription?.plan_id]);
+  const nextRecommendedPlan = useMemo(() => {
+    if (!currentPlanRecord) return null;
+    return activePlans.find((plan) => plan.position > currentPlanRecord.position) || null;
+  }, [activePlans, currentPlanRecord]);
+  const userPlan = currentPlanRecord?.name || subscription?.plans?.name || user?.plan || 'Plano';
 
   // Detectar novos matches e animar badge
   useEffect(() => {
@@ -441,14 +459,15 @@ const RadarView: React.FC = () => {
                   <li>• Palavras-chave: {planLimits.keywords ? '✓ Disponível' : '✗ Não disponível'}</li>
                   <li>• Filtro de preço: {planLimits.price_filter ? '✓ Disponível' : '✗ Não disponível'}</li>
                 </ul>
-                {userPlan !== 'harvest' && (
-                  <Link
-                    to="/minha-conta"
+                {nextRecommendedPlan && (
+                  <button
+                    type="button"
+                    onClick={() => setShowUpgradeModal(true)}
                     className="inline-flex items-center gap-1 mt-2 text-sm font-semibold text-blue-700 hover:text-blue-800"
                   >
                     <Crown className="w-4 h-4" />
                     Fazer upgrade
-                  </Link>
+                  </button>
                 )}
               </div>
             </div>
@@ -697,13 +716,16 @@ const RadarView: React.FC = () => {
                         Busque anúncios dentro de um raio específico (km) a partir da sua localização. 
                         Disponível apenas no plano <strong>Destaque</strong>.
                       </p>
-                      <Link
-                        to="/minha-conta"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-800"
-                      >
-                        <TrendingUp className="w-3 h-3" />
-                        Fazer upgrade agora
-                      </Link>
+                      {nextRecommendedPlan && (
+                        <button
+                          type="button"
+                          onClick={() => setShowUpgradeModal(true)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-800"
+                        >
+                          <TrendingUp className="w-3 h-3" />
+                          Fazer upgrade agora
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -859,13 +881,16 @@ const RadarView: React.FC = () => {
                       <p className="text-xs text-amber-800 mb-2">
                         Disponível apenas no plano <strong>Destaque</strong>.
                       </p>
-                      <Link
-                        to="/minha-conta"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-800"
-                      >
-                        <TrendingUp className="w-3 h-3" />
-                        Fazer upgrade
-                      </Link>
+                      {nextRecommendedPlan && (
+                        <button
+                          type="button"
+                          onClick={() => setShowUpgradeModal(true)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-800"
+                        >
+                          <TrendingUp className="w-3 h-3" />
+                          Fazer upgrade
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -965,6 +990,14 @@ const RadarView: React.FC = () => {
           </div>
         </div>
       )}
+
+      <RecommendedUpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        currentPlan={currentPlanRecord}
+        nextPlan={nextRecommendedPlan}
+        userId={user?.id}
+      />
     </div>
   );
 };

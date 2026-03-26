@@ -403,6 +403,14 @@ const PricingView: React.FC = () => {
               </span>
             </div>
           </div>
+          {billingCycle === 'yearly' && (
+            <div className="mx-auto mt-5 max-w-2xl rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-slate-200 backdrop-blur">
+              <p className="font-semibold text-white">Cobranca anual com beneficios renovados mensalmente.</p>
+              <p className="mt-1 text-slate-300">
+                Anuncios, destaques e demais limites operacionais sao liberados em ciclos mensais dentro da vigencia anual.
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -459,12 +467,17 @@ const PricingView: React.FC = () => {
                       <span className="text-sm font-medium text-slate-400">/mes</span>
                     </div>
                     {billingCycle === 'yearly' && plan.yearly_price > 0 ? (
-                      <p className="mt-3 text-sm font-semibold" style={{ color: `color-mix(in srgb, ${settings.primaryColor} 55%, white)` }}>
-                        Cobranca anual: R$ {formatCurrency(plan.yearly_price)}
-                        {yearlySavings.amount > 0
-                          ? ` | economia de ${yearlySavings.percentage}%`
-                          : ''}
-                      </p>
+                      <div className="mt-3 space-y-1.5 text-sm font-semibold" style={{ color: `color-mix(in srgb, ${settings.primaryColor} 55%, white)` }}>
+                        <p>
+                          Cobranca anual: R$ {formatCurrency(plan.yearly_price)}
+                          {yearlySavings.amount > 0
+                            ? ` | economia de ${yearlySavings.percentage}%`
+                            : ''}
+                        </p>
+                        <p className="text-xs text-slate-300">
+                          Beneficios operacionais renovados mensalmente.
+                        </p>
+                      </div>
                     ) : (
                       <p className="mt-3 text-sm font-semibold text-slate-400">
                         {getPlanPriceCaption(plan)}

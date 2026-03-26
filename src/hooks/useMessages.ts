@@ -5,11 +5,42 @@ import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { useAuth } from '../contexts/AuthContext'
 import { Chat, Message, LeadStatus } from '../../types'
 import { LEAD_STATUS } from '../../constants/status'
+import { toast } from 'sonner'
 
-const isAnnouncementFrozen = (status?: string | null, expiresAt?: string | null) => {
-  if (status === 'EXPIRED') return true
-  if (!expiresAt) return false
-  return new Date(expiresAt).getTime() <= Date.now()
+const getChatFreezeState = (
+  status?: string | null,
+  expiresAt?: string | null,
+  leadContactExpiresAt?: string | null
+) => {
+  if (status === 'EXPIRED') {
+    return {
+      isFrozen: true,
+      freezeReason: 'announcement_expired' as const,
+      isLeadContactExpired: false
+    }
+  }
+
+  if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+    return {
+      isFrozen: true,
+      freezeReason: 'announcement_expired' as const,
+      isLeadContactExpired: false
+    }
+  }
+
+  if (leadContactExpiresAt && new Date(leadContactExpiresAt).getTime() <= Date.now()) {
+    return {
+      isFrozen: true,
+      freezeReason: 'lead_contact_expired' as const,
+      isLeadContactExpired: true
+    }
+  }
+
+  return {
+    isFrozen: false,
+    freezeReason: null,
+    isLeadContactExpired: false
+  }
 }
 
 export const useChats = (announcementId?: string | null) => {
@@ -65,6 +96,11 @@ export const useChats = (announcementId?: string | null) => {
       clearRetry()
       setError(null)
       const mappedChats: Chat[] = (data || []).map(chat => ({
+        ...getChatFreezeState(
+          chat.announcement_status,
+          chat.announcement_expires_at,
+          chat.lead_contact_expires_at
+        ),
         id: chat.id,
         adId: chat.announcement_id,
         adTitle: chat.ad_title,
@@ -74,7 +110,7 @@ export const useChats = (announcementId?: string | null) => {
         adExpiresAt: chat.announcement_expires_at,
         adExpiredAt: chat.announcement_expired_at,
         adDeletionScheduledAt: chat.announcement_deletion_scheduled_at,
-        isFrozen: isAnnouncementFrozen(chat.announcement_status, chat.announcement_expires_at),
+        leadContactExpiresAt: chat.lead_contact_expires_at,
         sellerId: chat.seller_id,
         sellerName: chat.seller_name,
         buyerId: chat.buyer_id,
@@ -342,6 +378,15 @@ export const useMessages = (chatId: string | null) => {
 
     if (error) {
       console.error('Erro ao enviar mensagem:', error)
+      if (error.message?.includes('Prazo de contato do lead expirado')) {
+        toast.error('Prazo de contato expirado', {
+          description: 'O prazo de acesso ao lead terminou e esta conversa foi bloqueada.'
+        })
+      } else if (error.message?.includes('Anuncio expirado')) {
+        toast.error('Anuncio expirado', {
+          description: 'Este anuncio nao aceita mais novas mensagens.'
+        })
+      }
       return false
     }
 

@@ -1054,7 +1054,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
               })}
             </p>
             <p className="text-[10px] text-slate-500 mt-1">
-              Créditos não utilizados serão resetados
+              Creditos de destaques (Booster) nao expiram
             </p>
           </div>
         )}

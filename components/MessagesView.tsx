@@ -23,6 +23,12 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   
   const selectedChat = chats.find(c => c.id === selectedChatId);
   const isSelectedChatFrozen = !!selectedChat?.isFrozen;
+  const isLeadContactExpired = selectedChat?.freezeReason === 'lead_contact_expired';
+  const frozenBadgeText = isLeadContactExpired ? 'Prazo de contato expirado' : 'Anuncio expirado';
+  const frozenTitle = isLeadContactExpired ? 'Prazo de contato expirado' : 'Anuncio expirado';
+  const frozenDescription = isLeadContactExpired
+    ? 'A janela de contato definida pelo plano terminou. Nenhuma nova mensagem pode ser enviada e os dados do lead foram bloqueados.'
+    : 'Esta conversa foi congelada porque o anuncio venceu. Nenhuma nova mensagem pode ser enviada e os dados da negociacao ficaram bloqueados.';
   
   // Debug: Log dos dados do chat selecionado
   useEffect(() => {
@@ -161,7 +167,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                     {chat.isFrozen && (
                       <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
                         <Lock className="w-3 h-3" />
-                        Anuncio expirado
+                        {chat.freezeReason === 'lead_contact_expired' ? 'Prazo de contato expirado' : 'Anuncio expirado'}
                       </span>
                     )}
                   </div>
@@ -220,9 +226,9 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
             <div className="mx-4 mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-amber-800">Anuncio expirado</p>
+                <p className="text-sm font-semibold text-amber-800">{frozenTitle}</p>
                 <p className="text-xs text-amber-700 mt-1">
-                  Esta conversa foi congelada porque o anuncio venceu. Nenhuma nova mensagem pode ser enviada e os dados da negociacao ficaram bloqueados.
+                  {frozenDescription}
                 </p>
               </div>
             </div>
@@ -238,9 +244,11 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
               <div className="flex items-center justify-center h-full">
                 <div className="text-center max-w-md">
                   <Lock className="w-12 h-12 text-amber-400 mx-auto mb-3" />
-                  <p className="text-slate-700 text-sm font-semibold">Conversa bloqueada</p>
+                  <p className="text-slate-700 text-sm font-semibold">{frozenTitle}</p>
                   <p className="text-slate-500 text-xs mt-2">
-                    O historico deste anuncio expirado foi congelado. Republicar o anuncio exige um novo credito e nao reabre esta conversa automaticamente.
+                    {isLeadContactExpired
+                      ? 'O prazo de acesso ao lead terminou. O historico foi congelado e os dados do comprador nao ficam mais disponiveis.'
+                      : 'O historico deste anuncio expirado foi congelado. Republicar o anuncio exige um novo credito e nao reabre esta conversa automaticamente.'}
                   </p>
                 </div>
               </div>
@@ -320,7 +328,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                placeholder={isSelectedChatFrozen ? 'Anuncio expirado. Conversa bloqueada.' : 'Digite sua mensagem...'}
+                placeholder={isSelectedChatFrozen ? `${frozenBadgeText}. Conversa bloqueada.` : 'Digite sua mensagem...'}
                 disabled={isSelectedChatFrozen}
                 className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
               />

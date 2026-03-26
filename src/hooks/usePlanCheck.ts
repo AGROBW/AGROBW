@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserAds } from './useAds'
 import { toast } from 'sonner'
+import { getSubscriptionUsageWindow } from '../utils/subscriptionUsageWindow'
 
 type SubscriptionRow = {
   id: string
@@ -68,12 +69,22 @@ export const usePlanCheck = () => {
 
   const plan = (subscription?.plans || fallbackPlan) as Record<string, any>
   const planName = plan?.name || 'Start Agro'
+  const usageWindow = useMemo(() => {
+    if (!subscription) return null
+    return getSubscriptionUsageWindow(subscription.current_period_start, subscription.current_period_end)
+  }, [subscription?.current_period_start, subscription?.current_period_end])
 
   const canAddAd = useMemo(() => {
     const maxAds = plan?.max_ads
     if (maxAds === null || maxAds === undefined) return true
-    return (ads?.length || 0) < maxAds
-  }, [ads?.length, plan?.max_ads])
+    const adsInWindow = (ads || []).filter((ad) => {
+      if (!usageWindow) return true
+      const createdAt = ad?.createdAt ? new Date(ad.createdAt) : null
+      if (!createdAt || Number.isNaN(createdAt.getTime())) return false
+      return createdAt >= usageWindow.usageStart && createdAt <= usageWindow.usageEnd
+    })
+    return adsInWindow.length < maxAds
+  }, [ads, plan?.max_ads, usageWindow?.usageStart, usageWindow?.usageEnd])
 
   const hasFeature = (featureName: string) => {
     if (!plan) return false

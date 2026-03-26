@@ -330,6 +330,9 @@ export interface Chat {
   adExpiresAt?: string;
   adExpiredAt?: string;
   adDeletionScheduledAt?: string;
+  leadContactExpiresAt?: string | null;
+  isLeadContactExpired?: boolean;
+  freezeReason?: 'announcement_expired' | 'lead_contact_expired' | null;
   isFrozen?: boolean;
   sellerId: string;
   sellerName: string;

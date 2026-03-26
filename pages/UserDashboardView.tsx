@@ -1251,8 +1251,8 @@ const UserDashboardView: React.FC = () => {
         {deleteModalOpen && adToDelete && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-              <h3 className="text-xl font-bold text-slate-900 mb-3">Confirmar ExclusÃ£o</h3>
-              <p className="text-sm text-slate-600 mb-2">Tem certeza que deseja excluir este anÃºncio?</p>
+                        <h3 className="text-xl font-bold text-slate-900 mb-3">Confirmar Exclusão</h3>
+                        <p className="text-sm text-slate-600 mb-2">Tem certeza que deseja excluir este anúncio?</p>
               <p className="text-sm font-semibold text-slate-800 mb-6 bg-slate-50 p-3 rounded-lg">
                 {adToDelete.title}
               </p>
@@ -1278,7 +1278,7 @@ const UserDashboardView: React.FC = () => {
                       Excluindo...
                     </>
                   ) : (
-                    'Confirmar ExclusÃ£o'
+                            'Confirmar Exclusão'
                   )}
                 </button>
               </div>
@@ -1658,7 +1658,7 @@ const UserDashboardView: React.FC = () => {
                   {currentPlanRecord?.lead_contact_limit_days ? `${currentPlanRecord.lead_contact_limit_days} dias` : 'Nao incluso'}
                 </span>
                 <p className="mt-1 text-xs text-slate-500">
-                  Por quantos dias o contato fica liberado dentro do plano.
+                  Os contatos ficam disponíveis por até {currentPlanRecord?.lead_contact_limit_days ?? 0} dias.
                 </p>
               </div>
             </div>

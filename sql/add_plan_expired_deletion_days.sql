@@ -162,9 +162,6 @@ begin
     delete from public.announcement_clicks_by_state
     where announcement_id = any(deletable_ids);
 
-    delete from public.announcement_highlights_history
-    where announcement_id = any(deletable_ids);
-
     delete from public.announcement_technical_details
     where announcement_id = any(deletable_ids);
 

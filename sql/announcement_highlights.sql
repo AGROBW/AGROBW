@@ -8,7 +8,7 @@
 -- ======================================================
 CREATE TABLE IF NOT EXISTS public.announcement_highlights_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  announcement_id UUID NOT NULL REFERENCES public.announcements(id) ON DELETE CASCADE,
+  announcement_id UUID REFERENCES public.announcements(id) ON DELETE SET NULL,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   highlight_type TEXT NOT NULL CHECK (highlight_type IN ('category', 'home')),
   applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

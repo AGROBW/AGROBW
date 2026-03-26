@@ -109,6 +109,25 @@ const PreviewAnnouncementModal: React.FC<{
   onClose: () => void;
   previewAd: any;
 }> = ({ isOpen, onClose, previewAd }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const mainImage = previewAd.images?.[0] || '';
@@ -116,58 +135,67 @@ const PreviewAnnouncementModal: React.FC<{
     style: 'currency',
     currency: 'BRL',
   }).format(previewAd.price || 0);
+  const previewDescription = censorContactData(previewAd.description || '').censored;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-4xl overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-3xl overflow-hidden rounded-[2rem] bg-white shadow-2xl max-h-[90vh]"
+        onClick={(event) => event.stopPropagation()}
+      >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-5 top-5 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow hover:text-slate-900"
+          className="absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-slate-600 shadow hover:text-slate-900"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,0.9fr]">
-          <div className="flex flex-col justify-between bg-slate-950 p-8 text-white">
+        <div className="grid max-h-[90vh] grid-cols-1 overflow-y-auto lg:grid-cols-[0.95fr,0.85fr]">
+          <div className="flex flex-col justify-between bg-slate-950 p-6 text-white lg:p-7">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-green-300">
                 Preview da Publicacao
               </p>
-              <h2 className="mt-4 text-3xl font-black leading-tight">
+              <h2 className="mt-3 text-2xl font-black leading-tight lg:text-3xl">
                 {previewAd.title || 'Titulo do anuncio'}
               </h2>
-              <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm text-white/90">
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm text-white/90">
                 <MapPin className="w-4 h-4 text-green-300" />
                 {previewAd.location?.city || 'Cidade'} - {previewAd.location?.state || 'UF'}
               </div>
             </div>
 
-            <div className="mt-8 space-y-4">
-              <div className="rounded-2xl bg-white/10 p-5">
+            <div className="mt-6 space-y-4">
+              <div className="rounded-2xl bg-white/10 p-4">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-green-200">
                   Investimento
                 </p>
-                <p className="mt-2 text-3xl font-black text-green-300">{formattedPrice}</p>
+                <p className="mt-2 text-2xl font-black text-green-300 lg:text-3xl">{formattedPrice}</p>
                 <p className="mt-1 text-sm text-white/70">
                   {previewAd.quantity || 1} {previewAd.unit || 'Unidade'}
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-white/10 p-5">
+              <div className="rounded-2xl border border-white/10 p-4">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/50">
                   Descricao
                 </p>
-                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-white/80">
-                  {previewAd.description || 'Descricao do anuncio nao informada.'}
-                </p>
+                <div className="mt-3 max-h-64 overflow-y-auto rounded-xl border border-white/10 bg-black/10 p-3">
+                  <p className="whitespace-pre-line text-sm leading-6 text-white/80">
+                    {previewDescription || 'Descricao do anuncio nao informada.'}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-slate-50 p-8">
-            <div className="mx-auto max-w-sm overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
-              <div className="relative h-60 bg-slate-200">
+          <div className="bg-slate-50 p-5 lg:p-6">
+            <div className="mx-auto max-w-[320px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+              <div className="relative h-48 bg-slate-200 lg:h-52">
                 {mainImage ? (
                   <img src={mainImage} alt={previewAd.title} className="h-full w-full object-cover" />
                 ) : (
@@ -189,11 +217,11 @@ const PreviewAnnouncementModal: React.FC<{
                 </div>
               </div>
 
-              <div className="p-5">
-                <h3 className="line-clamp-2 h-12 text-base font-bold text-slate-900">
+              <div className="p-4">
+                <h3 className="line-clamp-2 min-h-[3rem] text-base font-bold text-slate-900">
                   {previewAd.title || 'Titulo do anuncio'}
                 </h3>
-                <div className="mt-4 flex items-end justify-between border-t border-slate-100 pt-4">
+                <div className="mt-3 flex items-end justify-between border-t border-slate-100 pt-3">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
                       Investimento
@@ -205,7 +233,7 @@ const PreviewAnnouncementModal: React.FC<{
                     0
                   </div>
                 </div>
-                <div className="mt-5 rounded-xl bg-slate-900 py-3 text-center text-sm font-bold text-white">
+                <div className="mt-4 rounded-xl bg-slate-900 py-3 text-center text-sm font-bold text-white">
                   Ver Detalhes
                 </div>
               </div>

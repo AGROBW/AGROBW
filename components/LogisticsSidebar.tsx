@@ -90,6 +90,45 @@ const LogisticsSidebar: React.FC<LogisticsSidebarProps> = ({ chatId, adPrice, ad
     );
   }
 
+  if (lead?.isLocked) {
+    return (
+      <motion.div
+        initial={{ x: 100, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        className="w-80 border-l border-slate-200 bg-gradient-to-b from-white to-slate-50 flex flex-col overflow-y-auto"
+      >
+        <div className="p-4 border-b border-slate-200 bg-white">
+          <div className="flex items-center gap-2 mb-1">
+            <Truck className="w-5 h-5 text-green-600" />
+            <h3 className="font-bold text-slate-900">Inteligencia Logistica</h3>
+          </div>
+          <p className="text-xs text-slate-500">
+            Dados para facilitar a negociacao
+          </p>
+        </div>
+
+        <div className="flex-1 p-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800">Prazo de contato expirado</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Os dados do lead e os recursos de contato foram bloqueados porque a janela de acesso definida no plano terminou.
+                </p>
+                {lead.contactExpiresAt && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    Bloqueado desde {new Date(lead.contactExpiresAt).toLocaleDateString('pt-BR')}.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ x: 100, opacity: 0 }}

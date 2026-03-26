@@ -139,10 +139,10 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-3xl rounded-[2rem] bg-white shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-3 md:p-4">
+      <div className="w-full max-w-3xl max-h-[92vh] rounded-[2rem] bg-white shadow-2xl overflow-hidden flex flex-col">
         <div
-          className="px-6 py-5 text-white"
+          className="px-5 py-4 md:px-6 md:py-5 text-white flex-shrink-0"
           style={{
             background: `linear-gradient(135deg, ${settings.secondaryColor} 0%, color-mix(in srgb, ${settings.secondaryColor} 78%, black) 100%)`,
           }}
@@ -152,10 +152,10 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
               <p className="text-[11px] font-black uppercase tracking-[0.28em]" style={{ color: `color-mix(in srgb, ${settings.primaryColor} 70%, white)` }}>
                 Upgrade recomendado
               </p>
-              <h3 className="mt-2 text-2xl font-black tracking-tight">
+              <h3 className="mt-2 text-xl md:text-2xl font-black tracking-tight">
                 {currentPlan?.name ? `${currentPlan.name} para ${nextPlan.name}` : nextPlan.name}
               </h3>
-              <p className="mt-2 text-sm text-slate-200">
+              <p className="mt-2 text-xs md:text-sm text-slate-200">
                 Assine o próximo plano da sua jornada e ganhe mais alcance, recursos e visibilidade.
               </p>
             </div>
@@ -169,8 +169,8 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
           </div>
         </div>
 
-        <div className="p-6 md:p-8 space-y-6">
-          <div className="flex items-center justify-center gap-4">
+        <div className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6 overflow-y-auto">
+          <div className="flex items-center justify-center gap-3 md:gap-4">
             <span className={`text-sm font-bold ${billingCycle === 'monthly' ? 'text-slate-900' : 'text-slate-400'}`}>
               Mensal
             </span>
@@ -197,15 +197,15 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
           </div>
 
           <div
-            className="flex min-h-[430px] flex-col rounded-[2rem] border bg-white p-7 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.35)]"
+            className="flex min-h-0 flex-col rounded-[1.5rem] md:rounded-[2rem] border bg-white p-4 md:p-6 lg:p-7 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.35)]"
             style={{ borderColor: settings.primaryColor, boxShadow: `0 0 0 4px color-mix(in srgb, ${settings.primaryColor} 16%, white)` }}
           >
-            <div className="mb-6 flex items-start justify-between gap-4">
+            <div className="mb-4 md:mb-6 flex items-start justify-between gap-3 md:gap-4">
               <div>
                 <p className="mb-2 text-[11px] font-black uppercase tracking-[0.25em] text-slate-400">
                   {nextPlan.card_eyebrow?.trim() || 'Plano BWAGRO'}
                 </p>
-                <h3 className="text-2xl font-black text-slate-950">{nextPlan.name}</h3>
+                <h3 className="text-xl md:text-2xl font-black text-slate-950">{nextPlan.name}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-500">{nextPlan.description}</p>
               </div>
               {nextPlan.is_popular && (
@@ -218,10 +218,10 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
               )}
             </div>
 
-            <div className="rounded-[1.5rem] bg-slate-950 p-5 text-white">
+            <div className="rounded-[1.25rem] md:rounded-[1.5rem] bg-slate-950 p-4 md:p-5 text-white">
               <div className="flex items-baseline gap-1">
                 <span className="text-base font-bold text-slate-400">R$</span>
-                <span className="text-5xl font-black tracking-tighter">{formatCurrency(displayPrice)}</span>
+                <span className="text-4xl md:text-5xl font-black tracking-tighter">{formatCurrency(displayPrice)}</span>
                 <span className="text-sm font-medium text-slate-400">/mês</span>
               </div>
               {billingCycle === 'yearly' && nextPlan.yearly_price > 0 ? (
@@ -236,9 +236,9 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
               )}
             </div>
 
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+            <div className="mt-4 md:mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">O que você ganha no upgrade</p>
-              <ul className="mt-4 space-y-3">
+              <ul className="mt-3 md:mt-4 space-y-2.5 md:space-y-3">
                 {highlights.map((item) => (
                   <li key={item} className="flex items-start gap-3 text-sm font-medium text-slate-700">
                     <Check className="mt-0.5 h-4 w-4 flex-shrink-0" strokeWidth={2} style={{ color: settings.primaryColor }} />
@@ -249,7 +249,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
             </div>
 
             {currentPlan && (
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="mt-4 md:mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div className="rounded-2xl border border-slate-200 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plano atual</p>
                   <p className="mt-2 text-lg font-bold text-slate-900">{currentPlan.name}</p>
@@ -267,7 +267,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
               </div>
             )}
 
-            <div className="mt-auto pt-6 flex flex-col-reverse sm:flex-row gap-3">
+            <div className="mt-4 md:mt-auto pt-2 md:pt-6 flex flex-col-reverse sm:flex-row gap-3">
               <button
                 onClick={onClose}
                 className="h-11 px-5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"

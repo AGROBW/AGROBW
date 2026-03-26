@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { endAppSync, startAppSync } from '../lib/appSyncStatus';
 import { useAuth } from '../contexts/AuthContext';
+import { getSubscriptionUsageWindow } from '../utils/subscriptionUsageWindow';
 
 export type UserSubscription = {
   id: string;
@@ -138,6 +139,9 @@ export const useSubscription = () => {
     try {
       const periodStart = subscription ? new Date(subscription.current_period_start) : null;
       const periodEnd = subscription ? new Date(subscription.current_period_end) : null;
+      const usageWindow = subscription
+        ? getSubscriptionUsageWindow(subscription.current_period_start, subscription.current_period_end)
+        : null;
       const now = new Date();
       const isWithinPeriod = periodStart && periodEnd ? now >= periodStart && now <= periodEnd : false;
 
@@ -151,7 +155,8 @@ export const useSubscription = () => {
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .in('status', ['active', 'ACTIVE'])
-          .gte('created_at', subscription.current_period_start);
+          .gte('created_at', usageWindow?.usageStart.toISOString() || subscription.current_period_start)
+          .lte('created_at', usageWindow?.usageEnd.toISOString() || subscription.current_period_end);
 
         if (adsError) throw adsError;
         adsCount = adsCountData || 0;
@@ -162,8 +167,8 @@ export const useSubscription = () => {
           .eq('user_id', user.id)
           .eq('highlight_type', 'category')
           .eq('credit_source', 'plan')
-          .gte('applied_at', subscription.current_period_start)
-          .lte('applied_at', subscription.current_period_end);
+          .gte('applied_at', usageWindow?.usageStart.toISOString() || subscription.current_period_start)
+          .lte('applied_at', usageWindow?.usageEnd.toISOString() || subscription.current_period_end);
 
         if (categoryError) throw categoryError;
         categoryHighlightsCount = categoryHighlightsCountData || 0;
@@ -174,8 +179,8 @@ export const useSubscription = () => {
           .eq('user_id', user.id)
           .eq('highlight_type', 'home')
           .eq('credit_source', 'plan')
-          .gte('applied_at', subscription.current_period_start)
-          .lte('applied_at', subscription.current_period_end);
+          .gte('applied_at', usageWindow?.usageStart.toISOString() || subscription.current_period_start)
+          .lte('applied_at', usageWindow?.usageEnd.toISOString() || subscription.current_period_end);
 
         if (homeError) throw homeError;
         homeHighlightsCount = homeHighlightsCountData || 0;

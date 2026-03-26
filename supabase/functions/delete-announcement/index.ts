@@ -33,7 +33,6 @@ const deleteAnnouncementRelations = async (
 
   const simpleDeletes = [
     'announcement_clicks_by_state',
-    'announcement_highlights_history',
     'announcement_technical_details',
     'favorites',
     'leads',

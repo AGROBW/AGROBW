@@ -24,6 +24,8 @@ interface Lead {
   initial_message: string;
   status: LeadStatus; // Status em inglês conforme banco de dados
   created_at: string;
+  contact_expires_at?: string | null;
+  is_locked?: boolean;
   announcement_title?: string;
   announcement_price?: number;
   announcement_image?: string;
@@ -125,6 +127,7 @@ const LeadsView: React.FC = () => {
 
       const mappedLeads: Lead[] = data.map((lead: any) => ({
         ...lead,
+        is_locked: !!lead.contact_expires_at && new Date(lead.contact_expires_at).getTime() <= Date.now(),
         announcement_title: lead.announcements?.title,
         announcement_price: lead.announcements?.price,
         announcement_image: lead.announcements?.images?.[0]
@@ -176,6 +179,7 @@ const LeadsView: React.FC = () => {
 
       const mappedLeads: Lead[] = data.map((lead: any) => ({
         ...lead,
+        is_locked: !!lead.contact_expires_at && new Date(lead.contact_expires_at).getTime() <= Date.now(),
         announcement_title: lead.announcements?.title,
         announcement_price: lead.announcements?.price,
         announcement_image: lead.announcements?.images?.[0]
@@ -355,6 +359,12 @@ const LeadsView: React.FC = () => {
             {filteredLeads.map((lead) => {
               const config = getStatusConfig(lead.status);
               const StatusIcon = config.icon;
+              const isLocked = !!lead.is_locked;
+              const buyerName = isLocked ? 'Lead bloqueado' : lead.buyer_name;
+              const buyerEmail = isLocked ? 'Acesso bloqueado' : lead.buyer_email;
+              const buyerPhone = isLocked ? null : lead.buyer_phone;
+              const buyerCep = isLocked ? null : lead.buyer_cep;
+              const initialMessage = isLocked ? 'O prazo de contato deste lead expirou e os dados foram bloqueados.' : lead.initial_message;
               
               return (
                 <motion.div
@@ -386,7 +396,7 @@ const LeadsView: React.FC = () => {
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1 min-w-0">
                           <h3 className="font-bold text-slate-900 mb-1 truncate">
-                            {lead.buyer_name}
+                            {buyerName}
                           </h3>
                           <p className="text-sm text-slate-500 truncate">
                             {lead.announcement_title}
@@ -398,6 +408,11 @@ const LeadsView: React.FC = () => {
                             <StatusIcon className="w-3 h-3" />
                             {config.label}
                           </span>
+                          {isLocked && (
+                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                              Contato expirado
+                            </span>
+                          )}
                           
                           {lead.announcement_price && (
                             <span className="text-sm font-bold text-green-700 whitespace-nowrap">
@@ -413,20 +428,20 @@ const LeadsView: React.FC = () => {
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 mb-3">
                         <span className="flex items-center gap-1">
                           <Mail className="w-3 h-3" />
-                          {lead.buyer_email}
+                          {buyerEmail}
                         </span>
                         
-                        {lead.buyer_phone && (
+                        {buyerPhone && (
                           <span className="flex items-center gap-1">
                             <Phone className="w-3 h-3" />
-                            {lead.buyer_phone}
+                            {buyerPhone}
                           </span>
                         )}
                         
-                        {lead.buyer_cep && (
+                        {buyerCep && (
                           <span className="flex items-center gap-1">
                             <MapPin className="w-3 h-3" />
-                            CEP: {lead.buyer_cep}
+                            CEP: {buyerCep}
                           </span>
                         )}
                         
@@ -437,7 +452,7 @@ const LeadsView: React.FC = () => {
                       </div>
 
                       <p className="text-sm text-slate-600 line-clamp-2 mb-3">
-                        {lead.initial_message}
+                        {initialMessage}
                       </p>
 
                       {/* Ações */}
@@ -447,13 +462,14 @@ const LeadsView: React.FC = () => {
                             e.stopPropagation();
                             goToChat(lead.chat_id);
                           }}
+                          disabled={isLocked}
                           className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-1"
                         >
                           <MessageSquare className="w-3 h-3" />
-                          Responder
+                          {isLocked ? 'Bloqueado' : 'Responder'}
                         </button>
 
-                        {lead.status !== LEAD_STATUS.CLOSED && lead.status !== LEAD_STATUS.LOST && (
+                        {!isLocked && lead.status !== LEAD_STATUS.CLOSED && lead.status !== LEAD_STATUS.LOST && (
                           <select
                             value={lead.status}
                             onChange={(e) => {
