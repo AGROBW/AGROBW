@@ -56,9 +56,26 @@ const AdFallbackCard = () => (
   </div>
 );
 
+const getDailyRotationSeed = () => {
+  const now = new Date();
+  return `${now.getUTCFullYear()}-${now.getUTCMonth() + 1}-${now.getUTCDate()}`;
+};
+
+const getDeterministicRotationScore = (ad: any, seed: string) => {
+  const source = `${seed}:${ad?.id || ''}`;
+  let hash = 0;
+
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+  }
+
+  return hash;
+};
+
 const Home: React.FC = () => {
   const { ads, isLoading: adsLoading } = usePublicAds();
   const { settings } = useLayout();
+  const dailyRotationSeed = getDailyRotationSeed();
 
   const hasActiveHomeHighlight = (ad: any) =>
     Boolean(ad.highlightHome && (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date()));
@@ -68,6 +85,13 @@ const Home: React.FC = () => {
   const highlightedAds = ads
     .filter((ad) => hasActiveHomeHighlight(ad))
     .sort((a, b) => {
+      const scoreA = getDeterministicRotationScore(a, dailyRotationSeed);
+      const scoreB = getDeterministicRotationScore(b, dailyRotationSeed);
+
+      if (scoreA !== scoreB) {
+        return scoreA - scoreB;
+      }
+
       const dateA = new Date(a.createdAt || 0).getTime();
       const dateB = new Date(b.createdAt || 0).getTime();
       return dateB - dateA;

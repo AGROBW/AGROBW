@@ -31,6 +31,23 @@ import { useSubscription } from '../src/hooks/useSubscription';
 import { usePlans } from '../src/hooks/usePlans';
 import RecommendedUpgradeModal from './finance/RecommendedUpgradeModal';
 import toast from 'react-hot-toast';
+import {
+  CATEGORY_HIERARCHY,
+  getCategoryGroupBySlug,
+  getCategoryGroupForCategorySlug
+} from '../src/lib/categoryHierarchy';
+
+interface RadarCategoryOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface RadarCategoryGroupOption {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 const RadarView: React.FC = () => {
   const { user } = useAuth();
@@ -56,7 +73,8 @@ const RadarView: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<OpportunityAlert | null>(null);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<RadarCategoryOption[]>([]);
+  const [categoryGroups, setCategoryGroups] = useState<RadarCategoryGroupOption[]>([]);
   const [badgeAnimation, setBadgeAnimation] = useState(false);
   const [prevUnviewedCount, setPrevUnviewedCount] = useState(0);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -77,6 +95,10 @@ const RadarView: React.FC = () => {
   const radiusAlertsCount = useMemo(
     () => alerts.filter((alert) => alert.status === 'ativo' && Number(alert.radius_km) > 0).length,
     [alerts]
+  );
+  const categoriesById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories]
   );
 
   // Detectar novos matches e animar badge
@@ -107,7 +129,16 @@ const RadarView: React.FC = () => {
         .select('id, name, slug')
         .order('name');
       
-      if (data) setCategories(data);
+      if (data) setCategories(data as RadarCategoryOption[]);
+
+      const { data: groupsData } = await supabase
+        .from('category_groups')
+        .select('id, name, slug')
+        .order('sort_order');
+
+      if (groupsData) {
+        setCategoryGroups(groupsData as RadarCategoryGroupOption[]);
+      }
     };
     
     fetchCategories();
@@ -116,6 +147,7 @@ const RadarView: React.FC = () => {
   // Form state para criar/editar alerta
   const [formData, setFormData] = useState({
     name: '',
+    category_group_slug: '',
     category_id: '',
     state: '',
     radius_km: 0,
@@ -127,6 +159,7 @@ const RadarView: React.FC = () => {
   const resetForm = () => {
     setFormData({
       name: '',
+      category_group_slug: '',
       category_id: '',
       state: '',
       radius_km: 0,
@@ -136,12 +169,54 @@ const RadarView: React.FC = () => {
     });
   };
 
+  const selectedCategoryGroup = useMemo(
+    () => getCategoryGroupBySlug(formData.category_group_slug),
+    [formData.category_group_slug]
+  );
+
+  const availableSpecificCategories = useMemo(() => {
+    if (!selectedCategoryGroup) {
+      return categories;
+    }
+
+    const allowedSlugs = new Set(selectedCategoryGroup.categorySlugs);
+    return categories.filter((category) => allowedSlugs.has(category.slug));
+  }, [categories, selectedCategoryGroup]);
+
+  const getGroupSlugForCategoryId = (categoryId?: string | null) => {
+    if (!categoryId) return '';
+    const categoryRecord = categoriesById.get(categoryId);
+    return categoryRecord ? getCategoryGroupForCategorySlug(categoryRecord.slug)?.slug || '' : '';
+  };
+
+  const getCategoryName = (categoryId?: string | null) =>
+    categoryId ? categoriesById.get(categoryId)?.name || 'Categoria selecionada' : null;
+
+  const getCategoryGroupName = (categoryId?: string | null, categoryGroupId?: string | null) => {
+    if (categoryId) {
+      const categoryRecord = categoriesById.get(categoryId);
+      if (categoryRecord) {
+        return getCategoryGroupForCategorySlug(categoryRecord.slug)?.name || null;
+      }
+    }
+
+    if (categoryGroupId) {
+      return categoryGroups.find((group) => group.id === categoryGroupId)?.name || null;
+    }
+
+    return null;
+  };
+
+  const getCategoryGroupIdBySlug = (groupSlug?: string | null) =>
+    groupSlug ? categoryGroups.find((group) => group.slug === groupSlug)?.id || null : null;
+
   const handleCreateAlert = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
       const alertData: any = {
         name: formData.name,
+        category_group_id: formData.category_id ? null : getCategoryGroupIdBySlug(formData.category_group_slug),
         category_id: formData.category_id || null,
         state: formData.state || null,
         radius_km: parseInt(String(formData.radius_km)) || 0,
@@ -166,6 +241,7 @@ const RadarView: React.FC = () => {
     try {
       const updates: any = {
         name: formData.name,
+        category_group_id: formData.category_id ? null : getCategoryGroupIdBySlug(formData.category_group_slug),
         category_id: formData.category_id || null,
         state: formData.state || null,
         radius_km: parseInt(String(formData.radius_km)) || 0,
@@ -210,6 +286,7 @@ const RadarView: React.FC = () => {
     setSelectedAlert(alert);
     setFormData({
       name: alert.name,
+      category_group_slug: getGroupSlugForCategoryId(alert.category_id) || categoryGroups.find((group) => group.id === alert.category_group_id)?.slug || '',
       category_id: alert.category_id || '',
       state: alert.state || '',
       radius_km: alert.radius_km,
@@ -219,6 +296,23 @@ const RadarView: React.FC = () => {
     });
     setShowEditModal(true);
   };
+
+  useEffect(() => {
+    if (!showEditModal || !selectedAlert || formData.category_group_slug || categories.length === 0) {
+      return;
+    }
+
+    const derivedGroupSlug =
+      getGroupSlugForCategoryId(selectedAlert.category_id) ||
+      categoryGroups.find((group) => group.id === selectedAlert.category_group_id)?.slug ||
+      '';
+    if (derivedGroupSlug) {
+      setFormData((current) => ({
+        ...current,
+        category_group_slug: derivedGroupSlug
+      }));
+    }
+  }, [categories.length, categoryGroups, formData.category_group_slug, selectedAlert, showEditModal]);
 
   const openDeleteConfirm = (alert: OpportunityAlert) => {
     setSelectedAlert(alert);
@@ -545,10 +639,16 @@ const RadarView: React.FC = () => {
                       </div>
 
                       <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-slate-600">
+                        {getCategoryGroupName(alert.category_id, alert.category_group_id) && (
+                          <div className="flex items-center gap-2">
+                            <Filter className="w-4 h-4" />
+                            <span>Grupo: {getCategoryGroupName(alert.category_id, alert.category_group_id)}</span>
+                          </div>
+                        )}
                         {alert.category_id && (
                           <div className="flex items-center gap-2">
                             <Tag className="w-4 h-4" />
-                            <span>Categoria específica</span>
+                            <span>Categoria: {getCategoryName(alert.category_id)}</span>
                           </div>
                         )}
                         {alert.state && (
@@ -670,23 +770,64 @@ const RadarView: React.FC = () => {
               </div>
 
               {/* Categoria */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Categoria (opcional)
-                </label>
-                <select
-                  value={formData.category_id}
-                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                >
-                  <option value="">Todas as categorias</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Grupo principal (opcional)
+                  </label>
+                  <select
+                    value={formData.category_group_slug}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        category_group_slug: e.target.value,
+                        category_id: ''
+                      })
+                    }
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="">Todos os grupos</option>
+                    {(categoryGroups.length > 0 ? categoryGroups : CATEGORY_HIERARCHY).map((group) => (
+                      <option key={group.slug} value={group.slug}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Categoria real (opcional)
+                  </label>
+                  <select
+                    value={formData.category_id}
+                    onChange={(e) => {
+                      const nextCategoryId = e.target.value;
+                      const nextCategoryRecord = categoriesById.get(nextCategoryId);
+                      setFormData({
+                        ...formData,
+                        category_group_slug: nextCategoryRecord
+                          ? getCategoryGroupForCategorySlug(nextCategoryRecord.slug)?.slug || formData.category_group_slug
+                          : formData.category_group_slug,
+                        category_id: nextCategoryId
+                      });
+                    }}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="">
+                      {formData.category_group_slug ? 'Todas as categorias do grupo' : 'Todas as categorias'}
                     </option>
-                  ))}
-                </select>
+                    {availableSpecificCategories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
+              <p className="text-xs text-slate-500 -mt-3">
+                Escolha um grupo para organizar a busca e, se quiser refinar, selecione a categoria real daquele grupo.
+              </p>
 
               {/* Estado */}
               <div>
@@ -862,19 +1003,58 @@ const RadarView: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Categoria</label>
-                <select
-                  value={formData.category_id}
-                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                >
-                  <option value="">Todas</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Grupo principal</label>
+                  <select
+                    value={formData.category_group_slug}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        category_group_slug: e.target.value,
+                        category_id: ''
+                      })
+                    }
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="">Todos os grupos</option>
+                    {(categoryGroups.length > 0 ? categoryGroups : CATEGORY_HIERARCHY).map((group) => (
+                      <option key={group.slug} value={group.slug}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Categoria</label>
+                  <select
+                    value={formData.category_id}
+                    onChange={(e) => {
+                      const nextCategoryId = e.target.value;
+                      const nextCategoryRecord = categoriesById.get(nextCategoryId);
+                      setFormData({
+                        ...formData,
+                        category_group_slug: nextCategoryRecord
+                          ? getCategoryGroupForCategorySlug(nextCategoryRecord.slug)?.slug || formData.category_group_slug
+                          : formData.category_group_slug,
+                        category_id: nextCategoryId
+                      });
+                    }}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="">
+                      {formData.category_group_slug ? 'Todas as categorias do grupo' : 'Todas as categorias'}
+                    </option>
+                    {availableSpecificCategories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+              <p className="text-xs text-slate-500 -mt-3">
+                O grupo ajuda a navegar pela hierarquia nova; a categoria continua sendo o filtro efetivo do alerta.
+              </p>
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Estado</label>

@@ -5,6 +5,7 @@ import { ChevronRight, Search } from 'lucide-react';
 import { CATEGORIES } from '../constants';
 import AdCard from '../components/AdCard';
 import { usePublicAds } from '../src/hooks/useAds';
+import { getCategoryHierarchyChildren, matchesHierarchyChild } from '../src/lib/categoryHierarchy';
 
 const AdsListingView: React.FC = () => {
   const location = useLocation();
@@ -27,12 +28,23 @@ const AdsListingView: React.FC = () => {
   });
 
   const filteredAds = useMemo(() => {
+    const hierarchyChild = getCategoryHierarchyChildren(catSlug).find((child) => child.slug === subSlug);
     const normalizedSub = subSlug?.replace('-', ' ').toLowerCase();
     return ads.filter(ad => {
-      const subMatch = !normalizedSub || ad.title.toLowerCase().includes(normalizedSub);
+      const subMatch = !normalizedSub || (
+        hierarchyChild
+          ? matchesHierarchyChild(hierarchyChild, {
+              title: ad.title,
+              description: ad.description,
+              categorySlug: ad.categorySlug,
+              subCategoryLabel: ad.subCategoryLabel,
+            })
+          : ad.title.toLowerCase().includes(normalizedSub) ||
+            (ad.subCategoryLabel || '').toLowerCase().includes(normalizedSub)
+      );
       return subMatch;
     });
-  }, [ads, subSlug]);
+  }, [ads, catSlug, subSlug]);
 
   const sortedAds = useMemo(() => {
     const now = Date.now();

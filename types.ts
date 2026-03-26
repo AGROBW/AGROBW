@@ -45,6 +45,8 @@ export interface Ad {
   };
   categoryId: string;
   categorySlug?: string;
+  subCategoryId?: string;
+  subCategoryLabel?: string;
   images: string[];
   userId: string;
   status: AdStatus;

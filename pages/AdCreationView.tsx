@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CATEGORIES } from '../constants';
 import { AdStatus } from '../types';
+import { CATEGORY_HIERARCHY, getCategoryGroupBySlug, getCategoryGroupForCategorySlug } from '../src/lib/categoryHierarchy';
 import { usePlanCheck } from '../src/hooks/usePlanCheck';
 import { useSubscription } from '../src/hooks/useSubscription';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -248,6 +249,7 @@ const PreviewAnnouncementModal: React.FC<{
 
 const AdCreationView: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { handleAction } = usePlanCheck();
   const { subscription, usage, canCreateAd, adLimitMessage, refreshUsage } = useSubscription();
@@ -261,21 +263,25 @@ const AdCreationView: React.FC = () => {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [imageItems, setImageItems] = useState<ImageItem[]>([]);
   const [draftAdId, setDraftAdId] = useState<string | null>(null);
+  const [isLoadingEditAd, setIsLoadingEditAd] = useState(false);
+  const [pendingTechnicalDetails, setPendingTechnicalDetails] = useState<Array<{ label: string; value: string }>>([]);
   const isMountedRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isCreatingDraft = useRef(false);
   const draftIdRef = useRef<string | null>(null);
+  const loadedEditAdIdRef = useRef<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
   const [dbCategories, setDbCategories] = useState<Array<{ id: string; name: string; slug: string; icon?: string | null; technical_fields_schema?: any[] }>>([]);
-  const [dbSubcategories, setDbSubcategories] = useState<Array<{ id: string; name: string; slug: string }>>([]);
+  const [dbSubcategories, setDbSubcategories] = useState<Array<{ id: string; category_id: string; name: string; slug: string }>>([]);
   const [technicalFieldsSchema, setTechnicalFieldsSchema] = useState<any[]>([]);
   const [formData, setFormData] = useState<any>({
     title: '',
     description: '',
     price: 0,
     priceNegotiable: false,
+    categoryGroupSlug: '',
     categoryId: '',
     categorySlug: '',
     subCategoryId: '',
@@ -288,6 +294,26 @@ const AdCreationView: React.FC = () => {
     technical: {},
     images: [],
     isPremium: false
+  });
+  const editAdId = searchParams.get('edit');
+  const normalizeTechnicalLabel = (value: string) => slugify(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const selectedCategoryGroup = getCategoryGroupBySlug(formData.categoryGroupSlug || formData.categorySlug);
+  const availableSpecificCategories = selectedCategoryGroup
+    ? selectedCategoryGroup.categorySlugs
+        .map((slug) => dbCategories.find((category) => category.slug === slug))
+        .filter(Boolean) as Array<{ id: string; name: string; slug: string; icon?: string | null; technical_fields_schema?: any[] }>
+    : [];
+  const topLevelCategoryGroups = CATEGORY_HIERARCHY.map((group) => {
+    const matchingVisualCategory = CATEGORIES.find((category) =>
+      group.aliases.includes(category.slug) || category.slug === group.slug
+    );
+
+    return {
+      id: group.slug,
+      slug: group.slug,
+      name: group.name,
+      icon: matchingVisualCategory?.icon,
+    };
   });
 
   useEffect(() => {
@@ -363,6 +389,124 @@ const AdCreationView: React.FC = () => {
     if (draftId) setDraftAdId(draftId);
   }, []);
 
+  useEffect(() => {
+    const loadEditAnnouncement = async () => {
+      if (!editAdId || !user?.id) return;
+      if (loadedEditAdIdRef.current === editAdId) return;
+
+      setIsLoadingEditAd(true);
+
+      try {
+        const { data: adData, error: adError } = await supabase
+          .from('announcements')
+          .select(`
+            *,
+            announcement_technical_details (label, value)
+          `)
+          .eq('id', editAdId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (adError) throw adError;
+        if (!adData) {
+          toast.error('Anúncio não encontrado para edição.');
+          navigate('/minha-conta/anuncios');
+          return;
+        }
+
+        const fetchedTechnicalDetails = Array.isArray(adData.announcement_technical_details)
+          ? adData.announcement_technical_details
+          : [];
+
+        const technicalDetails = fetchedTechnicalDetails.reduce((acc: Record<string, string>, item: { label: string; value: string }) => {
+          const matchingField = (dbCategories.find((category) => category.id === adData.category_id)?.technical_fields_schema || [])
+            .find((field: any) => normalizeTechnicalLabel(field.label || field.key || '') === normalizeTechnicalLabel(item.label));
+
+          const targetKey = matchingField?.key || normalizeTechnicalLabel(item.label);
+
+          if (targetKey) acc[targetKey] = item.value;
+
+          return acc;
+        }, {});
+
+        const nextFormData = {
+          title: adData.title || '',
+          description: adData.description || '',
+          price: Number(adData.price || 0),
+          priceNegotiable: false,
+          categoryGroupSlug: getCategoryGroupForCategorySlug(adData.category_slug)?.slug || getCategoryGroupBySlug(adData.category_slug)?.slug || adData.category_slug || '',
+          categoryId: adData.category_id || '',
+          categorySlug: adData.category_slug || '',
+          subCategoryId: adData.sub_category_id || '',
+          subCategoryLabel: adData.sub_category_label || '',
+          quantity: Number(adData.quantity || 1),
+          unit: adData.unit || 'Unidade',
+          unitPrice: Number(adData.unit_price || adData.price || 0),
+          currency: adData.currency || 'BRL',
+          location: {
+            cep: adData.cep || '',
+            city: adData.city || '',
+            state: adData.state || ''
+          },
+          technical: technicalDetails,
+          images: Array.isArray(adData.images) ? adData.images : [],
+          isPremium: Boolean(adData.is_premium)
+        };
+
+        setFormData(nextFormData);
+        setImageItems(
+          (Array.isArray(adData.images) ? adData.images : []).map((url: string, index: number) => ({
+            id: `${adData.id}-image-${index}`,
+            previewUrl: url,
+            publicUrl: url,
+            uploading: false,
+            progress: 100
+          }))
+        );
+        setDraftAdId(adData.id);
+        setPendingTechnicalDetails(fetchedTechnicalDetails);
+        draftIdRef.current = adData.id;
+        loadedEditAdIdRef.current = adData.id;
+        localStorage.setItem('bwagro_ad_draft', JSON.stringify(nextFormData));
+        localStorage.setItem('bwagro_ad_draft_id', adData.id);
+        setCurrentStep('DETAILS');
+      } catch (error) {
+        console.error('[AdCreation] Erro ao carregar anúncio para edição:', error);
+        toast.error('Não foi possível carregar o anúncio para edição.');
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoadingEditAd(false);
+        }
+      }
+    };
+
+    void loadEditAnnouncement();
+  }, [editAdId, user?.id, navigate, dbCategories]);
+
+  useEffect(() => {
+    if (pendingTechnicalDetails.length === 0 || technicalFieldsSchema.length === 0) return;
+
+    setFormData((prev: any) => {
+      const nextTechnical = { ...(prev.technical || {}) };
+
+      for (const detail of pendingTechnicalDetails) {
+        const matchingField = technicalFieldsSchema.find((field: any) =>
+          normalizeTechnicalLabel(field.label || field.key || '') === normalizeTechnicalLabel(detail.label)
+        );
+
+        const targetKey = matchingField?.key || normalizeTechnicalLabel(detail.label);
+        if (!targetKey) continue;
+
+        nextTechnical[targetKey] = detail.value;
+      }
+
+      return {
+        ...prev,
+        technical: nextTechnical
+      };
+    });
+  }, [pendingTechnicalDetails, technicalFieldsSchema]);
+
   // Cálculo automático: price = quantity * unitPrice
   useEffect(() => {
     const calculatedPrice = (formData.quantity || 1) * (formData.unitPrice || 0);
@@ -433,11 +577,11 @@ const AdCreationView: React.FC = () => {
       }
       const { data, error } = await supabase
         .from('subcategories')
-        .select('id,name,slug')
+        .select('id,category_id,name,slug')
         .eq('category_id', formData.categoryId)
         .order('name', { ascending: true });
       if (!error && data) {
-        setDbSubcategories(data as Array<{ id: string; name: string; slug: string }>);
+        setDbSubcategories(data as Array<{ id: string; category_id: string; name: string; slug: string }>);
       } else {
         setDbSubcategories([]);
       }
@@ -560,15 +704,28 @@ const AdCreationView: React.FC = () => {
     return data.id as string;
   };
 
-  const handleCategorySelect = async (cat: { id: string; name: string; slug: string }) => {
+  const handleCategorySelect = async (group: { slug: string }) => {
     setFormData(prev => ({
       ...prev,
-      categoryId: cat.id,
-      categorySlug: cat.slug,
+      categoryGroupSlug: group.slug,
+      categoryId: '',
+      categorySlug: '',
       subCategoryId: '',
       subCategoryLabel: ''
     }));
     setCurrentStep('DETAILS');
+  };
+
+  const handleSpecificCategorySelect = (categoryId: string) => {
+    const selectedCategory = availableSpecificCategories.find((category) => category.id === categoryId);
+
+    setFormData((prev: any) => ({
+      ...prev,
+      categoryId: selectedCategory?.id || '',
+      categorySlug: selectedCategory?.slug || '',
+      subCategoryId: '',
+      subCategoryLabel: ''
+    }));
   };
 
   const extractStoragePath = (publicUrl: string) => {
@@ -1114,16 +1271,16 @@ const AdCreationView: React.FC = () => {
       case 'CATEGORY':
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-            {(dbCategories.length > 0 ? dbCategories : CATEGORIES).map(cat => {
+            {topLevelCategoryGroups.map(cat => {
               const Icon = resolveCategoryIcon(cat);
 
               return (
               <button
                 key={cat.id}
                 onClick={() => handleCategorySelect(cat)}
-                className={`p-8 rounded-[2rem] border-2 transition-all text-center group ${formData.categorySlug === cat.slug ? 'border-green-600 bg-green-50 shadow-lg' : 'border-slate-100 hover:border-green-200 hover:bg-slate-50'}`}
+                className={`p-8 rounded-[2rem] border-2 transition-all text-center group ${selectedCategoryGroup?.slug === cat.slug ? 'border-green-600 bg-green-50 shadow-lg' : 'border-slate-100 hover:border-green-200 hover:bg-slate-50'}`}
               >
-                {'icon' in cat ? (
+                {cat.icon ? (
                   <div className="hidden">
                     {cat.icon || categoryIcons[cat.slug] || '📦'}
                   </div>
@@ -1133,7 +1290,7 @@ const AdCreationView: React.FC = () => {
                   </div>
                 )}
                 <div className="mb-4 flex justify-center">
-                  <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border transition-all ${formData.categorySlug === cat.slug ? 'border-green-200 bg-white text-green-700 shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600 group-hover:border-green-200 group-hover:bg-white group-hover:text-green-700'}`}>
+                  <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border transition-all ${selectedCategoryGroup?.slug === cat.slug ? 'border-green-200 bg-white text-green-700 shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600 group-hover:border-green-200 group-hover:bg-white group-hover:text-green-700'}`}>
                     <Icon className="h-7 w-7" strokeWidth={1.8} />
                   </div>
                 </div>
@@ -1149,6 +1306,20 @@ const AdCreationView: React.FC = () => {
           <div className="space-y-8 max-w-2xl mx-auto">
             <div className="grid grid-cols-1 gap-6">
               <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Categoria</label>
+                <select
+                  value={formData.categoryId}
+                  onChange={e => handleSpecificCategorySelect(e.target.value)}
+                  className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
+                >
+                  <option value="">Selecione uma categoria</option>
+                  {availableSpecificCategories.map(category => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Subcategoria</label>
                 <select
                   value={formData.subCategoryId}
@@ -1156,8 +1327,7 @@ const AdCreationView: React.FC = () => {
                     const selectedFromDb = dbSubcategories.find(sub => sub.id === e.target.value)
                     const selectedLabel = selectedFromDb
                       ? selectedFromDb.name
-                      : (CATEGORIES.find(cat => cat.slug === formData.categorySlug)?.subcategories || [])
-                        .find((sub: string) => slugify(sub) === e.target.value) || ''
+                      : ''
                     setFormData({
                       ...formData,
                       subCategoryId: e.target.value,
@@ -1167,15 +1337,9 @@ const AdCreationView: React.FC = () => {
                   className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
                 >
                   <option value="">Selecione uma subcategoria</option>
-                  {dbSubcategories.length > 0 ? (
-                    dbSubcategories.map(sub => (
-                      <option key={sub.id} value={sub.id}>{sub.name}</option>
-                    ))
-                  ) : (
-                    (CATEGORIES.find(cat => cat.slug === formData.categorySlug)?.subcategories || []).map((sub: string) => (
-                      <option key={sub} value={slugify(sub)}>{sub}</option>
-                    ))
-                  )}
+                  {dbSubcategories.map(sub => (
+                    <option key={sub.id} value={sub.id}>{sub.name}</option>
+                  ))}
                 </select>
               </div>
 

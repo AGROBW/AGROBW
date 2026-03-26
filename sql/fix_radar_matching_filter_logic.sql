@@ -51,6 +51,13 @@ BEGIN
       ELSE
         CONTINUE;
       END IF;
+    ELSIF v_alert.category_group_id IS NOT NULL THEN
+      IF v_announcement.category_group_id = v_alert.category_group_id THEN
+        v_match_score := v_match_score + 20;
+        v_match_reason := v_match_reason || jsonb_build_object('category_group', true);
+      ELSE
+        CONTINUE;
+      END IF;
     END IF;
 
     IF v_alert.subcategory_id IS NOT NULL THEN

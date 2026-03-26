@@ -13,6 +13,7 @@ export interface OpportunityAlert {
   id: string;
   user_id: string;
   name: string;
+  category_group_id?: string | null;
   category_id: string | null;
   subcategory_id: string | null;
   state: string | null;

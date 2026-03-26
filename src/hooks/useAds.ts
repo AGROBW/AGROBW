@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { Ad } from '../../types'
+import { getCategoryGroupBySlug, getGroupCategorySlugs } from '../lib/categoryHierarchy'
 
 const getEffectiveAdStatus = (status: string, expiresAt?: string | null) => {
   if (
@@ -37,7 +38,7 @@ export const deleteAnnouncementWithRelations = async (announcementId: string) =>
   }
 };
 
-// Hook para buscar anúncios do usuário
+// Hook para buscar anuncios do usuario
 export const useUserAds = () => {
   const { user } = useAuth()
   const [ads, setAds] = useState<Ad[]>([])
@@ -66,9 +67,8 @@ export const useUserAds = () => {
 
       if (error) {
         setError(error.message)
-        console.error('Erro ao buscar anúncios:', error)
+        console.error('Erro ao buscar anuncios:', error)
       } else {
-        // Mapear para o formato do tipo Ad
         const mappedAds: Ad[] = data.map(ad => ({
           id: ad.id,
           title: ad.title,
@@ -81,6 +81,8 @@ export const useUserAds = () => {
           },
           categoryId: ad.category_id,
           categorySlug: ad.categories?.slug,
+          subCategoryId: ad.sub_category_id || undefined,
+          subCategoryLabel: ad.sub_category_label || undefined,
           images: ad.images || [],
           userId: ad.user_id,
           status: getEffectiveAdStatus(ad.status, ad.expires_at) as Ad['status'],
@@ -107,7 +109,7 @@ export const useUserAds = () => {
   return { ads, isLoading, error }
 }
 
-// Hook para buscar anúncios públicos (listagem geral)
+// Hook para buscar anuncios publicos (listagem geral)
 export const usePublicAds = (filters?: {
   category?: string
   search?: string
@@ -122,7 +124,7 @@ export const usePublicAds = (filters?: {
   useEffect(() => {
     const fetchAds = async () => {
       setIsLoading(true)
-      
+
       let query = supabase
         .from('announcements')
         .select(`
@@ -132,16 +134,27 @@ export const usePublicAds = (filters?: {
         `)
         .eq('status', 'ACTIVE')
 
-      // Aplicar filtros
       if (filters?.category) {
-        const { data: category } = await supabase
-          .from('categories')
-          .select('id')
-          .eq('slug', filters.category)
-          .single()
-        
-        if (category) {
-          query = query.eq('category_id', category.id)
+        const groupedSlugs = getGroupCategorySlugs(filters.category)
+
+        if (groupedSlugs.length > 0) {
+          query = query.in('category_slug', groupedSlugs)
+        } else {
+          const { data: category, error: categoryError } = await supabase
+            .from('categories')
+            .select('id')
+            .eq('slug', filters.category)
+            .maybeSingle()
+
+          if (categoryError) {
+            console.warn('[usePublicAds] Categoria nao encontrada para slug:', filters.category, categoryError)
+          }
+
+          if (category) {
+            query = query.eq('category_id', category.id)
+          } else if (!getCategoryGroupBySlug(filters.category)) {
+            query = query.eq('category_slug', filters.category)
+          }
         }
       }
 
@@ -167,7 +180,7 @@ export const usePublicAds = (filters?: {
 
       if (error) {
         setError(error.message)
-        console.error('Erro ao buscar anúncios:', error)
+        console.error('Erro ao buscar anuncios:', error)
       } else {
         const mappedAds: Ad[] = data.map(ad => ({
           id: ad.id,
@@ -181,6 +194,8 @@ export const usePublicAds = (filters?: {
           },
           categoryId: ad.category_id,
           categorySlug: ad.categories?.slug,
+          subCategoryId: ad.sub_category_id || undefined,
+          subCategoryLabel: ad.sub_category_label || undefined,
           images: ad.images || [],
           userId: ad.user_id,
           status: getEffectiveAdStatus(ad.status, ad.expires_at) as Ad['status'],
@@ -208,7 +223,7 @@ export const usePublicAds = (filters?: {
   return { ads, isLoading, error }
 }
 
-// Hook para buscar todos os anúncios (admin)
+// Hook para buscar todos os anuncios (admin)
 export const useAllAds = () => {
   const [ads, setAds] = useState<Ad[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -240,6 +255,8 @@ export const useAllAds = () => {
           },
           categoryId: ad.category_id,
           categorySlug: ad.category_slug,
+          subCategoryId: ad.sub_category_id || undefined,
+          subCategoryLabel: ad.sub_category_label || undefined,
           images: ad.images || [],
           userId: ad.user_id,
           status: getEffectiveAdStatus(ad.status, ad.expires_at) as Ad['status'],
@@ -266,7 +283,7 @@ export const useAllAds = () => {
   return { ads, isLoading, error }
 }
 
-// Hook para buscar um anúncio específico
+// Hook para buscar um anuncio especifico
 export const useAd = (adId: string | undefined) => {
   const [ad, setAd] = useState<Ad | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -278,19 +295,17 @@ export const useAd = (adId: string | undefined) => {
       return
     }
 
-    // Validar UUID
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(adId)) {
-      console.error('[Views] ID inválido:', adId)
-      setError('ID de anúncio inválido')
+      console.error('[Views] ID invalido:', adId)
+      setError('ID de anuncio invalido')
       setIsLoading(false)
       return
     }
 
     const fetchAd = async () => {
       setIsLoading(true)
-      
-      // Buscar anúncio e usuário separadamente para garantir os dados
+
       const { data: adData, error: adError } = await supabase
         .from('announcements')
         .select(`
@@ -303,39 +318,37 @@ export const useAd = (adId: string | undefined) => {
 
       if (adError) {
         setError(adError.message)
-        console.error('Erro ao buscar anúncio:', adError)
+        console.error('Erro ao buscar anuncio:', adError)
         setIsLoading(false)
         return
       }
 
-      // Buscar dados do vendedor separadamente usando a view pública
       let sellerData = null
       if (adData?.user_id) {
         console.log('[useAd] Buscando vendedor com ID:', adData.user_id)
-        
+
         const { data: sellerList, error: sellerError } = await supabase
           .from('vendedores_publicos')
           .select('name, avatar, document_verified, cidade, estado, business_description')
           .eq('id', adData.user_id)
-        
+
         console.log('[useAd] Resultado da busca:', { sellerList, sellerError })
-        
+
         if (!sellerError && sellerList && sellerList.length > 0) {
           sellerData = sellerList[0]
           console.log('[useAd] Dados do vendedor encontrados:', sellerData)
         } else if (sellerError) {
           console.error('[useAd] Erro ao buscar vendedor:', sellerError)
         } else {
-          console.warn('[useAd] Vendedor não encontrado na view vendedores_publicos.')
+          console.warn('[useAd] Vendedor nao encontrado na view vendedores_publicos.')
         }
       }
 
       const data = { ...adData, seller: sellerData }
-      
+
       console.log('[useAd] Dados retornados:', data)
       console.log('[useAd] Seller:', data.seller)
-      
-      // Mapear announcement_technical_details (tabela relacional) para technicalDetails array
+
       let technicalDetailsArray: any[] = []
       if (data.announcement_technical_details && Array.isArray(data.announcement_technical_details)) {
         technicalDetailsArray = data.announcement_technical_details
@@ -359,6 +372,8 @@ export const useAd = (adId: string | undefined) => {
         },
         categoryId: data.category_id,
         categorySlug: data.categories?.slug,
+        subCategoryId: data.sub_category_id || undefined,
+        subCategoryLabel: data.sub_category_label || undefined,
         images: data.images || [],
         userId: data.user_id,
         status: getEffectiveAdStatus(data.status, data.expires_at) as Ad['status'],
@@ -379,26 +394,24 @@ export const useAd = (adId: string | undefined) => {
       } as any
       setAd(mappedAd)
 
-      // Incrementar views com prevenção de duplicidade
       const viewKey = `viewed_ad_${adId}`
       const hasViewed = sessionStorage.getItem(viewKey)
-      
+
       if (!hasViewed) {
-        console.log('[Views] Incrementando visualização para:', adId)
-        
+        console.log('[Views] Incrementando visualizacao para:', adId)
+
         const { error: viewError } = await supabase.rpc('increment_ad_views', { ad_id: adId })
-        
+
         if (viewError) {
           console.error('[Views] Erro ao incrementar views:', viewError)
         } else {
-          // Marcar como visualizado na sessão
           sessionStorage.setItem(viewKey, 'true')
-          console.log('[Views] Visualização incrementada com sucesso')
+          console.log('[Views] Visualizacao incrementada com sucesso')
         }
       } else {
-        console.log('[Views] Anúncio já visualizado nesta sessão')
+        console.log('[Views] Anuncio ja visualizado nesta sessao')
       }
-      
+
       setIsLoading(false)
     }
 

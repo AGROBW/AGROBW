@@ -13,12 +13,18 @@ import {
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { toast } from 'sonner';
+import {
+  CATEGORY_HIERARCHY,
+  getCategoryGroupBySlug,
+  getGroupCategorySlugs
+} from '../../src/lib/categoryHierarchy';
 
 interface PendingAnnouncement {
   id: string;
   title: string;
   description: string;
   category: string;
+  category_slug?: string;
   price: number;
   type: 'VENDA' | 'COMPRA';
   status: string;
@@ -68,7 +74,10 @@ const ModerationQueue: React.FC = () => {
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
       if (filterCategory !== 'all') {
-        query = query.eq('category', filterCategory);
+        const groupedCategorySlugs = getGroupCategorySlugs(filterCategory);
+        if (groupedCategorySlugs.length > 0) {
+          query = query.in('category_slug', groupedCategorySlugs);
+        }
       }
 
       if (searchTerm) {
@@ -226,6 +235,11 @@ const ModerationQueue: React.FC = () => {
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
+  const getAnnouncementGroupLabel = (announcement: PendingAnnouncement) => {
+    const groupName = getCategoryGroupBySlug(announcement.category_slug)?.name;
+    return groupName || announcement.category || announcement.category_slug || 'Categoria';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -270,11 +284,9 @@ const ModerationQueue: React.FC = () => {
               className="px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value="all">Todas as Categorias</option>
-              <option value="maquinarios">Maquinários</option>
-              <option value="insumos">Insumos</option>
-              <option value="animais">Animais</option>
-              <option value="imoveis">Imóveis Rurais</option>
-              <option value="servicos">Serviços</option>
+              {CATEGORY_HIERARCHY.map((group) => (
+                <option key={group.slug} value={group.slug}>{group.name}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -350,7 +362,7 @@ const ModerationQueue: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                        {announcement.category}
+                        {getAnnouncementGroupLabel(announcement)}
                       </span>
                     </td>
                     <td className="px-6 py-4">

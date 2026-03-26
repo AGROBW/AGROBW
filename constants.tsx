@@ -168,7 +168,7 @@ export const CATEGORIES: Category[] = [
   { 
     id: '2', 
     name: 'Máquinas', 
-    slug: 'maquinas', 
+    slug: 'maquinas-equipamentos', 
     icon: <Cog className="w-6 h-6" strokeWidth={1.5} />, 
     count: 850,
     subcategories: ['Tratores', 'Colheitadeiras', 'Implementos', 'Pulverizadores', 'Peças']
@@ -176,7 +176,7 @@ export const CATEGORIES: Category[] = [
   { 
     id: '3', 
     name: 'Insumos', 
-    slug: 'insumos', 
+    slug: 'fertilizantes-agricolas', 
     icon: <Leaf className="w-6 h-6" strokeWidth={1.5} />, 
     count: 420,
     subcategories: ['Sementes', 'Fertilizantes', 'Defensivos', 'Nutrição Animal']
@@ -184,7 +184,7 @@ export const CATEGORIES: Category[] = [
   { 
     id: '4', 
     name: 'Imóveis Rurais', 
-    slug: 'imoveis', 
+    slug: 'imoveis-rurais', 
     icon: <Home className="w-6 h-6" strokeWidth={1.5} />, 
     count: 310,
     subcategories: ['Fazendas', 'Sítios', 'Chácaras', 'Haras', 'Terrenos']
