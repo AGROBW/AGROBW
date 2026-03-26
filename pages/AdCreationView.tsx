@@ -290,6 +290,31 @@ const AdCreationView: React.FC = () => {
     isPremium: false
   });
 
+  useEffect(() => {
+    if (!user) return;
+
+    setFormData((prev: any) => {
+      const nextLocation = {
+        cep: prev.location?.cep || user.cep || '',
+        city: prev.location?.city || user.cidade || '',
+        state: prev.location?.state || user.estado || ''
+      };
+
+      if (
+        nextLocation.cep === prev.location?.cep &&
+        nextLocation.city === prev.location?.city &&
+        nextLocation.state === prev.location?.state
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        location: nextLocation
+      };
+    });
+  }, [user]);
+
   // Persistência de rascunho
   const categoryIconMap: Record<string, LucideIcon> = {
     animais: PawPrint,

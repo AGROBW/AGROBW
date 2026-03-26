@@ -91,6 +91,20 @@ async function geocodeAddress(address: string): Promise<GeoCoordinates | null> {
   }
 }
 
+async function geocodeWithFallbacks(addressCandidates: string[]): Promise<GeoCoordinates | null> {
+  for (const candidate of addressCandidates) {
+    const normalizedCandidate = candidate.trim();
+    if (!normalizedCandidate) continue;
+
+    const coordinates = await geocodeAddress(normalizedCandidate);
+    if (coordinates) {
+      return coordinates;
+    }
+  }
+
+  return null;
+}
+
 /**
  * Converte CEP em coordenadas geográficas
  * Retorna latitude e longitude ou null se não conseguir
@@ -105,22 +119,19 @@ export async function cepToCoordinates(cep: string): Promise<GeoCoordinates | nu
       return null;
     }
 
-    // 2. Montar endereço completo para geocodificação
-    const addressParts = [
-      cepData.logradouro,
-      cepData.bairro,
-      cepData.localidade,
-      cepData.uf,
-      'Brasil'
-    ].filter(Boolean);
+    // 2. Montar variações do endereço para fallback progressivo
+    const addressCandidates = [
+      [cepData.logradouro, cepData.bairro, cepData.localidade, cepData.uf, 'Brasil'].filter(Boolean).join(', '),
+      [cepData.bairro, cepData.localidade, cepData.uf, 'Brasil'].filter(Boolean).join(', '),
+      [cepData.localidade, cepData.uf, 'Brasil'].filter(Boolean).join(', '),
+      [cepData.cep, 'Brasil'].filter(Boolean).join(', ')
+    ];
 
-    const fullAddress = addressParts.join(', ');
-
-    // 3. Geocodificar endereço
-    const coordinates = await geocodeAddress(fullAddress);
+    // 3. Geocodificar endereço com fallback
+    const coordinates = await geocodeWithFallbacks(addressCandidates);
 
     if (!coordinates) {
-      console.error('Não foi possível geocodificar o endereço');
+      console.error('Não foi possível geocodificar o endereço a partir do CEP:', cepData.cep);
       return null;
     }
 
