@@ -41,6 +41,7 @@ const RadarView: React.FC = () => {
     matches,
     stats,
     planLimits,
+    locationStatus,
     isLoading,
     createAlert,
     updateAlert,
@@ -73,6 +74,10 @@ const RadarView: React.FC = () => {
     return activePlans.find((plan) => plan.position > currentPlanRecord.position) || null;
   }, [activePlans, currentPlanRecord]);
   const userPlan = currentPlanRecord?.name || subscription?.plans?.name || user?.plan || 'Plano';
+  const radiusAlertsCount = useMemo(
+    () => alerts.filter((alert) => alert.status === 'ativo' && Number(alert.radius_km) > 0).length,
+    [alerts]
+  );
 
   // Detectar novos matches e animar badge
   useEffect(() => {
@@ -354,6 +359,11 @@ const RadarView: React.FC = () => {
               <p className="text-slate-500 mb-6">
                 Configure alertas para receber notificações de anúncios que correspondam aos seus critérios.
               </p>
+              {radiusAlertsCount > 0 && !locationStatus.hasCoordinates && (
+                <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Seus alertas com raio podem nao encontrar resultados enquanto a localizacao do seu perfil nao estiver disponivel.
+                </div>
+              )}
               <button
                 onClick={() => setActiveTab('config')}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-green-700 text-white font-semibold rounded-xl hover:bg-green-800 transition-colors"
@@ -459,6 +469,17 @@ const RadarView: React.FC = () => {
                   <li>• Palavras-chave: {planLimits.keywords ? '✓ Disponível' : '✗ Não disponível'}</li>
                   <li>• Filtro de preço: {planLimits.price_filter ? '✓ Disponível' : '✗ Não disponível'}</li>
                 </ul>
+                {planLimits.radius && (
+                  <div className="mt-3 rounded-lg border border-blue-200 bg-white/70 px-3 py-2 text-xs text-blue-900">
+                    {locationStatus.hasCoordinates ? (
+                      <span>Busca por raio pronta para uso com a localizacao atual do seu perfil.</span>
+                    ) : locationStatus.hasCep ? (
+                      <span>Seu perfil tem CEP, mas ainda nao possui coordenadas ativas. Ao salvar um alerta com raio, o sistema tentara atualizar sua localizacao automaticamente.</span>
+                    ) : (
+                      <span>Para usar o filtro por raio, cadastre um CEP valido no seu perfil.</span>
+                    )}
+                  </div>
+                )}
                 {nextRecommendedPlan && (
                   <button
                     type="button"
@@ -703,6 +724,11 @@ const RadarView: React.FC = () => {
                   <p className="text-xs text-slate-500 mt-1">
                     0 = sem limite de distância, apenas por estado
                   </p>
+                  {!locationStatus.hasCep && (
+                    <p className="text-xs text-amber-700 mt-2">
+                      Cadastre um CEP no seu perfil para ativar esse filtro com seguranca.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -728,6 +754,11 @@ const RadarView: React.FC = () => {
                       )}
                     </div>
                   </div>
+                  {formData.min_price && formData.max_price && Number(formData.min_price) > Number(formData.max_price) && (
+                    <div className="col-span-2 text-xs text-red-600">
+                      O preco minimo nao pode ser maior que o preco maximo.
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -869,6 +900,11 @@ const RadarView: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, radius_km: parseInt(e.target.value) || 0 })}
                     className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
+                  {!locationStatus.hasCep && (
+                    <p className="text-xs text-amber-700 mt-2">
+                      Cadastre um CEP no seu perfil para ativar esse filtro com seguranca.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -893,6 +929,11 @@ const RadarView: React.FC = () => {
                       )}
                     </div>
                   </div>
+                  {formData.min_price && formData.max_price && Number(formData.min_price) > Number(formData.max_price) && (
+                    <div className="col-span-2 text-xs text-red-600">
+                      O preco minimo nao pode ser maior que o preco maximo.
+                    </div>
+                  )}
                 </div>
               )}
 

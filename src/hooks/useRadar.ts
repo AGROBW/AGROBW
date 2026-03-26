@@ -64,6 +64,12 @@ interface PlanLimits {
   price_filter: boolean;
 }
 
+interface RadarLocationStatus {
+  hasCep: boolean;
+  hasCoordinates: boolean;
+  geoUpdatedAt: string | null;
+}
+
 // Limites padrÃ£o (fallback se nÃ£o conseguir buscar do banco)
 const DEFAULT_LIMITS: PlanLimits = {
   alerts: 1,
@@ -81,6 +87,11 @@ export const useRadar = () => {
   const [matches, setMatches] = useState<OpportunityMatch[]>([]);
   const [stats, setStats] = useState<RadarStats | null>(null);
   const [planLimits, setPlanLimits] = useState<PlanLimits>(DEFAULT_LIMITS);
+  const [locationStatus, setLocationStatus] = useState<RadarLocationStatus>({
+    hasCep: false,
+    hasCoordinates: false,
+    geoUpdatedAt: null
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,6 +172,33 @@ export const useRadar = () => {
     } catch (err: any) {
       console.error('Erro ao buscar limites do plano:', err);
       setPlanLimits(DEFAULT_LIMITS);
+    }
+  }, [user?.id]);
+
+  const fetchLocationStatus = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data, error: userError } = await supabase
+        .from('users')
+        .select('cep, latitude, longitude, geo_updated_at')
+        .eq('id', user.id)
+        .single();
+
+      if (userError) throw userError;
+
+      setLocationStatus({
+        hasCep: Boolean(data?.cep),
+        hasCoordinates: Boolean(data?.latitude && data?.longitude),
+        geoUpdatedAt: data?.geo_updated_at ?? null
+      });
+    } catch (err) {
+      console.error('Erro ao buscar status de localizacao do radar:', err);
+      setLocationStatus({
+        hasCep: false,
+        hasCoordinates: false,
+        geoUpdatedAt: null
+      });
     }
   }, [user?.id]);
 
@@ -274,6 +312,16 @@ export const useRadar = () => {
       throw new Error('Filtro por preÃ§o nÃ£o disponÃ­vel no seu plano. FaÃ§a upgrade.');
     }
 
+    if (
+      alertData.min_price !== null &&
+      alertData.min_price !== undefined &&
+      alertData.max_price !== null &&
+      alertData.max_price !== undefined &&
+      alertData.min_price > alertData.max_price
+    ) {
+      throw new Error('O preço mínimo não pode ser maior que o preço máximo.');
+    }
+
     try {
       // Se o alerta usa raio, garantir que o usuÃ¡rio tem coordenadas
       if (alertData.radius_km && alertData.radius_km > 0) {
@@ -295,6 +343,7 @@ export const useRadar = () => {
         if (needsUpdate && userData?.cep) {
           console.log('Atualizando coordenadas do usuÃ¡rio...');
           await updateUserCoordinates(user.id, userData.cep, supabase);
+          await fetchLocationStatus();
         } else if (!userData?.cep) {
           throw new Error('CEP nÃ£o cadastrado no perfil. Atualize seu perfil para usar filtro por raio.');
         }
@@ -318,11 +367,13 @@ export const useRadar = () => {
 
       if (retroactiveMatchError) {
         console.error('Erro ao processar matching retroativo do alerta:', retroactiveMatchError);
+        throw new Error('O alerta foi salvo, mas o processamento retroativo nao conseguiu rodar. Atualize o SQL do radar no Supabase e tente novamente.');
       }
 
       await fetchAlerts();
       await fetchMatches();
       await fetchStats();
+      await fetchLocationStatus();
       return data;
     } catch (err: any) {
       console.error('Erro ao criar alerta:', err);
@@ -335,6 +386,39 @@ export const useRadar = () => {
     if (!user?.id) throw new Error('UsuÃ¡rio nÃ£o autenticado');
 
     try {
+      if (
+        updates.min_price !== null &&
+        updates.min_price !== undefined &&
+        updates.max_price !== null &&
+        updates.max_price !== undefined &&
+        updates.min_price > updates.max_price
+      ) {
+        throw new Error('O preço mínimo não pode ser maior que o preço máximo.');
+      }
+
+      if (updates.radius_km && updates.radius_km > 0) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('cep, latitude, longitude, geo_updated_at')
+          .eq('id', user.id)
+          .single();
+
+        if (userError) throw userError;
+
+        const needsUpdate = !userData?.latitude ||
+          !userData?.longitude ||
+          !userData?.geo_updated_at ||
+          (new Date().getTime() - new Date(userData.geo_updated_at).getTime()) > 30 * 24 * 60 * 60 * 1000;
+
+        if (needsUpdate && userData?.cep) {
+          console.log('Atualizando coordenadas do usuÃ¡rio para filtro por raio...');
+          await updateUserCoordinates(user.id, userData.cep, supabase);
+          await fetchLocationStatus();
+        } else if (!userData?.cep) {
+          throw new Error('CEP nÃ£o cadastrado no perfil. Atualize seu perfil para usar filtro por raio.');
+        }
+      }
+
       const { data, error } = await supabase
         .from('opportunity_alerts')
         .update(updates)
@@ -352,12 +436,14 @@ export const useRadar = () => {
 
         if (retroactiveMatchError) {
           console.error('Erro ao reprocessar matching retroativo do alerta:', retroactiveMatchError);
+          throw new Error('As alteracoes foram salvas, mas o reprocessamento retroativo do radar falhou. Atualize o SQL do radar no Supabase e tente novamente.');
         }
       }
 
       await fetchAlerts();
       await fetchMatches();
       await fetchStats();
+      await fetchLocationStatus();
       return data;
     } catch (err: any) {
       console.error('Erro ao atualizar alerta:', err);
@@ -453,6 +539,7 @@ export const useRadar = () => {
       setIsLoading(true);
       await Promise.all([
         fetchPlanLimits(),
+        fetchLocationStatus(),
         fetchAlerts(),
         fetchMatches(),
         fetchStats()
@@ -552,6 +639,7 @@ export const useRadar = () => {
     matches,
     stats,
     planLimits,
+    locationStatus,
     isLoading,
     error,
     createAlert,

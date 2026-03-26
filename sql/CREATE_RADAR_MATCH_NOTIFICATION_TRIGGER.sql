@@ -2,7 +2,7 @@
 -- TRIGGER: Criar notificação quando radar match é criado
 -- =====================================================
 -- Descrição:
---   Quando um radar match é criado com score >= 50 (e não dismissed),
+--   Quando um radar match é criado (e não dismissed),
 --   cria automaticamente uma notificação para o usuário.
 --
 -- Tabelas relacionadas:
@@ -33,10 +33,9 @@ DECLARE
   v_match_score INTEGER;
 BEGIN
   -- Apenas criar notificação se:
-  -- 1. Score >= 50 (já é critério do radar, mas validamos aqui também)
-  -- 2. Match não foi dismissed
-  -- 3. Match não foi viewed (evitar duplicatas se usuário já viu)
-  IF NEW.match_score < 50 OR NEW.is_dismissed OR NEW.is_viewed THEN
+  -- 1. Match não foi dismissed
+  -- 2. Match não foi viewed (evitar duplicatas se usuário já viu)
+  IF NEW.is_dismissed OR NEW.is_viewed THEN
     RETURN NEW;
   END IF;
 
@@ -103,7 +102,7 @@ EXECUTE FUNCTION create_radar_match_notification();
 
 -- Comentários para documentação
 COMMENT ON FUNCTION create_radar_match_notification() IS 
-'Cria notificação automática quando radar match é criado (score >= 50, não dismissed, não viewed)';
+'Cria notificação automática quando radar match é criado (não dismissed, não viewed)';
 
 COMMENT ON TRIGGER on_radar_match_notify ON opportunity_matches IS
 'Dispara notificação para usuário quando novo radar match é detectado';
@@ -114,7 +113,7 @@ COMMENT ON TRIGGER on_radar_match_notify ON opportunity_matches IS
 DO $$
 BEGIN
   RAISE NOTICE '✅ Trigger de notificação de radar match criado com sucesso!';
-  RAISE NOTICE 'Agora, sempre que um match for criado com score >= 50:';
+  RAISE NOTICE 'Agora, sempre que um match for criado:';
   RAISE NOTICE '  1. Uma notificação será inserida automaticamente';
   RAISE NOTICE '  2. O badge de notificações será atualizado em real-time';
   RAISE NOTICE '  3. O usuário poderá visualizar no Modal de Notificações';

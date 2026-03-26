@@ -28,6 +28,7 @@ import FavoritesView from './FavoritesView';
 import toast from 'react-hot-toast';
 import { useDashboardStats } from '../src/hooks/useDashboardStats';
 import { useRadar } from '../src/hooks/useRadar';
+import { updateUserCoordinates } from '../services/geoService';
 import { 
   DashboardStatsCard, 
   ReachModule, 
@@ -2684,6 +2685,14 @@ const UserDashboardView: React.FC = () => {
 
         if (profileError) {
           throw profileError;
+        }
+
+        const cleanCep = profileForm.cep.replace(/\D/g, '');
+        if (cleanCep.length === 8) {
+          const geoUpdated = await updateUserCoordinates(user.id, cleanCep, supabase);
+          if (!geoUpdated) {
+            console.warn('[Profile] Não foi possível atualizar coordenadas do usuário após salvar o perfil.');
+          }
         }
 
         if (wantsPasswordChange) {

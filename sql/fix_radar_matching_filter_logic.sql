@@ -126,7 +126,7 @@ BEGIN
       END IF;
     END IF;
 
-    IF v_match_score >= 50 THEN
+    IF v_match_score > 0 THEN
       INSERT INTO public.opportunity_matches (
         alert_id,
         announcement_id,
@@ -160,4 +160,3 @@ $$;
 
 COMMENT ON FUNCTION public.match_announcements_to_alerts(UUID) IS
 'Faz matching de anuncio contra alertas ativos, respeitando os filtros configurados no alerta.';
-

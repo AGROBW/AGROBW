@@ -28,6 +28,7 @@ import {
   LucideIcon,
 } from 'lucide-react';
 import { censorContactData } from '../src/utils/censorContact';
+import { updateAnnouncementCoordinates } from '../services/geoService';
 import imageCompression from 'browser-image-compression';
 import { motion } from 'framer-motion';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
@@ -988,6 +989,13 @@ const AdCreationView: React.FC = () => {
 
       const announcementId = data.id;
       console.log('[Publish] Anúncio publicado com sucesso:', announcementId);
+
+      if (cleanCep) {
+        const geoUpdated = await updateAnnouncementCoordinates(announcementId, cleanCep, supabase);
+        if (!geoUpdated) {
+          console.warn('[Ads] Não foi possível atualizar coordenadas do anúncio após publicação:', announcementId);
+        }
+      }
       console.log('[Debug] Dados técnicos para salvar:', formData.technical);
       console.log('[Debug] Schema de campos técnicos:', technicalFieldsSchema);
 
