@@ -95,7 +95,6 @@ async function geocodeAddress(address: string): Promise<GeoCoordinates | null> {
       formatted_address: result.display_name
     };
   } catch (error) {
-    console.error('Erro no Nominatim:', error);
     return null;
   }
 }
@@ -109,6 +108,10 @@ async function geocodeWithFallbacks(addressCandidates: string[]): Promise<GeoCoo
     if (coordinates) {
       return coordinates;
     }
+  }
+
+  if (addressCandidates.length > 0) {
+    console.warn('[Geo] Nenhum candidato de endereço retornou coordenadas:', addressCandidates);
   }
 
   return null;

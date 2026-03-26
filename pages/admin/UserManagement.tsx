@@ -216,26 +216,68 @@ const UserManagement: React.FC = () => {
 
     try {
       const oldValue = {
-        plan: selectedUser.plan
+        plan: selectedUser.plan_name
       };
 
-      const { error } = await supabase
-        .from('users')
-        .update({ plan: newPlan })
-        .eq('id', selectedUser.id);
+      const selectedPlan = availablePlans.find((plan) => plan.id === newPlan);
+      if (!selectedPlan) {
+        toast.error('Plano selecionado não encontrado');
+        return;
+      }
 
-      if (error) throw error;
+      const { data: activeSubscription, error: activeSubscriptionError } = await supabase
+        .from('user_subscriptions')
+        .select('id, current_period_start, current_period_end, cancel_at_period_end, trial_end_date')
+        .eq('user_id', selectedUser.id)
+        .eq('status', 'active')
+        .order('current_period_end', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (activeSubscriptionError) throw activeSubscriptionError;
+
+      if (activeSubscription) {
+        const { error } = await supabase
+          .from('user_subscriptions')
+          .update({ plan_id: selectedPlan.id })
+          .eq('id', activeSubscription.id);
+
+        if (error) throw error;
+      } else {
+        const currentPeriodStart = new Date().toISOString();
+        const currentPeriodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const trialEndDate = selectedPlan.monthly_price > 0 ? null : currentPeriodEnd;
+
+        const { error } = await supabase
+          .from('user_subscriptions')
+          .insert({
+            user_id: selectedUser.id,
+            plan_id: selectedPlan.id,
+            status: 'active',
+            billing_cycle: 'monthly',
+            amount_paid: selectedPlan.monthly_price,
+            currency: 'BRL',
+            starts_at: currentPeriodStart,
+            expires_at: currentPeriodEnd,
+            current_period_start: currentPeriodStart,
+            current_period_end: currentPeriodEnd,
+            cancel_at_period_end: false,
+            trial_end_date: trialEndDate
+          });
+
+        if (error) throw error;
+      }
 
       await logAction({
         action: ADMIN_ACTIONS.UPDATE_PLAN,
         resourceType: RESOURCE_TYPES.SUBSCRIPTION,
         resourceId: selectedUser.id,
         oldValue,
-        newValue: { plan: newPlan },
-        reason: `Plano de ${selectedUser.name} alterado de ${selectedUser.plan} para ${newPlan} por decisão administrativa`
+        newValue: { plan: selectedPlan.name },
+        reason: `Plano de ${selectedUser.name} alterado de ${selectedUser.plan_name || 'sem plano ativo'} para ${selectedPlan.name} por decisão administrativa`
       });
 
-      toast.success(`Plano alterado para ${newPlan}`);
+      toast.success(`Plano alterado para ${selectedPlan.name}`);
       setShowEditModal(false);
       loadUsers();
     } catch (error) {
@@ -504,7 +546,7 @@ const UserManagement: React.FC = () => {
                         <button
                           onClick={() => {
                             setSelectedUser(user);
-                            setNewPlan(user.plan);
+                            setNewPlan(availablePlans.find((plan) => plan.name === user.plan_name)?.id || '');
                             setNewRole(user.role);
                             setShowEditModal(true);
                           }}
@@ -594,7 +636,7 @@ const UserManagement: React.FC = () => {
                 >
                   <option value="">Selecione um plano</option>
                   {availablePlans.map(plan => (
-                    <option key={plan.id} value={plan.name}>
+                    <option key={plan.id} value={plan.id}>
                       {plan.name} - R$ {plan.monthly_price.toFixed(2)}/mês
                     </option>
                   ))}
