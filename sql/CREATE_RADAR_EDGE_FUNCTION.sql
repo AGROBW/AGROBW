@@ -200,6 +200,8 @@ RETURNS TRIGGER AS $$
 DECLARE
   function_url TEXT;
   payload JSONB;
+  has_pg_net BOOLEAN := to_regnamespace('net') IS NOT NULL;
+  has_sql_matcher BOOLEAN := to_regprocedure('public.match_announcements_to_alerts(uuid)') IS NOT NULL;
 BEGIN
   -- Apenas processar anúncios ativos
   IF NEW.status = 'ACTIVE' THEN
@@ -211,14 +213,18 @@ BEGIN
     
     -- Chamar Edge Function de forma assíncrona usando pg_net (se disponível)
     -- Nota: pg_net precisa estar instalado no Supabase
-    PERFORM net.http_post(
-      url := function_url,
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
-      ),
-      body := payload
-    );
+    IF has_pg_net AND function_url IS NOT NULL AND function_url <> '' THEN
+      PERFORM net.http_post(
+        url := function_url,
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+        ),
+        body := payload
+      );
+    ELSIF has_sql_matcher THEN
+      PERFORM public.match_announcements_to_alerts(NEW.id);
+    END IF;
   END IF;
   
   RETURN NEW;
@@ -247,6 +253,8 @@ DECLARE
   price_reduction_pct DECIMAL;
   function_url TEXT;
   payload JSONB;
+  has_pg_net BOOLEAN := to_regnamespace('net') IS NOT NULL;
+  has_sql_matcher BOOLEAN := to_regprocedure('public.match_announcements_to_alerts(uuid)') IS NOT NULL;
 BEGIN
   -- Calcular percentual de redução
   IF OLD.price > 0 AND NEW.price > 0 THEN
@@ -257,14 +265,18 @@ BEGIN
       function_url := current_setting('app.settings.edge_function_url', true) || '/radar-matcher';
       payload := jsonb_build_object('announcement_id', NEW.id, 'event', 'price_drop');
       
-      PERFORM net.http_post(
-        url := function_url,
-        headers := jsonb_build_object(
-          'Content-Type', 'application/json',
-          'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
-        ),
-        body := payload
-      );
+      IF has_pg_net AND function_url IS NOT NULL AND function_url <> '' THEN
+        PERFORM net.http_post(
+          url := function_url,
+          headers := jsonb_build_object(
+            'Content-Type', 'application/json',
+            'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
+          ),
+          body := payload
+        );
+      ELSIF has_sql_matcher THEN
+        PERFORM public.match_announcements_to_alerts(NEW.id);
+      END IF;
     END IF;
   END IF;
   

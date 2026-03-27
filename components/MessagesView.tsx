@@ -72,12 +72,14 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
     if (!selectedChatId) return;
 
     const selected = chats.find(chat => chat.id === selectedChatId);
-    if (!selected || (selected.direction || 'received') !== activeTab) {
-      if (selected) {
-        setActiveTab((selected.direction || 'received') as MessageTab);
-      } else {
-        setSelectedChatId(null);
-      }
+    if (!selected) {
+      setSelectedChatId(null);
+      return;
+    }
+
+    if ((selected.direction || 'received') !== activeTab) {
+      const replacementChat = chats.find(chat => (chat.direction || 'received') === activeTab);
+      setSelectedChatId(replacementChat?.id || null);
     }
   }, [activeTab, chats, selectedChatId]);
   
