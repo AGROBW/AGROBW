@@ -36,6 +36,18 @@ const mapPurchase = (row: any): HighlightBoosterPurchaseRecord => ({
   providerPaymentId: row.provider_payment_id ?? null,
 });
 
+const getRecentBoosterPurchasesCount = (rows: any[]) => {
+  const now = Date.now();
+  const windowStart = now - 30 * 24 * 60 * 60 * 1000;
+
+  return rows.filter((row) => {
+    if (row?.status !== 'credited') return false;
+    const createdAt = new Date(row?.created_at ?? row?.credited_at ?? 0).getTime();
+    if (!createdAt || Number.isNaN(createdAt)) return false;
+    return createdAt >= windowStart;
+  }).length;
+};
+
 export const useHighlightBoosters = () => {
   const { user } = useAuth();
   const [boosters, setBoosters] = useState<HighlightBoosterRecord[]>([]);
@@ -106,12 +118,13 @@ export const useHighlightBoosters = () => {
 
     const activeBooster = (boosters[0] || null);
     const limit = activeBooster?.maxPurchasesPer30Days ?? 2;
+    const recentPurchasesCount = getRecentBoosterPurchasesCount(purchasesData || []);
 
     setSummary({
       categoryRemaining: Number(summaryData.category_remaining ?? 0),
       homeRemaining: Number(summaryData.home_remaining ?? 0),
-      purchasesLast30Days: Number(summaryData.purchases_last_30_days ?? 0),
-      canPurchase: Number(summaryData.purchases_last_30_days ?? 0) < limit,
+      purchasesLast30Days: recentPurchasesCount,
+      canPurchase: recentPurchasesCount < limit,
     });
   };
 
