@@ -296,6 +296,7 @@ const AdCreationView: React.FC = () => {
     isPremium: false
   });
   const editAdId = searchParams.get('edit');
+  const isEditingExistingAd = Boolean(editAdId);
   const normalizeTechnicalLabel = (value: string) => slugify(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   const selectedCategoryGroup = getCategoryGroupBySlug(formData.categoryGroupSlug || formData.categorySlug);
   const availableSpecificCategories = selectedCategoryGroup
@@ -315,6 +316,21 @@ const AdCreationView: React.FC = () => {
       icon: matchingVisualCategory?.icon,
     };
   });
+
+  const ensureAdCreationAllowed = () => {
+    if (isEditingExistingAd || draftIdRef.current || draftAdId) {
+      return true;
+    }
+
+    if (!canCreateAd) {
+      toast.error('Limite de anuncios atingido', {
+        description: adLimitMessage
+      });
+      return false;
+    }
+
+    return true;
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -737,6 +753,7 @@ const AdCreationView: React.FC = () => {
 
   const ensureDraftAd = async (images: string[]) => {
     if (!user?.id) return null;
+    if (!ensureAdCreationAllowed()) return null;
     if (draftIdRef.current) return draftIdRef.current;
 
     // Singleton pattern: se já está criando, aguarda o ID
@@ -858,6 +875,10 @@ const AdCreationView: React.FC = () => {
     if (!files || files.length === 0) return;
     if (!user?.id) {
       toast.error('Sessão inválida. Faça login novamente.');
+      return;
+    }
+
+    if (!ensureAdCreationAllowed()) {
       return;
     }
 

@@ -70,8 +70,8 @@ const PageLoader = () => (
   </div>
 );
 
-class RouteErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: React.ReactNode }) {
+class RouteErrorBoundary extends React.Component<{ children: React.ReactNode; resetKey?: string }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode; resetKey?: string }) {
     super(props);
     this.state = { hasError: false };
   }
@@ -80,12 +80,45 @@ class RouteErrorBoundary extends React.Component<{ children: React.ReactNode }, 
     return { hasError: true };
   }
 
+  componentDidCatch(error: Error) {
+    const importErrorMessage = error?.message || '';
+    const isLazyChunkLoadError =
+      importErrorMessage.includes('Failed to fetch dynamically imported module') ||
+      importErrorMessage.includes('Importing a module script failed');
+
+    if (isLazyChunkLoadError && typeof window !== 'undefined') {
+      const reloadKey = 'bwagro:lazy-import-reload-attempted';
+      const hasReloadedAlready = window.sessionStorage.getItem(reloadKey) === 'true';
+
+      if (!hasReloadedAlready) {
+        window.sessionStorage.setItem(reloadKey, 'true');
+        window.location.reload();
+        return;
+      }
+    }
+
+    console.error('[RouteErrorBoundary] Erro ao carregar rota:', error);
+  }
+
+  componentDidUpdate(prevProps: { children: React.ReactNode; resetKey?: string }) {
+    if (this.props.resetKey && this.props.resetKey !== prevProps.resetKey && this.state.hasError) {
+      this.setState({ hasError: false });
+    }
+  }
+
   render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-[60vh] flex items-center justify-center p-8">
           <div className="max-w-md w-full bg-white rounded-2xl border border-slate-100 p-6 text-center">
             <h2 className="text-xl font-black text-slate-900 mb-2">Ops, algo deu errado</h2>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-4 inline-flex items-center justify-center rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+            >
+              Recarregar pagina
+            </button>
             <p className="text-sm text-slate-500">Tente recarregar a página ou volte mais tarde.</p>
           </div>
         </div>
@@ -115,8 +148,9 @@ const AppContent: React.FC = () => {
       {!isAdminPath && <Header />}
       
       <main className="flex-grow">
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
+        <RouteErrorBoundary resetKey={location.pathname}>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Home />} />
             <Route path="/anuncios" element={<AdsListingView />} />
@@ -174,9 +208,7 @@ const AppContent: React.FC = () => {
               path="/minha-conta/*" 
               element={
                 <RequireAuth>
-                  <RouteErrorBoundary>
-                    <UserDashboardView />
-                  </RouteErrorBoundary>
+                  <UserDashboardView />
                 </RequireAuth>
               } 
             />
@@ -204,8 +236,9 @@ const AppContent: React.FC = () => {
             <Route path="/categoria/:slug" element={<AdsListingView />} />
             <Route path="/anuncio/:id" element={<AdDetailView />} />
             <Route path="*" element={<div className="p-20 text-center">404 - Página não encontrada</div>} />
-          </Routes>
-        </Suspense>
+            </Routes>
+          </Suspense>
+        </RouteErrorBoundary>
       </main>
 
       {!isAdminPath && !isUserAreaPath && <Footer />}
