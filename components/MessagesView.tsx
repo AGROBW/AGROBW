@@ -11,10 +11,13 @@ interface MessagesViewProps {
   initialChatId?: string;
 }
 
+type MessageTab = 'sent' | 'received';
+
 const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const { user } = useAuth();
   const { chats, isLoading: chatsLoading } = useChats();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(initialChatId || null);
+  const [activeTab, setActiveTab] = useState<MessageTab>('sent');
   const [searchQuery, setSearchQuery] = useState('');
   const [messageText, setMessageText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -22,12 +25,17 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const { messages, isLoading: messagesLoading, sendMessage } = useMessages(selectedChatId);
   
   const selectedChat = chats.find(c => c.id === selectedChatId);
-  const isSelectedChatFrozen = !!selectedChat?.isFrozen;
+  const isSellerInSelectedChat = selectedChat?.sellerId === user?.id;
   const isLeadContactExpired = selectedChat?.freezeReason === 'lead_contact_expired';
+  const isReceivedTab = activeTab === 'received';
+  const shouldApplyLeadContactLock = isLeadContactExpired && isReceivedTab && isSellerInSelectedChat;
+  const isSelectedChatFrozen = !!selectedChat?.isFrozen && (
+    selectedChat?.freezeReason !== 'lead_contact_expired' || shouldApplyLeadContactLock
+  );
   const frozenBadgeText = isLeadContactExpired ? 'Prazo de contato expirado' : 'Anuncio expirado';
   const frozenTitle = isLeadContactExpired ? 'Prazo de contato expirado' : 'Anuncio expirado';
   const frozenDescription = isLeadContactExpired
-    ? 'A janela de contato definida pelo plano terminou. Nenhuma nova mensagem pode ser enviada e os dados do lead foram bloqueados.'
+    ? 'O periodo de acesso a este interessado terminou. Faça upgrade para voltar a visualizar os dados do lead e responder a conversa.'
     : 'Esta conversa foi congelada porque o anuncio venceu. Nenhuma nova mensagem pode ser enviada e os dados da negociacao ficaram bloqueados.';
   
   // Debug: Log dos dados do chat selecionado
@@ -44,8 +52,10 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
+  const chatsByTab = chats.filter(chat => (chat.direction || 'received') === activeTab);
+
   // Filtrar chats por busca
-  const filteredChats = chats.filter(chat => {
+  const filteredChats = chatsByTab.filter(chat => {
     const query = searchQuery.toLowerCase();
     return (
       chat.adTitle.toLowerCase().includes(query) ||
@@ -54,6 +64,22 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
       chat.lastMessage.toLowerCase().includes(query)
     );
   });
+
+  const sentChatsCount = chats.filter(chat => (chat.direction || 'received') === 'sent').length;
+  const receivedChatsCount = chats.filter(chat => (chat.direction || 'received') === 'received').length;
+
+  useEffect(() => {
+    if (!selectedChatId) return;
+
+    const selected = chats.find(chat => chat.id === selectedChatId);
+    if (!selected || (selected.direction || 'received') !== activeTab) {
+      if (selected) {
+        setActiveTab((selected.direction || 'received') as MessageTab);
+      } else {
+        setSelectedChatId(null);
+      }
+    }
+  }, [activeTab, chats, selectedChatId]);
   
   const handleSendMessage = async () => {
     if (!messageText.trim() || !selectedChatId || isSelectedChatFrozen) return;
@@ -94,6 +120,36 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
         {/* Header da Lista */}
         <div className="p-4 border-b border-slate-200">
           <h2 className="text-lg font-bold text-slate-900 mb-3">Mensagens</h2>
+          <div className="mb-3 inline-flex w-full rounded-xl bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('sent')}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                activeTab === 'sent'
+                  ? 'bg-green-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <span className="inline-flex items-center gap-2">
+                Enviadas {sentChatsCount > 0 ? `(${sentChatsCount})` : ''}
+                {activeTab === 'sent' ? <span className="h-2 w-2 rounded-full bg-white/90" /> : null}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('received')}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                activeTab === 'received'
+                  ? 'bg-green-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <span className="inline-flex items-center gap-2">
+                Recebidas {receivedChatsCount > 0 ? `(${receivedChatsCount})` : ''}
+                {activeTab === 'received' ? <span className="h-2 w-2 rounded-full bg-white/90" /> : null}
+              </span>
+            </button>
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -115,11 +171,20 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                 {searchQuery ? 'Nenhuma conversa encontrada' : 'Nenhuma conversa ainda'}
               </p>
               <p className="text-slate-400 text-xs mt-1">
-                {!searchQuery && 'Entre em contato com vendedores para iniciar conversas'}
+                {!searchQuery &&
+                  (activeTab === 'sent'
+                    ? 'Entre em contato com vendedores para iniciar conversas'
+                    : 'As mensagens recebidas dos seus anuncios aparecerao aqui')}
               </p>
             </div>
           ) : (
             filteredChats.map((chat) => (
+              (() => {
+                const shouldShowFrozen =
+                  !!chat.isFrozen &&
+                  (chat.freezeReason !== 'lead_contact_expired' || activeTab === 'received');
+
+                return (
               <button
                 key={chat.id}
                 onClick={() => setSelectedChatId(chat.id)}
@@ -142,7 +207,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between mb-1">
                       <h3 className="font-bold text-sm text-slate-900 truncate">
-                        {chat.isFrozen ? 'Interacao congelada' : getOtherUserName(chat)}
+                        {shouldShowFrozen ? 'Interacao congelada' : getOtherUserName(chat)}
                       </h3>
                       <span className="text-xs text-slate-400 flex-shrink-0 ml-2">
                         {formatTime(chat.lastMessageTime)}
@@ -164,7 +229,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                         </span>
                       )}
                     </div>
-                    {chat.isFrozen && (
+                    {shouldShowFrozen && (
                       <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
                         <Lock className="w-3 h-3" />
                         {chat.freezeReason === 'lead_contact_expired' ? 'Prazo de contato expirado' : 'Anuncio expirado'}
@@ -173,6 +238,8 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                   </div>
                 </div>
               </button>
+                );
+              })()
             ))
           )}
         </div>
@@ -223,13 +290,59 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
           </div>
 
           {isSelectedChatFrozen && (
-            <div className="mx-4 mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-amber-800">{frozenTitle}</p>
-                <p className="text-xs text-amber-700 mt-1">
-                  {frozenDescription}
-                </p>
+            <div className="mx-4 mt-4 overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-emerald-50 shadow-sm">
+              <div className="flex items-start gap-4 px-5 py-4">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                  {isLeadContactExpired && isReceivedTab ? (
+                    <Lock className="h-5 w-5" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  {isLeadContactExpired && isReceivedTab ? (
+                    <>
+                      <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                        Acesso premium
+                      </span>
+                      <p className="mt-3 text-base font-semibold text-slate-900">
+                        Desbloqueie este contato para continuar a negociação
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        O período gratuito terminou. Faça upgrade para visualizar novamente os dados do interessado e responder a conversa.
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
+                          Visualize os dados do lead
+                        </span>
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
+                          Responda novos interessados
+                        </span>
+                      </div>
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.location.href = '/#/planos';
+                          }}
+                          className="inline-flex items-center rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700"
+                        >
+                          Ver planos e fazer upgrade
+                        </button>
+                        <span className="text-xs font-medium text-slate-500">
+                          Seus contatos enviados continuam acessíveis na aba Enviadas.
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-amber-900">{frozenTitle}</p>
+                      <p className="mt-1 text-xs text-amber-800">
+                        {frozenDescription}
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -242,14 +355,47 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
               </div>
             ) : isSelectedChatFrozen ? (
               <div className="flex items-center justify-center h-full">
-                <div className="text-center max-w-md">
-                  <Lock className="w-12 h-12 text-amber-400 mx-auto mb-3" />
-                  <p className="text-slate-700 text-sm font-semibold">{frozenTitle}</p>
-                  <p className="text-slate-500 text-xs mt-2">
-                    {isLeadContactExpired
-                      ? 'O prazo de acesso ao lead terminou. O historico foi congelado e os dados do comprador nao ficam mais disponiveis.'
-                      : 'O historico deste anuncio expirado foi congelado. Republicar o anuncio exige um novo credito e nao reabre esta conversa automaticamente.'}
-                  </p>
+                <div className="max-w-lg rounded-[28px] border border-amber-200 bg-white px-6 py-7 text-center shadow-sm">
+                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-emerald-100 text-amber-700">
+                    <Lock className="h-7 w-7" />
+                  </div>
+                  {isLeadContactExpired && isReceivedTab ? (
+                    <>
+                      <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                        Contato protegido
+                      </span>
+                      <p className="mt-4 text-lg font-semibold text-slate-900">
+                        Este interessado está temporariamente bloqueado
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        Faça upgrade para liberar os dados do lead e continuar a conversa com possíveis compradores do seu anúncio.
+                      </p>
+                      <div className="mt-5 grid gap-2 text-left text-xs text-slate-500 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                          Visualização dos dados do lead
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                          Resposta liberada na conversa
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.location.href = '/#/planos';
+                        }}
+                        className="mt-5 inline-flex items-center rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700"
+                      >
+                        Desbloquear com upgrade
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-slate-700 text-sm font-semibold">{frozenTitle}</p>
+                      <p className="mt-2 text-xs text-slate-500">
+                        O historico deste anuncio expirado foi congelado. Republicar o anuncio exige um novo credito e nao reabre esta conversa automaticamente.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             ) : messages.length === 0 ? (
@@ -345,7 +491,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
         </div>
         
         {/* Sidebar de Inteligência Logística */}
-        {!isSelectedChatFrozen && (
+        {!isSelectedChatFrozen && isReceivedTab && isSellerInSelectedChat && (
           <LogisticsSidebar 
             chatId={selectedChatId}
             adPrice={selectedChat.adPrice}
@@ -358,7 +504,11 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
           <div className="text-center">
             <Circle className="w-16 h-16 text-slate-300 mx-auto mb-4" />
             <p className="text-slate-500 font-medium">Selecione uma conversa</p>
-            <p className="text-slate-400 text-sm mt-1">Escolha um chat para visualizar as mensagens</p>
+            <p className="text-slate-400 text-sm mt-1">
+              {activeTab === 'sent'
+                ? 'Escolha uma conversa enviada para visualizar as mensagens'
+                : 'Escolha uma conversa recebida para visualizar as mensagens'}
+            </p>
           </div>
         </div>
       )}

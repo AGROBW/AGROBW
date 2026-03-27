@@ -336,6 +336,7 @@ export interface Chat {
   isLeadContactExpired?: boolean;
   freezeReason?: 'announcement_expired' | 'lead_contact_expired' | null;
   isFrozen?: boolean;
+  direction?: 'sent' | 'received';
   sellerId: string;
   sellerName: string;
   buyerId: string;

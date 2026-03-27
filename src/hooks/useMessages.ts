@@ -101,6 +101,7 @@ export const useChats = (announcementId?: string | null) => {
           chat.announcement_expires_at,
           chat.lead_contact_expires_at
         ),
+        direction: chat.buyer_id === user.id ? 'sent' : 'received',
         id: chat.id,
         adId: chat.announcement_id,
         adTitle: chat.ad_title,

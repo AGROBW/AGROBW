@@ -32,6 +32,9 @@ const formatCurrency = (value: number) =>
 const getBillingCycleLabel = (billingCycle: BillingCycle) =>
   billingCycle === 'monthly' ? 'Mensal' : 'Anual';
 
+const isFreeMonthlyOnlyPlan = (plan: Plan) =>
+  (plan.monthly_price ?? 0) <= 0 && (plan.yearly_price ?? 0) <= 0;
+
 const formatNumericValue = (value: number | null | undefined, suffix = '') => {
   if (value === null || value === undefined) {
     return 'Sob consulta';
@@ -206,6 +209,14 @@ const PricingView: React.FC = () => {
 
     return [...baseRows, ...extraRows];
   }, [billingCycle, plansRaw]);
+
+  const visiblePlans = useMemo(
+    () =>
+      plansRaw.filter((plan) =>
+        billingCycle === 'yearly' ? !isFreeMonthlyOnlyPlan(plan) : true
+      ),
+    [billingCycle, plansRaw]
+  );
 
   const getDisplayPrice = (monthlyPrice: number, yearlyPrice: number) => {
     if (billingCycle === 'monthly') {
@@ -423,12 +434,12 @@ const PricingView: React.FC = () => {
                 className="h-[430px] animate-pulse rounded-[2rem] border border-slate-100 bg-white shadow-xl"
               />
             ))
-          ) : plansRaw.length === 0 ? (
+          ) : visiblePlans.length === 0 ? (
             <div className="col-span-full rounded-2xl border border-slate-100 bg-white p-8 text-center">
               <p className="text-sm text-slate-500">Nenhum plano disponivel no momento.</p>
             </div>
           ) : (
-            plansRaw.map((plan) => {
+            visiblePlans.map((plan) => {
               const displayPrice = getDisplayPrice(plan.monthly_price, plan.yearly_price);
               const yearlySavings = calculateYearlySavings(plan.monthly_price, plan.yearly_price);
               const summary = getPlanSummary(plan);
@@ -469,15 +480,6 @@ const PricingView: React.FC = () => {
                       >
                         {getBillingCycleLabel(billingCycle)}
                       </span>
-                      {billingCycle === 'yearly' && plan.yearly_price > 0 ? (
-                        <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                          Pagamento a vista anual
-                        </span>
-                      ) : (
-                        <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                          Renovacao mensal
-                        </span>
-                      )}
                     </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-base font-bold text-slate-400">R$</span>
@@ -630,7 +632,7 @@ const PricingView: React.FC = () => {
         <div className="overflow-x-auto rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_80px_-50px_rgba(15,23,42,0.35)]">
           {plansLoading ? (
             <div className="p-8 text-center text-sm text-slate-500">Carregando comparacao de planos...</div>
-          ) : plansRaw.length === 0 ? (
+          ) : visiblePlans.length === 0 ? (
             <div className="p-8 text-center text-sm text-slate-500">
               Nenhum plano disponivel para comparacao.
             </div>
@@ -641,7 +643,7 @@ const PricingView: React.FC = () => {
                   <th className="px-8 py-6 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
                     Funcionalidade
                   </th>
-                  {plansRaw.map((plan) => (
+                  {visiblePlans.map((plan) => (
                     <th key={plan.id} className="px-6 py-6 text-center">
                       <div className="text-sm font-black text-slate-900">{plan.name}</div>
                       <div className="mt-1 text-xs font-semibold text-slate-400">
@@ -658,7 +660,7 @@ const PricingView: React.FC = () => {
                     className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}
                   >
                     <td className="px-8 py-5 text-sm font-bold text-slate-700">{feature.label}</td>
-                    {plansRaw.map((plan) => {
+                    {visiblePlans.map((plan) => {
                       const value = getComparisonValue(plan, feature);
                       return (
                         <td key={plan.id} className="px-6 py-5 text-center">
