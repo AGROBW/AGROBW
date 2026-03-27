@@ -78,9 +78,13 @@ begin
   from public.user_subscriptions us
   join public.plans p on p.id = us.plan_id
   where us.user_id = p_seller_id
-    and us.status = 'active'
-    and now() between us.current_period_start and us.current_period_end
-  order by us.current_period_end desc
+  order by
+    case
+      when us.status = 'active' and now() between us.current_period_start and us.current_period_end then 0
+      else 1
+    end,
+    us.current_period_end desc nulls last,
+    us.created_at desc nulls last
   limit 1;
 
   if v_limit_days is null then
