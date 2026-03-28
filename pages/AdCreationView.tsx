@@ -270,6 +270,8 @@ const AdCreationView: React.FC = () => {
   const isCreatingDraft = useRef(false);
   const draftIdRef = useRef<string | null>(null);
   const loadedEditAdIdRef = useRef<string | null>(null);
+  const hasPublishedSuccessfullyRef = useRef(false);
+  const isCleaningDraftRef = useRef(false);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
@@ -611,6 +613,45 @@ const AdCreationView: React.FC = () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  const cleanupAbandonedDraft = async () => {
+    if (isCleaningDraftRef.current) return;
+    if (isEditingExistingAd) return;
+    if (hasPublishedSuccessfullyRef.current) return;
+
+    const pendingDraftId = draftIdRef.current || draftAdId || localStorage.getItem('bwagro_ad_draft_id');
+    if (!pendingDraftId) {
+      localStorage.removeItem('bwagro_ad_draft');
+      localStorage.removeItem('bwagro_ad_draft_id');
+      return;
+    }
+
+    isCleaningDraftRef.current = true;
+
+    try {
+      await supabase
+        .from('announcements')
+        .delete()
+        .eq('id', pendingDraftId)
+        .eq('status', AdStatus.PENDING);
+    } catch (error) {
+      console.error('[Draft] Erro ao limpar rascunho abandonado:', error);
+    } finally {
+      localStorage.removeItem('bwagro_ad_draft');
+      localStorage.removeItem('bwagro_ad_draft_id');
+      draftIdRef.current = null;
+      if (isMountedRef.current) {
+        setDraftAdId(null);
+      }
+      isCleaningDraftRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      void cleanupAbandonedDraft();
+    };
+  }, [isEditingExistingAd, draftAdId]);
 
   useEffect(() => {
     localStorage.setItem('bwagro_ad_draft', JSON.stringify(formData));
@@ -1265,6 +1306,7 @@ const AdCreationView: React.FC = () => {
         console.log('[Publish] Schema vazio ou dados técnicos não disponíveis');
       }
 
+      hasPublishedSuccessfullyRef.current = true;
       localStorage.removeItem('bwagro_ad_draft');
       localStorage.removeItem('bwagro_ad_draft_id');
       setDraftAdId(null);

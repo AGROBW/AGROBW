@@ -185,6 +185,11 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                 const shouldShowFrozen =
                   !!chat.isFrozen &&
                   (chat.freezeReason !== 'lead_contact_expired' || activeTab === 'received');
+                const previewMessage = shouldShowFrozen
+                  ? chat.freezeReason === 'lead_contact_expired'
+                    ? 'Conteúdo protegido. Faça upgrade para visualizar a mensagem.'
+                    : 'Conteúdo indisponível para esta conversa.'
+                  : chat.lastMessage || 'Sem mensagens';
 
                 return (
               <button
@@ -222,7 +227,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                     
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-slate-400 truncate flex-1">
-                        {chat.lastMessage || 'Sem mensagens'}
+                        {previewMessage}
                       </p>
                       
                       {chat.unreadCount > 0 && (
@@ -331,9 +336,6 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                         >
                           Ver planos e fazer upgrade
                         </button>
-                        <span className="text-xs font-medium text-slate-500">
-                          Seus contatos enviados continuam acessíveis na aba Enviadas.
-                        </span>
                       </div>
                     </>
                   ) : (
@@ -357,48 +359,17 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
               </div>
             ) : isSelectedChatFrozen ? (
               <div className="flex items-center justify-center h-full">
-                <div className="max-w-lg rounded-[28px] border border-amber-200 bg-white px-6 py-7 text-center shadow-sm">
-                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-emerald-100 text-amber-700">
-                    <Lock className="h-7 w-7" />
+                {isLeadContactExpired && isReceivedTab ? null : (
+                  <div className="max-w-lg rounded-[28px] border border-amber-200 bg-white px-6 py-7 text-center shadow-sm">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-emerald-100 text-amber-700">
+                      <Lock className="h-7 w-7" />
+                    </div>
+                    <p className="text-slate-700 text-sm font-semibold">{frozenTitle}</p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      O historico deste anuncio expirado foi congelado. Republicar o anuncio exige um novo credito e nao reabre esta conversa automaticamente.
+                    </p>
                   </div>
-                  {isLeadContactExpired && isReceivedTab ? (
-                    <>
-                      <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                        Contato protegido
-                      </span>
-                      <p className="mt-4 text-lg font-semibold text-slate-900">
-                        Este interessado está temporariamente bloqueado
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">
-                        Faça upgrade para liberar os dados do lead e continuar a conversa com possíveis compradores do seu anúncio.
-                      </p>
-                      <div className="mt-5 grid gap-2 text-left text-xs text-slate-500 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                          Visualização dos dados do lead
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                          Resposta liberada na conversa
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          window.location.href = '/#/planos';
-                        }}
-                        className="mt-5 inline-flex items-center rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700"
-                      >
-                        Desbloquear com upgrade
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-slate-700 text-sm font-semibold">{frozenTitle}</p>
-                      <p className="mt-2 text-xs text-slate-500">
-                        O historico deste anuncio expirado foi congelado. Republicar o anuncio exige um novo credito e nao reabre esta conversa automaticamente.
-                      </p>
-                    </>
-                  )}
-                </div>
+                )}
               </div>
             ) : messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">

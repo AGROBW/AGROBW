@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Bell, MessageSquare, Briefcase, AlertCircle, CheckCheck, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../src/hooks/useNotifications';
+import { useChats } from '../src/hooks/useMessages';
 import { useSubscription } from '../src/hooks/useSubscription';
 import { useAuth } from '../src/contexts/AuthContext';
 import { supabase } from '../src/lib/supabaseClient';
@@ -48,8 +49,42 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
   const navigate = useNavigate();
   const { user } = useAuth();
   const { notifications, isLoading, markAsRead, markAllAsRead, refreshNotifications } = useNotifications();
+  const { chats } = useChats();
   const { subscription } = useSubscription();
   const [activeTab, setActiveTab] = useState<NotificationTab>('all');
+
+  const extractChatIdFromLink = (link?: string) => {
+    if (!link) return null;
+    const match = link.match(/chat=([0-9a-f-]+)/i);
+    return match?.[1] || null;
+  };
+
+  const getNotificationPreview = (notification: Notification) => {
+    const isMessageNotification =
+      notification.type === 'new_message' || notification.type === 'NEW_MESSAGE';
+
+    if (!isMessageNotification) {
+      return notification.content;
+    }
+
+    const chatId = extractChatIdFromLink(notification.link);
+    if (!chatId) {
+      return notification.content;
+    }
+
+    const relatedChat = chats.find((chat) => chat.id === chatId);
+    const shouldHidePreview =
+      !!relatedChat &&
+      relatedChat.freezeReason === 'lead_contact_expired' &&
+      relatedChat.direction === 'received' &&
+      relatedChat.sellerId === user?.id;
+
+    if (shouldHidePreview) {
+      return 'Você recebeu uma nova mensagem. Faça upgrade para visualizar o conteúdo.';
+    }
+
+    return notification.content;
+  };
 
   // Verificar se o usuário pode visualizar notificações de radar
   // Radar de Oportunidades está disponível apenas para planos Start Agro+
@@ -296,7 +331,7 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
                         <p className={`text-sm mb-2 line-clamp-2 ${
                           notification.isRead ? 'text-slate-500' : 'text-slate-600'
                         }`}>
-                          {notification.content}
+                          {getNotificationPreview(notification)}
                         </p>
                         <span className="text-xs text-slate-400 font-medium">
                           {getTimeAgo(notification.timestamp)}

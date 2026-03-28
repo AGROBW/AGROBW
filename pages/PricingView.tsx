@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Check, ChevronDown, Loader2, X } from 'lucide-react';
+import { BarChart3, Check, ChevronDown, Loader2, Megaphone, ShieldCheck, Telescope, X } from 'lucide-react';
 import { PRICING_FAQ } from '../constants';
 import { usePlans } from '../src/hooks/usePlans';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -81,6 +81,39 @@ const PricingView: React.FC = () => {
     isLoading: boostersLoading,
     refresh: refreshBoosters,
   } = useHighlightBoosters();
+
+  const scrollToSection = (sectionId: string) => {
+    if (typeof document === 'undefined') return;
+
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const topBenefitCards = [
+    {
+      title: 'Mais visibilidade',
+      description: 'Destaques em categoria e home colocam seu anuncio em vitrines mais nobres da plataforma.',
+      icon: Megaphone,
+    },
+    {
+      title: 'Mais contatos qualificados',
+      description: 'Ganhe mais tempo de acesso aos leads e mantenha a conversa ativa enquanto a negociação acontece.',
+      icon: ShieldCheck,
+    },
+    {
+      title: 'Mais inteligencia comercial',
+      description: 'Use radar, relatorios e recursos premium para entender melhor sua demanda e acelerar a venda.',
+      icon: BarChart3,
+    },
+  ];
+
+  const visibilitySteps = [
+    'Publique seu anuncio com uma apresentacao profissional',
+    'Ative mais exposição com destaques e vitrine premium',
+    'Receba contatos, acompanhe o radar e feche mais negócios',
+  ];
 
   const comparisonRows = useMemo<ComparisonRow[]>(() => {
     const baseRows: ComparisonRow[] = [
@@ -273,7 +306,7 @@ const PricingView: React.FC = () => {
     }
 
     if (!user) {
-      toast.error('Voce precisa estar logado para assinar um plano.');
+      toast.error('Você precisa estar logado para assinar um plano.');
       setTimeout(() => {
         window.location.href = '/#/login?redirect=/pricing';
       }, 1500);
@@ -323,7 +356,7 @@ const PricingView: React.FC = () => {
     }
 
     if (!user) {
-      toast.error('Voce precisa estar logado para comprar um booster.');
+      toast.error('Você precisa estar logado para comprar um booster.');
       setTimeout(() => {
         window.location.href = '/#/login?redirect=/pricing';
       }, 1500);
@@ -331,7 +364,7 @@ const PricingView: React.FC = () => {
     }
 
     if (!boosterSummary.canPurchase) {
-      toast.error('Voce atingiu o limite de 2 boosters a cada 30 dias.');
+      toast.error('Você atingiu o limite de 2 boosters a cada 30 dias.');
       return;
     }
 
@@ -366,21 +399,91 @@ const PricingView: React.FC = () => {
 
   return (
     <div className="min-h-screen" style={{ background: `linear-gradient(180deg, ${settings.backgroundColor} 0%, #ffffff 28%, ${settings.backgroundColor} 100%)` }}>
-      <section className="relative overflow-hidden px-4 pb-36 pt-24 text-white" style={{ backgroundColor: settings.secondaryColor }}>
+      <section className="relative overflow-hidden px-4 pb-24 pt-24 text-white" style={{ backgroundColor: settings.secondaryColor }}>
         <div className="absolute inset-0" style={{ background: `radial-gradient(circle at top left, color-mix(in srgb, ${settings.primaryColor} 18%, transparent), transparent 32%), radial-gradient(circle at top right, color-mix(in srgb, ${settings.accentColor} 18%, transparent), transparent 24%)` }} />
-        <div className="relative mx-auto max-w-7xl text-center">
-          <span className="mb-6 inline-block rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.3em]" style={{ border: `1px solid color-mix(in srgb, ${settings.primaryColor} 30%, transparent)`, backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 10%, transparent)`, color: `color-mix(in srgb, ${settings.primaryColor} 70%, white)` }}>
-            Crescimento Sustentavel
-          </span>
-          <h1 className="font-display text-4xl font-black leading-tight tracking-tight md:text-6xl">
-            Escolha o plano ideal para
-            <br className="hidden md:block" />
-            <span style={{ color: settings.primaryColor }}> vender com mais tracao</span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-3xl text-base font-medium text-slate-300 md:text-xl">
-            Cards pensados para decisao rapida, com a comparacao tecnica completa logo abaixo para
-            quem quer ir a fundo.
-          </p>
+        <div className="relative mx-auto max-w-7xl">
+          <div className="grid items-center gap-12 lg:grid-cols-[1.15fr,0.85fr]">
+            <div>
+              <span className="mb-6 inline-block rounded-full px-4 py-2 text-[10px] font-black uppercase tracking-[0.3em]" style={{ border: `1px solid color-mix(in srgb, ${settings.primaryColor} 30%, transparent)`, backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 10%, transparent)`, color: `color-mix(in srgb, ${settings.primaryColor} 70%, white)` }}>
+                Mais alcance no agro
+              </span>
+              <h1 className="font-display text-4xl font-black leading-tight tracking-tight md:text-6xl">
+                Transforme visibilidade
+                <br className="hidden md:block" />
+                <span style={{ color: settings.primaryColor }}> em contatos e vendas</span>
+              </h1>
+              <p className="mt-6 max-w-3xl text-base font-medium text-slate-300 md:text-xl">
+                A pagina de planos agora explica o valor antes do preco: mais exibicao para seus anuncios,
+                mais contatos qualificados e mais recursos para acompanhar sua demanda dentro da BWAGRO.
+              </p>
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => scrollToSection('cards-planos')}
+                  className="inline-flex items-center rounded-2xl px-5 py-3 text-sm font-black text-white"
+                  style={{ backgroundColor: settings.primaryColor }}
+                >
+                  Ver planos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection('comparativo-tecnico')}
+                  className="inline-flex items-center rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-black text-white backdrop-blur"
+                >
+                  Comparar benefícios
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-4">
+              <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl"
+                    style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)` }}
+                  >
+                    <Telescope className="h-5 w-5" style={{ color: settings.primaryColor }} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-400">Visibilidade comercial</p>
+                    <p className="mt-1 text-lg font-black text-white">Anuncios premium aparecem antes e recebem mais atencao</p>
+                  </div>
+                </div>
+                <div className="mt-5 space-y-3">
+                  {visibilitySteps.map((step, index) => (
+                    <div key={step} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/10 px-4 py-3">
+                      <div
+                        className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-black text-white"
+                        style={{ backgroundColor: settings.primaryColor }}
+                      >
+                        {index + 1}
+                      </div>
+                      <p className="text-sm font-medium text-slate-200">{step}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                {topBenefitCards.map((card) => {
+                  const Icon = card.icon;
+                  return (
+                    <div key={card.title} className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5 backdrop-blur">
+                      <div
+                        className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl"
+                        style={{ backgroundColor: `color-mix(in srgb, ${settings.accentColor} 18%, white)` }}
+                      >
+                        <Icon className="h-5 w-5" style={{ color: settings.accentColor }} />
+                      </div>
+                      <p className="text-base font-black text-white">{card.title}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">{card.description}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
 
           <div className="mt-10 flex items-center justify-center gap-4">
             <span
@@ -416,16 +519,51 @@ const PricingView: React.FC = () => {
           </div>
           {billingCycle === 'yearly' && (
             <div className="mx-auto mt-5 max-w-2xl rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-slate-200 backdrop-blur">
-              <p className="font-semibold text-white">Cobranca anual com beneficios renovados mensalmente.</p>
+              <p className="font-semibold text-white">Cobrança anual com benefícios renovados mensalmente.</p>
               <p className="mt-1 text-slate-300">
-                Anuncios, destaques e demais limites operacionais sao liberados em ciclos mensais dentro da vigencia anual.
+                Anúncios, destaques e demais limites operacionais são liberados em ciclos mensais dentro da vigência anual.
               </p>
             </div>
           )}
         </div>
       </section>
 
-      <section className="relative z-20 mx-auto -mt-20 max-w-7xl px-4">
+      <section className="mx-auto max-w-7xl px-4 py-12">
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_-50px_rgba(15,23,42,0.35)] lg:p-8">
+          <div className="grid gap-6 md:grid-cols-3">
+            <div className="rounded-[1.5rem] bg-slate-50 p-5">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">O que melhora</p>
+              <p className="mt-3 text-lg font-black text-slate-900">Mais exposição para produtos estratégicos</p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Destaques e prioridade de vitrine ajudam o seu anuncio a ser visto antes dos demais.
+              </p>
+            </div>
+            <div className="rounded-[1.5rem] bg-slate-50 p-5">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Para quem vende</p>
+              <p className="mt-3 text-lg font-black text-slate-900">Mais tempo para responder interessados</p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Escolha um plano com janela de contato maior para não perder oportunidades no meio da negociação.
+              </p>
+            </div>
+            <div className="rounded-[1.5rem] bg-slate-50 p-5">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Para crescer</p>
+              <p className="mt-3 text-lg font-black text-slate-900">Radar, relatorios e loja fortalecem a operação</p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                A página de planos não vende só preço: ela mostra o quanto sua operação pode evoluir com mais recursos.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="cards-planos" className="relative z-20 mx-auto max-w-7xl px-4 pb-4">
+        <div className="mb-10 text-center">
+          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Escolha seu ritmo</p>
+          <h2 className="mt-3 font-display text-3xl font-black text-slate-950">Planos para cada etapa da sua operação</h2>
+          <p className="mx-auto mt-3 max-w-3xl text-sm leading-6 text-slate-500">
+            Primeiro entenda o ganho de visibilidade e depois compare os pacotes. A vitrine de compra continua objetiva, mas agora com contexto comercial antes da decisao.
+          </p>
+        </div>
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
           {plansLoading ? (
             Array.from({ length: 5 }).map((_, index) => (
@@ -497,7 +635,7 @@ const PricingView: React.FC = () => {
                             : ''}
                         </p>
                         <p className="text-xs text-slate-300">
-                          Beneficios operacionais renovados mensalmente.
+                          Benefícios operacionais renovados mensalmente.
                         </p>
                       </div>
                     ) : plan.price_caption?.trim() ? (
@@ -586,7 +724,7 @@ const PricingView: React.FC = () => {
                 </p>
                 <h2 className="text-2xl font-black text-slate-950">Mais destaque quando sua campanha pedir reforco</h2>
                 <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Compra exclusiva para reforcar vitrines sem banalizar os planos. O consumo continua usando primeiro os creditos do plano e depois o saldo extra do booster.
+                  Compra exclusiva para reforçar vitrines sem banalizar os planos. O consumo continua usando primeiro os créditos do plano e depois o saldo extra do booster.
                 </p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -604,13 +742,14 @@ const PricingView: React.FC = () => {
                   summary={boosterSummary}
                   onPurchase={handleBoosterPurchase}
                   loading={loadingPlanId === `booster-${boosters[0].id}`}
+                  showAccountSummary={!!user}
                 />
                 <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Como funciona</p>
                   <ul className="mt-4 space-y-3 text-sm text-slate-600">
                     <li>O combo adiciona 5 destaques em categoria e 5 destaques na home.</li>
-                    <li>Os creditos extras nao expiram e continuam validos mesmo se o plano for cancelado.</li>
-                    <li>Quando voce aplica um destaque, o sistema consome primeiro o saldo do plano.</li>
+                    <li>Os créditos extras não expiram e continuam válidos mesmo se o plano for cancelado.</li>
+                    <li>Quando você aplica um destaque, o sistema consome primeiro o saldo do plano.</li>
                     <li>Depois disso, o uso passa automaticamente para o saldo do booster.</li>
                     <li>Se houver uso, a compra deixa de ser reembolsavel.</li>
                   </ul>
@@ -621,9 +760,9 @@ const PricingView: React.FC = () => {
         </section>
       )}
 
-      <section className="mx-auto max-w-6xl overflow-hidden px-4 py-28">
+      <section id="comparativo-tecnico" className="mx-auto max-w-6xl overflow-hidden px-4 py-28">
         <div className="mb-14 text-center">
-          <h2 className="font-display text-3xl font-black text-slate-950">Comparacao Tecnica</h2>
+          <h2 className="font-display text-3xl font-black text-slate-950">Comparação Técnica</h2>
           <p className="mt-3 text-slate-500">
             Aqui estao os detalhes completos para comparar o impacto operacional de cada plano.
           </p>
@@ -631,10 +770,10 @@ const PricingView: React.FC = () => {
 
         <div className="overflow-x-auto rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_80px_-50px_rgba(15,23,42,0.35)]">
           {plansLoading ? (
-            <div className="p-8 text-center text-sm text-slate-500">Carregando comparacao de planos...</div>
+            <div className="p-8 text-center text-sm text-slate-500">Carregando comparação de planos...</div>
           ) : visiblePlans.length === 0 ? (
             <div className="p-8 text-center text-sm text-slate-500">
-              Nenhum plano disponivel para comparacao.
+              Nenhum plano disponível para comparação.
             </div>
           ) : (
             <table className="min-w-full text-left">
@@ -697,7 +836,7 @@ const PricingView: React.FC = () => {
           <div className="mb-14 text-center">
             <h2 className="font-display text-3xl font-black text-slate-900">Duvidas Frequentes</h2>
             <p className="mt-3 text-slate-500">
-              Tudo o que voce precisa saber sobre as assinaturas BWAGRO.
+              Tudo o que você precisa saber sobre as assinaturas BWAGRO.
             </p>
           </div>
 

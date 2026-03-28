@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
+import { emitCountsRefresh } from '../lib/countSync'
 import { useAuth } from '../contexts/AuthContext'
 import { Chat, Message, LeadStatus } from '../../types'
 import { LEAD_STATUS } from '../../constants/status'
@@ -49,6 +50,7 @@ export const useChats = (announcementId?: string | null) => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const retryTimeoutRef = useRef<number | null>(null)
+  const isFetchingRef = useRef(false)
 
   const clearRetry = () => {
     if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
@@ -64,71 +66,81 @@ export const useChats = (announcementId?: string | null) => {
       return
     }
 
-    if (!silent) {
-      setIsLoading(true)
-    } else {
-      startAppSync()
+    if (isFetchingRef.current) {
+      return
     }
 
-    let query = supabase
-      .from('chats_full')
-      .select('*')
-      .or(`seller_id.eq.${user.id},buyer_id.eq.${user.id}`)
+    isFetchingRef.current = true
 
-    if (announcementId) {
-      query = query.eq('announcement_id', announcementId)
-    }
-
-    query = query.order('last_message_time', { ascending: false })
-
-    const { data, error } = await query
-
-    if (error) {
-      setError(error.message)
-      console.error('Erro ao buscar chats:', error)
-      if (typeof window !== 'undefined' && retryTimeoutRef.current === null) {
-        retryTimeoutRef.current = window.setTimeout(() => {
-          retryTimeoutRef.current = null
-          void fetchChats(true)
-        }, 5000)
+    try {
+      if (!silent) {
+        setIsLoading(true)
+      } else {
+        startAppSync()
       }
-    } else {
-      clearRetry()
-      setError(null)
-      const mappedChats: Chat[] = (data || []).map(chat => ({
-        ...getChatFreezeState(
-          chat.announcement_status,
-          chat.announcement_expires_at,
-          chat.lead_contact_expires_at
-        ),
-        direction: chat.buyer_id === user.id ? 'sent' : 'received',
-        id: chat.id,
-        adId: chat.announcement_id,
-        adTitle: chat.ad_title,
-        adPrice: parseFloat(chat.ad_price) || 0,
-        adImage: chat.ad_image,
-        adStatus: chat.announcement_status,
-        adExpiresAt: chat.announcement_expires_at,
-        adExpiredAt: chat.announcement_expired_at,
-        adDeletionScheduledAt: chat.announcement_deletion_scheduled_at,
-        leadContactExpiresAt: chat.lead_contact_expires_at,
-        sellerId: chat.seller_id,
-        sellerName: chat.seller_name,
-        buyerId: chat.buyer_id,
-        buyerName: chat.buyer_name,
-        lastMessage: chat.last_message || '',
-        lastMessageTime: chat.last_message_time || chat.created_at,
-        unreadCount: chat.unread_count || 0,
-        status: chat.status,
-        createdAt: chat.created_at
-      }))
 
-      setChats(mappedChats)
-    }
+      let query = supabase
+        .from('chats_full')
+        .select('*')
+        .or(`seller_id.eq.${user.id},buyer_id.eq.${user.id}`)
 
-    setIsLoading(false)
-    if (silent) {
-      endAppSync()
+      if (announcementId) {
+        query = query.eq('announcement_id', announcementId)
+      }
+
+      query = query.order('last_message_time', { ascending: false })
+
+      const { data, error } = await query
+
+      if (error) {
+        setError(error.message)
+        console.error('Erro ao buscar chats:', error)
+        if (typeof window !== 'undefined' && retryTimeoutRef.current === null) {
+          retryTimeoutRef.current = window.setTimeout(() => {
+            retryTimeoutRef.current = null
+            void fetchChats(true)
+          }, 5000)
+        }
+      } else {
+        clearRetry()
+        setError(null)
+        const mappedChats: Chat[] = (data || []).map(chat => ({
+          ...getChatFreezeState(
+            chat.announcement_status,
+            chat.announcement_expires_at,
+            chat.lead_contact_expires_at
+          ),
+          direction: chat.buyer_id === user.id ? 'sent' : 'received',
+          id: chat.id,
+          adId: chat.announcement_id,
+          adTitle: chat.ad_title,
+          adPrice: parseFloat(chat.ad_price) || 0,
+          adImage: chat.ad_image,
+          adStatus: chat.announcement_status,
+          adExpiresAt: chat.announcement_expires_at,
+          adExpiredAt: chat.announcement_expired_at,
+          adDeletionScheduledAt: chat.announcement_deletion_scheduled_at,
+          leadContactExpiresAt: chat.lead_contact_expires_at,
+          sellerId: chat.seller_id,
+          sellerName: chat.seller_name,
+          buyerId: chat.buyer_id,
+          buyerName: chat.buyer_name,
+          lastMessage: chat.last_message || '',
+          lastMessageTime: chat.last_message_time || chat.created_at,
+          unreadCount: chat.unread_count || 0,
+          status: chat.status,
+          createdAt: chat.created_at
+        }))
+
+        setChats(mappedChats)
+      }
+    } finally {
+      setIsLoading(false)
+      if (silent) {
+        endAppSync()
+      }
+
+      isFetchingRef.current = false
     }
   }
 
@@ -146,6 +158,42 @@ export const useChats = (announcementId?: string | null) => {
 
     window.addEventListener('online', handleOnline)
     return () => window.removeEventListener('online', handleOnline)
+  }, [user?.id, announcementId])
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    const chatsChannel = supabase
+      .channel(`chat-list:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chats',
+          filter: `seller_id=eq.${user.id}`
+        },
+        () => {
+          void fetchChats(true)
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chats',
+          filter: `buyer_id=eq.${user.id}`
+        },
+        () => {
+          void fetchChats(true)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      chatsChannel.unsubscribe()
+    }
   }, [user?.id, announcementId])
 
   return { chats, isLoading, error, refreshChats: fetchChats }
@@ -208,6 +256,8 @@ export const useMessages = (chatId: string | null) => {
 
       if (chatUpdateError) {
         console.error('[markAsRead] Erro ao atualizar contador do chat:', chatUpdateError)
+      } else {
+        emitCountsRefresh()
       }
     } catch (err) {
       console.error('[markAsRead] Erro inesperado:', err)
@@ -302,11 +352,40 @@ export const useMessages = (chatId: string | null) => {
             isFiltered: payload.new.is_filtered
           }
 
-          setMessages(prev => [...prev, newMessage])
+          setMessages(prev => {
+            if (prev.some(message => message.id === newMessage.id)) {
+              return prev
+            }
+
+            return [...prev, newMessage]
+          })
 
           if (payload.new.sender_id !== user.id) {
             await markAsRead(chatId)
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `chat_id=eq.${chatId}`
+        },
+        (payload) => {
+          setMessages(prev =>
+            prev.map(message =>
+              message.id === payload.new.id
+                ? {
+                    ...message,
+                    content: payload.new.content,
+                    isRead: payload.new.is_read,
+                    isFiltered: payload.new.is_filtered
+                  }
+                : message
+            )
+          )
         }
       )
       .subscribe()

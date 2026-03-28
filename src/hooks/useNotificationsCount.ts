@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
+import { subscribeToCountsRefresh } from '../lib/countSync'
 import { useAuth } from '../contexts/AuthContext'
 
 interface NotificationCounts {
@@ -216,6 +217,17 @@ export const useNotificationsCount = (): NotificationCounts => {
 
     window.addEventListener('online', handleOnline)
     return () => window.removeEventListener('online', handleOnline)
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    return subscribeToCountsRefresh(() => {
+      startAppSync()
+      void Promise.all([fetchMessagesCount(), fetchNotificationsCount()]).finally(() => {
+        endAppSync()
+      })
+    })
   }, [user?.id])
 
   return {

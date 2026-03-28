@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { Notification } from '../../types'
+import { emitCountsRefresh } from '../lib/countSync'
 
 export const useNotifications = () => {
   const { user } = useAuth()
@@ -68,6 +69,7 @@ export const useNotifications = () => {
           notif.id === notificationId ? { ...notif, isRead: true } : notif
         )
       )
+      emitCountsRefresh()
     }
   }
 
@@ -86,6 +88,7 @@ export const useNotifications = () => {
       setNotifications(prev =>
         prev.map(notif => ({ ...notif, isRead: true }))
       )
+      emitCountsRefresh()
     }
   }
 

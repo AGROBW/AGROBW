@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { Quotation } from '../types';
@@ -12,8 +11,8 @@ const QuotationTicker: React.FC = () => {
       const data = await getQuotations();
       setItems(data);
     };
+
     load();
-    // Refresh a cada 5 minutos se a aba ficar aberta
     const interval = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -23,15 +22,22 @@ const QuotationTicker: React.FC = () => {
   return (
     <div className="bg-slate-900 border-b border-slate-800 py-2 overflow-hidden group">
       <div className="flex whitespace-nowrap animate-ticker group-hover:pause-ticker">
-        {/* Renderizamos duas vezes para o efeito de loop infinito suave */}
         {[...items, ...items].map((item, idx) => (
           <div key={`${item.id}-${idx}`} className="inline-flex items-center px-6 border-r border-slate-700 last:border-none">
             <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tighter mr-2">{item.name}</span>
-            <span className="text-sm font-semibold text-white mr-2">R$ {item.value}</span>
-            <span className={`text-[11px] font-semibold flex items-center ${
-              item.trend === 'up' ? 'text-green-500' : 
-              item.trend === 'down' ? 'text-red-500' : 'text-slate-400'
-            }`}>
+            <span className="text-sm font-semibold text-white mr-2">
+              {item.id === 'usd-brl-bcb' ? `R$ ${item.value}` : item.value}
+            </span>
+            {item.unit && (
+              <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 mr-2">
+                {item.unit}
+              </span>
+            )}
+            <span
+              className={`text-[11px] font-semibold flex items-center ${
+                item.trend === 'up' ? 'text-green-500' : item.trend === 'down' ? 'text-red-500' : 'text-slate-400'
+              }`}
+            >
               {item.trend === 'up' && <TrendingUp className="w-3 h-3 mr-0.5" strokeWidth={1.5} />}
               {item.trend === 'down' && <TrendingDown className="w-3 h-3 mr-0.5" strokeWidth={1.5} />}
               {item.change !== 0 && `${item.change > 0 ? '+' : ''}${item.change}%`}
