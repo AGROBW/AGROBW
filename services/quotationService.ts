@@ -19,12 +19,16 @@ type MarketQuoteRecord = {
   id: string;
   code: string;
   name: string;
+  commodity: string | null;
+  product_name: string | null;
   unit: string | null;
   price: number | null;
   change_percent: number | null;
   is_active: boolean;
   sort_order: number | null;
   source: string | null;
+  source_label: string | null;
+  reference_date: string | null;
   last_update: string | null;
   is_placeholder: boolean | null;
   placeholder_text: string | null;
@@ -52,17 +56,17 @@ const getTrend = (change: number): Quotation['trend'] => {
 const createPlaceholderCommodity = (
   id: string,
   name: string,
-  unit: string,
   note: string,
   lastUpdate: string
 ): Quotation => ({
   id,
   name,
   value: note,
-  unit,
+  unit: 'Referência de mercado',
   change: 0,
   trend: 'stable',
   lastUpdate,
+  sourceLabel: 'CEPEA',
 });
 
 const mapStoredQuoteToTickerItem = (record: MarketQuoteRecord): Quotation => {
@@ -77,19 +81,21 @@ const mapStoredQuoteToTickerItem = (record: MarketQuoteRecord): Quotation => {
     id: record.code,
     name: record.name,
     value,
-    unit: record.unit || '',
+    unit: record.unit || 'Referência de mercado',
     change,
     trend: getTrend(change),
     lastUpdate: record.last_update || new Date().toISOString(),
+    sourceLabel: record.source_label || record.source || undefined,
+    referenceDate: record.reference_date || undefined,
   };
 };
 
 const getDefaultQuotations = (lastUpdate: string, dollarQuotation?: Quotation): Quotation[] => {
   const baseItems: Quotation[] = [
-    createPlaceholderCommodity('cepea-soja', 'Soja (CEPEA)', 'Indicador físico', 'Fonte em implantação', lastUpdate),
-    createPlaceholderCommodity('cepea-milho', 'Milho (CEPEA)', 'Indicador físico', 'Fonte em implantação', lastUpdate),
-    createPlaceholderCommodity('cepea-boi', 'Boi Gordo (CEPEA)', 'Indicador físico', 'Fonte em implantação', lastUpdate),
-    createPlaceholderCommodity('cepea-cafe', 'Café Arábica (CEPEA)', 'Indicador físico', 'Fonte em implantação', lastUpdate),
+    createPlaceholderCommodity('cepea-soja', 'Soja (CEPEA)', 'Fonte em implantação', lastUpdate),
+    createPlaceholderCommodity('cepea-milho', 'Milho (CEPEA)', 'Fonte em implantação', lastUpdate),
+    createPlaceholderCommodity('cepea-boi', 'Boi Gordo (CEPEA)', 'Fonte em implantação', lastUpdate),
+    createPlaceholderCommodity('cepea-cafe', 'Café Arábica (CEPEA)', 'Fonte em implantação', lastUpdate),
   ];
 
   return dollarQuotation ? [dollarQuotation, ...baseItems] : baseItems;
@@ -121,9 +127,7 @@ const fetchLatestBcbDollarQuotation = async (): Promise<Quotation> => {
     candidateDate.setDate(cursor.getDate() - offset);
 
     const dailyQuote = await fetchBcbQuoteByDate(candidateDate);
-    if (dailyQuote) {
-      attempts.push(dailyQuote);
-    }
+    if (dailyQuote) attempts.push(dailyQuote);
   }
 
   if (attempts.length === 0) {
@@ -133,9 +137,10 @@ const fetchLatestBcbDollarQuotation = async (): Promise<Quotation> => {
   const [currentQuote, previousQuote] = attempts;
   const currentSellPrice = currentQuote.cotacaoVenda;
   const previousSellPrice = previousQuote?.cotacaoVenda ?? currentSellPrice;
-  const variation = previousSellPrice
-    ? Number((((currentSellPrice - previousSellPrice) / previousSellPrice) * 100).toFixed(2))
-    : 0;
+  const variation =
+    previousSellPrice > 0
+      ? Number((((currentSellPrice - previousSellPrice) / previousSellPrice) * 100).toFixed(2))
+      : 0;
 
   return {
     id: 'usd-brl-bcb',
@@ -145,21 +150,19 @@ const fetchLatestBcbDollarQuotation = async (): Promise<Quotation> => {
     change: variation,
     trend: getTrend(variation),
     lastUpdate: currentQuote.dataHoraCotacao,
+    sourceLabel: 'Banco Central',
   };
 };
 
 const fetchStoredQuotations = async (): Promise<Quotation[]> => {
   const { data, error } = await supabase
     .from('market_quotes')
-    .select('id, code, name, unit, price, change_percent, is_active, sort_order, source, last_update, is_placeholder, placeholder_text')
+    .select('id, code, name, commodity, product_name, unit, price, change_percent, is_active, sort_order, source, source_label, reference_date, last_update, is_placeholder, placeholder_text')
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return ((data as MarketQuoteRecord[] | null) || []).map(mapStoredQuoteToTickerItem);
 };
 
@@ -189,9 +192,7 @@ export const getQuotations = async (): Promise<Quotation[]> => {
 
   if (cached) {
     const { data, timestamp } = JSON.parse(cached) as { data: Quotation[]; timestamp: number };
-    const isExpired = Date.now() - timestamp > CACHE_EXPIRATION;
-
-    if (!isExpired) {
+    if (Date.now() - timestamp <= CACHE_EXPIRATION) {
       return data;
     }
   }

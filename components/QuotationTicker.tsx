@@ -33,6 +33,11 @@ const QuotationTicker: React.FC = () => {
                 {item.unit}
               </span>
             )}
+            {item.sourceLabel && (
+              <span className="text-[10px] font-medium uppercase tracking-wide text-emerald-400 mr-2">
+                Fonte: {item.sourceLabel}
+              </span>
+            )}
             <span
               className={`text-[11px] font-semibold flex items-center ${
                 item.trend === 'up' ? 'text-green-500' : item.trend === 'down' ? 'text-red-500' : 'text-slate-400'

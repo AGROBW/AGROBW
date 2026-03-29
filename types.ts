@@ -150,6 +150,8 @@ export interface Quotation {
   change: number;
   trend: 'up' | 'down' | 'stable';
   lastUpdate: string;
+  sourceLabel?: string;
+  referenceDate?: string;
 }
 
 export interface NewsItem {
