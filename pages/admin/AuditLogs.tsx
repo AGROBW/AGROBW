@@ -9,7 +9,8 @@ import {
   ChevronUp,
   AlertTriangle,
   TrendingUp,
-  User as UserIcon
+  User as UserIcon,
+  ArrowDownCircle
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabaseClient';
 import { toast } from 'sonner';
@@ -54,6 +55,7 @@ const AuditLogs: React.FC = () => {
   const [actionStats, setActionStats] = useState<ActionStats[]>([]);
   const [adminStats, setAdminStats] = useState<AdminStats[]>([]);
   const [criticalActionsCount, setCriticalActionsCount] = useState(0);
+  const [autoDowngradesCount, setAutoDowngradesCount] = useState(0);
 
   const PAGE_SIZE = 20;
 
@@ -151,6 +153,14 @@ const AuditLogs: React.FC = () => {
         .gte('created_at', yesterday.toISOString());
 
       setCriticalActionsCount(criticalCount || 0);
+
+      const { count: downgradeCount } = await supabase
+        .from('admin_audit_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('action', 'SUBSCRIPTION_AUTO_DOWNGRADED')
+        .gte('created_at', yesterday.toISOString());
+
+      setAutoDowngradesCount(downgradeCount || 0);
     } catch (error) {
       console.error('[AuditLogs] Erro ao carregar estatísticas:', error);
     }
@@ -161,6 +171,9 @@ const AuditLogs: React.FC = () => {
   };
 
   const getActionColor = (action: string) => {
+    if (action.includes('DOWNGRADED')) {
+      return 'bg-amber-100 text-amber-800';
+    }
     if (action.includes('DELETE') || action.includes('SUSPEND')) {
       return 'bg-red-100 text-red-800';
     }
@@ -171,6 +184,43 @@ const AuditLogs: React.FC = () => {
       return 'bg-blue-100 text-blue-800';
     }
     return 'bg-slate-100 text-slate-800';
+  };
+
+  const getActionLabel = (action: string) => {
+    switch (action) {
+      case 'SUBSCRIPTION_AUTO_DOWNGRADED':
+        return 'Downgrade automático';
+      case 'APPROVE_AD':
+        return 'Aprovar anúncio';
+      case 'REJECT_AD':
+        return 'Rejeitar anúncio';
+      case 'DELETE_AD':
+        return 'Excluir anúncio';
+      case 'SUSPEND_USER':
+        return 'Suspender usuário';
+      case 'UPDATE_PLAN':
+        return 'Alterar plano';
+      case 'UPDATE_USER_ROLE':
+        return 'Alterar role';
+      default:
+        return action;
+    }
+  };
+
+  const getActionIcon = (action: string) => {
+    if (action.includes('DOWNGRADED')) {
+      return <ArrowDownCircle className="w-3.5 h-3.5" />;
+    }
+
+    if (action.includes('DELETE') || action.includes('SUSPEND')) {
+      return <AlertTriangle className="w-3.5 h-3.5" />;
+    }
+
+    if (action.includes('APPROVE') || action.includes('CREATE')) {
+      return <Shield className="w-3.5 h-3.5" />;
+    }
+
+    return null;
   };
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
@@ -195,7 +245,7 @@ const AuditLogs: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* Total Actions */}
         <div className="bg-white rounded-xl p-6 border border-slate-200">
           <div className="flex items-center justify-between">
@@ -231,6 +281,18 @@ const AuditLogs: React.FC = () => {
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
               <UserIcon className="w-6 h-6 text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 border border-slate-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase">Downgrades automáticos (24h)</p>
+              <p className="text-3xl font-black text-slate-900 mt-2">{autoDowngradesCount}</p>
+            </div>
+            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+              <ArrowDownCircle className="w-6 h-6 text-amber-600" />
             </div>
           </div>
         </div>
@@ -306,6 +368,7 @@ const AuditLogs: React.FC = () => {
               <option value="SUSPEND_USER">Suspender Usuário</option>
               <option value="UPDATE_PLAN">Alterar Plano</option>
               <option value="UPDATE_USER_ROLE">Alterar Role</option>
+              <option value="SUBSCRIPTION_AUTO_DOWNGRADED">Downgrade automático</option>
             </select>
           </div>
 
@@ -377,8 +440,9 @@ const AuditLogs: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getActionColor(log.action)}`}>
-                          {log.action}
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${getActionColor(log.action)}`}>
+                          {getActionIcon(log.action)}
+                          {getActionLabel(log.action)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
