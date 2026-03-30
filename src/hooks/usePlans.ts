@@ -41,6 +41,9 @@ export interface Plan {
   notes: string | null;
   position: number;
   is_active: boolean;
+  show_in_public_pricing: boolean;
+  is_default_signup_plan: boolean;
+  is_downgrade_plan: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -82,6 +85,9 @@ export interface UpdatePlanData {
   notes?: string;
   position?: number;
   is_active?: boolean;
+  show_in_public_pricing?: boolean;
+  is_default_signup_plan?: boolean;
+  is_downgrade_plan?: boolean;
 }
 
 export const usePlans = () => {
@@ -106,17 +112,19 @@ export const usePlans = () => {
       setPlansRaw(data || [])
       
       // Mapped data (para frontend público)
-      const mapped: PricingPlan[] = (data || []).map((plan: any) => ({
-        id: plan.id,
-        name: plan.name,
-        description: plan.description,
-        monthlyPrice: parseFloat(plan.monthly_price ?? 0),
-        yearlyPrice: parseFloat(plan.yearly_price ?? 0),
-        features: plan.features || [],
-        isPopular: !!plan.is_popular,
-        buttonText: plan.button_text || 'Escolher Plano',
-        comparison: plan.comparison || {}
-      }))
+      const mapped: PricingPlan[] = (data || [])
+        .filter((plan: any) => plan.is_active && plan.show_in_public_pricing !== false)
+        .map((plan: any) => ({
+          id: plan.id,
+          name: plan.name,
+          description: plan.description,
+          monthlyPrice: parseFloat(plan.monthly_price ?? 0),
+          yearlyPrice: parseFloat(plan.yearly_price ?? 0),
+          features: plan.features || [],
+          isPopular: !!plan.is_popular,
+          buttonText: plan.button_text || 'Escolher Plano',
+          comparison: plan.comparison || {}
+        }))
       setPlans(mapped)
     }
     setIsLoading(false)
@@ -127,10 +135,36 @@ export const usePlans = () => {
       // Encontrar maior position atual
       const maxPosition = plansRaw.length > 0 ? Math.max(...plansRaw.map(p => p.position)) : 0;
 
+      if (planData.is_default_signup_plan) {
+        const { error: resetDefaultError } = await supabase
+          .from('plans')
+          .update({ is_default_signup_plan: false })
+          .eq('is_default_signup_plan', true);
+
+        if (resetDefaultError) {
+          console.error('Erro ao limpar plano padrão anterior:', resetDefaultError);
+          return { error: resetDefaultError.message, data: null };
+        }
+      }
+
+      if (planData.is_downgrade_plan) {
+        const { error: resetDowngradeError } = await supabase
+          .from('plans')
+          .update({ is_downgrade_plan: false })
+          .eq('is_downgrade_plan', true);
+
+        if (resetDowngradeError) {
+          console.error('Erro ao limpar plano de downgrade anterior:', resetDowngradeError);
+          return { error: resetDowngradeError.message, data: null };
+        }
+      }
+
       const { data, error: createError } = await supabase
         .from('plans')
         .insert({
           ...planData,
+          show_in_public_pricing:
+            planData.is_downgrade_plan ? false : planData.show_in_public_pricing ?? true,
           position: planData.position ?? maxPosition + 1,
         })
         .select()
@@ -153,9 +187,39 @@ export const usePlans = () => {
 
   const updatePlan = async (id: string, updates: UpdatePlanData): Promise<{ error: string | null; data: Plan | null }> => {
     try {
+      if (updates.is_default_signup_plan) {
+        const { error: resetDefaultError } = await supabase
+          .from('plans')
+          .update({ is_default_signup_plan: false })
+          .neq('id', id)
+          .eq('is_default_signup_plan', true);
+
+        if (resetDefaultError) {
+          console.error('Erro ao limpar plano padrão anterior:', resetDefaultError);
+          return { error: resetDefaultError.message, data: null };
+        }
+      }
+
+      if (updates.is_downgrade_plan) {
+        const { error: resetDowngradeError } = await supabase
+          .from('plans')
+          .update({ is_downgrade_plan: false })
+          .neq('id', id)
+          .eq('is_downgrade_plan', true);
+
+        if (resetDowngradeError) {
+          console.error('Erro ao limpar plano de downgrade anterior:', resetDowngradeError);
+          return { error: resetDowngradeError.message, data: null };
+        }
+      }
+
       const { data, error: updateError } = await supabase
         .from('plans')
-        .update(updates)
+        .update({
+          ...updates,
+          show_in_public_pricing:
+            updates.is_downgrade_plan ? false : updates.show_in_public_pricing,
+        })
         .eq('id', id)
         .select()
         .single();

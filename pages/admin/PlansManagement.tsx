@@ -82,6 +82,9 @@ const makeEmptyForm = (position: number): UpdatePlanData => ({
   button_text: 'Escolher Plano',
   position,
   is_active: true,
+  show_in_public_pricing: true,
+  is_default_signup_plan: false,
+  is_downgrade_plan: false,
   is_popular: false,
   max_ads: null,
   ad_duration_days: 30,
@@ -119,6 +122,9 @@ const mapPlanToForm = (plan: Plan): UpdatePlanData => ({
   button_text: plan.button_text,
   position: plan.position,
   is_active: plan.is_active,
+  show_in_public_pricing: plan.show_in_public_pricing ?? true,
+  is_default_signup_plan: plan.is_default_signup_plan ?? false,
+  is_downgrade_plan: plan.is_downgrade_plan ?? false,
   is_popular: plan.is_popular,
   max_ads: plan.max_ads,
   ad_duration_days: plan.ad_duration_days,
@@ -215,6 +221,11 @@ const PlansManagement: React.FC = () => {
 
     if (!formData.name?.trim()) {
       toast.error('Informe o nome do plano.');
+      return;
+    }
+
+    if (formData.is_default_signup_plan && formData.is_downgrade_plan) {
+      toast.error('O mesmo plano nao pode ser o plano inicial e o plano de downgrade.');
       return;
     }
 
@@ -361,8 +372,45 @@ const PlansManagement: React.FC = () => {
               <FieldShell label="Posicao" hint="Define a ordem de exibicao na tela publica.">
                 <input type="number" value={formData.position ?? 0} onChange={(e) => handleChange('position', parseInt(e.target.value, 10) || 0)} placeholder="1" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
               </FieldShell>
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" checked={formData.is_active ?? true} onChange={(e) => handleChange('is_active', e.target.checked)} />Plano ativo</label>
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" checked={formData.is_popular ?? false} onChange={(e) => handleChange('is_popular', e.target.checked)} />Plano popular</label>
+              <div className="md:col-span-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <ToggleSwitch
+                  checked={formData.is_active ?? true}
+                  onChange={(checked) => handleChange('is_active', checked)}
+                  label="Plano ativo"
+                  hint="Desative para retirar o plano de uso e contratação."
+                />
+                <ToggleSwitch
+                  checked={formData.is_popular ?? false}
+                  onChange={(checked) => handleChange('is_popular', checked)}
+                  label="Plano popular"
+                  hint="Adiciona o destaque visual de recomendação."
+                />
+                <ToggleSwitch
+                  checked={formData.show_in_public_pricing ?? true}
+                  onChange={(checked) => handleChange('show_in_public_pricing', checked)}
+                  label="Exibir na página de planos"
+                  hint="Desative para esconder o plano da vitrine pública e manter apenas no uso interno."
+                />
+                <ToggleSwitch
+                  checked={formData.is_default_signup_plan ?? false}
+                  onChange={(checked) => handleChange('is_default_signup_plan', checked)}
+                  label="Plano padrão no cadastro"
+                  hint="Todo usuário novo recebe este plano automaticamente."
+                />
+                <div className="lg:col-span-2">
+                  <ToggleSwitch
+                    checked={formData.is_downgrade_plan ?? false}
+                    onChange={(checked) => {
+                      handleChange('is_downgrade_plan', checked);
+                      if (checked) {
+                        handleChange('show_in_public_pricing', false);
+                      }
+                    }}
+                    label="Plano de downgrade"
+                    hint="Usado automaticamente quando o Start ou uma assinatura expira sem renovação."
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -560,6 +608,21 @@ const PlansManagement: React.FC = () => {
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${plan.show_footer_card !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                     Card {plan.show_footer_card !== false ? 'ativo' : 'oculto'}
                   </span>
+                  {plan.is_default_signup_plan && (
+                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                      Cadastro
+                    </span>
+                  )}
+                  {plan.is_downgrade_plan && (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                      Downgrade
+                    </span>
+                  )}
+                  {plan.show_in_public_pricing === false && (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                      Oculto na vitrine
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-600">{plan.description}</p>
               </div>

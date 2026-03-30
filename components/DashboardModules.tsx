@@ -934,19 +934,17 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
             <span className="text-xs font-medium text-slate-700">Booster Categoria</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-2xl font-bold text-slate-900">{boosterCategoryUsed}</span>
+            <span className="text-2xl font-bold text-slate-900">{categoryHighlightsBoosterRemaining}</span>
             <span className="text-sm text-slate-500">de</span>
             <span className="text-2xl font-bold text-slate-600">{boosterCategoryLimit}</span>
           </div>
           {boosterCategoryLimit > 0 && (
             <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
-                className={`h-full transition-all duration-300 ${getProgressColor(boosterCategoryUsed, boosterCategoryLimit)}`}
+                className="h-full transition-all duration-300"
                 style={{
-                  width: `${calculatePercentage(boosterCategoryUsed, boosterCategoryLimit)}%`,
-                  backgroundColor: getProgressColor(boosterCategoryUsed, boosterCategoryLimit)
-                    ? undefined
-                    : settings.primaryColor,
+                  width: `${calculatePercentage(categoryHighlightsBoosterRemaining, boosterCategoryLimit)}%`,
+                  backgroundColor: settings.primaryColor,
                 }}
               />
             </div>
@@ -962,19 +960,17 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
             <span className="text-xs font-medium text-slate-700">Booster Home</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-2xl font-bold text-slate-900">{boosterHomeUsed}</span>
+            <span className="text-2xl font-bold text-slate-900">{homeHighlightsBoosterRemaining}</span>
             <span className="text-sm text-slate-500">de</span>
             <span className="text-2xl font-bold text-slate-600">{boosterHomeLimit}</span>
           </div>
           {boosterHomeLimit > 0 && (
             <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div
-                className={`h-full transition-all duration-300 ${getProgressColor(boosterHomeUsed, boosterHomeLimit)}`}
+                className="h-full transition-all duration-300"
                 style={{
-                  width: `${calculatePercentage(boosterHomeUsed, boosterHomeLimit)}%`,
-                  backgroundColor: getProgressColor(boosterHomeUsed, boosterHomeLimit)
-                    ? undefined
-                    : settings.accentColor,
+                  width: `${calculatePercentage(homeHighlightsBoosterRemaining, boosterHomeLimit)}%`,
+                  backgroundColor: settings.accentColor,
                 }}
               />
             </div>

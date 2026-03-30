@@ -1659,13 +1659,13 @@ const UserDashboardView: React.FC = () => {
             <div className="w-full max-w-sm">
               <div className="rounded-2xl border border-white/70 bg-white/85 px-5 py-4 backdrop-blur shadow-sm">
                 <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Validade do contato lead
+                  Validade de acesso aos contatos
                 </span>
                 <span className="mt-2 block text-lg font-semibold text-slate-900">
                   {effectiveLeadContactLimitDays ? `${effectiveLeadContactLimitDays} dias` : 'Nao incluso'}
                 </span>
                 <p className="mt-1 text-xs text-slate-500">
-                  Os contatos ficam disponíveis por até {effectiveLeadContactLimitDays ?? 0} dias.
+                  Aproveite até {effectiveLeadContactLimitDays ?? 0} dias para responder interessados e fechar negócios.
                 </p>
               </div>
             </div>

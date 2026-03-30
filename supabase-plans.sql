@@ -32,12 +32,18 @@ create table if not exists public.plans (
   notes text,
   position int not null default 0,
   is_active boolean not null default true,
+  show_in_public_pricing boolean not null default true,
+  is_default_signup_plan boolean not null default false,
+  is_downgrade_plan boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists idx_plans_position on public.plans(position);
 create index if not exists idx_plans_active on public.plans(is_active);
+create index if not exists idx_plans_public_pricing on public.plans(show_in_public_pricing);
+create index if not exists idx_plans_default_signup on public.plans(is_default_signup_plan);
+create index if not exists idx_plans_downgrade on public.plans(is_downgrade_plan);
 
 -- Trigger para updated_at
 create or replace function public.set_updated_at_plans()
@@ -245,4 +251,7 @@ on conflict (name) do update set
   notes = excluded.notes,
   position = excluded.position,
   is_active = true,
+  show_in_public_pricing = coalesce(public.plans.show_in_public_pricing, true),
+  is_default_signup_plan = coalesce(public.plans.is_default_signup_plan, false),
+  is_downgrade_plan = coalesce(public.plans.is_downgrade_plan, false),
   updated_at = now();

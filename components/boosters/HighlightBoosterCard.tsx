@@ -55,6 +55,12 @@ const HighlightBoosterCard: React.FC<HighlightBoosterCardProps> = ({
                 <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-700">
                   +{booster.homeCredits} home
                 </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-700">
+                  {booster.categoryHighlightDays}d categoria
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-700">
+                  {booster.homeHighlightDays}d home
+                </span>
               </div>
             </div>
               <p className="mt-2 text-sm text-slate-500">

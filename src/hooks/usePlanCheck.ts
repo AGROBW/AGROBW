@@ -47,6 +47,10 @@ export const usePlanCheck = () => {
 
       setIsLoading(true)
       try {
+        await supabase.rpc('ensure_user_current_subscription', {
+          p_user_id: user.id
+        })
+
         const { data, error } = await supabase
           .from('user_subscriptions')
           .select('id,status,current_period_start,current_period_end,cancel_at_period_end,trial_end_date, plans (id,name,max_ads,lead_contact_limit_days,lead_contact_limit_days_monthly,lead_contact_limit_days_yearly,has_verification_badge,has_seller_store,has_email_marketing)')

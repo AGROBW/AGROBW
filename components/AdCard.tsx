@@ -188,7 +188,14 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
                   p_state: userState
                 }).then(({ error }) => {
                   if (error) {
-                    console.error('[Analytics] Erro ao registrar clique:', error.message);
+                    const isDeletedAnnouncementClick =
+                      error.code === '23503' ||
+                      error.message?.includes('announcement_clicks_by_state') ||
+                      error.message?.includes('foreign key constraint');
+
+                    if (!isDeletedAnnouncementClick) {
+                      console.error('[Analytics] Erro ao registrar clique:', error.message);
+                    }
                   } else {
                     console.log('[Analytics] Clique registrado:', userState);
                   }

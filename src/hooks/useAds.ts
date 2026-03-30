@@ -314,11 +314,18 @@ export const useAd = (adId: string | undefined) => {
           announcement_technical_details (label, value, icon_name)
         `)
         .eq('id', adId)
-        .single()
+        .maybeSingle()
 
       if (adError) {
         setError(adError.message)
         console.error('Erro ao buscar anuncio:', adError)
+        setIsLoading(false)
+        return
+      }
+
+      if (!adData) {
+        setAd(null)
+        setError('Anúncio não encontrado ou removido')
         setIsLoading(false)
         return
       }

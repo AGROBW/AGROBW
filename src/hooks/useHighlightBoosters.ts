@@ -14,6 +14,8 @@ const mapBooster = (row: any): HighlightBoosterRecord => ({
   monthlyPrice: Number(row.monthly_price ?? 0),
   categoryCredits: Number(row.category_credits ?? 0),
   homeCredits: Number(row.home_credits ?? 0),
+  categoryHighlightDays: Number(row.category_highlight_days ?? 30),
+  homeHighlightDays: Number(row.home_highlight_days ?? 15),
   maxPurchasesPer30Days: Number(row.max_purchases_per_30_days ?? 2),
   buttonText: row.button_text ?? 'Comprar booster',
   isActive: !!row.is_active,

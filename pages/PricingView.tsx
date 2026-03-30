@@ -245,8 +245,11 @@ const PricingView: React.FC = () => {
 
   const visiblePlans = useMemo(
     () =>
-      plansRaw.filter((plan) =>
-        billingCycle === 'yearly' ? !isFreeMonthlyOnlyPlan(plan) : true
+      plansRaw.filter(
+        (plan) =>
+          plan.is_active &&
+          plan.show_in_public_pricing !== false &&
+          (billingCycle === 'yearly' ? !isFreeMonthlyOnlyPlan(plan) : true)
       ),
     [billingCycle, plansRaw]
   );

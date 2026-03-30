@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight, FilterX, Search, SlidersHorizontal } from 'lucide-react';
 import { CATEGORIES } from '../constants';
 import AdCard from '../components/AdCard';
 import HomeAdsCarousel from '../components/HomeAdsCarousel';
 import { usePublicAds } from '../src/hooks/useAds';
+import { supabase } from '../src/lib/supabaseClient';
 import {
   getCategoryHierarchyChildren,
   getCategoryGroupBySlug,
@@ -13,6 +14,13 @@ import {
 import { Ad } from '../types';
 
 type SortOption = 'recent' | 'low-price' | 'high-price' | 'views';
+type ShowcaseStatsRow = {
+  announcement_id: string;
+  impressions_last_7_days: number;
+  last_seen_at: string | null;
+};
+
+const CATEGORY_SHOWCASE_BATCH_SIZE = 12;
 
 const isHighlightActive = (value?: boolean, until?: string | null) =>
   Boolean(value) && (!until || new Date(until).getTime() > Date.now());
@@ -59,6 +67,9 @@ const AdsListingView: React.FC = () => {
   const [childSlugFilter, setChildSlugFilter] = useState(subSlug);
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [categoryShowcaseStats, setCategoryShowcaseStats] = useState<Record<string, ShowcaseStatsRow>>({});
+  const impressionSignatureRef = useRef<string>('');
+  const [requestRotationSeed] = useState(() => `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   const { ads, isLoading, error } = usePublicAds({
     category: catSlug || undefined,
@@ -108,47 +119,138 @@ const AdsListingView: React.FC = () => {
     });
   }, [ads, searchTerm, childSlugFilter, hierarchyChildren, stateFilter, cityFilter, minPrice, maxPrice]);
 
-  const highlightedAds = useMemo(() => {
+  const categoryHighlightedAds = useMemo(() => {
     return [...filteredAds]
-      .filter(
-        (ad) =>
-          isHighlightActive(ad.highlightHome, ad.highlightHomeUntil) ||
-          isHighlightActive(ad.highlightCategory, ad.highlightCategoryUntil)
-      )
+      .filter((ad) => isHighlightActive(ad.highlightCategory, ad.highlightCategoryUntil))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [filteredAds]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadShowcaseStats = async () => {
+      if (categoryHighlightedAds.length === 0) {
+        setCategoryShowcaseStats({});
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('get_category_showcase_impression_stats', {
+        p_announcement_ids: categoryHighlightedAds.map((ad) => ad.id),
+      });
+
+      if (error) {
+        console.error('[AdsListingView] Erro ao carregar estatisticas da vitrine premium:', error);
+        if (!cancelled) {
+          setCategoryShowcaseStats({});
+        }
+        return;
+      }
+
+      if (cancelled) return;
+
+      const statsMap = ((data as ShowcaseStatsRow[] | null) || []).reduce<Record<string, ShowcaseStatsRow>>(
+        (accumulator, row) => {
+          accumulator[row.announcement_id] = {
+            announcement_id: row.announcement_id,
+            impressions_last_7_days: Number(row.impressions_last_7_days ?? 0),
+            last_seen_at: row.last_seen_at ?? null,
+          };
+          return accumulator;
+        },
+        {}
+      );
+
+      setCategoryShowcaseStats(statsMap);
+    };
+
+    void loadShowcaseStats();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [categoryHighlightedAds]);
+
+  const visibleCategoryHighlightedAds = useMemo(() => {
+    return [...categoryHighlightedAds]
       .sort((a, b) => {
-        const aHome = isHighlightActive(a.highlightHome, a.highlightHomeUntil) ? 1 : 0;
-        const bHome = isHighlightActive(b.highlightHome, b.highlightHomeUntil) ? 1 : 0;
-        if (aHome !== bHome) return bHome - aHome;
+        const aStats = categoryShowcaseStats[a.id];
+        const bStats = categoryShowcaseStats[b.id];
+        const aImpressions = aStats?.impressions_last_7_days ?? 0;
+        const bImpressions = bStats?.impressions_last_7_days ?? 0;
 
-        const aCategory = isHighlightActive(a.highlightCategory, a.highlightCategoryUntil) ? 1 : 0;
-        const bCategory = isHighlightActive(b.highlightCategory, b.highlightCategoryUntil) ? 1 : 0;
-        if (aCategory !== bCategory) return bCategory - aCategory;
+        if (aImpressions !== bImpressions) {
+          return aImpressions - bImpressions;
+        }
 
-        const scoreA = getDeterministicRotationScore(a, dailyRotationSeed);
-        const scoreB = getDeterministicRotationScore(b, dailyRotationSeed);
+        const aLastSeen = aStats?.last_seen_at ? new Date(aStats.last_seen_at).getTime() : 0;
+        const bLastSeen = bStats?.last_seen_at ? new Date(bStats.last_seen_at).getTime() : 0;
+
+        if (aLastSeen !== bLastSeen) {
+          return aLastSeen - bLastSeen;
+        }
+
+        const scoreA = getDeterministicRotationScore(a, `${dailyRotationSeed}:${requestRotationSeed}`);
+        const scoreB = getDeterministicRotationScore(b, `${dailyRotationSeed}:${requestRotationSeed}`);
         if (scoreA !== scoreB) return scoreA - scoreB;
 
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
-  }, [dailyRotationSeed, filteredAds]);
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      })
+      .slice(0, CATEGORY_SHOWCASE_BATCH_SIZE);
+  }, [categoryHighlightedAds, categoryShowcaseStats, dailyRotationSeed, requestRotationSeed]);
+
+  useEffect(() => {
+    const visibleIds = visibleCategoryHighlightedAds.map((ad) => ad.id);
+    const signature = `${catSlug}:${visibleIds.join('|')}`;
+
+    if (!catSlug || visibleIds.length === 0 || impressionSignatureRef.current === signature) {
+      return;
+    }
+
+    impressionSignatureRef.current = signature;
+
+    void supabase.from('category_showcase_impressions').insert(
+      visibleCategoryHighlightedAds.map((ad) => ({
+        announcement_id: ad.id,
+        category_slug: catSlug,
+      }))
+    );
+  }, [catSlug, visibleCategoryHighlightedAds]);
 
   const regularAdsBase = useMemo(() => {
-    const highlightedIds = new Set(highlightedAds.map((ad) => ad.id));
-    return filteredAds.filter((ad) => !highlightedIds.has(ad.id));
-  }, [filteredAds, highlightedAds]);
+    return filteredAds.filter((ad) => {
+      const hasCategoryHighlight = isHighlightActive(ad.highlightCategory, ad.highlightCategoryUntil);
+      const hasHomeHighlight = isHighlightActive(ad.highlightHome, ad.highlightHomeUntil);
+
+      if (hasCategoryHighlight && !hasHomeHighlight) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [filteredAds]);
 
   const regularAds = useMemo(() => {
     const nextAds = [...regularAdsBase];
 
-    if (sortBy === 'low-price') {
-      nextAds.sort((a, b) => a.price - b.price);
-    } else if (sortBy === 'high-price') {
-      nextAds.sort((a, b) => b.price - a.price);
-    } else if (sortBy === 'views') {
-      nextAds.sort((a, b) => b.views - a.views);
-    } else {
-      nextAds.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }
+    nextAds.sort((a, b) => {
+      const aHome = isHighlightActive(a.highlightHome, a.highlightHomeUntil) ? 1 : 0;
+      const bHome = isHighlightActive(b.highlightHome, b.highlightHomeUntil) ? 1 : 0;
+      if (aHome !== bHome) return bHome - aHome;
+
+      if (sortBy === 'low-price') {
+        return a.price - b.price;
+      }
+
+      if (sortBy === 'high-price') {
+        return b.price - a.price;
+      }
+
+      if (sortBy === 'views') {
+        return b.views - a.views;
+      }
+
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
 
     return nextAds;
   }, [regularAdsBase, sortBy]);
@@ -315,10 +417,7 @@ const AdsListingView: React.FC = () => {
   );
 
   const renderHighlightCard = (ad: Ad) => (
-    <AdCard
-      ad={ad}
-      highlightDisplayMode={isHighlightActive(ad.highlightHome, ad.highlightHomeUntil) ? 'home' : 'category'}
-    />
+    <AdCard ad={ad} highlightDisplayMode="category" />
   );
 
   return (
@@ -367,12 +466,12 @@ const AdsListingView: React.FC = () => {
         </div>
       </div>
 
-      {highlightedAds.length > 0 && (
+      {visibleCategoryHighlightedAds.length > 0 && (
         <div className="mt-10">
           <HomeAdsCarousel
             title="Destaques da categoria"
             subtitle="Anúncios premium com prioridade de exposição nesta vitrine."
-            items={highlightedAds}
+            items={visibleCategoryHighlightedAds}
             isLoading={isLoading}
             emptyMessage="Nenhum destaque disponível nesta categoria no momento."
             eyebrow="Vitrine premium"
@@ -404,7 +503,7 @@ const AdsListingView: React.FC = () => {
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Todos os anúncios</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Abaixo ficam os resultados normais, separados da vitrine destacada.
+                  Os destaques home aparecem primeiro nesta listagem, seguidos pelos resultados normais.
                 </p>
               </div>
             </div>
@@ -425,7 +524,13 @@ const AdsListingView: React.FC = () => {
             ) : regularAds.length > 0 ? (
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
                 {regularAds.map((ad) => (
-                  <AdCard key={ad.id} ad={ad} highlightDisplayMode="none" />
+                  <AdCard
+                    key={ad.id}
+                    ad={ad}
+                    highlightDisplayMode={
+                      isHighlightActive(ad.highlightHome, ad.highlightHomeUntil) ? 'home' : 'none'
+                    }
+                  />
                 ))}
               </div>
             ) : (

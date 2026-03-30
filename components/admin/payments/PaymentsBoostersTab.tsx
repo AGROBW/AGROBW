@@ -11,6 +11,8 @@ type BoosterFormState = {
   monthlyPrice: string;
   categoryCredits: string;
   homeCredits: string;
+  categoryHighlightDays: string;
+  homeHighlightDays: string;
   isActive: boolean;
   position: string;
   buttonText: string;
@@ -23,6 +25,8 @@ const emptyForm: BoosterFormState = {
   monthlyPrice: '249',
   categoryCredits: '5',
   homeCredits: '5',
+  categoryHighlightDays: '30',
+  homeHighlightDays: '15',
   isActive: true,
   position: '1',
   buttonText: 'Comprar booster',
@@ -36,6 +40,8 @@ const mapBooster = (row: any): HighlightBoosterRecord => ({
   monthlyPrice: Number(row.monthly_price ?? 0),
   categoryCredits: Number(row.category_credits ?? 0),
   homeCredits: Number(row.home_credits ?? 0),
+  categoryHighlightDays: Number(row.category_highlight_days ?? 30),
+  homeHighlightDays: Number(row.home_highlight_days ?? 15),
   maxPurchasesPer30Days: Number(row.max_purchases_per_30_days ?? 2),
   buttonText: row.button_text ?? 'Comprar booster',
   isActive: !!row.is_active,
@@ -121,6 +127,8 @@ const PaymentsBoostersTab: React.FC = () => {
       monthlyPrice: String(booster.monthlyPrice),
       categoryCredits: String(booster.categoryCredits),
       homeCredits: String(booster.homeCredits),
+      categoryHighlightDays: String(booster.categoryHighlightDays),
+      homeHighlightDays: String(booster.homeHighlightDays),
       isActive: booster.isActive,
       position: String(booster.position),
       buttonText: booster.buttonText,
@@ -137,6 +145,8 @@ const PaymentsBoostersTab: React.FC = () => {
     const monthlyPrice = parseNumericInput(form.monthlyPrice, NaN);
     const categoryCredits = parseNumericInput(form.categoryCredits, NaN);
     const homeCredits = parseNumericInput(form.homeCredits, NaN);
+    const categoryHighlightDays = parseNumericInput(form.categoryHighlightDays, NaN);
+    const homeHighlightDays = parseNumericInput(form.homeHighlightDays, NaN);
     const position = parseNumericInput(form.position, 1);
     const maxPurchasesPer30Days = parseNumericInput(form.maxPurchasesPer30Days, 2);
 
@@ -155,6 +165,16 @@ const PaymentsBoostersTab: React.FC = () => {
       return;
     }
 
+    if (!Number.isFinite(categoryHighlightDays) || categoryHighlightDays <= 0) {
+      toast.error('Informe uma duracao valida para destaque em categoria.');
+      return;
+    }
+
+    if (!Number.isFinite(homeHighlightDays) || homeHighlightDays <= 0) {
+      toast.error('Informe uma duracao valida para destaque na home.');
+      return;
+    }
+
     setSaving(true);
     const payload = {
       name: form.name.trim(),
@@ -162,6 +182,8 @@ const PaymentsBoostersTab: React.FC = () => {
       monthly_price: monthlyPrice,
       category_credits: categoryCredits,
       home_credits: homeCredits,
+      category_highlight_days: categoryHighlightDays,
+      home_highlight_days: homeHighlightDays,
       is_active: form.isActive,
       position,
       button_text: form.buttonText.trim() || 'Comprar booster',
@@ -231,6 +253,14 @@ const PaymentsBoostersTab: React.FC = () => {
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700">Creditos home</span>
               <input value={form.homeCredits} onChange={(e) => setForm((current) => ({ ...current, homeCredits: e.target.value }))} className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-slate-700">Duracao categoria (dias)</span>
+              <input value={form.categoryHighlightDays} onChange={(e) => setForm((current) => ({ ...current, categoryHighlightDays: e.target.value }))} className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm" />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-slate-700">Duracao home (dias)</span>
+              <input value={form.homeHighlightDays} onChange={(e) => setForm((current) => ({ ...current, homeHighlightDays: e.target.value }))} className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm" />
             </label>
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700">Posicao</span>
@@ -312,6 +342,8 @@ const PaymentsBoostersTab: React.FC = () => {
                       <span>R$ {booster.monthlyPrice.toFixed(2)}</span>
                       <span>+{booster.categoryCredits} categoria</span>
                       <span>+{booster.homeCredits} home</span>
+                      <span>{booster.categoryHighlightDays} dias categoria</span>
+                      <span>{booster.homeHighlightDays} dias home</span>
                       <span>Limite {booster.maxPurchasesPer30Days}/30 dias</span>
                     </div>
                   </button>

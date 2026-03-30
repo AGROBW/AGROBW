@@ -95,6 +95,10 @@ export const useSubscription = () => {
       setIsLoading(true);
       setError(null);
 
+      await supabase.rpc('ensure_user_current_subscription', {
+        p_user_id: user.id,
+      });
+
       const { data, error: subscriptionError } = await supabase
         .from('user_subscriptions')
         .select(`

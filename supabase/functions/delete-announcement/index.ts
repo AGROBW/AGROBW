@@ -20,6 +20,16 @@ const deleteAnnouncementRelations = async (
   supabaseAdmin: ReturnType<typeof createClient>,
   announcementId: string
 ) => {
+  // Preserve highlight consumption history even if the database still has an old FK rule.
+  const { error: detachHighlightsError } = await supabaseAdmin
+    .from('announcement_highlights_history')
+    .update({ announcement_id: null })
+    .eq('announcement_id', announcementId);
+
+  if (detachHighlightsError) {
+    throw detachHighlightsError;
+  }
+
   const { data: chats, error: chatsError } = await supabaseAdmin
     .from('chats')
     .select('id')

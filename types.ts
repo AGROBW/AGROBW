@@ -455,6 +455,8 @@ export interface HighlightBoosterRecord {
   monthlyPrice: number;
   categoryCredits: number;
   homeCredits: number;
+  categoryHighlightDays: number;
+  homeHighlightDays: number;
   maxPurchasesPer30Days: number;
   buttonText: string;
   isActive: boolean;
