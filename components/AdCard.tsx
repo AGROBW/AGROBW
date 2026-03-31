@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Eye, Heart, Sparkles } from 'lucide-react';
+import { MapPin, Eye, Heart, Sparkles, Store } from 'lucide-react';
 import { Ad } from '../types';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useFavorites } from '../src/hooks/useFavorites';
@@ -85,31 +85,51 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
           ? false
           : isCategoryHighlightActive;
   const hasActiveHighlight = shouldShowCategoryHighlight || shouldShowHomeHighlight;
+  const hasOfficialStore = !!ad.seller?.store?.slug;
   const categoryHighlightStyle = {
     borderColor: '#93c5fd',
     boxShadow: '0 12px 30px -18px rgba(59, 130, 246, 0.28)',
   } as const;
+  const officialStoreCardStyle = {
+    borderColor: '#34d399',
+    boxShadow: '0 12px 30px -18px rgba(16, 185, 129, 0.28)',
+  } as const;
+  const cardStyle = shouldShowHomeHighlight
+    ? { borderColor: settings.accentColor, boxShadow: `0 12px 30px -18px ${settings.accentColor}66` }
+    : shouldShowCategoryHighlight
+      ? categoryHighlightStyle
+      : hasOfficialStore
+        ? officialStoreCardStyle
+        : undefined;
 
   return (
     <div className={`group bg-white rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full relative ${
-      hasActiveHighlight 
+      hasActiveHighlight || hasOfficialStore
         ? 'border-2 shadow-lg' 
         : 'border border-slate-100'
-    }`} style={shouldShowHomeHighlight ? { borderColor: settings.accentColor, boxShadow: `0 12px 30px -18px ${settings.accentColor}66` } : shouldShowCategoryHighlight ? categoryHighlightStyle : undefined}>
+    }`} style={cardStyle}>
       {/* Badge de Destaque */}
-      {hasActiveHighlight && (
-        <div
-          className="absolute top-4 left-4 z-10 flex items-center gap-1 text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg animate-pulse"
-          style={
-            shouldShowHomeHighlight
-              ? { background: `linear-gradient(90deg, ${settings.accentColor}, color-mix(in srgb, ${settings.accentColor} 82%, white))`, color: settings.secondaryColor }
-              : { background: 'linear-gradient(90deg, #dbeafe, #eff6ff)', color: '#1d4ed8' }
-          }
-        >
-          <Sparkles className="w-3 h-3" strokeWidth={2.5} />
-          {shouldShowHomeHighlight ? 'HOME' : 'CATEGORIA'}
-        </div>
-      )}
+      <div className="absolute top-4 left-4 z-10 flex max-w-[calc(100%-4rem)] flex-col gap-2">
+        {hasActiveHighlight && (
+          <div
+            className="flex items-center gap-1 text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg animate-pulse w-fit"
+            style={
+              shouldShowHomeHighlight
+                ? { background: `linear-gradient(90deg, ${settings.accentColor}, color-mix(in srgb, ${settings.accentColor} 82%, white))`, color: settings.secondaryColor }
+                : { background: 'linear-gradient(90deg, #dbeafe, #eff6ff)', color: '#1d4ed8' }
+            }
+          >
+            <Sparkles className="w-3 h-3" strokeWidth={2.5} />
+            {shouldShowHomeHighlight ? 'HOME' : 'CATEGORIA'}
+          </div>
+        )}
+        {hasOfficialStore && (
+          <div className="flex items-center gap-1 text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg w-fit bg-gradient-to-r from-emerald-100 to-teal-50 text-emerald-800">
+            <Store className="w-3 h-3" strokeWidth={2.5} />
+            LOJA OFICIAL
+          </div>
+        )}
+      </div>
       
       {ad.isPremium && !hasActiveHighlight && (
         <div className="absolute top-4 left-4 z-10 bg-yellow-400 text-yellow-900 text-[10px] font-black uppercase px-2 py-1 rounded shadow-sm">
@@ -160,7 +180,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
             <VerifiedBadge variant="small" />
           </div>
         )}
-        
+
         <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-100">
           <div>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Investimento</p>

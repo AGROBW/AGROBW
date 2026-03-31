@@ -63,6 +63,13 @@ const AdDetailView: React.FC = () => {
     currency: 'BRL',
   }).format(priceToDisplay);
   const safeDescription = censorContactData(ad.description || '').censored;
+  const commercialHighlights = [
+    ad.productCondition ? { label: 'Condição', value: ad.productCondition === 'novo' ? 'Novo' : ad.productCondition === 'seminovo' ? 'Seminovo' : 'Usado' } : null,
+    ad.availability ? { label: 'Disponibilidade', value: ad.availability === 'pronta_entrega' ? 'Pronta entrega' : ad.availability === 'sob_encomenda' ? 'Sob encomenda' : 'Consultar estoque' } : null,
+    ad.acceptsTrade ? { label: 'Negociação', value: 'Aceita troca' } : null,
+    ad.hasInvoice ? { label: 'Documentação', value: 'Emite nota fiscal' } : null,
+    ad.hasWarranty ? { label: 'Garantia', value: ad.warrantyDetails || 'Garantia informada pela loja' } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   return (
     <div className="bg-gray-50 pb-20">
@@ -142,6 +149,26 @@ const AdDetailView: React.FC = () => {
             </div>
           )}
 
+          {commercialHighlights.length > 0 && (
+            <div className="bg-gradient-to-br from-emerald-50 via-white to-slate-50 rounded-3xl border border-emerald-100 p-8 shadow-sm space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="w-1.5 h-8 bg-emerald-600 rounded-full"></div>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 font-display">Informações comerciais</h2>
+                  <p className="text-sm text-slate-500 mt-1">Detalhes extras informados pela loja sobre este anúncio.</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {commercialHighlights.map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-emerald-100 bg-white/90 p-5">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">{item.label}</p>
+                    <p className="text-base font-bold text-slate-800">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Description Section */}
           <div className="bg-white rounded-3xl p-10 border border-gray-100 shadow-sm space-y-6">
             <div className="flex items-center gap-4">
@@ -212,6 +239,14 @@ const AdDetailView: React.FC = () => {
                       {ad.seller.business_description}
                     </p>
                   </div>
+                )}
+                {ad.seller?.store?.slug && (
+                  <Link
+                    to={`/loja/${ad.seller.store.slug}`}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                  >
+                    Ver loja oficial
+                  </Link>
                 )}
                 <div className="grid grid-cols-2 gap-4">
                    <div className="bg-slate-50 p-3 rounded-xl text-center">

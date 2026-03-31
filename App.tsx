@@ -15,6 +15,7 @@ const AdDetailView = lazy(() => import('./pages/AdDetailView'));
 const AdsListingView = lazy(() => import('./pages/AdsListingView'));
 const CategoriesView = lazy(() => import('./pages/CategoriesView'));
 const PricingView = lazy(() => import('./pages/PricingView'));
+const StorefrontView = lazy(() => import('./pages/StorefrontView'));
 const AdCreationView = lazy(() => import('./pages/AdCreationView'));
 const LoginView = lazy(() => import('./pages/LoginView'));
 const RegisterView = lazy(() => import('./pages/RegisterView'));
@@ -156,6 +157,7 @@ const AppContent: React.FC = () => {
             <Route path="/anuncios" element={<AdsListingView />} />
             <Route path="/categorias" element={<CategoriesView />} />
             <Route path="/planos" element={<PricingView />} />
+            <Route path="/loja/:slug" element={<StorefrontView />} />
             <Route path="/contato" element={<ContactView />} />
             <Route path="/noticias" element={<NewsListingView />} />
             <Route path="/noticias/:slug" element={<NewsArticleView />} />

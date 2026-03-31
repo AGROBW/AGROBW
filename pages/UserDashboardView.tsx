@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles } from 'lucide-react';
+import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store } from 'lucide-react';
 import { AdStatus, Message, Ad, AdMetrics, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -36,6 +36,7 @@ import {
   PlanModule 
 } from '../components/DashboardModules';
 import { initiateBoosterCheckout } from '../services/mercadoPagoService';
+import SellerStoreDashboard from '../components/dashboard/SellerStoreDashboard';
 
 const Icons = {
   Dashboard: () => <LayoutGrid className="w-5 h-5" strokeWidth={1.5} />,
@@ -48,6 +49,7 @@ const Icons = {
   Finance: () => <DollarSign className="w-5 h-5" strokeWidth={1.5} />,
   Help: () => <LifeBuoy className="w-5 h-5" strokeWidth={1.5} />,
   Profile: () => <User className="w-5 h-5" strokeWidth={1.5} />,
+  Store: () => <Store className="w-5 h-5" strokeWidth={1.5} />,
   Logout: () => <LogOut className="w-5 h-5" strokeWidth={1.5} />,
 };
 
@@ -114,6 +116,7 @@ const UserDashboardView: React.FC = () => {
     success: boolean;
     message: string;
   } | null>(null);
+  const hasSellerStoreAccess = Boolean(subscription?.plans?.has_seller_store);
   
   const isPremium = user?.plan && user.plan !== 'seed';
 
@@ -518,6 +521,7 @@ const UserDashboardView: React.FC = () => {
     { label: 'Favoritos', path: '/minha-conta/favoritos', icon: <Icons.Favorites />, badge: 0 },
     { label: 'Radar de Oportunidades', path: '/minha-conta/radar', icon: <Icons.Radar />, badge: 0 },
     { label: 'Financeiro', path: '/minha-conta/financeiro', icon: <Icons.Finance />, badge: 0 },
+    ...(hasSellerStoreAccess ? [{ label: 'Minha Loja', path: '/minha-conta/minha-loja', icon: <Icons.Store />, badge: 0 }] : []),
     { label: 'Central de Ajuda', path: '/minha-conta/ajuda', icon: <Icons.Help />, badge: 0 },
     { label: 'Perfil', path: '/minha-conta/perfil', icon: <Icons.Profile />, badge: 0 },
   ];
@@ -3143,6 +3147,16 @@ const UserDashboardView: React.FC = () => {
           <Route path="/radar" element={<RadarView />} />
           <Route path="/meu-plano" element={<MyPlanDashboard />} />
           <Route path="/financeiro" element={<FinanceDashboard />} />
+          <Route
+            path="/minha-loja"
+            element={
+              hasSellerStoreAccess ? (
+                <SellerStoreDashboard hasStoreAccess={hasSellerStoreAccess} />
+              ) : (
+                <Navigate to="/minha-conta/meu-plano" replace />
+              )
+            }
+          />
           <Route path="/ajuda" element={<HelpCenterView />} />
           <Route path="/perfil" element={<ProfileDashboard />} />
           <Route path="*" element={<HomeDashboard />} />

@@ -38,6 +38,12 @@ export interface Ad {
   title: string;
   description: string;
   price: number;
+  productCondition?: 'novo' | 'seminovo' | 'usado';
+  availability?: 'pronta_entrega' | 'sob_encomenda' | 'consultar_estoque';
+  acceptsTrade?: boolean;
+  hasWarranty?: boolean;
+  warrantyDetails?: string;
+  hasInvoice?: boolean;
   location: {
     city: string;
     state: string;
@@ -70,7 +76,35 @@ export interface Ad {
     cidade?: string;
     estado?: string;
     business_description?: string;
+    store?: {
+      slug: string;
+      storeName: string;
+      logoUrl?: string;
+      isVerified?: boolean;
+    };
   };
+}
+
+export interface SellerStore {
+  id: string;
+  userId: string;
+  slug: string;
+  storeName: string;
+  description?: string | null;
+  logoUrl?: string | null;
+  coverUrl?: string | null;
+  whatsapp?: string | null;
+  email?: string | null;
+  facebookUrl?: string | null;
+  instagramUrl?: string | null;
+  linkedinUrl?: string | null;
+  websiteUrl?: string | null;
+  city?: string | null;
+  state?: string | null;
+  isActive: boolean;
+  isVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AdMetrics {

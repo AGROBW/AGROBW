@@ -74,6 +74,12 @@ export const useUserAds = () => {
           title: ad.title,
           description: ad.description,
           price: parseFloat(ad.unit_price || ad.price),
+          productCondition: ad.product_condition || undefined,
+          availability: ad.availability || undefined,
+          acceptsTrade: !!ad.accepts_trade,
+          hasWarranty: !!ad.has_warranty,
+          warrantyDetails: ad.warranty_details || undefined,
+          hasInvoice: !!ad.has_invoice,
           location: {
             city: ad.city,
             state: ad.state,
@@ -182,11 +188,64 @@ export const usePublicAds = (filters?: {
         setError(error.message)
         console.error('Erro ao buscar anuncios:', error)
       } else {
+        const sellerIds = Array.from(new Set((data || []).map((ad: any) => ad.user_id).filter(Boolean)))
+        const storeMap = new Map<string, { slug: string; storeName: string; logoUrl?: string; isVerified?: boolean }>()
+
+        if (sellerIds.length > 0) {
+          const { data: storesData, error: storesError } = await supabase
+            .from('seller_stores')
+            .select('user_id, slug, store_name, logo_url, is_verified')
+            .eq('is_active', true)
+            .in('user_id', sellerIds)
+
+          if (storesError) {
+            console.warn('[usePublicAds] Erro ao buscar lojas oficiais para listagem:', storesError)
+          } else {
+            const { data: subscriptionsData, error: subscriptionsError } = await supabase
+              .from('user_subscriptions')
+              .select(`
+                user_id,
+                plans (
+                  has_seller_store
+                )
+              `)
+              .eq('status', 'active')
+              .gte('current_period_end', new Date().toISOString())
+              .in('user_id', sellerIds)
+
+            if (subscriptionsError) {
+              console.warn('[usePublicAds] Erro ao validar plano de loja oficial:', subscriptionsError)
+            } else {
+              const enabledStoreUsers = new Set(
+                (subscriptionsData || [])
+                  .filter((subscription: any) => subscription.plans?.has_seller_store)
+                  .map((subscription: any) => subscription.user_id)
+              )
+
+              for (const store of storesData || []) {
+                if (!enabledStoreUsers.has(store.user_id)) continue
+                storeMap.set(store.user_id, {
+                  slug: store.slug,
+                  storeName: store.store_name,
+                  logoUrl: store.logo_url || undefined,
+                  isVerified: !!store.is_verified,
+                })
+              }
+            }
+          }
+        }
+
         const mappedAds: Ad[] = data.map(ad => ({
           id: ad.id,
           title: ad.title,
           description: ad.description,
           price: parseFloat(ad.unit_price || ad.price),
+          productCondition: ad.product_condition || undefined,
+          availability: ad.availability || undefined,
+          acceptsTrade: !!ad.accepts_trade,
+          hasWarranty: !!ad.has_warranty,
+          warrantyDetails: ad.warranty_details || undefined,
+          hasInvoice: !!ad.has_invoice,
           location: {
             city: ad.city,
             state: ad.state,
@@ -210,7 +269,12 @@ export const usePublicAds = (filters?: {
           highlightCategoryUntil: ad.highlight_category_until,
           highlightHome: ad.highlight_home || false,
           highlightHomeUntil: ad.highlight_home_until,
-          seller: ad.seller ? (Array.isArray(ad.seller) ? ad.seller[0] : ad.seller) : undefined
+          seller: ad.seller
+            ? {
+                ...(Array.isArray(ad.seller) ? ad.seller[0] : ad.seller),
+                store: storeMap.get(ad.user_id)
+              }
+            : undefined
         }))
         setAds(mappedAds.filter((ad) => ad.status === 'ACTIVE'))
       }
@@ -248,6 +312,12 @@ export const useAllAds = () => {
           title: ad.title,
           description: ad.description,
           price: parseFloat(ad.unit_price || ad.price),
+          productCondition: ad.product_condition || undefined,
+          availability: ad.availability || undefined,
+          acceptsTrade: !!ad.accepts_trade,
+          hasWarranty: !!ad.has_warranty,
+          warrantyDetails: ad.warranty_details || undefined,
+          hasInvoice: !!ad.has_invoice,
           location: {
             city: ad.city,
             state: ad.state,
@@ -351,7 +421,40 @@ export const useAd = (adId: string | undefined) => {
         }
       }
 
-      const data = { ...adData, seller: sellerData }
+      let sellerStoreData: { slug: string; store_name: string; logo_url?: string | null; is_verified?: boolean } | null = null
+
+      if (adData?.user_id) {
+        const { data: storeRow, error: storeError } = await supabase
+          .from('seller_stores')
+          .select('slug, store_name, logo_url, is_verified')
+          .eq('user_id', adData.user_id)
+          .eq('is_active', true)
+          .maybeSingle()
+
+        if (!storeError && storeRow) {
+          const { data: activeStoreSubscription, error: activeStoreSubscriptionError } = await supabase
+            .from('user_subscriptions')
+            .select('id, plans (has_seller_store)')
+            .eq('user_id', adData.user_id)
+            .eq('status', 'active')
+            .gte('current_period_end', new Date().toISOString())
+            .order('current_period_end', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          if (activeStoreSubscriptionError) {
+            console.warn('[useAd] Nao foi possivel validar plano da loja do vendedor:', activeStoreSubscriptionError)
+          }
+
+          if ((activeStoreSubscription as any)?.plans?.has_seller_store) {
+            sellerStoreData = storeRow as { slug: string; store_name: string; logo_url?: string | null; is_verified?: boolean }
+          }
+        } else if (storeError) {
+          console.warn('[useAd] Nao foi possivel buscar loja do vendedor:', storeError)
+        }
+      }
+
+      const data = { ...adData, seller: sellerData, sellerStore: sellerStoreData }
 
       console.log('[useAd] Dados retornados:', data)
       console.log('[useAd] Seller:', data.seller)
@@ -372,6 +475,12 @@ export const useAd = (adId: string | undefined) => {
         title: data.title,
         description: data.description,
         price: parseFloat(data.unit_price || data.price),
+        productCondition: data.product_condition || undefined,
+        availability: data.availability || undefined,
+        acceptsTrade: !!data.accepts_trade,
+        hasWarranty: !!data.has_warranty,
+        warrantyDetails: data.warranty_details || undefined,
+        hasInvoice: !!data.has_invoice,
         location: {
           city: data.city,
           state: data.state,
@@ -393,7 +502,19 @@ export const useAd = (adId: string | undefined) => {
         whatsapp: data.whatsapp,
         technicalDetails: technicalDetailsArray.length > 0 ? technicalDetailsArray : undefined,
         healthScore: data.health_score,
-        seller: data.seller || undefined,
+        seller: data.seller
+          ? {
+              ...data.seller,
+              store: data.sellerStore
+                ? {
+                    slug: data.sellerStore.slug,
+                    storeName: data.sellerStore.store_name,
+                    logoUrl: data.sellerStore.logo_url || undefined,
+                    isVerified: data.sellerStore.is_verified || false,
+                  }
+                : undefined,
+            }
+          : undefined,
         highlightCategory: data.highlight_category || false,
         highlightCategoryUntil: data.highlight_category_until,
         highlightHome: data.highlight_home || false,

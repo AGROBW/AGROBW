@@ -47,6 +47,18 @@ type ImageItem = {
   originalFile?: File;
 };
 
+const STORE_PRODUCT_CONDITIONS = [
+  { value: 'novo', label: 'Novo' },
+  { value: 'seminovo', label: 'Seminovo' },
+  { value: 'usado', label: 'Usado' },
+] as const;
+
+const STORE_AVAILABILITY_OPTIONS = [
+  { value: 'pronta_entrega', label: 'Pronta entrega' },
+  { value: 'sob_encomenda', label: 'Sob encomenda' },
+  { value: 'consultar_estoque', label: 'Consultar estoque' },
+] as const;
+
 const SortableImageItem: React.FC<{
   item: ImageItem;
   index: number;
@@ -293,12 +305,19 @@ const AdCreationView: React.FC = () => {
     unitPrice: 0,
     currency: 'BRL',
     location: { cep: '', city: '', state: '' },
+    productCondition: '',
+    availability: '',
+    acceptsTrade: false,
+    hasWarranty: false,
+    warrantyDetails: '',
+    hasInvoice: false,
     technical: {},
     images: [],
     isPremium: false
   });
   const editAdId = searchParams.get('edit');
   const isEditingExistingAd = Boolean(editAdId);
+  const hasStoreListingAccess = !!subscription?.plans?.has_seller_store;
   const normalizeTechnicalLabel = (value: string) => slugify(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   const selectedCategoryGroup = getCategoryGroupBySlug(formData.categoryGroupSlug || formData.categorySlug);
   const availableSpecificCategories = selectedCategoryGroup
@@ -466,6 +485,12 @@ const AdCreationView: React.FC = () => {
             city: adData.city || '',
             state: adData.state || ''
           },
+          productCondition: adData.product_condition || '',
+          availability: adData.availability || '',
+          acceptsTrade: Boolean(adData.accepts_trade),
+          hasWarranty: Boolean(adData.has_warranty),
+          warrantyDetails: adData.warranty_details || '',
+          hasInvoice: Boolean(adData.has_invoice),
           technical: technicalDetails,
           images: Array.isArray(adData.images) ? adData.images : [],
           isPremium: Boolean(adData.is_premium)
@@ -840,6 +865,12 @@ const AdCreationView: React.FC = () => {
       city: formData.location?.city || 'A definir',
       state: formData.location?.state || '--',
       cep: (formData.location?.cep || '').replace(/\D/g, '') || null,
+      product_condition: hasStoreListingAccess ? formData.productCondition || null : null,
+      availability: hasStoreListingAccess ? formData.availability || null : null,
+      accepts_trade: hasStoreListingAccess ? !!formData.acceptsTrade : false,
+      has_warranty: hasStoreListingAccess ? !!formData.hasWarranty : false,
+      warranty_details: hasStoreListingAccess && formData.hasWarranty ? (formData.warrantyDetails || null) : null,
+      has_invoice: hasStoreListingAccess ? !!formData.hasInvoice : false,
       images,
       user_id: user.id,
       status: AdStatus.PENDING,
@@ -1174,6 +1205,12 @@ const AdCreationView: React.FC = () => {
         city: formData.location?.city || null,
         state: formData.location?.state || null,
         cep: cleanCep || null,
+        product_condition: hasStoreListingAccess ? formData.productCondition || null : null,
+        availability: hasStoreListingAccess ? formData.availability || null : null,
+        accepts_trade: hasStoreListingAccess ? !!formData.acceptsTrade : false,
+        has_warranty: hasStoreListingAccess ? !!formData.hasWarranty : false,
+        warranty_details: hasStoreListingAccess && formData.hasWarranty ? (formData.warrantyDetails || null) : null,
+        has_invoice: hasStoreListingAccess ? !!formData.hasInvoice : false,
         images: Array.isArray(formData.images) ? formData.images : [],
         user_id: userId,
         status: AdStatus.ACTIVE,
@@ -1493,6 +1530,99 @@ const AdCreationView: React.FC = () => {
                   placeholder="Descreva detalhes do produto, histórico e condições de conservação..."
                 ></textarea>
               </div>
+
+              {hasStoreListingAccess && (
+                <div className="rounded-[2rem] border border-emerald-100 bg-emerald-50/60 p-6 space-y-5">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-2xl bg-white p-3 text-emerald-700 shadow-sm">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-slate-900">Informações comerciais da loja</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">
+                        Esses campos deixam o anúncio com mais cara de catálogo profissional e ajudam o comprador a entender a operação da sua loja.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Condição do item</label>
+                      <select
+                        value={formData.productCondition}
+                        onChange={e => setFormData({ ...formData, productCondition: e.target.value })}
+                        className="w-full bg-white border border-emerald-100 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
+                      >
+                        <option value="">Selecione...</option>
+                        {STORE_PRODUCT_CONDITIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Disponibilidade</label>
+                      <select
+                        value={formData.availability}
+                        onChange={e => setFormData({ ...formData, availability: e.target.value })}
+                        className="w-full bg-white border border-emerald-100 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
+                      >
+                        <option value="">Selecione...</option>
+                        {STORE_AVAILABILITY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <label className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-4 text-sm font-bold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={!!formData.acceptsTrade}
+                        onChange={e => setFormData({ ...formData, acceptsTrade: e.target.checked })}
+                        className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-600"
+                      />
+                      Aceita troca
+                    </label>
+                    <label className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-4 text-sm font-bold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={!!formData.hasInvoice}
+                        onChange={e => setFormData({ ...formData, hasInvoice: e.target.checked })}
+                        className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-600"
+                      />
+                      Emite nota fiscal
+                    </label>
+                    <label className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-4 text-sm font-bold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={!!formData.hasWarranty}
+                        onChange={e => setFormData({
+                          ...formData,
+                          hasWarranty: e.target.checked,
+                          warrantyDetails: e.target.checked ? formData.warrantyDetails : ''
+                        })}
+                        className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-600"
+                      />
+                      Oferece garantia
+                    </label>
+                  </div>
+
+                  {formData.hasWarranty && (
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Detalhes da garantia</label>
+                      <input
+                        type="text"
+                        value={formData.warrantyDetails}
+                        onChange={e => setFormData({ ...formData, warrantyDetails: e.target.value })}
+                        className="w-full bg-white border border-emerald-100 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
+                        placeholder="Ex: Garantia de motor por 90 dias ou conforme avaliação"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Informe a quantidade</label>
