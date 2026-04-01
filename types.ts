@@ -102,6 +102,7 @@ export interface SellerStore {
   city?: string | null;
   state?: string | null;
   isActive: boolean;
+  isStoreFeatureEnabled?: boolean;
   isVerified: boolean;
   createdAt: string;
   updatedAt: string;

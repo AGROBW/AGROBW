@@ -37,6 +37,7 @@ type SellerStoreRow = {
   city?: string | null;
   state?: string | null;
   is_active: boolean;
+  is_store_feature_enabled?: boolean | null;
   is_verified: boolean;
   created_at: string;
   updated_at: string;
@@ -59,6 +60,7 @@ const mapStoreRow = (row: SellerStoreRow): SellerStore => ({
   city: row.city,
   state: row.state,
   isActive: row.is_active,
+  isStoreFeatureEnabled: !!row.is_store_feature_enabled,
   isVerified: row.is_verified,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -242,6 +244,7 @@ export const usePublicSellerStore = (slug: string | undefined) => {
         .select('*')
         .eq('slug', slug)
         .eq('is_active', true)
+        .eq('is_store_feature_enabled', true)
         .maybeSingle();
 
       if (storeError) {
@@ -254,30 +257,6 @@ export const usePublicSellerStore = (slug: string | undefined) => {
       }
 
       if (!storeRow) {
-        setError('Loja não encontrada ou indisponível.');
-        setStore(null);
-        setAnnouncements([]);
-        setIsLoading(false);
-        return;
-      }
-
-      const { data: activeSubscription, error: subscriptionError } = await supabase
-        .from('user_subscriptions')
-        .select('id, plans (has_seller_store)')
-        .eq('user_id', storeRow.user_id)
-        .eq('status', 'active')
-        .gte('current_period_end', new Date().toISOString())
-        .order('current_period_end', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (subscriptionError) {
-        console.error('[usePublicSellerStore] Erro ao validar plano da loja:', subscriptionError);
-      }
-
-      const hasStoreFeature = Boolean((activeSubscription as any)?.plans?.has_seller_store);
-
-      if (!hasStoreFeature) {
         setError('Loja não encontrada ou indisponível.');
         setStore(null);
         setAnnouncements([]);
