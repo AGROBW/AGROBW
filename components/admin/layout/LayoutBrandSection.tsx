@@ -75,10 +75,13 @@ const LayoutBrandSection: React.FC<LayoutBrandSectionProps> = ({ formData, onCha
               className="hidden"
               disabled={isUploading}
               onChange={async (e) => {
+                const input = e.currentTarget;
                 const file = e.target.files?.[0];
                 if (!file) return;
                 await onUpload(field, file);
-                e.currentTarget.value = '';
+                if (input) {
+                  input.value = '';
+                }
               }}
             />
           </label>

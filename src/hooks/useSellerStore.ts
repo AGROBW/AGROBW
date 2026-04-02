@@ -178,7 +178,7 @@ export const useMySellerStore = () => {
         description: input.description?.trim() || null,
         logo_url: input.logoUrl?.trim() || null,
         cover_url: input.coverUrl?.trim() || null,
-        whatsapp: input.whatsapp?.trim() || user.whatsapp || user.phone || null,
+        whatsapp: null,
         email: input.email?.trim() || user.email || null,
         facebook_url: normalizeExternalUrl(input.facebookUrl),
         instagram_url: normalizeExternalUrl(input.instagramUrl),

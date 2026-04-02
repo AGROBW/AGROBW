@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Globe, Image, Link as LinkIcon, MapPin, Phone, Save, ShieldCheck, ShoppingBag, Store, UploadCloud, UserRound } from 'lucide-react';
+import { ExternalLink, Globe, Image, Link as LinkIcon, MapPin, Save, ShieldCheck, ShoppingBag, Store, UploadCloud, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -9,6 +9,8 @@ import { supabase } from '../../src/lib/supabaseClient';
 type SellerStoreDashboardProps = {
   hasStoreAccess: boolean;
 };
+
+const STORE_DESCRIPTION_MAX_LENGTH = 280;
 
 const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAccess }) => {
   const { user } = useAuth();
@@ -21,7 +23,6 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
     description: '',
     logoUrl: '',
     coverUrl: '',
-    whatsapp: '',
     email: '',
     facebookUrl: '',
     instagramUrl: '',
@@ -40,7 +41,6 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
         description: store.description || '',
         logoUrl: store.logoUrl || '',
         coverUrl: store.coverUrl || '',
-        whatsapp: store.whatsapp || user?.whatsapp || user?.phone || '',
         email: store.email || user?.email || '',
         facebookUrl: store.facebookUrl || '',
         instagramUrl: store.instagramUrl || '',
@@ -55,7 +55,6 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
 
     setFormData((current) => ({
       ...current,
-      whatsapp: current.whatsapp || user?.whatsapp || user?.phone || '',
       email: current.email || user?.email || '',
       facebookUrl: current.facebookUrl || '',
       instagramUrl: current.instagramUrl || '',
@@ -261,14 +260,23 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
             </label>
 
             <label className="space-y-2 md:col-span-2">
-              <span className="text-sm font-semibold text-slate-700">Descrição da loja</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-slate-700">Descrição da loja</span>
+                <span className="text-xs font-semibold text-slate-400">
+                  {formData.description.length}/{STORE_DESCRIPTION_MAX_LENGTH}
+                </span>
+              </div>
               <textarea
                 value={formData.description}
                 onChange={(event) => handleChange('description', event.target.value)}
+                maxLength={STORE_DESCRIPTION_MAX_LENGTH}
                 rows={5}
                 placeholder="Conte quem vocês são, há quanto tempo atuam, quais categorias trabalham e por que os compradores devem confiar na sua loja."
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
               />
+              <p className="text-xs text-slate-500">
+                Use uma apresentação curta e objetiva da empresa, destacando atuação, região e tipo de produto.
+              </p>
             </label>
 
             <div className="space-y-2">
@@ -324,19 +332,6 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
                 />
               </label>
             </div>
-
-            <label className="space-y-2">
-              <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <Phone className="h-4 w-4 text-slate-400" strokeWidth={1.5} />
-                WhatsApp comercial
-              </span>
-              <input
-                value={formData.whatsapp}
-                onChange={(event) => handleChange('whatsapp', event.target.value)}
-                placeholder="(62) 99999-9999"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-              />
-            </label>
 
             <label className="space-y-2">
               <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -491,8 +486,8 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
                     <span className="font-semibold text-slate-800">{[formData.city, formData.state].filter(Boolean).join(' - ') || 'Não informada'}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span>WhatsApp</span>
-                    <span className="font-semibold text-slate-800">{formData.whatsapp || 'Não informado'}</span>
+                    <span>E-mail</span>
+                    <span className="font-semibold text-slate-800">{formData.email || 'Não informado'}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span>Status público</span>
