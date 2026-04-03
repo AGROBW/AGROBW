@@ -14,6 +14,7 @@ export type AdminMarketQuoteSource = {
   generated_url: string | null;
   provider_label: string | null;
   is_active: boolean;
+  auto_approve_enabled: boolean;
   refresh_interval_minutes: number;
   last_validation_at: string | null;
   last_sync_at: string | null;
@@ -60,6 +61,7 @@ type SourcePayload = {
   provider: SourceProvider;
   provider_label?: string | null;
   is_active: boolean;
+  auto_approve_enabled: boolean;
   refresh_interval_minutes: number;
 };
 
@@ -162,6 +164,7 @@ export const useMarketQuotesAdmin = () => {
         generated_url: payload.provider === 'cepea' ? resolvedUrl : null,
         provider_label: payload.provider_label ?? (payload.provider === 'cepea' ? 'CEPEA' : null),
         is_active: payload.is_active,
+        auto_approve_enabled: payload.auto_approve_enabled,
         refresh_interval_minutes: payload.refresh_interval_minutes,
       };
 

@@ -31,6 +31,7 @@ import {
 import { censorContactData } from '../src/utils/censorContact';
 import { updateAnnouncementCoordinates } from '../services/geoService';
 import imageCompression from 'browser-image-compression';
+import { compressAnnouncementVideo, formatVideoSize, VideoCompressionError } from '../src/utils/videoCompression';
 import { motion } from 'framer-motion';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -45,6 +46,17 @@ type ImageItem = {
   uploading: boolean;
   progress: number;
   originalFile?: File;
+};
+
+type VideoItem = {
+  id: string;
+  previewUrl: string;
+  publicUrl?: string;
+  storagePath?: string;
+  uploading: boolean;
+  progress: number;
+  durationSeconds?: number;
+  sizeBytes?: number;
 };
 
 const STORE_PRODUCT_CONDITIONS = [
@@ -279,6 +291,7 @@ const AdCreationView: React.FC = () => {
   const [pendingTechnicalDetails, setPendingTechnicalDetails] = useState<Array<{ label: string; value: string }>>([]);
   const isMountedRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
   const isCreatingDraft = useRef(false);
   const draftIdRef = useRef<string | null>(null);
   const loadedEditAdIdRef = useRef<string | null>(null);
@@ -290,6 +303,7 @@ const AdCreationView: React.FC = () => {
   const [dbCategories, setDbCategories] = useState<Array<{ id: string; name: string; slug: string; icon?: string | null; technical_fields_schema?: any[] }>>([]);
   const [dbSubcategories, setDbSubcategories] = useState<Array<{ id: string; category_id: string; name: string; slug: string }>>([]);
   const [technicalFieldsSchema, setTechnicalFieldsSchema] = useState<any[]>([]);
+  const [videoItem, setVideoItem] = useState<VideoItem | null>(null);
   const [formData, setFormData] = useState<any>({
     title: '',
     description: '',
@@ -313,6 +327,10 @@ const AdCreationView: React.FC = () => {
     hasInvoice: false,
     technical: {},
     images: [],
+    videoUrl: '',
+    videoStoragePath: '',
+    videoDurationSeconds: 0,
+    videoSizeBytes: 0,
     isPremium: false
   });
   const editAdId = searchParams.get('edit');
@@ -493,6 +511,10 @@ const AdCreationView: React.FC = () => {
           hasInvoice: Boolean(adData.has_invoice),
           technical: technicalDetails,
           images: Array.isArray(adData.images) ? adData.images : [],
+          videoUrl: adData.video_url || '',
+          videoStoragePath: adData.video_storage_path || '',
+          videoDurationSeconds: Number(adData.video_duration_seconds || 0),
+          videoSizeBytes: Number(adData.video_size_bytes || 0),
           isPremium: Boolean(adData.is_premium)
         };
 
@@ -505,6 +527,20 @@ const AdCreationView: React.FC = () => {
             uploading: false,
             progress: 100
           }))
+        );
+        setVideoItem(
+          adData.video_url
+            ? {
+                id: `${adData.id}-video`,
+                previewUrl: adData.video_url,
+                publicUrl: adData.video_url,
+                storagePath: adData.video_storage_path || undefined,
+                uploading: false,
+                progress: 100,
+                durationSeconds: Number(adData.video_duration_seconds || 0) || undefined,
+                sizeBytes: Number(adData.video_size_bytes || 0) || undefined,
+              }
+            : null
         );
         setDraftAdId(adData.id);
         setPendingTechnicalDetails(fetchedTechnicalDetails);
@@ -696,6 +732,21 @@ const AdCreationView: React.FC = () => {
   }, [formData.images, imageItems.length]);
 
   useEffect(() => {
+    if (!videoItem && formData.videoUrl) {
+      setVideoItem({
+        id: 'draft-video',
+        previewUrl: formData.videoUrl,
+        publicUrl: formData.videoUrl,
+        storagePath: formData.videoStoragePath || undefined,
+        uploading: false,
+        progress: 100,
+        durationSeconds: formData.videoDurationSeconds || undefined,
+        sizeBytes: formData.videoSizeBytes || undefined,
+      });
+    }
+  }, [formData.videoDurationSeconds, formData.videoSizeBytes, formData.videoStoragePath, formData.videoUrl, videoItem]);
+
+  useEffect(() => {
     return () => {
       imageItems.forEach(item => {
         if (item.previewUrl?.startsWith('blob:')) {
@@ -817,7 +868,24 @@ const AdCreationView: React.FC = () => {
     return publicUrl.substring(index + marker.length);
   };
 
-  const ensureDraftAd = async (images: string[]) => {
+  const buildCurrentDraftMedia = (
+    override?: Partial<{
+      images: string[];
+      videoUrl: string | null;
+      videoStoragePath: string | null;
+      videoDurationSeconds: number | null;
+      videoSizeBytes: number | null;
+    }>
+  ) => ({
+    images: override?.images ?? (Array.isArray(formData.images) ? formData.images : []),
+    videoUrl: override?.videoUrl ?? (hasStoreListingAccess ? formData.videoUrl || null : null),
+    videoStoragePath: override?.videoStoragePath ?? (hasStoreListingAccess ? formData.videoStoragePath || null : null),
+    videoDurationSeconds:
+      override?.videoDurationSeconds ?? (hasStoreListingAccess ? (formData.videoDurationSeconds || null) : null),
+    videoSizeBytes: override?.videoSizeBytes ?? (hasStoreListingAccess ? (formData.videoSizeBytes || null) : null),
+  });
+
+  const ensureDraftAd = async (media: ReturnType<typeof buildCurrentDraftMedia>) => {
     if (!user?.id) return null;
     if (!ensureAdCreationAllowed()) return null;
     if (draftIdRef.current) return draftIdRef.current;
@@ -871,7 +939,11 @@ const AdCreationView: React.FC = () => {
       has_warranty: hasStoreListingAccess ? !!formData.hasWarranty : false,
       warranty_details: hasStoreListingAccess && formData.hasWarranty ? (formData.warrantyDetails || null) : null,
       has_invoice: hasStoreListingAccess ? !!formData.hasInvoice : false,
-      images,
+      images: media.images,
+      video_url: media.videoUrl,
+      video_storage_path: media.videoStoragePath,
+      video_duration_seconds: media.videoDurationSeconds,
+      video_size_bytes: media.videoSizeBytes,
       user_id: user.id,
       status: AdStatus.PENDING,
       is_premium: !!formData.isPremium,
@@ -927,8 +999,16 @@ const AdCreationView: React.FC = () => {
     }
   };
 
-  const syncDraftImages = async (images: string[]) => {
-    const currentDraftId = await ensureDraftAd(images);
+  const extractVideoStoragePath = (publicUrl: string) => {
+    const marker = '/announcement-videos/';
+    const index = publicUrl.indexOf(marker);
+    if (index === -1) return null;
+    return publicUrl.substring(index + marker.length);
+  };
+
+  const syncDraftMedia = async (media: ReturnType<typeof buildCurrentDraftMedia>) => {
+    const currentDraftId = await ensureDraftAd(media);
+    const images = media.images;
     if (!currentDraftId) {
       console.warn('[Ads] Rascunho não salvo, mas fotos permanecem no estado local.');
       return;
@@ -938,8 +1018,21 @@ const AdCreationView: React.FC = () => {
       .update({ images })
       .eq('id', currentDraftId);
 
+    const { error: videoError } = await supabase
+      .from('announcements')
+      .update({
+        video_url: media.videoUrl,
+        video_storage_path: media.videoStoragePath,
+        video_duration_seconds: media.videoDurationSeconds,
+        video_size_bytes: media.videoSizeBytes,
+      })
+      .eq('id', currentDraftId);
+
     if (error) {
       console.error('[Ads] Erro ao atualizar imagens do rascunho:', error);
+    }
+    if (videoError) {
+      console.error('[Ads] Erro ao atualizar video do rascunho:', videoError);
     }
   };
 
@@ -1061,7 +1154,7 @@ const AdCreationView: React.FC = () => {
 
             setFormData(prev => {
               const nextImages = [...(prev.images || []), data.publicUrl];
-              void syncDraftImages(nextImages);
+              void syncDraftMedia(buildCurrentDraftMedia({ images: nextImages }));
               return { ...prev, images: nextImages };
             });
           }
@@ -1085,6 +1178,174 @@ const AdCreationView: React.FC = () => {
     }
   };
 
+  const handleVideoSelected = async (files: FileList | null) => {
+    if (!hasStoreListingAccess) {
+      toast.error('O envio de video esta disponivel apenas para Loja Oficial.');
+      return;
+    }
+
+    const file = files?.[0];
+    if (!file) return;
+
+    if (!user?.id) {
+      toast.error('Sessao invalida. Faca login novamente.');
+      return;
+    }
+
+    if (!ensureAdCreationAllowed()) {
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    const localVideoId = `${Date.now()}-video-${Math.random().toString(36).slice(2, 7)}`;
+
+    setVideoItem({
+      id: localVideoId,
+      previewUrl,
+      uploading: true,
+      progress: 5,
+    });
+
+    try {
+      const compressed = await compressAnnouncementVideo(file);
+
+      setVideoItem((current) =>
+        current
+          ? {
+              ...current,
+              progress: 35,
+              durationSeconds: compressed.durationSeconds,
+              sizeBytes: compressed.sizeBytes,
+            }
+          : current
+      );
+
+      const userSlug = slugify(user?.name || user?.email || 'usuario');
+      const categorySlug = formData.categorySlug || 'categoria';
+      const safeName = compressed.file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+      const filePath = `${user.id}/${userSlug}/${categorySlug}/${Date.now()}-${safeName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('announcement-videos')
+        .upload(filePath, compressed.file, { upsert: false });
+
+      if (uploadError) {
+        throw new Error(uploadError.message);
+      }
+
+      const { data } = supabase.storage
+        .from('announcement-videos')
+        .getPublicUrl(filePath);
+
+      if (!data?.publicUrl) {
+        throw new Error('Nao foi possivel obter a URL publica do video.');
+      }
+
+      const previousVideoPath = formData.videoStoragePath || videoItem?.storagePath;
+
+      setVideoItem({
+        id: localVideoId,
+        previewUrl: data.publicUrl,
+        publicUrl: data.publicUrl,
+        storagePath: filePath,
+        uploading: false,
+        progress: 100,
+        durationSeconds: compressed.durationSeconds,
+        sizeBytes: compressed.sizeBytes,
+      });
+
+      setFormData((prev: any) => {
+        const nextFormData = {
+          ...prev,
+          videoUrl: data.publicUrl,
+          videoStoragePath: filePath,
+          videoDurationSeconds: compressed.durationSeconds,
+          videoSizeBytes: compressed.sizeBytes,
+        };
+
+        void syncDraftMedia(
+          buildCurrentDraftMedia({
+            images: Array.isArray(nextFormData.images) ? nextFormData.images : [],
+            videoUrl: nextFormData.videoUrl,
+            videoStoragePath: nextFormData.videoStoragePath,
+            videoDurationSeconds: nextFormData.videoDurationSeconds,
+            videoSizeBytes: nextFormData.videoSizeBytes,
+          })
+        );
+
+        return nextFormData;
+      });
+
+      if (previousVideoPath && previousVideoPath !== filePath) {
+        await supabase.storage.from('announcement-videos').remove([previousVideoPath]);
+      }
+
+      if (compressed.sizeBytes > 12 * 1024 * 1024) {
+        toast.success('Video enviado com sucesso.', {
+          description: 'A compressao foi aplicada, mas o arquivo final permaneceu acima do alvo ideal de 12MB.',
+        });
+      } else {
+        toast.success('Video otimizado e enviado com sucesso.');
+      }
+    } catch (error: any) {
+      if (previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
+
+      setVideoItem(null);
+      const message =
+        error instanceof VideoCompressionError
+          ? error.message
+          : error?.message || 'Nao foi possivel preparar o video para o anuncio.';
+
+      toast.error('Falha ao enviar video.', {
+        description: message,
+      });
+    } finally {
+      if (videoInputRef.current) {
+        videoInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveVideo = async () => {
+    if (videoItem?.previewUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(videoItem.previewUrl);
+    }
+
+    const storagePath = videoItem?.storagePath || (formData.videoUrl ? extractVideoStoragePath(formData.videoUrl) : null);
+    setVideoItem(null);
+
+    setFormData((prev: any) => {
+      const nextFormData = {
+        ...prev,
+        videoUrl: '',
+        videoStoragePath: '',
+        videoDurationSeconds: 0,
+        videoSizeBytes: 0,
+      };
+
+      void syncDraftMedia(
+        buildCurrentDraftMedia({
+          images: Array.isArray(nextFormData.images) ? nextFormData.images : [],
+          videoUrl: null,
+          videoStoragePath: null,
+          videoDurationSeconds: null,
+          videoSizeBytes: null,
+        })
+      );
+
+      return nextFormData;
+    });
+
+    if (storagePath) {
+      const { error } = await supabase.storage.from('announcement-videos').remove([storagePath]);
+      if (error) {
+        console.error('[Ads] Erro ao remover video:', error);
+      }
+    }
+  };
+
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -1100,7 +1361,7 @@ const AdCreationView: React.FC = () => {
         .filter(Boolean) as string[];
 
       setFormData(current => ({ ...current, images: orderedUrls }));
-      void syncDraftImages(orderedUrls);
+      void syncDraftMedia(buildCurrentDraftMedia({ images: orderedUrls }));
       return newItems;
     });
   };
@@ -1115,7 +1376,7 @@ const AdCreationView: React.FC = () => {
     if (item.publicUrl) {
       setFormData(prev => {
         const nextImages = (prev.images || []).filter((url: string) => url !== item.publicUrl);
-        void syncDraftImages(nextImages);
+        void syncDraftMedia(buildCurrentDraftMedia({ images: nextImages }));
         return { ...prev, images: nextImages };
       });
     }
@@ -1212,6 +1473,10 @@ const AdCreationView: React.FC = () => {
         warranty_details: hasStoreListingAccess && formData.hasWarranty ? (formData.warrantyDetails || null) : null,
         has_invoice: hasStoreListingAccess ? !!formData.hasInvoice : false,
         images: Array.isArray(formData.images) ? formData.images : [],
+        video_url: hasStoreListingAccess ? (formData.videoUrl || null) : null,
+        video_storage_path: hasStoreListingAccess ? (formData.videoStoragePath || null) : null,
+        video_duration_seconds: hasStoreListingAccess ? (formData.videoDurationSeconds || null) : null,
+        video_size_bytes: hasStoreListingAccess ? (formData.videoSizeBytes || null) : null,
         user_id: userId,
         status: AdStatus.ACTIVE,
         expires_at: buildAnnouncementExpiresAt(),
@@ -1649,7 +1914,7 @@ const AdCreationView: React.FC = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={handleBack} className="w-full py-5 border border-slate-200 text-slate-600 rounded-2xl font-black hover:bg-slate-50 transition-all">Voltar</button>
-              <button onClick={() => setCurrentStep('MEDIA')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">Próxima Etapa: Fotos</button>
+              <button onClick={() => setCurrentStep('MEDIA')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">Próxima Etapa: Mídia</button>
             </div>
           </div>
         );
@@ -1674,6 +1939,72 @@ const AdCreationView: React.FC = () => {
                 <p className="mt-3 text-xs text-slate-500">Enviando imagens...</p>
               )}
             </label>
+            {hasStoreListingAccess && (
+              <div className="rounded-[2.5rem] border border-emerald-100 bg-emerald-50/70 p-6 sm:p-8">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">Loja Oficial</p>
+                    <h3 className="mt-2 text-xl font-black text-slate-900">Vídeo institucional do anúncio</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      Envie 1 vídeo de até 60 segundos. A plataforma tenta otimizar o arquivo para algo próximo de 12MB antes de salvar.
+                    </p>
+                  </div>
+                  <label
+                    htmlFor="ad-video-input"
+                    className="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800"
+                  >
+                    Escolher vídeo
+                  </label>
+                  <input
+                    id="ad-video-input"
+                    type="file"
+                    accept="video/mp4,video/quicktime,video/webm"
+                    onChange={e => handleVideoSelected(e.target.files)}
+                    className="sr-only"
+                    ref={videoInputRef}
+                  />
+                </div>
+
+                {videoItem ? (
+                  <div className="mt-6 overflow-hidden rounded-[2rem] border border-emerald-100 bg-white shadow-sm">
+                    <div className="relative bg-slate-950">
+                      <video
+                        src={videoItem.previewUrl || videoItem.publicUrl}
+                        controls={!videoItem.uploading}
+                        muted={videoItem.uploading}
+                        className="aspect-video w-full bg-slate-950 object-contain"
+                        poster={formData.images?.[0] || undefined}
+                      />
+                      {videoItem.uploading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-slate-950/55">
+                          <div className="w-12 h-12 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-black text-slate-900">Vídeo pronto para o anúncio</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {videoItem.durationSeconds ? `${videoItem.durationSeconds}s` : 'Duração em processamento'}
+                          {videoItem.sizeBytes ? ` • ${formatVideoSize(videoItem.sizeBytes)}` : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveVideo}
+                        className="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                      >
+                        Remover vídeo
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-6 rounded-[2rem] border border-dashed border-emerald-200 bg-white/80 p-6 text-sm text-slate-500">
+                    Nenhum vídeo enviado. Esse recurso aparece apenas para anúncios publicados por Loja Oficial.
+                  </div>
+                )}
+              </div>
+            )}
             {imageItems.length > 0 && (
               <DndContext
                 sensors={sensors}
@@ -1919,7 +2250,7 @@ const AdCreationView: React.FC = () => {
             <p className="text-slate-500 text-lg mb-12">Seu anúncio já está no ar e visível para milhares de produtores rurais.</p>
             <div className="flex flex-col gap-4">
                <button onClick={() => navigate('/anuncios')} className="w-full py-5 bg-green-700 text-white rounded-2xl font-black shadow-lg">Ver Meus Anúncios</button>
-               <button onClick={() => { setFormData({title: '', description: '', price: 0, location: {cep:'', city:'', state:''}, images:[]}); setCurrentStep('CATEGORY'); }} className="w-full py-5 border-2 border-slate-100 text-slate-600 rounded-2xl font-black">Anunciar Outro Produto</button>
+               <button onClick={() => { setFormData({title: '', description: '', price: 0, location: {cep:'', city:'', state:''}, images:[], videoUrl:'', videoStoragePath:'', videoDurationSeconds:0, videoSizeBytes:0}); setVideoItem(null); setCurrentStep('CATEGORY'); }} className="w-full py-5 border-2 border-slate-100 text-slate-600 rounded-2xl font-black">Anunciar Outro Produto</button>
             </div>
           </div>
         );

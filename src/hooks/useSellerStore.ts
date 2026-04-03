@@ -43,6 +43,11 @@ type SellerStoreRow = {
   updated_at: string;
 };
 
+export type PublicSellerStoreCatalogItem = SellerStore & {
+  activeAdsCount: number;
+  highlightedAdsCount: number;
+};
+
 const mapStoreRow = (row: SellerStoreRow): SellerStore => ({
   id: row.id,
   userId: row.user_id,
@@ -301,5 +306,95 @@ export const usePublicSellerStore = (slug: string | undefined) => {
     isLoading,
     error,
     locationLabel,
+  };
+};
+
+export const usePublicSellerStoresCatalog = () => {
+  const [stores, setStores] = useState<PublicSellerStoreCatalogItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchStores = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    const { data: storeRows, error: storesError } = await supabase
+      .from('seller_stores')
+      .select('*')
+      .eq('is_active', true)
+      .eq('is_store_feature_enabled', true)
+      .order('updated_at', { ascending: false });
+
+    if (storesError) {
+      console.error('[usePublicSellerStoresCatalog] Erro ao buscar lojas:', storesError);
+      setError(storesError.message);
+      setStores([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const mappedStores = ((storeRows as SellerStoreRow[]) || []).map(mapStoreRow);
+    const userIds = mappedStores.map((store) => store.userId);
+
+    if (userIds.length === 0) {
+      setStores([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const { data: announcementsRows, error: announcementsError } = await supabase
+      .from('announcements')
+      .select('user_id, highlight_home, highlight_category')
+      .in('user_id', userIds)
+      .eq('status', 'ACTIVE');
+
+    if (announcementsError) {
+      console.error('[usePublicSellerStoresCatalog] Erro ao buscar anúncios das lojas:', announcementsError);
+      setError(announcementsError.message);
+      setStores(
+        mappedStores.map((store) => ({
+          ...store,
+          activeAdsCount: 0,
+          highlightedAdsCount: 0,
+        }))
+      );
+      setIsLoading(false);
+      return;
+    }
+
+    const statsByUserId = new Map<string, { activeAdsCount: number; highlightedAdsCount: number }>();
+
+    for (const row of announcementsRows || []) {
+      const userId = String(row.user_id);
+      const current = statsByUserId.get(userId) || { activeAdsCount: 0, highlightedAdsCount: 0 };
+      current.activeAdsCount += 1;
+      if (row.highlight_home || row.highlight_category) {
+        current.highlightedAdsCount += 1;
+      }
+      statsByUserId.set(userId, current);
+    }
+
+    setStores(
+      mappedStores.map((store) => {
+        const stats = statsByUserId.get(store.userId) || { activeAdsCount: 0, highlightedAdsCount: 0 };
+        return {
+          ...store,
+          activeAdsCount: stats.activeAdsCount,
+          highlightedAdsCount: stats.highlightedAdsCount,
+        };
+      })
+    );
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void fetchStores();
+  }, [fetchStores]);
+
+  return {
+    stores,
+    isLoading,
+    error,
+    refresh: fetchStores,
   };
 };

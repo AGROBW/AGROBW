@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 import {
   fetchAndParseMarketQuote,
   MarketQuoteSourceRecord,
+  publishTempQuote,
   saveTempQuote,
   updateSourceStatus,
 } from '../_shared/marketQuotes.ts';
@@ -56,7 +57,7 @@ serve(async (req) => {
     const { data: sources, error } = await supabaseAdmin
       .from('market_quote_sources')
       .select(
-        'id, name, source_url, generated_url, commodity_target, provider, cepea_indicator_id, provider_label, refresh_interval_minutes, is_active, last_validation_at'
+        'id, name, source_url, generated_url, commodity_target, provider, cepea_indicator_id, provider_label, refresh_interval_minutes, is_active, auto_approve_enabled, last_validation_at'
       )
       .eq('is_active', true)
       .order('updated_at', { ascending: false });
@@ -74,12 +75,15 @@ serve(async (req) => {
     for (const source of dueSources) {
       try {
         const parsed = await fetchAndParseMarketQuote(source);
-        await saveTempQuote(supabaseAdmin, source, parsed);
+        const tempRecord = await saveTempQuote(supabaseAdmin, source, parsed);
+        if (source.auto_approve_enabled) {
+          await publishTempQuote(supabaseAdmin, source, tempRecord);
+        }
 
         results.push({
           sourceId: source.id,
           commodity: parsed.commodity,
-          status: 'pending',
+          status: source.auto_approve_enabled ? 'approved' : 'pending',
           price: parsed.preco,
           referenceDate: parsed.data_referencia,
         });

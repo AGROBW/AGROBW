@@ -220,7 +220,7 @@ const StorefrontView: React.FC = () => {
             href: store.facebookUrl,
             icon: Facebook,
             className:
-              'border-[#1877F2]/45 bg-[#1877F2]/8 text-[#7db4ff] hover:border-[#1877F2]/75 hover:bg-[#1877F2]/14 hover:text-[#9bc5ff]',
+              'border-white/10 bg-white/10 text-emerald-200 hover:border-white/20 hover:bg-white/15 hover:text-white',
           }
         : null,
       store.instagramUrl
@@ -230,7 +230,7 @@ const StorefrontView: React.FC = () => {
             href: store.instagramUrl,
             icon: Instagram,
             className:
-              'border-[#E4405F]/45 bg-[#E4405F]/8 text-[#ff8ea2] hover:border-[#E4405F]/75 hover:bg-[#E4405F]/14 hover:text-[#ffadb9]',
+              'border-white/10 bg-white/10 text-emerald-200 hover:border-white/20 hover:bg-white/15 hover:text-white',
           }
         : null,
       store.linkedinUrl
@@ -240,7 +240,7 @@ const StorefrontView: React.FC = () => {
             href: store.linkedinUrl,
             icon: Linkedin,
             className:
-              'border-[#0A66C2]/45 bg-[#0A66C2]/8 text-[#76b5ff] hover:border-[#0A66C2]/75 hover:bg-[#0A66C2]/14 hover:text-[#96c6ff]',
+              'border-white/10 bg-white/10 text-emerald-200 hover:border-white/20 hover:bg-white/15 hover:text-white',
           }
         : null,
       store.websiteUrl
@@ -250,7 +250,7 @@ const StorefrontView: React.FC = () => {
             href: store.websiteUrl,
             icon: LinkIcon,
             className:
-              'border-emerald-300/35 bg-emerald-300/8 text-emerald-200 hover:border-emerald-200/60 hover:bg-emerald-300/14 hover:text-emerald-100',
+              'border-white/10 bg-white/10 text-emerald-200 hover:border-white/20 hover:bg-white/15 hover:text-white',
           }
         : null,
     ].filter(Boolean) as Array<{
@@ -288,6 +288,55 @@ const StorefrontView: React.FC = () => {
     );
   }
 
+  const storeSummaryCard = (
+    <div className="rounded-[1.8rem] border border-[#f59e0b]/20 bg-[#0f172a]/94 p-4 text-white shadow-xl shadow-[#0f172a]/30 backdrop-blur-md md:p-5">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <div className="flex h-24 w-28 items-center justify-center overflow-hidden rounded-[1.25rem] bg-white shadow-lg md:w-32">
+            {store.logoUrl ? (
+              <img src={store.logoUrl} alt={store.storeName} className="h-full w-full object-contain p-3" />
+            ) : (
+              <ShieldCheck className="h-10 w-10 text-[#ff7a18]" strokeWidth={1.5} />
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-2xl font-black text-white md:text-3xl">{store.storeName}</h2>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#16a34a]/35 bg-[#16a34a]/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-[#bbf7d0]">
+                <Store className="h-3.5 w-3.5" strokeWidth={1.5} />
+                Loja Oficial
+              </span>
+            </div>
+            {socialLinks.length > 0 ? (
+              <div className="mt-4 flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
+                {socialLinks.map((socialLink) => {
+                  const Icon = socialLink.icon;
+
+                  return (
+                    <a
+                      key={socialLink.id}
+                      href={socialLink.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={socialLink.label}
+                      title={socialLink.label}
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#16a34a]/25 bg-white/5 text-[#bbf7d0] transition hover:border-[#f59e0b]/45 hover:bg-[#f59e0b]/12 hover:text-[#fde68a]"
+                    >
+                      <Icon className="h-4 w-4" strokeWidth={1.9} />
+                    </a>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="bg-[#f5f7fb] pb-16">
       <section
@@ -303,55 +352,7 @@ const StorefrontView: React.FC = () => {
       >
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_36%,rgba(255,255,255,0)_68%)]" />
 
-        <div className="relative min-h-[250px] px-3 py-8 md:min-h-[280px] md:px-0 md:py-10">
-          <div className="absolute bottom-2 left-2 w-[calc(100%-1rem)] md:bottom-3 md:left-3 md:w-auto md:max-w-2xl">
-            <div className="rounded-r-[1.8rem] rounded-l-[0.35rem] border border-black/10 bg-black/58 p-4 text-white shadow-xl backdrop-blur-md md:p-5">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                  <div className="flex h-24 w-28 items-center justify-center overflow-hidden rounded-[1.25rem] bg-white shadow-lg md:w-32">
-                    {store.logoUrl ? (
-                      <img src={store.logoUrl} alt={store.storeName} className="h-full w-full object-contain p-3" />
-                    ) : (
-                      <ShieldCheck className="h-10 w-10 text-[#ff7a18]" strokeWidth={1.5} />
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="text-2xl font-black text-white md:text-3xl">{store.storeName}</h2>
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-emerald-200">
-                        <Store className="h-3.5 w-3.5" strokeWidth={1.5} />
-                        Loja Oficial
-                      </span>
-                    </div>
-                    {socialLinks.length > 0 ? (
-                      <div className="mt-4 flex flex-wrap items-center gap-3">
-                        {socialLinks.map((socialLink) => {
-                          const Icon = socialLink.icon;
-
-                          return (
-                            <a
-                              key={socialLink.id}
-                              href={socialLink.href}
-                              target="_blank"
-                              rel="noreferrer"
-                              aria-label={socialLink.label}
-                              title={socialLink.label}
-                              className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition ${socialLink.className}`}
-                            >
-                              <Icon className="h-4.5 w-4.5" strokeWidth={1.9} />
-                            </a>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-
-              </div>
-          </div>
-        </div>
+        <div className="relative h-[240px] px-3 md:px-0" />
       </section>
 
       <section id="catalogo-loja" className="mx-auto max-w-7xl px-4 pt-10">
@@ -397,7 +398,10 @@ const StorefrontView: React.FC = () => {
 
         <div className="grid gap-6 lg:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="hidden lg:sticky lg:top-24 lg:block lg:self-start">
-            {filterPanel}
+            <div className="space-y-5">
+              {storeSummaryCard}
+              {filterPanel}
+            </div>
           </aside>
 
           <div>
@@ -444,7 +448,10 @@ const StorefrontView: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto pb-4">{filterPanel}</div>
+            <div className="flex-1 overflow-y-auto pb-4 space-y-4">
+              {storeSummaryCard}
+              {filterPanel}
+            </div>
 
             <button
               type="button"

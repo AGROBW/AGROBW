@@ -18,6 +18,7 @@ type MarketQuoteSourceForm = {
   commodity_target: CommodityTarget;
   provider_label: string;
   is_active: boolean;
+  auto_approve_enabled: boolean;
   refresh_interval_minutes: number;
 };
 
@@ -29,6 +30,7 @@ const emptyForm: MarketQuoteSourceForm = {
   commodity_target: 'soja',
   provider_label: 'CEPEA',
   is_active: true,
+  auto_approve_enabled: false,
   refresh_interval_minutes: 60,
 };
 
@@ -82,6 +84,7 @@ const MarketQuotesManagement: React.FC = () => {
       commodity_target: source.commodity_target,
       provider_label: source.provider_label || (source.provider === 'cepea' ? 'CEPEA' : ''),
       is_active: source.is_active,
+      auto_approve_enabled: source.auto_approve_enabled,
       refresh_interval_minutes: source.refresh_interval_minutes,
     });
     setShowForm(true);
@@ -99,6 +102,7 @@ const MarketQuotesManagement: React.FC = () => {
         commodity_target: formData.commodity_target,
         provider_label: formData.provider_label || null,
         is_active: formData.is_active,
+        auto_approve_enabled: formData.auto_approve_enabled,
         refresh_interval_minutes: formData.refresh_interval_minutes,
       });
       toast.success(formData.id ? 'Fonte atualizada com sucesso.' : 'Fonte cadastrada com sucesso.');
@@ -113,6 +117,10 @@ const MarketQuotesManagement: React.FC = () => {
     try {
       const result = await validateSource(source);
       const foundCount = Number(result?.foundCount || 0);
+      if (foundCount > 0 && result?.autoApproved) {
+        toast.success(`${commodityLabels[source.commodity_target]} coletada, aprovada automaticamente e publicada no ticker.`);
+        return;
+      }
       toast.success(
         foundCount > 0
           ? `${commodityLabels[source.commodity_target]} encontrada e enviada para validação.`
@@ -191,12 +199,12 @@ const MarketQuotesManagement: React.FC = () => {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Fontes ativas</p>
             <p className="mt-2 text-3xl font-black text-slate-900">{activeSourcesCount}</p>
-            <p className="mt-1 text-sm text-slate-500">Atualização prevista em baixa frequência, com aprovação manual.</p>
+            <p className="mt-1 text-sm text-slate-500">Atualização prevista em baixa frequência, com aprovação manual ou automática por fonte.</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Fluxo seguro</p>
-            <p className="mt-2 text-lg font-bold text-slate-900">Coletar → validar → aprovar</p>
-            <p className="mt-1 text-sm text-slate-500">O ticker continua lendo apenas dados confiáveis e publicados.</p>
+            <p className="mt-2 text-lg font-bold text-slate-900">Coletar → validar → aprovar/publicar</p>
+            <p className="mt-1 text-sm text-slate-500">Você pode manter revisão manual ou liberar autoaprovação por fonte.</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Crédito exibido</p>
@@ -328,6 +336,23 @@ const MarketQuotesManagement: React.FC = () => {
             </label>
           </div>
 
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <input
+              type="checkbox"
+              checked={formData.auto_approve_enabled}
+              onChange={(event) =>
+                setFormData((current) => ({ ...current, auto_approve_enabled: event.target.checked }))
+              }
+              className="h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500"
+            />
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Autoaprovar e publicar</p>
+              <p className="text-xs text-slate-500">
+                Quando ligado, toda coleta válida desta fonte já sai do staging e entra no ticker automaticamente.
+              </p>
+            </div>
+          </label>
+
           <div className="flex items-center gap-3 pt-2">
             <button
               type="submit"
@@ -369,6 +394,11 @@ const MarketQuotesManagement: React.FC = () => {
                     <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${source.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
                       {source.is_active ? 'Ativa' : 'Inativa'}
                     </span>
+                    {source.auto_approve_enabled ? (
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                        Autoaprovação ligada
+                      </span>
+                    ) : null}
                     {source.last_status ? (
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
                         {statusLabel[source.last_status] || source.last_status}
@@ -382,6 +412,7 @@ const MarketQuotesManagement: React.FC = () => {
                     <span>Última validação: {formatDateTime(source.last_validation_at)}</span>
                     <span>Última publicação: {formatDateTime(source.last_sync_at)}</span>
                     <span>Atualização alvo: a cada {source.refresh_interval_minutes} min</span>
+                    <span>Modo: {source.auto_approve_enabled ? 'Automático' : 'Manual'}</span>
                   </div>
 
                   <p className="mt-2 break-all text-sm text-slate-500">

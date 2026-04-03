@@ -12,6 +12,7 @@ export type MarketQuoteSourceRecord = {
   provider_label: string | null;
   refresh_interval_minutes: number;
   is_active: boolean;
+  auto_approve_enabled?: boolean | null;
 };
 
 export type ParsedMarketQuote = {
@@ -245,4 +246,94 @@ export const saveTempQuote = async (
   });
 
   return data;
+};
+
+const quoteDefinitions = {
+  soja: { code: 'cepea-soja', name: 'Soja (CEPEA)', sortOrder: 10 },
+  milho: { code: 'cepea-milho', name: 'Milho (CEPEA)', sortOrder: 20 },
+  boi: { code: 'cepea-boi', name: 'Boi Gordo (CEPEA)', sortOrder: 30 },
+  cafe: { code: 'cepea-cafe', name: 'Café Arábica (CEPEA)', sortOrder: 40 },
+} as const;
+
+export const publishTempQuote = async (
+  supabaseAdmin: any,
+  source: MarketQuoteSourceRecord,
+  tempItem: {
+    id: string;
+    commodity: CommodityKey;
+    produto: string;
+    preco: number;
+    unidade: string;
+    data_referencia: string;
+    fonte: string;
+  }
+) => {
+  const definition = quoteDefinitions[tempItem.commodity];
+
+  const { data: previousQuote, error: previousError } = await supabaseAdmin
+    .from('market_quotes')
+    .select('price, source_id, source_label, reference_date')
+    .eq('code', definition.code)
+    .maybeSingle();
+
+  if (previousError) throw previousError;
+
+  const previousPrice = Number(previousQuote?.price || 0);
+  const currentPrice = Number(tempItem.preco || 0);
+  const hasTrustedBaseline =
+    previousPrice > 0 &&
+    !!previousQuote?.source_id &&
+    previousQuote.source_id === source.id &&
+    !!previousQuote?.reference_date &&
+    previousQuote.source_label === tempItem.fonte;
+
+  const variation = hasTrustedBaseline
+    ? Number((((currentPrice - previousPrice) / previousPrice) * 100).toFixed(2))
+    : 0;
+
+  const { error: quoteError } = await supabaseAdmin.from('market_quotes').upsert(
+    {
+      code: definition.code,
+      name: definition.name,
+      commodity: tempItem.commodity,
+      product_name: tempItem.produto,
+      unit: tempItem.unidade,
+      price: currentPrice,
+      change_percent: variation,
+      source: tempItem.fonte,
+      source_label: tempItem.fonte,
+      source_id: source.id,
+      reference_date: tempItem.data_referencia,
+      is_active: true,
+      is_placeholder: false,
+      placeholder_text: null,
+      sort_order: definition.sortOrder,
+      last_update: new Date().toISOString(),
+    },
+    { onConflict: 'code' }
+  );
+
+  if (quoteError) throw quoteError;
+
+  const [{ error: tempError }, { error: sourceError }] = await Promise.all([
+    supabaseAdmin
+      .from('market_quotes_temp')
+      .update({
+        status: 'approved',
+        approved_at: new Date().toISOString(),
+        error_message: null,
+      })
+      .eq('id', tempItem.id),
+    supabaseAdmin
+      .from('market_quote_sources')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        last_status: 'active',
+        last_error: null,
+      })
+      .eq('id', source.id),
+  ]);
+
+  if (tempError) throw tempError;
+  if (sourceError) throw sourceError;
 };

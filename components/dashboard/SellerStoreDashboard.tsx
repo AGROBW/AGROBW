@@ -12,6 +12,18 @@ type SellerStoreDashboardProps = {
 
 const STORE_DESCRIPTION_MAX_LENGTH = 280;
 
+const extractStoreAssetPath = (publicUrl?: string | null) => {
+  if (!publicUrl) return null;
+
+  const marker = '/seller-stores/';
+  const index = publicUrl.indexOf(marker);
+
+  if (index === -1) return null;
+
+  const pathWithQuery = publicUrl.substring(index + marker.length);
+  return pathWithQuery.split('?')[0] || null;
+};
+
 const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAccess }) => {
   const { user } = useAuth();
   const { store, isLoading, isSaving, saveStore } = useMySellerStore();
@@ -114,13 +126,16 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
 
     try {
       const fileExt = file.name.split('.').pop() || 'jpg';
-      const fileName = assetType === 'logoUrl' ? `logo.${fileExt}` : `cover.${fileExt}`;
+      const previousAssetPath = extractStoreAssetPath(formData[assetType]);
+      const fileName = assetType === 'logoUrl'
+        ? `logo-${Date.now()}.${fileExt}`
+        : `cover-${Date.now()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('seller-stores')
         .upload(filePath, file, {
-          upsert: true,
+          upsert: false,
           contentType: file.type,
         });
 
@@ -134,6 +149,16 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
         ...current,
         [assetType]: publicUrlData.publicUrl,
       }));
+
+      if (previousAssetPath && previousAssetPath !== filePath) {
+        const { error: removeError } = await supabase.storage
+          .from('seller-stores')
+          .remove([previousAssetPath]);
+
+        if (removeError) {
+          console.warn('[SellerStoreDashboard] Nao foi possivel remover o asset antigo da loja:', removeError);
+        }
+      }
 
       toast.success(assetType === 'logoUrl' ? 'Logo enviada com sucesso.' : 'Capa enviada com sucesso.');
     } catch (error: any) {
@@ -316,7 +341,7 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
                   <p className="text-sm font-semibold text-slate-800">
                     {isUploadingCover ? 'Enviando capa...' : formData.coverUrl ? 'Trocar capa atual' : 'Selecionar imagem da capa'}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">Use uma imagem horizontal para valorizar a abertura da loja. Recomendado: 1600x500 px, com o conteúdo principal centralizado e margem de segurança nas laterais para evitar cortes.</p>
+                  <p className="mt-1 text-xs text-slate-500">Use uma imagem horizontal preparada exatamente para o banner da loja. Recomendado: 2000x300 px, com o conteúdo principal centralizado para ocupar bem toda a largura da seção.</p>
                 </div>
                 <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
                   <UploadCloud className="h-5 w-5" strokeWidth={1.5} />

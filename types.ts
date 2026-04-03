@@ -38,6 +38,10 @@ export interface Ad {
   title: string;
   description: string;
   price: number;
+  videoUrl?: string;
+  videoStoragePath?: string;
+  videoDurationSeconds?: number;
+  videoSizeBytes?: number;
   productCondition?: 'novo' | 'seminovo' | 'usado';
   availability?: 'pronta_entrega' | 'sob_encomenda' | 'consultar_estoque';
   acceptsTrade?: boolean;

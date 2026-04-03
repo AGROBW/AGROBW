@@ -6,6 +6,7 @@ import {
   commodityLabelMap,
   fetchAndParseMarketQuote,
   MarketQuoteSourceRecord,
+  publishTempQuote,
   saveTempQuote,
   SourceProvider,
   updateSourceStatus,
@@ -47,7 +48,7 @@ const resolveSource = async (
     const { data, error } = await supabaseAdmin
       .from('market_quote_sources')
       .select(
-        'id, name, source_url, generated_url, commodity_target, provider, cepea_indicator_id, provider_label, refresh_interval_minutes, is_active'
+        'id, name, source_url, generated_url, commodity_target, provider, cepea_indicator_id, provider_label, refresh_interval_minutes, is_active, auto_approve_enabled'
       )
       .eq('id', body.sourceId)
       .single();
@@ -124,6 +125,9 @@ serve(async (req) => {
     try {
       const parsed = await fetchAndParseMarketQuote(source);
       const tempRecord = body.sourceId ? await saveTempQuote(supabaseAdmin, source, parsed) : null;
+      if (body.sourceId && source.auto_approve_enabled && tempRecord) {
+        await publishTempQuote(supabaseAdmin, source, tempRecord);
+      }
 
       return jsonResponse({
         success: true,
@@ -132,6 +136,7 @@ serve(async (req) => {
         commodity: parsed.commodity,
         generatedUrl: parsed.sourceUrl,
         temp: tempRecord,
+        autoApproved: !!(body.sourceId && source.auto_approve_enabled && tempRecord),
         data: {
           commodity: parsed.commodity,
           produto: parsed.produto,

@@ -4,6 +4,7 @@ create table if not exists public.market_quote_sources (
   source_url text not null,
   provider_label text,
   is_active boolean not null default true,
+  auto_approve_enabled boolean not null default false,
   refresh_interval_minutes integer not null default 60,
   last_validation_at timestamptz,
   last_sync_at timestamptz,

@@ -126,6 +126,32 @@ const AdDetailView: React.FC = () => {
             )}
           </div>
 
+          {ad.videoUrl && (
+            <div className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 p-6 space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">Loja Oficial</p>
+                  <h2 className="mt-2 text-2xl font-black text-slate-900 font-display">Vídeo do anúncio</h2>
+                </div>
+                {ad.videoDurationSeconds ? (
+                  <div className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black text-slate-600">
+                    {ad.videoDurationSeconds}s
+                  </div>
+                ) : null}
+              </div>
+              <div className="overflow-hidden rounded-[1.8rem] border border-slate-100 bg-slate-950">
+                <video
+                  src={ad.videoUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  poster={ad.images?.[0] || undefined}
+                  className="aspect-video w-full bg-slate-950 object-contain"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Technical Specifications Section */}
           {ad.technicalDetails && ad.technicalDetails.length > 0 && (
             <div className="space-y-6">
