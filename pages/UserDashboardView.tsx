@@ -731,7 +731,7 @@ const UserDashboardView: React.FC = () => {
         </div>
 
         {/* Mensagens Recentes */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200">
+        <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
           <div className="flex items-center justify-between mb-6">
             <h4 className="text-lg font-bold text-slate-900">
               {selectedAd 
@@ -742,14 +742,14 @@ const UserDashboardView: React.FC = () => {
             {selectedAd && (
               <button
                 onClick={() => setSelectedAdId(null)}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 transition-colors hover:text-emerald-800"
               >
                 Ver todas
               </button>
             )}
           </div>
           
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-slate-100">
             {chatsLoading ? (
               <div className="py-6 text-center">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-slate-200 border-t-blue-600"></div>
@@ -769,9 +769,9 @@ const UserDashboardView: React.FC = () => {
               filteredChats?.slice(0, 3).map(chat => {
                 const otherPartyName = chat?.sellerId === user?.id ? chat?.buyerName : chat?.sellerName
                 return (
-                  <div key={chat?.id} className="py-4 flex justify-between items-center">
+                  <div key={chat?.id} className="flex items-center justify-between gap-4 py-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-gradient-to-br from-green-100 to-blue-100 rounded-full flex items-center justify-center">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#dcfce7_0%,#dbeafe_100%)] shadow-sm">
                         <User className="w-5 h-5 text-green-700" />
                       </div>
                       <div>
@@ -779,7 +779,7 @@ const UserDashboardView: React.FC = () => {
                         <p className="text-xs text-slate-500 line-clamp-1">{chat?.lastMessage || 'Sem mensagens'}</p>
                       </div>
                     </div>
-                    <Link to="/minha-conta/mensagens" className="text-xs font-bold text-green-700 uppercase hover:text-green-800 transition-colors">
+                    <Link to="/minha-conta/mensagens" className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700 transition-colors hover:text-emerald-800">
                       Responder
                     </Link>
                   </div>
@@ -3076,29 +3076,47 @@ const UserDashboardView: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#fcfcfd] font-sans">
-      {/* SaaS Sidebar */}
-      <aside className="hidden lg:flex w-64 bg-white sticky top-0 h-screen flex-col p-6 border-r border-slate-100">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-8 h-8 bg-green-700 rounded-lg flex items-center justify-center text-white font-bold">T</div>
-          <span className="text-lg font-bold text-gray-900">BWAGRO</span>
+    <div className="flex min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] font-sans text-slate-900">
+      <aside className="sticky top-0 hidden h-screen w-72 flex-col border-r border-slate-800/80 bg-[#0f172a] px-5 py-6 text-slate-100 shadow-[30px_0_60px_-45px_rgba(15,23,42,0.75)] lg:flex">
+        <div className="mb-8 rounded-[24px] border border-white/10 bg-white/5 px-4 py-4 backdrop-blur">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#16a34a_0%,#15803d_100%)] text-base font-black text-white shadow-[0_18px_35px_-18px_rgba(22,163,74,0.8)]">
+              A
+            </div>
+            <div>
+              <span className="block text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300/90">
+                Painel AGRO BW
+              </span>
+              <span className="block text-base font-bold text-white">Operação do usuário</span>
+            </div>
+          </div>
         </div>
 
-        <nav className="flex-grow space-y-1">
+        <nav className="flex-grow space-y-1.5">
           {menuItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center justify-between px-4 py-2.5 rounded-lg text-sm transition-all group ${
-                location.pathname === item.path ? 'bg-green-50 text-green-700 font-semibold' : 'text-gray-500 hover:bg-slate-50 hover:text-gray-900'
+              className={`group flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition-all ${
+                location.pathname === item.path
+                  ? 'border-emerald-400/30 bg-[linear-gradient(135deg,rgba(22,163,74,0.22)_0%,rgba(15,23,42,0.08)_100%)] text-white shadow-[0_18px_35px_-24px_rgba(22,163,74,0.65)]'
+                  : 'border-transparent text-slate-300/88 hover:border-white/10 hover:bg-white/5 hover:text-white'
               }`}
             >
               <div className="flex items-center gap-3">
-                <span className={`${location.pathname === item.path ? 'text-green-700' : 'text-gray-400 group-hover:text-gray-600'}`}>{item.icon}</span>
+                <span
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
+                    location.pathname === item.path
+                      ? 'bg-white/10 text-emerald-300'
+                      : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-emerald-200'
+                  }`}
+                >
+                  {item.icon}
+                </span>
                 {item.label}
               </div>
               {item.badge > 0 && (
-                <span className="min-w-[20px] h-5 px-2 bg-green-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#f59e0b] px-2 text-xs font-bold text-slate-950 shadow-[0_10px_20px_-12px_rgba(245,158,11,0.9)]">
                   {item.badge}
                 </span>
               )}
@@ -3106,32 +3124,35 @@ const UserDashboardView: React.FC = () => {
           ))}
         </nav>
 
-        <div className="pt-6 border-t border-slate-100">
+        <div className="mt-6 border-t border-white/10 pt-6">
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-gray-400 font-medium text-sm hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+            className="flex w-full items-center gap-3 rounded-2xl border border-transparent px-4 py-3 text-sm font-medium text-slate-300 transition-all hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-200"
           >
             <Icons.Logout /> Sair
           </button>
         </div>
       </aside>
 
-      <main className="flex-grow p-6 lg:p-10 max-w-7xl mx-auto w-full">
-        <header className="flex justify-between items-center mb-10">
+      <main className="mx-auto w-full max-w-7xl flex-grow px-4 py-6 lg:px-8 lg:py-8">
+        <header className="mb-8 flex flex-col gap-4 rounded-[28px] border border-slate-200/80 bg-white/85 px-5 py-5 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.45)] backdrop-blur md:flex-row md:items-center md:justify-between lg:px-7">
           <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-emerald-700">
+              Painel do usuário
+            </p>
             <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-2xl font-bold text-gray-900">Olá, {user?.name.split(' ')[0]}</h2>
+              <h2 className="text-2xl font-bold text-slate-900">Olá, {user?.name.split(' ')[0]}</h2>
               {user?.document_verified && <VerifiedBadge variant="small" />}
             </div>
-            <p className="text-sm text-gray-500">Acompanhe seus negócios e oportunidades rurais.</p>
+            <p className="text-sm text-slate-500">Acompanhe seus negócios e oportunidades rurais.</p>
           </div>
           <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg border border-slate-100">
-              <div className="w-7 h-7 bg-slate-200 rounded-full overflow-hidden">
-                {user?.avatar ? <img src={user.avatar} alt="" /> : null}
+            <div className="hidden items-center gap-3 rounded-2xl border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_100%)] px-3 py-2 shadow-sm md:flex">
+              <div className="h-9 w-9 overflow-hidden rounded-full bg-[linear-gradient(135deg,#dcfce7_0%,#bbf7d0_100%)] ring-2 ring-emerald-100">
+                {user?.avatar ? <img src={user.avatar} alt="" className="h-full w-full object-cover" /> : null}
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-gray-700">{user?.name}</span>
+                <span className="text-xs font-bold text-slate-700">{user?.name}</span>
                 {user?.document_verified && <VerifiedBadge variant="icon-only" />}
               </div>
             </div>
@@ -3167,6 +3188,4 @@ const UserDashboardView: React.FC = () => {
 };
 
 export default UserDashboardView;
-
-
 

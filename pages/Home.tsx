@@ -9,6 +9,7 @@ import NewsGrid from '../components/NewsGrid';
 import HomeAdsCarousel from '../components/HomeAdsCarousel';
 import { CATEGORIES } from '../constants';
 import { usePublicAds } from '../src/hooks/useAds';
+import { useCategoryCounts } from '../src/hooks/useCategoryCounts';
 import { useLayout } from '../src/contexts/LayoutContext';
 
 class AdCardErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -74,6 +75,7 @@ const getDeterministicRotationScore = (ad: any, seed: string) => {
 
 const Home: React.FC = () => {
   const { ads, isLoading: adsLoading } = usePublicAds();
+  const { getCountForCategory } = useCategoryCounts();
   const { settings } = useLayout();
   const dailyRotationSeed = getDailyRotationSeed();
 
@@ -138,7 +140,7 @@ const Home: React.FC = () => {
               <h3 className="font-semibold text-slate-800 text-sm mb-1 transition-colors group-hover:opacity-90" style={{ color: 'var(--brand-text)' }}>
                 {cat.name}
               </h3>
-              <p className="text-xs text-slate-400">{cat.count} anúncios</p>
+              <p className="text-xs text-slate-400">{getCountForCategory(cat.slug)} anúncios</p>
             </Link>
           ))}
         </div>

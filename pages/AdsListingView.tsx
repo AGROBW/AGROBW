@@ -1,15 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight, FilterX, Search, SlidersHorizontal } from 'lucide-react';
-import { CATEGORIES } from '../constants';
 import AdCard from '../components/AdCard';
 import HomeAdsCarousel from '../components/HomeAdsCarousel';
 import { usePublicAds } from '../src/hooks/useAds';
+import { usePublicCategoryCatalog } from '../src/hooks/usePublicCategoryCatalog';
 import { supabase } from '../src/lib/supabaseClient';
 import {
-  getCategoryHierarchyChildren,
   getCategoryGroupBySlug,
-  matchesHierarchyChild,
+  getGroupCategorySlugs,
 } from '../src/lib/categoryHierarchy';
 import { Ad } from '../types';
 
@@ -21,6 +20,14 @@ type ShowcaseStatsRow = {
 };
 
 const CATEGORY_SHOWCASE_BATCH_SIZE = 12;
+
+const normalize = (value?: string | null) =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 
 const isHighlightActive = (value?: boolean, until?: string | null) =>
   Boolean(value) && (!until || new Date(until).getTime() > Date.now());
@@ -48,12 +55,27 @@ const AdsListingView: React.FC = () => {
   const subSlug = params.get('subcategoria') || '';
   const queryTerm = params.get('q') || '';
 
-  const categoryInfo = useMemo(
-    () => CATEGORIES.find((category) => category.slug === catSlug) || null,
-    [catSlug]
-  );
+  const { categories, subcategories } = usePublicCategoryCatalog();
   const categoryGroup = useMemo(() => getCategoryGroupBySlug(catSlug), [catSlug]);
-  const hierarchyChildren = useMemo(() => getCategoryHierarchyChildren(catSlug), [catSlug]);
+  const relevantCategorySlugs = useMemo(
+    () => (categoryGroup ? getGroupCategorySlugs(categoryGroup.slug) : catSlug ? [catSlug] : []),
+    [categoryGroup, catSlug]
+  );
+  const relevantCategories = useMemo(() => {
+    if (relevantCategorySlugs.length === 0) {
+      return catSlug ? categories.filter((category) => category.slug === catSlug) : categories;
+    }
+
+    return categories.filter((category) => relevantCategorySlugs.includes(category.slug));
+  }, [categories, relevantCategorySlugs, catSlug]);
+  const categoryInfo = useMemo(
+    () => relevantCategories.find((category) => category.slug === catSlug) || relevantCategories[0] || null,
+    [relevantCategories, catSlug]
+  );
+  const availableSubcategories = useMemo(() => {
+    const relevantCategoryIds = new Set(relevantCategories.map((category) => category.id));
+    return subcategories.filter((subcategory) => relevantCategoryIds.has(subcategory.categoryId));
+  }, [relevantCategories, subcategories]);
   const dailyRotationSeed = useMemo(
     () => getDailyRotationSeed(categoryGroup?.slug || catSlug || 'classificados'),
     [categoryGroup?.slug, catSlug]
@@ -90,8 +112,16 @@ const AdsListingView: React.FC = () => {
       }
 
       if (childSlugFilter) {
-        const selectedChild = hierarchyChildren.find((child) => child.slug === childSlugFilter);
-        if (selectedChild && !matchesHierarchyChild(selectedChild, ad)) {
+        const normalizedFilter = normalize(childSlugFilter);
+        const subcategoryMatches =
+          normalize(ad.subCategoryLabel) === normalizedFilter ||
+          availableSubcategories.some(
+            (subcategory) =>
+              normalize(subcategory.slug) === normalizedFilter &&
+              (subcategory.id === ad.subCategoryId || normalize(subcategory.name) === normalize(ad.subCategoryLabel))
+          );
+
+        if (!subcategoryMatches) {
           return false;
         }
       }
@@ -117,7 +147,7 @@ const AdsListingView: React.FC = () => {
 
       return true;
     });
-  }, [ads, searchTerm, childSlugFilter, hierarchyChildren, stateFilter, cityFilter, minPrice, maxPrice]);
+  }, [ads, searchTerm, childSlugFilter, availableSubcategories, stateFilter, cityFilter, minPrice, maxPrice]);
 
   const categoryHighlightedAds = useMemo(() => {
     return [...filteredAds]
@@ -317,7 +347,7 @@ const AdsListingView: React.FC = () => {
           </div>
         </label>
 
-        {hierarchyChildren.length > 0 && (
+        {availableSubcategories.length > 0 && (
           <label className="block">
             <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
               Subcategoria
@@ -328,9 +358,9 @@ const AdsListingView: React.FC = () => {
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none"
             >
               <option value="">Todas</option>
-              {hierarchyChildren.map((child) => (
-                <option key={child.slug} value={child.slug}>
-                  {child.name}
+              {availableSubcategories.map((subcategory) => (
+                <option key={subcategory.id} value={subcategory.slug}>
+                  {subcategory.name}
                 </option>
               ))}
             </select>

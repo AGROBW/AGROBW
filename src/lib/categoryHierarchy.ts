@@ -229,6 +229,20 @@ const normalize = (value?: string | null) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
+export const getCategoryGroupKey = (slug?: string | null) => {
+  const byAlias = getCategoryGroupBySlug(slug);
+  if (byAlias) {
+    return byAlias.slug;
+  }
+
+  const byCategory = getCategoryGroupForCategorySlug(slug);
+  if (byCategory) {
+    return byCategory.slug;
+  }
+
+  return normalize(slug);
+};
+
 export const getCategoryGroupBySlug = (slug?: string | null) => {
   const normalizedSlug = normalize(slug);
   return CATEGORY_HIERARCHY.find((group) =>

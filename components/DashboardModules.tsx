@@ -55,7 +55,7 @@ export const DashboardStatsCard: React.FC<StatsCardProps> = ({
 }) => {
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-6 animate-pulse">
+      <div className="animate-pulse rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.4)]">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <div className="h-3 w-24 bg-slate-100 rounded" />
@@ -68,13 +68,13 @@ export const DashboardStatsCard: React.FC<StatsCardProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6 hover:shadow-md transition-shadow">
+    <div className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.4)] transition-all hover:-translate-y-0.5 hover:shadow-[0_24px_55px_-36px_rgba(15,23,42,0.5)]">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-slate-600 font-medium mb-1">{label}</p>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</p>
           <p className="text-3xl font-bold text-slate-900">{value}</p>
         </div>
-        <div className={`w-12 h-12 ${bgColor} rounded-lg flex items-center justify-center ${iconColor}`}>
+        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${bgColor} ${iconColor} shadow-sm`}>
           {icon}
         </div>
       </div>
@@ -96,7 +96,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
         <div className="h-6 w-32 bg-slate-100 rounded mb-4 animate-pulse" />
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map(i => (
@@ -112,7 +112,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6">
+    <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
       <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
         <TrendingUp className="w-5 h-5 text-green-600" />
         Alcance por Região
@@ -149,7 +149,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
           </div>
 
           {/* Mapa SVG Real do Brasil */}
-          <div className="relative bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg border border-slate-200 overflow-hidden" style={{ height: '400px' }}>
+          <div className="relative overflow-hidden rounded-[22px] border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50 shadow-inner" style={{ height: '400px' }}>
             <svg 
               viewBox="0 0 450 460" 
               className="w-full h-full p-4"
@@ -534,7 +534,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
 }) => {
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-6 animate-pulse">
+      <div className="animate-pulse rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
         {/* Header com Seletor */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div className="h-6 w-48 bg-slate-100 rounded" />
@@ -564,7 +564,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
 
   if (!priceAnalysis) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
         {/* Header com Seletor */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -621,7 +621,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
             </select>
           )}
         </div>
-        <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+        <div className="rounded-[22px] border border-blue-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_100%)] p-6">
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
               <Sparkles className="w-8 h-8 text-blue-600" />
@@ -667,7 +667,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6">
+    <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
       {/* Header com Seletor de Anúncios */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
         <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -694,13 +694,13 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
 
       {/* Comparação de Preços */}
       <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className={`${bgColor} rounded-lg p-4 border border-slate-200`}>
+        <div className={`${bgColor} rounded-[20px] border border-slate-200 p-4`}>
           <p className="text-xs text-slate-600 mb-1">Seu Preço</p>
           <p className="text-2xl font-bold text-slate-900">
             R$ {user_price.toLocaleString('pt-BR')}
           </p>
         </div>
-        <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+        <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs text-slate-600 mb-1">Média do Mercado</p>
           <p className="text-2xl font-bold text-slate-900">
             R$ {market_avg_price.toLocaleString('pt-BR')}
@@ -716,7 +716,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
         </div>
 
         {/* Barra de Gradiente */}
-        <div className="relative h-8 w-full rounded-full overflow-hidden border border-slate-200">
+        <div className="relative h-8 w-full overflow-hidden rounded-full border border-slate-200 shadow-inner">
           {/* Gradiente de fundo (Azul -> Verde -> Vermelho) */}
           <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-green-400 to-red-400" />
           
@@ -749,7 +749,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
       </div>
 
       {/* Interpretação */}
-      <div className={`mt-4 ${bgColor} rounded-lg p-3 border border-slate-200`}>
+      <div className={`mt-4 ${bgColor} rounded-[18px] border border-slate-200 p-3`}>
         <p className="text-xs text-slate-700">
           {price_position === 'LOW' && '💡 Seu preço está competitivo! Pode atrair mais compradores.'}
           {price_position === 'MED' && '✅ Seu preço está equilibrado com o mercado.'}

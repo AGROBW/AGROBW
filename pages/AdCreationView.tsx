@@ -600,6 +600,8 @@ const AdCreationView: React.FC = () => {
       const { data, error } = await supabase
         .from('categories')
         .select('id,name,slug,icon,technical_fields_schema')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
         .order('name', { ascending: true });
       if (!error && data) {
         setDbCategories(data as Array<{ id: string; name: string; slug: string; icon?: string | null; technical_fields_schema?: any[] }>);
@@ -655,9 +657,11 @@ const AdCreationView: React.FC = () => {
         return;
       }
       const { data, error } = await supabase
-        .from('subcategories')
+        .from('category_subcategories')
         .select('id,category_id,name,slug')
         .eq('category_id', formData.categoryId)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
         .order('name', { ascending: true });
       if (!error && data) {
         setDbSubcategories(data as Array<{ id: string; category_id: string; name: string; slug: string }>);
@@ -826,7 +830,7 @@ const AdCreationView: React.FC = () => {
 
     const slug = formData.subCategoryId;
     const { data, error } = await supabase
-      .from('subcategories')
+      .from('category_subcategories')
       .select('id')
       .eq('category_id', categoryId)
       .eq('slug', slug)

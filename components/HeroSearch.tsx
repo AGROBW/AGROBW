@@ -3,19 +3,22 @@ import React, { useState } from 'react';
 import { ArrowRight, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLayout } from '../src/contexts/LayoutContext';
+import { logPopularSearch, usePopularSearches } from '../src/hooks/usePopularSearches';
 
 const HeroSearch: React.FC = () => {
   const { settings } = useLayout();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
+  const { popularSearches } = usePopularSearches();
 
-  const handleSearch = (term?: string) => {
+  const handleSearch = async (term?: string) => {
     const searchTerm = (term ?? query).trim();
     if (!searchTerm) {
       navigate('/anuncios');
       return;
     }
 
+    await logPopularSearch(searchTerm);
     navigate(`/anuncios?q=${encodeURIComponent(searchTerm)}`);
   };
 
@@ -64,11 +67,13 @@ const HeroSearch: React.FC = () => {
       <div className="mt-4 flex flex-wrap justify-center items-center gap-2">
         <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em]">Principais Buscas:</span>
         <div className="flex flex-wrap justify-center gap-2">
-          {['Tratores usados', 'Gado Nelore', 'Fazendas MT', 'Colheitadeiras', 'Sementes'].map((tag) => (
+          {popularSearches.map((tag) => (
             <button 
               key={tag}
               type="button"
-              onClick={() => handleSearch(tag)}
+              onClick={() => {
+                void handleSearch(tag);
+              }}
               className="text-xs bg-white border border-slate-100 px-3 py-1 rounded-lg text-slate-600 hover:bg-green-600 hover:text-white hover:border-green-600 transition-all duration-300"
             >
               {tag}

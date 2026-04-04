@@ -4,12 +4,14 @@ import {
   Bell,
   ChevronDown,
   FileCheck,
+  FolderTree,
   LayoutDashboard,
   MonitorSmartphone,
   LogOut,
   Menu,
   Newspaper,
   LifeBuoy,
+  Mail,
   Receipt,
   Search,
   Settings,
@@ -50,6 +52,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       icon: Users,
     },
     {
+      label: 'Categorias',
+      path: '/admin/categories',
+      icon: FolderTree,
+    },
+    {
       label: 'Financeiro',
       path: '/admin/payments',
       icon: Receipt,
@@ -58,6 +65,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'Noticias',
       path: '/admin/news',
       icon: Newspaper,
+    },
+    {
+      label: 'Newsletter',
+      path: '/admin/newsletter',
+      icon: Mail,
     },
     {
       label: 'Layout',

@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Linkedin, Mail, MessageCircle, Music2, Phone, Youtube } from 'lucide-react';
+import { toast } from 'sonner';
 import { useLayout } from '../src/contexts/LayoutContext';
+import { supabase } from '../src/lib/supabaseClient';
 
 const normalizeExternalUrl = (url?: string | null) => {
   if (!url) return null;
@@ -13,6 +15,8 @@ const normalizeExternalUrl = (url?: string | null) => {
 
 const Footer: React.FC = () => {
   const { settings } = useLayout();
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [isSubmittingNewsletter, setIsSubmittingNewsletter] = useState(false);
   const brandName = settings.footerBrandText || settings.siteName;
   const socialLinks = [
     { label: 'Facebook', href: normalizeExternalUrl(settings.facebookUrl), icon: Facebook },
@@ -22,6 +26,47 @@ const Footer: React.FC = () => {
     { label: 'WhatsApp', href: normalizeExternalUrl(settings.whatsappUrl), icon: MessageCircle },
     { label: 'TikTok', href: normalizeExternalUrl(settings.tiktokUrl), icon: Music2 },
   ].filter((item) => Boolean(item.href));
+
+  const handleNewsletterSubmit = async () => {
+    const email = newsletterEmail.trim().toLowerCase();
+
+    if (!email) {
+      toast.error('Digite seu e-mail para receber novidades.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error('Digite um e-mail valido.');
+      return;
+    }
+
+    try {
+      setIsSubmittingNewsletter(true);
+
+      const { data, error } = await supabase.rpc('subscribe_newsletter', {
+        p_email: email,
+        p_source: 'footer',
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data === 'existing') {
+        toast.success('Este e-mail ja esta cadastrado para receber novidades.');
+      } else {
+        toast.success('Cadastro realizado com sucesso. Voce vai receber nossas novidades.');
+      }
+
+      setNewsletterEmail('');
+    } catch (error) {
+      console.error('[Footer] Erro ao cadastrar e-mail na newsletter:', error);
+      toast.error('Nao foi possivel cadastrar seu e-mail agora. Tente novamente.');
+    } finally {
+      setIsSubmittingNewsletter(false);
+    }
+  };
 
   return (
     <footer className="pb-8 text-slate-300" style={{ backgroundColor: settings.secondaryColor }}>
@@ -113,14 +158,27 @@ const Footer: React.FC = () => {
                   <input
                     type="email"
                     placeholder="Seu e-mail"
+                    value={newsletterEmail}
+                    onChange={(event) => setNewsletterEmail(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void handleNewsletterSubmit();
+                      }
+                    }}
                     className="h-9 w-full rounded-l-lg border-none px-3 text-sm outline-none"
                     style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
                   />
                   <button
+                    type="button"
+                    onClick={() => {
+                      void handleNewsletterSubmit();
+                    }}
+                    disabled={isSubmittingNewsletter}
                     className="h-9 rounded-r-lg px-4 text-sm font-semibold text-white"
                     style={{ backgroundColor: settings.primaryColor }}
                   >
-                    Ok
+                    {isSubmittingNewsletter ? '...' : 'Ok'}
                   </button>
                 </div>
               </div>
