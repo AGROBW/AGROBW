@@ -126,7 +126,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
         {hasOfficialStore && (
           <div className="flex items-center gap-1 text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg w-fit bg-gradient-to-r from-emerald-100 to-teal-50 text-emerald-800">
             <Store className="w-3 h-3" strokeWidth={2.5} />
-            LOJA OFICIAL
+            LOJA PARCEIRA
           </div>
         )}
       </div>

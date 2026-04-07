@@ -1,9 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Globe, Image, Link as LinkIcon, MapPin, Save, ShieldCheck, ShoppingBag, Store, UploadCloud, UserRound } from 'lucide-react';
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { AlertTriangle, ExternalLink, Globe, Image, Link as LinkIcon, MapPin, Save, ShieldCheck, ShoppingBag, Store, UploadCloud, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { slugifyStoreValue, useMySellerStore } from '../../src/hooks/useSellerStore';
+import type { Ad } from '../../types';
 import { supabase } from '../../src/lib/supabaseClient';
 
 type SellerStoreDashboardProps = {
@@ -24,17 +28,93 @@ const extractStoreAssetPath = (publicUrl?: string | null) => {
   return pathWithQuery.split('?')[0] || null;
 };
 
+const SortableStoreAnnouncementCard: React.FC<{
+  announcement: Ad;
+  index: number;
+}> = ({ announcement, index }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: announcement.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-3xl border bg-white p-4 shadow-sm transition ${
+        isDragging ? 'border-emerald-300 shadow-lg shadow-emerald-100' : 'border-slate-200'
+      }`}
+    >
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="inline-flex h-12 w-12 shrink-0 cursor-grab items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-sm font-black text-slate-500 active:cursor-grabbing"
+          aria-label={`Mover anúncio ${announcement.title}`}
+        >
+          {index + 1}
+        </button>
+
+        <div className="h-20 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
+          {announcement.images?.[0] ? (
+            <img src={announcement.images[0]} alt={announcement.title} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-slate-400">
+              <ShoppingBag className="h-6 w-6" strokeWidth={1.5} />
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-700">
+            Posição {index + 1}
+          </p>
+          <h4 className="mt-1 truncate text-base font-black text-slate-900">{announcement.title}</h4>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>{announcement.location.city} - {announcement.location.state}</span>
+            <span className="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-600">
+              {announcement.views || 0} views
+            </span>
+            {announcement.highlightHome || announcement.highlightCategory ? (
+              <span className="rounded-full bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">
+                Com destaque
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAccess }) => {
   const { user } = useAuth();
-  const { store, isLoading, isSaving, saveStore } = useMySellerStore();
+  const {
+    store,
+    isLoading,
+    isSaving,
+    saveStore,
+    storeAnnouncements,
+    isLoadingAnnouncements,
+    isSavingAnnouncementOrder,
+    saveAnnouncementOrder,
+  } = useMySellerStore();
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [orderedAnnouncements, setOrderedAnnouncements] = useState<Ad[]>([]);
   const [formData, setFormData] = useState({
     storeName: '',
     slug: '',
     description: '',
     logoUrl: '',
     coverUrl: '',
+    coverPositionX: 50,
+    coverPositionY: 50,
     email: '',
     facebookUrl: '',
     instagramUrl: '',
@@ -44,6 +124,7 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
     state: '',
     isActive: true,
   });
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   useEffect(() => {
     if (store) {
@@ -53,6 +134,8 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
         description: store.description || '',
         logoUrl: store.logoUrl || '',
         coverUrl: store.coverUrl || '',
+        coverPositionX: typeof store.coverPositionX === 'number' ? store.coverPositionX : 50,
+        coverPositionY: typeof store.coverPositionY === 'number' ? store.coverPositionY : 50,
         email: store.email || user?.email || '',
         facebookUrl: store.facebookUrl || '',
         instagramUrl: store.instagramUrl || '',
@@ -77,13 +160,17 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
     }));
   }, [store, user]);
 
+  useEffect(() => {
+    setOrderedAnnouncements(storeAnnouncements);
+  }, [storeAnnouncements]);
+
   const publicStoreUrl = useMemo(() => {
     const normalizedSlug = formData.slug || slugifyStoreValue(formData.storeName);
     if (!normalizedSlug || typeof window === 'undefined') return null;
     return `${window.location.origin}/#/loja/${normalizedSlug}`;
   }, [formData.slug, formData.storeName]);
 
-  const handleChange = (field: keyof typeof formData, value: string | boolean) => {
+  const handleChange = (field: keyof typeof formData, value: string | boolean | number) => {
     setFormData((current) => ({ ...current, [field]: value }));
   };
 
@@ -99,6 +186,29 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
       toast.success('Loja salva com sucesso.');
     } catch (error: any) {
       toast.error(error?.message || 'Não foi possível salvar sua loja.');
+    }
+  };
+
+  const handleAnnouncementDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setOrderedAnnouncements((current) => {
+      const oldIndex = current.findIndex((announcement) => announcement.id === active.id);
+      const newIndex = current.findIndex((announcement) => announcement.id === over.id);
+
+      if (oldIndex === -1 || newIndex === -1) return current;
+      return arrayMove(current, oldIndex, newIndex);
+    });
+  };
+
+  const handleSaveAnnouncementOrder = async () => {
+    try {
+      await saveAnnouncementOrder(orderedAnnouncements.map((announcement) => announcement.id));
+      toast.success('Ordem da vitrine salva com sucesso.');
+    } catch (error: any) {
+      console.error('[SellerStoreDashboard] Erro ao salvar ordem da vitrine:', error);
+      toast.error(error?.message || 'Não foi possível salvar a ordem da vitrine.');
     }
   };
 
@@ -196,7 +306,7 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
             <div className="max-w-2xl space-y-4">
               <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-black uppercase tracking-[0.3em] text-emerald-200">
                 <Store className="h-4 w-4" strokeWidth={1.5} />
-                Loja Oficial
+                Loja Parceira
               </span>
               <div>
                 <h1 className="text-3xl font-black tracking-tight">Monte a vitrine oficial do seu negócio no agro</h1>
@@ -210,12 +320,14 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
               <div className="flex items-center justify-between gap-4">
                 <span className="text-slate-300">Status da loja</span>
                 <span className={`rounded-full px-3 py-1 text-xs font-bold ${hasStoreAccess ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200'}`}>
-                  {hasStoreAccess ? 'Recurso liberado' : 'Exige plano Loja Oficial'}
+                  {hasStoreAccess ? 'Recurso liberado' : 'Exige plano Loja Parceira'}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-slate-300">Página pública</span>
-                <span className="font-semibold text-white">{store ? 'Disponível para edição' : 'Pronta para criar'}</span>
+                <span className="font-semibold text-white">
+                  {store?.isPausedDueToPlan ? 'Pausada por vencimento' : store ? 'Disponível para edição' : 'Pronta para criar'}
+                </span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-slate-300">Exposição</span>
@@ -229,7 +341,7 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
           <div className="border-t border-amber-100 bg-amber-50/70 px-8 py-5 text-sm text-amber-900">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <p>
-                Seu plano atual não inclui a Loja Oficial. Faça upgrade para publicar uma página da sua empresa com identidade própria e catálogo dedicado.
+                Seu plano atual não inclui a Loja Parceira. Faça upgrade para publicar uma página da sua empresa com identidade própria e catálogo dedicado.
               </p>
               <Link
                 to="/planos"
@@ -241,6 +353,32 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
           </div>
         ) : null}
       </section>
+
+      {store?.isPausedDueToPlan ? (
+        <section className="rounded-[2rem] border border-amber-200 bg-amber-50/80 p-5 text-amber-900 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex gap-3">
+              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                <AlertTriangle className="h-5 w-5" strokeWidth={1.8} />
+              </div>
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-700">Loja pausada</p>
+                <h3 className="mt-1 text-lg font-black text-amber-950">Sua Loja Parceira foi pausada até a renovação do plano</h3>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-900/90">
+                  Os dados da loja, capa, logo e configurações continuam salvos. A página pública e o selo premium
+                  ficam desativados até que um plano com esse recurso seja reativado.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/minha-conta/meu-plano"
+              className="inline-flex items-center justify-center rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-600"
+            >
+              Renovar plano
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-8 xl:grid-cols-[1.25fr,0.95fr]">
         <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
@@ -358,6 +496,94 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
               </label>
             </div>
 
+            <label className="space-y-3 md:col-span-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-slate-700">Ajuste horizontal da capa</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                  {formData.coverPositionX}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={formData.coverPositionX}
+                onChange={(event) => handleChange('coverPositionX', Number(event.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-emerald-600"
+              />
+              <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <button
+                  type="button"
+                  onClick={() => handleChange('coverPositionX', 0)}
+                  className="transition hover:text-slate-600"
+                >
+                  Esquerda
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChange('coverPositionX', 50)}
+                  className="transition hover:text-slate-600"
+                >
+                  Centro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChange('coverPositionX', 100)}
+                  className="transition hover:text-slate-600"
+                >
+                  Direita
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">
+                Use esse controle para mover a arte da capa para a esquerda ou direita dentro do banner.
+              </p>
+            </label>
+
+            <label className="space-y-3 md:col-span-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-slate-700">Ajuste vertical da capa</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                  {formData.coverPositionY}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={formData.coverPositionY}
+                onChange={(event) => handleChange('coverPositionY', Number(event.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-emerald-600"
+              />
+              <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <button
+                  type="button"
+                  onClick={() => handleChange('coverPositionY', 0)}
+                  className="transition hover:text-slate-600"
+                >
+                  Topo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChange('coverPositionY', 50)}
+                  className="transition hover:text-slate-600"
+                >
+                  Centro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChange('coverPositionY', 100)}
+                  className="transition hover:text-slate-600"
+                >
+                  Base
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">
+                Use esse controle para subir ou descer a arte da capa sem precisar reenviar a imagem.
+              </p>
+            </label>
+
             <label className="space-y-2">
               <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <UserRound className="h-4 w-4 text-slate-400" strokeWidth={1.5} />
@@ -466,16 +692,70 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
               {formData.isActive ? 'Ativa' : 'Oculta'}
             </button>
           </div>
+          <div className="mt-8 rounded-[2rem] border border-slate-200 bg-slate-50/70 p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-700">Vitrine da loja</p>
+                <h3 className="mt-2 text-xl font-black text-slate-900">Organize a ordem dos anúncios na sua página pública</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Arraste os cards para definir quais anúncios aparecem primeiro dentro da sua Loja Parceira. Essa ordem vale apenas para a vitrine da loja.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveAnnouncementOrder}
+                disabled={!hasStoreAccess || !!store?.isPausedDueToPlan || isSavingAnnouncementOrder || orderedAnnouncements.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" strokeWidth={1.5} />
+                {isSavingAnnouncementOrder ? 'Salvando ordem...' : 'Salvar ordem da vitrine'}
+              </button>
+            </div>
+
+            {!hasStoreAccess || !!store?.isPausedDueToPlan ? (
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                A organização manual da vitrine fica disponível somente quando o recurso da Loja Parceira estiver ativo.
+              </div>
+            ) : isLoadingAnnouncements ? (
+              <div className="mt-5 space-y-3">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="h-28 animate-pulse rounded-3xl border border-slate-200 bg-white" />
+                ))}
+              </div>
+            ) : orderedAnnouncements.length === 0 ? (
+              <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-500">
+                Você ainda não tem anúncios ativos para organizar na vitrine da loja.
+              </div>
+            ) : (
+              <div className="mt-5">
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleAnnouncementDragEnd}>
+                  <SortableContext items={orderedAnnouncements.map((announcement) => announcement.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-3">
+                      {orderedAnnouncements.map((announcement, index) => (
+                        <SortableStoreAnnouncementCard
+                          key={announcement.id}
+                          announcement={announcement}
+                          index={index}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </div>
+            )}
+          </div>
         </div>
 
         <aside className="space-y-6">
           <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
             <div
-              className="h-40 bg-cover bg-center"
+              className="h-40 bg-cover"
               style={{
                 backgroundImage: formData.coverUrl
                   ? `linear-gradient(90deg, rgba(9, 15, 25, 0.36) 0%, rgba(9, 15, 25, 0.28) 24%, rgba(9, 15, 25, 0.14) 48%, rgba(9, 15, 25, 0.08) 72%, rgba(9, 15, 25, 0.18) 100%), url(${formData.coverUrl})`
                   : 'linear-gradient(135deg, #022c22 0%, #064e3b 45%, #0f172a 100%)',
+                backgroundPosition: `${formData.coverPositionX}% ${formData.coverPositionY}%`,
               }}
             />
             <div className="relative px-6 pb-6">
@@ -490,10 +770,10 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
               <div className="mt-4 space-y-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-xl font-black text-slate-900">{formData.storeName || 'Sua loja oficial'}</h3>
+                    <h3 className="text-xl font-black text-slate-900">{formData.storeName || 'Sua loja parceira'}</h3>
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
                       <Store className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      Loja Oficial
+                      Loja Parceira
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-slate-500">

@@ -65,6 +65,25 @@ const clampDimensions = (width: number, height: number) => {
   };
 };
 
+type CaptureStreamVideoElement = HTMLVideoElement & {
+  captureStream?: () => MediaStream;
+  mozCaptureStream?: () => MediaStream;
+};
+
+const getVideoCaptureStream = (video: HTMLVideoElement) => {
+  const captureVideo = video as CaptureStreamVideoElement;
+
+  if (typeof captureVideo.captureStream === 'function') {
+    return captureVideo.captureStream();
+  }
+
+  if (typeof captureVideo.mozCaptureStream === 'function') {
+    return captureVideo.mozCaptureStream();
+  }
+
+  return null;
+};
+
 export const compressAnnouncementVideo = async (file: File): Promise<CompressedVideoResult> => {
   if (!file.type.startsWith('video/')) {
     throw new VideoCompressionError('Envie um arquivo de video valido.');
@@ -120,6 +139,13 @@ export const compressAnnouncementVideo = async (file: File): Promise<CompressedV
     }
 
     const stream = canvas.captureStream(24);
+    const sourceMediaStream = getVideoCaptureStream(video);
+    const sourceAudioTracks = sourceMediaStream?.getAudioTracks() || [];
+
+    sourceAudioTracks.forEach((track) => {
+      stream.addTrack(track);
+    });
+
     const targetBitsPerSecond = Math.max(
       700_000,
       Math.min(2_500_000, Math.floor((TARGET_OUTPUT_SIZE_BYTES * 8) / durationSeconds)),
@@ -128,6 +154,7 @@ export const compressAnnouncementVideo = async (file: File): Promise<CompressedV
     const recorder = new MediaRecorder(stream, {
       mimeType: recorderMimeType,
       videoBitsPerSecond: targetBitsPerSecond,
+      audioBitsPerSecond: sourceAudioTracks.length > 0 ? 128_000 : undefined,
     });
 
     const chunks: BlobPart[] = [];
@@ -153,6 +180,7 @@ export const compressAnnouncementVideo = async (file: File): Promise<CompressedV
     };
 
     recorder.start(250);
+    video.muted = false;
     await video.play();
     renderFrame();
 
@@ -168,6 +196,7 @@ export const compressAnnouncementVideo = async (file: File): Promise<CompressedV
 
     await stopPromise;
     stream.getTracks().forEach((track) => track.stop());
+    sourceMediaStream?.getTracks().forEach((track) => track.stop());
 
     const compressedBlob = new Blob(chunks, { type: recorderMimeType });
     const extension = formatExtensionFromMime(recorderMimeType);

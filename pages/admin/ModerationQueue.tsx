@@ -61,14 +61,7 @@ const ModerationQueue: React.FC = () => {
     try {
       let query = supabase
         .from('announcements')
-        .select(`
-          *,
-          owner:users!announcements_owner_id_fkey (
-            name,
-            email,
-            phone
-          )
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .eq('status', 'PENDING')
         .order('created_at', { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
@@ -88,7 +81,43 @@ const ModerationQueue: React.FC = () => {
 
       if (error) throw error;
 
-      setAnnouncements(data || []);
+      const pendingAnnouncements = (data || []) as PendingAnnouncement[];
+      const ownerIds = Array.from(
+        new Set(
+          pendingAnnouncements
+            .map((announcement) => announcement.owner_id)
+            .filter(Boolean)
+        )
+      );
+
+      let ownersMap = new Map<string, PendingAnnouncement['owner']>();
+
+      if (ownerIds.length > 0) {
+        const { data: ownersData, error: ownersError } = await supabase
+          .from('users')
+          .select('id,name,email,phone')
+          .in('id', ownerIds);
+
+        if (ownersError) throw ownersError;
+
+        ownersMap = new Map(
+          (ownersData || []).map((owner) => [
+            owner.id,
+            {
+              name: owner.name,
+              email: owner.email,
+              phone: owner.phone,
+            },
+          ])
+        );
+      }
+
+      setAnnouncements(
+        pendingAnnouncements.map((announcement) => ({
+          ...announcement,
+          owner: announcement.owner_id ? ownersMap.get(announcement.owner_id) : undefined,
+        }))
+      );
       setTotalCount(count || 0);
     } catch (error) {
       console.error('[ModerationQueue] Erro ao carregar anúncios:', error);

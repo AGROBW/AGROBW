@@ -1,11 +1,5 @@
 alter table public.seller_stores
-  add column if not exists is_store_feature_enabled boolean not null default false;
-
-alter table public.seller_stores
   add column if not exists is_paused_due_to_plan boolean not null default false;
-
-create index if not exists idx_seller_stores_feature_enabled
-  on public.seller_stores(is_store_feature_enabled);
 
 create index if not exists idx_seller_stores_paused_due_to_plan
   on public.seller_stores(is_paused_due_to_plan);
@@ -41,24 +35,6 @@ begin
   where user_id = p_user_id;
 end;
 $$;
-
-create or replace function public.handle_seller_store_feature_sync()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  perform public.sync_seller_store_feature_status(coalesce(new.user_id, old.user_id));
-  return coalesce(new, old);
-end;
-$$;
-
-drop trigger if exists trg_user_subscriptions_sync_seller_store_feature on public.user_subscriptions;
-create trigger trg_user_subscriptions_sync_seller_store_feature
-after insert or update or delete on public.user_subscriptions
-for each row
-execute function public.handle_seller_store_feature_sync();
 
 create or replace function public.handle_seller_store_initial_feature_sync()
 returns trigger
@@ -114,17 +90,15 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_seller_stores_initial_feature_sync on public.seller_stores;
-create trigger trg_seller_stores_initial_feature_sync
-before insert or update on public.seller_stores
-for each row
-execute function public.handle_seller_store_initial_feature_sync();
-
 drop policy if exists "seller_stores_public_read_active" on public.seller_stores;
 create policy "seller_stores_public_read_active"
 on public.seller_stores
 for select
-using (is_active = true and is_store_feature_enabled = true and coalesce(is_paused_due_to_plan, false) = false);
+using (
+  is_active = true
+  and is_store_feature_enabled = true
+  and coalesce(is_paused_due_to_plan, false) = false
+);
 
 drop trigger if exists trg_seller_stores_notify_paused_due_to_plan on public.seller_stores;
 create trigger trg_seller_stores_notify_paused_due_to_plan

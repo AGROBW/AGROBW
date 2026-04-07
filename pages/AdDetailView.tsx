@@ -130,7 +130,7 @@ const AdDetailView: React.FC = () => {
             <div className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 p-6 space-y-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">Loja Oficial</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">Loja Parceira</p>
                   <h2 className="mt-2 text-2xl font-black text-slate-900 font-display">Vídeo do anúncio</h2>
                 </div>
                 {ad.videoDurationSeconds ? (
@@ -271,7 +271,7 @@ const AdDetailView: React.FC = () => {
                     to={`/loja/${ad.seller.store.slug}`}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
                   >
-                    Ver loja oficial
+                    Ver loja parceira
                   </Link>
                 )}
                 <div className="grid grid-cols-2 gap-4">

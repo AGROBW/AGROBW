@@ -3,6 +3,7 @@ import { Facebook, Instagram, Linkedin, Link as LinkIcon, Search, ShieldCheck, S
 import { Link, useParams } from 'react-router-dom';
 import AdCard from '../components/AdCard';
 import { usePublicSellerStore } from '../src/hooks/useSellerStore';
+import { useAuth } from '../src/contexts/AuthContext';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', {
@@ -30,6 +31,7 @@ const formatStorePhone = (value?: string | null) => {
 const StorefrontView: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { store, announcements, isLoading, error, locationLabel } = usePublicSellerStore(slug);
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
@@ -37,7 +39,7 @@ const StorefrontView: React.FC = () => {
   const [availabilityFilter, setAvailabilityFilter] = useState<
     'all' | 'pronta_entrega' | 'sob_encomenda' | 'consultar_estoque'
   >('all');
-  const [sortBy, setSortBy] = useState<'recent' | 'price_asc' | 'price_desc' | 'views'>('recent');
+  const [sortBy, setSortBy] = useState<'store_order' | 'recent' | 'price_asc' | 'price_desc' | 'views'>('store_order');
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   const filteredAnnouncements = useMemo(() => {
@@ -61,6 +63,11 @@ const StorefrontView: React.FC = () => {
     });
 
     return filtered.sort((left, right) => {
+      if (sortBy === 'store_order') {
+        const leftOrder = left.storeDisplayOrder ?? Number.MAX_SAFE_INTEGER;
+        const rightOrder = right.storeDisplayOrder ?? Number.MAX_SAFE_INTEGER;
+        if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      }
       if (sortBy === 'price_asc') return left.price - right.price;
       if (sortBy === 'price_desc') return right.price - left.price;
       if (sortBy === 'views') return (right.views || 0) - (left.views || 0);
@@ -74,7 +81,7 @@ const StorefrontView: React.FC = () => {
     setMaxPrice('');
     setConditionFilter('all');
     setAvailabilityFilter('all');
-    setSortBy('recent');
+    setSortBy('store_order');
   };
 
   const hasActiveFilters =
@@ -83,7 +90,7 @@ const StorefrontView: React.FC = () => {
     maxPrice.trim().length > 0 ||
     conditionFilter !== 'all' ||
     availabilityFilter !== 'all' ||
-    sortBy !== 'recent';
+    sortBy !== 'store_order';
 
   const filterPanel = (
     <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
@@ -196,9 +203,10 @@ const StorefrontView: React.FC = () => {
           </label>
           <select
             value={sortBy}
-            onChange={(event) => setSortBy(event.target.value as 'recent' | 'price_asc' | 'price_desc' | 'views')}
+            onChange={(event) => setSortBy(event.target.value as 'store_order' | 'recent' | 'price_asc' | 'price_desc' | 'views')}
             className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
           >
+            <option value="store_order">Ordem da loja</option>
             <option value="recent">Mais recentes</option>
             <option value="price_asc">Menor preço</option>
             <option value="price_desc">Maior preço</option>
@@ -307,7 +315,7 @@ const StorefrontView: React.FC = () => {
             <div className="mt-1 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-2 rounded-full border border-[#16a34a]/35 bg-[#16a34a]/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-[#bbf7d0]">
                 <Store className="h-3.5 w-3.5" strokeWidth={1.5} />
-                Loja Oficial
+                Loja Parceira
               </span>
             </div>
             {socialLinks.length > 0 ? (
@@ -331,6 +339,7 @@ const StorefrontView: React.FC = () => {
                 })}
               </div>
             ) : null}
+
           </div>
         </div>
       </div>
@@ -347,7 +356,7 @@ const StorefrontView: React.FC = () => {
             : 'linear-gradient(110deg, #f7f7f7 0%, #fff1e9 42%, #ff7a18 100%)',
           backgroundSize: 'cover',
           backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center',
+          backgroundPosition: `${typeof store.coverPositionX === 'number' ? store.coverPositionX : 50}% ${typeof store.coverPositionY === 'number' ? store.coverPositionY : 50}%`,
         }}
       >
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_36%,rgba(255,255,255,0)_68%)]" />

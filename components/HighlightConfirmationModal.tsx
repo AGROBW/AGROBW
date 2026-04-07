@@ -14,6 +14,8 @@ type HighlightConfirmationModalProps = {
   announcementId: string;
   announcementTitle: string;
   highlightType: HighlightType;
+  hasCategoryHighlight?: boolean;
+  hasHomeHighlight?: boolean;
   onSuccess?: () => void;
 };
 
@@ -23,6 +25,8 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
   announcementId,
   announcementTitle,
   highlightType,
+  hasCategoryHighlight = false,
+  hasHomeHighlight = false,
   onSuccess,
 }) => {
   const [isApplying, setIsApplying] = useState(false);
@@ -57,9 +61,15 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
   const config = highlightConfig[highlightType];
   const remainingPlanCredits = Math.max(config.limit - config.used, 0);
   const totalAvailableCredits = remainingPlanCredits + config.boosterRemaining;
+  const conflictingHighlightType = highlightType === 'category' ? 'home' : 'category';
+  const hasConflictingHighlight = highlightType === 'category' ? hasHomeHighlight : hasCategoryHighlight;
+  const conflictMessage =
+    highlightType === 'category'
+      ? 'Este anuncio ja esta destacado na Home. Remova ou aguarde o fim do destaque atual para usar destaque em Categoria.'
+      : 'Este anuncio ja esta destacado em Categoria. Remova ou aguarde o fim do destaque atual para usar destaque na Home.';
 
   const handleApplyHighlight = async () => {
-    if (isApplying) return;
+    if (isApplying || hasConflictingHighlight) return;
 
     setIsApplying(true);
     try {
@@ -179,6 +189,40 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
               </div>
             </div>
 
+            <div
+              className={`rounded-lg border-2 p-4 ${
+                hasConflictingHighlight
+                  ? 'border-red-200 bg-red-50'
+                  : 'border-emerald-200 bg-emerald-50'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle
+                  className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                    hasConflictingHighlight ? 'text-red-600' : 'text-emerald-600'
+                  }`}
+                />
+                <div className="space-y-1">
+                  <p
+                    className={`text-sm font-bold ${
+                      hasConflictingHighlight ? 'text-red-900' : 'text-emerald-900'
+                    }`}
+                  >
+                    {hasConflictingHighlight ? 'Destaque bloqueado' : 'Regra de exclusividade'}
+                  </p>
+                  <p
+                    className={`text-sm leading-relaxed ${
+                      hasConflictingHighlight ? 'text-red-800' : 'text-emerald-800'
+                    }`}
+                  >
+                    {hasConflictingHighlight
+                      ? conflictMessage
+                      : `Um anuncio nao pode receber destaque em ${conflictingHighlightType === 'home' ? 'Home' : 'Categoria'} e ${highlightType === 'home' ? 'Home' : 'Categoria'} ao mesmo tempo. Escolha apenas um tipo por vez.`}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -188,6 +232,7 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
                     <li>O sistema consome primeiro os creditos do seu plano.</li>
                     <li>Quando o ciclo acabar, o consumo continua pelos creditos extras do booster.</li>
                     <li>Depois de aplicado, este anuncio so pode receber novo destaque em 15 dias.</li>
+                    <li>O anuncio precisa estar sem destaque do tipo oposto para seguir com esta acao.</li>
                   </ul>
                 </div>
               </div>
@@ -251,7 +296,7 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
             </button>
             <button
               onClick={handleApplyHighlight}
-              disabled={isApplying || totalAvailableCredits <= 0}
+              disabled={isApplying || totalAvailableCredits <= 0 || hasConflictingHighlight}
               className={`px-6 py-2 rounded-lg font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
                 highlightType === 'category' ? 'bg-blue-600 hover:bg-blue-700' : ''
               }`}

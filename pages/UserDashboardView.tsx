@@ -13,6 +13,7 @@ import { supabase } from '../src/lib/supabaseClient';
 import { useInvoices } from '../src/hooks/useInvoices';
 import { usePayments } from '../src/hooks/usePayments';
 import { useHighlightBoosters } from '../src/hooks/useHighlightBoosters';
+import { useMySellerStore } from '../src/hooks/useSellerStore';
 import HighlightBoosterCard from '../components/boosters/HighlightBoosterCard';
 import PlanGuard from '../components/PlanGuard';
 import MessagesView from '../components/MessagesView';
@@ -26,6 +27,7 @@ import { usePlans } from '../src/hooks/usePlans';
 import HelpCenterView from './HelpCenterView';
 import FavoritesView from './FavoritesView';
 import toast from 'react-hot-toast';
+import { toast as sonnerToast } from 'sonner';
 import { useDashboardStats } from '../src/hooks/useDashboardStats';
 import { useRadar } from '../src/hooks/useRadar';
 import { updateUserCoordinates } from '../services/geoService';
@@ -58,9 +60,9 @@ const AdsSkeletonList = ({ count = 3 }: { count?: number }) => (
     {Array.from({ length: count }).map((_, index) => (
       <div
         key={`ads-skeleton-${index}`}
-        className="bg-white border border-slate-200 rounded-lg px-4 py-3 flex items-center gap-4 h-20 animate-pulse"
+        className="flex h-20 animate-pulse items-center gap-4 rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.2)]"
       >
-        <div className="w-[60px] h-[60px] rounded-lg bg-slate-100 flex-shrink-0" />
+        <div className="h-[60px] w-[60px] flex-shrink-0 rounded-2xl bg-slate-100" />
         <div className="flex-1 min-w-0 space-y-2">
           <div className="h-3 w-2/3 bg-slate-100 rounded" />
           <div className="h-3 w-1/2 bg-slate-100 rounded" />
@@ -106,6 +108,8 @@ const UserDashboardView: React.FC = () => {
     refresh: refreshBoosters,
   } = useHighlightBoosters();
   const [newLeadsCount, setNewLeadsCount] = useState(0);
+  const lastGrowthNotificationIdRef = useRef<string | null>(null);
+  const lastRenewalNotificationIdRef = useRef<string | null>(null);
   
   // Estados para upload
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -117,6 +121,8 @@ const UserDashboardView: React.FC = () => {
     message: string;
   } | null>(null);
   const hasSellerStoreAccess = Boolean(subscription?.plans?.has_seller_store);
+  const { store: mySellerStore } = useMySellerStore();
+  const showSellerStoreMenu = hasSellerStoreAccess || Boolean(mySellerStore);
   
   const isPremium = user?.plan && user.plan !== 'seed';
 
@@ -165,6 +171,78 @@ const UserDashboardView: React.FC = () => {
       isActive = false;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || location.pathname !== '/minha-conta') return;
+
+    let cancelled = false;
+
+    const maybeGenerateGrowthNotification = async () => {
+      const { data, error } = await supabase.rpc('generate_growth_conversion_notification_for_user', {
+        p_user_id: user.id,
+      });
+
+      if (error) {
+        console.error('[UserDashboardView] Erro ao gerar notificação de conversão:', error);
+        return;
+      }
+
+      if (cancelled || !data?.success || !data?.created) return;
+
+      const notificationId = String(data.notification_id || '');
+      if (notificationId && lastGrowthNotificationIdRef.current === notificationId) return;
+
+      lastGrowthNotificationIdRef.current = notificationId || `${data.title}-${data.announcement_id || 'growth'}`;
+
+      sonnerToast.success(data.title || 'Oportunidade AGRO BW', {
+        description:
+          `${data.content || 'Seu anúncio ganhou tração e pode render ainda mais com um upgrade.'} Abra "Meu Plano" para ver as opções.`,
+        duration: 9000,
+      });
+    };
+
+    void maybeGenerateGrowthNotification();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (!user?.id || location.pathname !== '/minha-conta') return;
+
+    let cancelled = false;
+
+    const maybeGenerateRenewalNotification = async () => {
+      const { data, error } = await supabase.rpc('generate_renewal_notification_for_user', {
+        p_user_id: user.id,
+      });
+
+      if (error) {
+        console.error('[UserDashboardView] Erro ao gerar notificação de renovação:', error);
+        return;
+      }
+
+      if (cancelled || !data?.success || !data?.created || data?.showToast === false) return;
+
+      const notificationId = String(data.notification_id || '');
+      if (notificationId && lastRenewalNotificationIdRef.current === notificationId) return;
+
+      lastRenewalNotificationIdRef.current = notificationId || `${data.title}-${data.stage || 'renewal'}`;
+
+      sonnerToast.error(data.title || 'Renovação AGRO BW', {
+        description:
+          `${data.content || 'Seu plano pago está perto do vencimento. Abra "Meu Plano" para renovar e manter os benefícios ativos.'}`,
+        duration: 9000,
+      });
+    };
+
+    void maybeGenerateRenewalNotification();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, location.pathname]);
 
   // FunÃ§Ã£o para slugificar nome do usuÃ¡rio
   const slugify = (text: string): string => {
@@ -521,7 +599,7 @@ const UserDashboardView: React.FC = () => {
     { label: 'Favoritos', path: '/minha-conta/favoritos', icon: <Icons.Favorites />, badge: 0 },
     { label: 'Radar de Oportunidades', path: '/minha-conta/radar', icon: <Icons.Radar />, badge: 0 },
     { label: 'Financeiro', path: '/minha-conta/financeiro', icon: <Icons.Finance />, badge: 0 },
-    ...(hasSellerStoreAccess ? [{ label: 'Minha Loja', path: '/minha-conta/minha-loja', icon: <Icons.Store />, badge: 0 }] : []),
+    ...(showSellerStoreMenu ? [{ label: 'Minha Loja', path: '/minha-conta/minha-loja', icon: <Icons.Store />, badge: 0 }] : []),
     { label: 'Central de Ajuda', path: '/minha-conta/ajuda', icon: <Icons.Help />, badge: 0 },
     { label: 'Perfil', path: '/minha-conta/perfil', icon: <Icons.Profile />, badge: 0 },
   ];
@@ -578,8 +656,8 @@ const UserDashboardView: React.FC = () => {
   // --- WIDGET COMPONENTS ---
 
   const MiniTile = ({ label, value, icon, color = "green" }: { label: string, value: string | number, icon: React.ReactNode, color?: string }) => (
-    <div className="bg-white p-4 rounded-xl border border-slate-100 flex items-center gap-4 transition-all hover:bg-slate-50">
-      <div className={`w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-lg bg-green-700/10 text-green-700`}>
+    <div className="flex items-center gap-4 rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.22)] transition-all hover:bg-slate-50">
+      <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-green-700/10 text-green-700 shadow-sm`}>
         {icon}
       </div>
       <div>
@@ -590,7 +668,7 @@ const UserDashboardView: React.FC = () => {
   );
 
   const HeatmapWidget = ({ metrics }: { metrics: AdMetrics }) => (
-    <div className="bg-white p-6 rounded-xl border border-slate-100 h-full flex flex-col">
+    <div className="flex h-full flex-col rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.28)]">
       <div className="flex justify-between items-center mb-6">
         <h4 className="text-sm font-bold text-gray-900">Alcance por RegiÃ£o</h4>
         <Icons.Dashboard />
@@ -619,7 +697,7 @@ const UserDashboardView: React.FC = () => {
   );
 
   const PriceThermometer = ({ ad, metrics }: { ad: Ad, metrics: AdMetrics }) => (
-    <div className="bg-white p-6 rounded-xl border border-slate-100">
+    <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.28)]">
       <div className="flex justify-between items-center mb-6">
         <h4 className="text-sm font-bold text-gray-900">AnÃ¡lise de PreÃ§o</h4>
         <div className="text-[10px] font-bold text-green-700 px-2 py-0.5 bg-green-50 rounded uppercase">Competitivo</div>
@@ -803,7 +881,12 @@ const UserDashboardView: React.FC = () => {
     const [adToDelete, setAdToDelete] = useState<Ad | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [highlightModalOpen, setHighlightModalOpen] = useState(false);
-    const [adForHighlight, setAdForHighlight] = useState<{id: string, title: string} | null>(null);
+    const [adForHighlight, setAdForHighlight] = useState<{
+      id: string;
+      title: string;
+      hasCategoryHighlight: boolean;
+      hasHomeHighlight: boolean;
+    } | null>(null);
     const [highlightType, setHighlightType] = useState<'category' | 'home'>('category');
 
     const visibleAds = useMemo(() => {
@@ -990,23 +1073,42 @@ const UserDashboardView: React.FC = () => {
     };
 
     const handleHighlightClick = (ad: Ad, type: 'category' | 'home') => {
-      setAdForHighlight({ id: ad.id, title: ad.title });
+      const hasCategoryHighlight = Boolean((ad as any).highlight_category || ad.highlightCategory);
+      const hasHomeHighlight = Boolean((ad as any).highlight_home || ad.highlightHome);
+      const isBlocked = (type === 'category' && hasHomeHighlight) || (type === 'home' && hasCategoryHighlight);
+
+      if (isBlocked) {
+        toast.error(
+          type === 'category'
+            ? 'Destaque bloqueado: este anuncio ja esta destacado na Home e nao pode receber destaque em Categoria ao mesmo tempo.'
+            : 'Destaque bloqueado: este anuncio ja esta destacado em Categoria e nao pode receber destaque na Home ao mesmo tempo.'
+        );
+        return;
+      }
+
+      setAdForHighlight({
+        id: ad.id,
+        title: ad.title,
+        hasCategoryHighlight,
+        hasHomeHighlight,
+      });
       setHighlightType(type);
       setHighlightModalOpen(true);
     };
 
     return (
       <div className="space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)] sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`h-9 px-3 rounded-lg text-sm font-semibold border transition-all ${
+                className={`h-10 px-3.5 rounded-xl text-sm font-semibold border transition-all shadow-sm ${
                   activeTab === tab.id
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    ? 'border-slate-900 bg-slate-900 text-white shadow-[0_18px_30px_-20px_rgba(15,23,42,0.9)]'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 {tab.id === 'blocked' ? 'Vencidos' : tab.label}
@@ -1017,18 +1119,18 @@ const UserDashboardView: React.FC = () => {
             ))}
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto lg:justify-end">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:w-auto lg:justify-end">
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar por título ou código"
-              className="h-9 w-full sm:w-64 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-600/20"
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-700 shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-600/20 sm:w-64"
             />
             <select
               value={itemsPerPage}
               onChange={(e) => setItemsPerPage(Number(e.target.value))}
-              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-600/20"
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-600/20"
             >
               <option value={5}>5 por página</option>
               <option value={10}>10 por página</option>
@@ -1036,9 +1138,10 @@ const UserDashboardView: React.FC = () => {
             </select>
           </div>
         </div>
+        </div>
 
         {boosters[0] && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#fff7ed_100%)] p-5 shadow-[0_22px_60px_-42px_rgba(245,158,11,0.35)]">
             <button
               type="button"
               onClick={() => setIsBoosterExpanded((prev) => !prev)}
@@ -1052,10 +1155,10 @@ const UserDashboardView: React.FC = () => {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <div className="rounded-xl border border-amber-100 bg-white/80 px-3 py-2 text-xs text-slate-600 shadow-sm">
                   Limite de {boosters[0].maxPurchasesPer30Days} compra(s) a cada 30 dias
                 </div>
-                <span className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition-transform ${isBoosterExpanded ? 'rotate-180' : ''}`}>
+                <span className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-100 bg-white/80 text-slate-600 shadow-sm transition-transform ${isBoosterExpanded ? 'rotate-180' : ''}`}>
                   <ChevronDown className="h-4 w-4" strokeWidth={1.75} />
                 </span>
               </div>
@@ -1095,15 +1198,15 @@ const UserDashboardView: React.FC = () => {
             {adsLoading ? (
               <AdsSkeletonList count={5} />
             ) : pagedAds.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-lg p-10 text-center">
-                <div className="mx-auto mb-4 w-10 h-10 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center">
+              <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-10 text-center shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#dcfce7_0%,#dbeafe_100%)] text-slate-600 shadow-sm">
                   <Inbox className="w-5 h-5" strokeWidth={1.5} />
                 </div>
                 <p className="text-sm font-semibold text-slate-700 mb-2">Você não possui anúncios nesta categoria no momento</p>
                 <p className="text-sm text-slate-500 mb-6">Crie um anúncio para começar a gerar oportunidades.</p>
                 <Link
                   to="/anunciar"
-                  className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-green-700 text-white text-sm font-semibold hover:bg-green-800 transition-colors"
+                  className="inline-flex items-center justify-center h-10 rounded-xl bg-green-700 px-4 text-sm font-semibold text-white shadow-[0_18px_30px_-20px_rgba(22,163,74,0.75)] transition-colors hover:bg-green-800"
                 >
                   Anunciar Agora
                 </Link>
@@ -1121,9 +1224,9 @@ const UserDashboardView: React.FC = () => {
                       navigate(`/anuncio/${ad.id}`);
                     }
                   }}
-                  className="bg-white border border-slate-200 rounded-lg px-4 py-3 flex items-center gap-4 h-20 cursor-pointer hover:shadow-lg transition-shadow"
+                  className="flex h-20 cursor-pointer items-center gap-4 rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.32)] transition-all hover:-translate-y-0.5 hover:shadow-[0_24px_55px_-36px_rgba(15,23,42,0.35)]"
                 >
-                  <div className="w-[60px] h-[60px] rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                  <div className="h-[60px] w-[60px] flex-shrink-0 overflow-hidden rounded-2xl bg-slate-100 shadow-sm">
                     <img src={ad.images[0]} alt={ad.title} className="w-full h-full object-cover" />
                   </div>
 
@@ -1137,13 +1240,13 @@ const UserDashboardView: React.FC = () => {
                         return (
                           <>
                             {hasCategory && (
-                              <div className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-100 rounded-md" title="Destacado na categoria">
+                        <div className="flex-shrink-0 flex items-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2 py-0.5 shadow-sm" title="Destacado na categoria">
                                 <TrendingUp className="w-3 h-3 text-blue-600" strokeWidth={2} />
                                 <span className="text-[9px] font-bold text-blue-700 uppercase tracking-tight">Cat</span>
                               </div>
                             )}
                             {hasHome && (
-                              <div className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-100 rounded-md" title="Destacado na home">
+                              <div className="flex-shrink-0 flex items-center gap-1 rounded-lg border border-amber-100 bg-amber-50 px-2 py-0.5 shadow-sm" title="Destacado na home">
                                 <Sparkles className="w-3 h-3 text-amber-600" strokeWidth={2} />
                                 <span className="text-[9px] font-bold text-amber-700 uppercase tracking-tight">Home</span>
                               </div>
@@ -1172,14 +1275,27 @@ const UserDashboardView: React.FC = () => {
                       {/* Botão de Destaques */}
                       {ad.status !== AdStatus.EXPIRED && (
                         <>
+                        {(() => {
+                          const hasCategoryHighlight = Boolean((ad as any).highlight_category || ad.highlightCategory);
+                          const hasHomeHighlight = Boolean((ad as any).highlight_home || ad.highlightHome);
+                          const categoryBlocked = hasHomeHighlight;
+                          const homeBlocked = hasCategoryHighlight;
+
+                          return (
+                            <>
                         <button
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             handleHighlightClick(ad, 'category');
                           }}
-                          className="p-2 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors" 
-                          title="Destaque na categoria"
+                          disabled={categoryBlocked}
+                          className={`p-2 rounded-lg transition-colors ${
+                            categoryBlocked
+                              ? 'cursor-not-allowed text-slate-300'
+                              : 'hover:bg-blue-50 hover:text-blue-700'
+                          }`} 
+                          title={categoryBlocked ? 'Indisponivel: este anuncio ja esta destacado na Home' : 'Destaque na categoria'}
                         >
                           <TrendingUp className="w-4 h-4" strokeWidth={1.5} />
                         </button>
@@ -1189,11 +1305,19 @@ const UserDashboardView: React.FC = () => {
                             e.stopPropagation();
                             handleHighlightClick(ad, 'home');
                           }}
-                          className="p-2 rounded-lg hover:bg-amber-50 hover:text-amber-700 transition-colors" 
-                          title="Destaque na home"
+                          disabled={homeBlocked}
+                          className={`p-2 rounded-lg transition-colors ${
+                            homeBlocked
+                              ? 'cursor-not-allowed text-slate-300'
+                              : 'hover:bg-amber-50 hover:text-amber-700'
+                          }`} 
+                          title={homeBlocked ? 'Indisponivel: este anuncio ja esta destacado em Categoria' : 'Destaque na home'}
                         >
                           <Sparkles className="w-4 h-4" strokeWidth={1.5} />
                         </button>
+                            </>
+                          );
+                        })()}
                         </>
                       )}
                       {/* Botão Editar */}
@@ -1308,6 +1432,8 @@ const UserDashboardView: React.FC = () => {
             announcementId={adForHighlight.id}
             announcementTitle={adForHighlight.title}
             highlightType={highlightType}
+            hasCategoryHighlight={adForHighlight.hasCategoryHighlight}
+            hasHomeHighlight={adForHighlight.hasHomeHighlight}
             onSuccess={() => {
               refreshUsage();
               window.location.reload();
@@ -1661,7 +1787,7 @@ const UserDashboardView: React.FC = () => {
             </div>
 
             <div className="w-full max-w-sm">
-              <div className="rounded-2xl border border-white/70 bg-white/85 px-5 py-4 backdrop-blur shadow-sm">
+              <div className="rounded-[22px] border border-white/80 bg-white/88 px-5 py-4 backdrop-blur shadow-[0_18px_45px_-34px_rgba(15,23,42,0.25)]">
                 <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                   Validade de acesso aos contatos
                 </span>
@@ -1701,7 +1827,7 @@ const UserDashboardView: React.FC = () => {
                 loading={subscriptionLoading}
               />
             ) : (
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
                 <div className="flex items-center justify-between mb-6">
                   <h4 className="text-sm font-bold text-slate-900">Meu Plano</h4>
                   <div className="px-3 py-1 bg-slate-100 border border-slate-200 rounded-full">
@@ -1717,7 +1843,7 @@ const UserDashboardView: React.FC = () => {
           </div>
 
           <div className="space-y-6">
-            <section className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_18px_45px_-35px_rgba(15,23,42,0.32)]">
+            <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_18px_45px_-35px_rgba(15,23,42,0.32)]">
               <div className="flex items-center gap-3 mb-5">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-700/10 text-green-700">
                   <ShieldCheck className="w-5 h-5" strokeWidth={1.5} />
@@ -1735,7 +1861,7 @@ const UserDashboardView: React.FC = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {includedFeatures.map((feature) => (
-                    <div key={feature} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3">
+                    <div key={feature} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" strokeWidth={1.75} />
                       <span className="text-sm font-medium text-slate-700">{feature}</span>
                     </div>
@@ -1979,7 +2105,7 @@ const UserDashboardView: React.FC = () => {
     const renderFeedbackBanner = () => {
       if (paymentFeedback === 'success') {
         return (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex flex-col gap-4 rounded-[24px] border border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_58%,#dcfce7_100%)] p-5 shadow-[0_22px_60px_-40px_rgba(22,163,74,0.35)] md:flex-row md:items-center md:justify-between">
             <div className="flex items-start gap-3">
               <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
                 <CheckCircle2 className="w-5 h-5" strokeWidth={1.75} />
@@ -2019,7 +2145,7 @@ const UserDashboardView: React.FC = () => {
 
       if (paymentFeedback === 'pending') {
         return (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3">
+          <div className="flex items-start gap-3 rounded-[24px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_60%,#fef3c7_100%)] p-5 shadow-[0_22px_60px_-42px_rgba(245,158,11,0.32)]">
             <div className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0">
               <Clock3 className="w-5 h-5" strokeWidth={1.75} />
             </div>
@@ -2035,7 +2161,7 @@ const UserDashboardView: React.FC = () => {
 
       if (paymentFeedback === 'failure') {
         return (
-          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 flex items-start gap-3">
+          <div className="flex items-start gap-3 rounded-[24px] border border-rose-200 bg-[linear-gradient(135deg,#fff1f2_0%,#ffffff_60%,#ffe4e6_100%)] p-5 shadow-[0_22px_60px_-42px_rgba(244,63,94,0.28)]">
             <div className="w-11 h-11 rounded-xl bg-rose-500 text-white flex items-center justify-center flex-shrink-0">
               <AlertCircle className="w-5 h-5" strokeWidth={1.75} />
             </div>
@@ -2057,8 +2183,8 @@ const UserDashboardView: React.FC = () => {
         {renderFeedbackBanner()}
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-green-700/10 text-green-700 flex items-center justify-center">
+          <div className="flex items-center gap-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.3)]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-green-700/10 text-green-700 shadow-sm">
               <CreditCard className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div>
@@ -2067,8 +2193,8 @@ const UserDashboardView: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-slate-900/5 text-slate-700 flex items-center justify-center">
+          <div className="flex items-center gap-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.3)]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900/5 text-slate-700 shadow-sm">
               <Receipt className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div>
@@ -2079,8 +2205,8 @@ const UserDashboardView: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-slate-900/5 text-slate-700 flex items-center justify-center">
+          <div className="flex items-center gap-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.3)]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900/5 text-slate-700 shadow-sm">
               <FileText className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div>
@@ -2089,8 +2215,8 @@ const UserDashboardView: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-5 rounded-2xl border border-green-200 flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-green-700 text-white flex items-center justify-center">
+          <div className="flex items-center gap-4 rounded-[24px] border border-green-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_50%,#dcfce7_100%)] p-5 shadow-[0_18px_45px_-36px_rgba(22,163,74,0.35)]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-green-700 text-white shadow-sm">
               <Sparkles className="w-5 h-5" strokeWidth={1.5} />
             </div>
             <div>
@@ -2106,7 +2232,7 @@ const UserDashboardView: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-[1.35fr,0.95fr] gap-6">
-          <section className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
+          <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)] space-y-5">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-700">
@@ -2122,13 +2248,13 @@ const UserDashboardView: React.FC = () => {
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={handleManagePlan}
-                  className="h-10 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
                 >
                   Gerenciar plano
                 </button>
                 <button
                   onClick={() => navigate('/planos')}
-                  className="h-10 px-4 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
+                  className="h-10 rounded-xl bg-green-700 px-4 text-sm font-semibold text-white shadow-[0_18px_30px_-20px_rgba(22,163,74,0.75)] hover:bg-green-800"
                 >
                   Ver planos
                 </button>
@@ -2138,7 +2264,7 @@ const UserDashboardView: React.FC = () => {
             {latestPayment ? (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Valor pago</p>
                     <p className="mt-2 text-3xl font-bold text-slate-900">
                       {formatCurrency(latestPayment.amount, latestPayment.currency)}
@@ -2148,7 +2274,7 @@ const UserDashboardView: React.FC = () => {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
+                  <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm space-y-3">
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Status da cobranca</span>
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${paymentStatusClass[latestPayment.status]}`}>
@@ -2168,7 +2294,7 @@ const UserDashboardView: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div className="rounded-2xl border border-slate-200 p-4 space-y-3">
+                  <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm space-y-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Data da aprovacao</p>
                       <p className="mt-1 font-semibold text-slate-900">{formatDateTime(latestPayment.paidAt || latestPayment.createdAt)}</p>
@@ -2183,7 +2309,7 @@ const UserDashboardView: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 p-4 flex flex-col justify-between gap-4">
+                  <div className="flex flex-col justify-between gap-4 rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Acoes rapidas</p>
                       <p className="mt-1 text-sm text-slate-600">
@@ -2218,7 +2344,7 @@ const UserDashboardView: React.FC = () => {
             )}
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-2xl p-6">
+          <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
             <div className="flex items-center justify-between gap-4 mb-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Documentos fiscais</p>
@@ -2238,7 +2364,7 @@ const UserDashboardView: React.FC = () => {
                 </div>
               ) : (
                 fiscalDocuments.map((payment) => (
-                  <div key={`fiscal-${payment.id}`} className="rounded-2xl border border-slate-200 p-4 flex flex-col gap-3">
+                  <div key={`fiscal-${payment.id}`} className="flex flex-col gap-3 rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">
@@ -2285,7 +2411,7 @@ const UserDashboardView: React.FC = () => {
         </div>
 
         {nextRecommendedPlan && (
-          <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
+          <div className="rounded-[24px] border border-green-100 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_52%,#f0fdf4_100%)] p-5 shadow-[0_18px_45px_-35px_rgba(22,163,74,0.42)]">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Upgrade recomendado</p>
@@ -2311,8 +2437,8 @@ const UserDashboardView: React.FC = () => {
           </div>
         )}
 
-        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="px-6 py-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
+          <div className="flex flex-col gap-2 border-b border-slate-100 px-6 py-5 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Historico financeiro</p>
               <h3 className="text-lg font-semibold text-slate-900">Pagamentos e renovacoes</h3>
@@ -2610,10 +2736,10 @@ const UserDashboardView: React.FC = () => {
     };
 
     const getProfileInputClass = (field?: keyof typeof profileForm) =>
-      `h-10 w-full rounded-lg border px-3 text-sm transition-colors focus:outline-none focus:ring-2 ${
+      `h-11 w-full rounded-xl border px-3.5 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 ${
         field && profileErrors[field]
           ? 'border-red-300 bg-red-50 focus:border-red-300 focus:ring-red-100'
-          : 'border-slate-200 focus:border-green-600 focus:ring-green-100'
+          : 'border-slate-200 bg-white focus:border-green-600 focus:ring-green-100'
       }`;
 
     const requiredLabelClass = 'text-xs font-semibold text-slate-500 flex items-center gap-1';
@@ -2750,16 +2876,16 @@ const UserDashboardView: React.FC = () => {
 
     return (
       <div className="space-y-6">
-        <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex flex-col gap-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_46%,#ecfdf5_100%)] p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.34)] sm:flex-row sm:items-center">
           <div className="relative">
             <img
               src={user?.avatar || 'https://i.pravatar.cc/150?u=bwagro'}
               alt={userName}
-              className="w-16 h-16 rounded-xl object-cover"
+              className="h-16 w-16 rounded-2xl object-cover shadow-sm ring-4 ring-white"
             />
             <label 
               htmlFor="avatar-upload" 
-              className="absolute -bottom-2 -right-2 w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center cursor-pointer hover:bg-slate-800 transition-colors"
+              className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-white shadow-[0_14px_24px_-16px_rgba(15,23,42,0.9)] cursor-pointer transition-colors hover:bg-slate-800"
               title="Alterar foto de perfil"
             >
               {isUploadingAvatar ? (
@@ -2779,12 +2905,12 @@ const UserDashboardView: React.FC = () => {
           </div>
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-3">
-              <h3 className="text-sm font-semibold text-slate-900">{userName}</h3>
+              <h3 className="text-lg font-bold text-slate-900">{userName}</h3>
               {user?.document_verified && (
-                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-600">Vendedor Verificado</span>
+                <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm">Vendedor Verificado</span>
               )}
             </div>
-            <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
+            <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
               <MapPin className="w-4 h-4" strokeWidth={1.5} />
               {userCity}
             </p>
@@ -2793,7 +2919,7 @@ const UserDashboardView: React.FC = () => {
             <button
               onClick={handleSaveProfile}
               disabled={isSavingProfile}
-              className="h-10 px-4 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-10 rounded-xl bg-green-700 px-4 text-sm font-semibold text-white shadow-[0_18px_30px_-20px_rgba(22,163,74,0.75)] disabled:cursor-not-allowed disabled:opacity-50 hover:bg-green-800"
             >
               {isSavingProfile ? 'Salvando...' : 'Salvar alterações'}
             </button>
@@ -2801,9 +2927,11 @@ const UserDashboardView: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <div className="space-y-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
             <div className="flex items-center gap-2 text-slate-900">
-              <User className="w-4 h-4" strokeWidth={1.5} />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900/5 text-green-700 shadow-sm">
+                <User className="w-4 h-4" strokeWidth={1.5} />
+              </div>
               <h4 className="text-sm font-semibold">Identidade</h4>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2819,7 +2947,7 @@ const UserDashboardView: React.FC = () => {
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">CPF / CNPJ</label>
                 <input
-                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
                   value={user?.document || ''}
                   readOnly
                 />
@@ -2828,7 +2956,7 @@ const UserDashboardView: React.FC = () => {
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-500">Descrição do Negócio</label>
               <textarea
-                className={`w-full rounded-lg border px-3 py-2 text-sm resize-none transition-colors focus:outline-none focus:ring-2 ${
+                className={`w-full resize-none rounded-xl border bg-white px-3.5 py-3 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 ${
                   profileErrors.businessDescription
                     ? 'border-red-300 bg-red-50 focus:border-red-300 focus:ring-red-100'
                     : 'border-slate-200 focus:border-green-600 focus:ring-green-100'
@@ -2850,9 +2978,11 @@ const UserDashboardView: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <div className="space-y-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
             <div className="flex items-center gap-2 text-slate-900">
-              <Map className="w-4 h-4" strokeWidth={1.5} />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900/5 text-green-700 shadow-sm">
+                <Map className="w-4 h-4" strokeWidth={1.5} />
+              </div>
               <h4 className="text-sm font-semibold">Localização e Contato</h4>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2900,7 +3030,7 @@ const UserDashboardView: React.FC = () => {
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">Complemento</label>
                 <input
-                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
                   value={profileForm.complemento}
                   onChange={(event) => handleProfileFieldChange('complemento', event.target.value)}
                 />
@@ -2937,9 +3067,11 @@ const UserDashboardView: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+          <div className="space-y-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
             <div className="flex items-center gap-2 text-slate-900">
-              <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900/5 text-green-700 shadow-sm">
+                <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
+              </div>
               <h4 className="text-sm font-semibold">Segurança e Acesso</h4>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2947,7 +3079,7 @@ const UserDashboardView: React.FC = () => {
                 <label className="text-xs font-semibold text-slate-500">Senha Atual</label>
                 <input
                   type="password"
-                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
                   value={passwordForm.currentPassword}
                   onChange={(event) => handlePasswordFieldChange('currentPassword', event.target.value)}
                 />
@@ -2956,7 +3088,7 @@ const UserDashboardView: React.FC = () => {
                 <label className="text-xs font-semibold text-slate-500">Nova Senha</label>
                 <input
                   type="password"
-                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
                   value={passwordForm.newPassword}
                   onChange={(event) => handlePasswordFieldChange('newPassword', event.target.value)}
                 />
@@ -2965,7 +3097,7 @@ const UserDashboardView: React.FC = () => {
                 <label className="text-xs font-semibold text-slate-500">Confirmação</label>
                 <input
                   type="password"
-                  className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
                   value={passwordForm.confirmPassword}
                   onChange={(event) => handlePasswordFieldChange('confirmPassword', event.target.value)}
                 />
@@ -2976,19 +3108,21 @@ const UserDashboardView: React.FC = () => {
                 <p className="text-sm font-semibold text-slate-900">Autenticação em Duas Etapas</p>
                 <p className="text-xs text-slate-500">Aumente a proteção da sua conta.</p>
               </div>
-              <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-slate-200">
+              <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-slate-200 shadow-inner">
                 <span className="inline-block h-5 w-5 transform rounded-full bg-white translate-x-1" />
               </button>
             </div>
           </div>
 
           <PlanGuard requiredFeature="has_verification_badge">
-            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+            <div className="space-y-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
               <div className="flex items-center gap-2 text-slate-900">
-                <FileText className="w-4 h-4" strokeWidth={1.5} />
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900/5 text-green-700 shadow-sm">
+                  <FileText className="w-4 h-4" strokeWidth={1.5} />
+                </div>
                 <h4 className="text-sm font-semibold">Central de Verificação</h4>
               </div>
-              <div className="border border-dashed border-slate-200 rounded-lg p-5 text-center">
+              <div className="rounded-[22px] border border-dashed border-slate-200 bg-white p-5 text-center shadow-sm">
                 <input 
                   type="file" 
                   className="hidden" 
@@ -3028,14 +3162,14 @@ const UserDashboardView: React.FC = () => {
                 
                 {/* Mensagem de Sucesso Geral */}
                 {uploadSuccess && (
-                  <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
                     <p className="text-xs text-green-700 font-semibold">{uploadSuccess}</p>
                   </div>
                 )}
                 
                 {/* Resultado da ValidaÃ§Ã£o OCR */}
                 {validationResult && (
-                  <div className={`mt-3 p-3 border rounded-lg ${
+                  <div className={`mt-3 rounded-xl border p-3 ${
                     validationResult.success 
                       ? 'bg-green-50 border-green-200' 
                       : 'bg-red-50 border-red-200'
@@ -3080,8 +3214,12 @@ const UserDashboardView: React.FC = () => {
       <aside className="sticky top-0 hidden h-screen w-72 flex-col border-r border-slate-800/80 bg-[#0f172a] px-5 py-6 text-slate-100 shadow-[30px_0_60px_-45px_rgba(15,23,42,0.75)] lg:flex">
         <div className="mb-8 rounded-[24px] border border-white/10 bg-white/5 px-4 py-4 backdrop-blur">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#16a34a_0%,#15803d_100%)] text-base font-black text-white shadow-[0_18px_35px_-18px_rgba(22,163,74,0.8)]">
-              A
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#16a34a_0%,#15803d_100%)] text-base font-black text-white shadow-[0_18px_35px_-18px_rgba(22,163,74,0.8)]">
+              {user?.avatar ? (
+                <img src={user.avatar} alt={user.name || 'Usuário'} className="h-full w-full object-cover" />
+              ) : (
+                <span>{(user?.name || 'A').charAt(0).toUpperCase()}</span>
+              )}
             </div>
             <div>
               <span className="block text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300/90">
@@ -3146,17 +3284,6 @@ const UserDashboardView: React.FC = () => {
             </div>
             <p className="text-sm text-slate-500">Acompanhe seus negócios e oportunidades rurais.</p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden items-center gap-3 rounded-2xl border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_100%)] px-3 py-2 shadow-sm md:flex">
-              <div className="h-9 w-9 overflow-hidden rounded-full bg-[linear-gradient(135deg,#dcfce7_0%,#bbf7d0_100%)] ring-2 ring-emerald-100">
-                {user?.avatar ? <img src={user.avatar} alt="" className="h-full w-full object-cover" /> : null}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-700">{user?.name}</span>
-                {user?.document_verified && <VerifiedBadge variant="icon-only" />}
-              </div>
-            </div>
-          </div>
         </header>
 
         <Routes>
@@ -3171,7 +3298,7 @@ const UserDashboardView: React.FC = () => {
           <Route
             path="/minha-loja"
             element={
-              hasSellerStoreAccess ? (
+              showSellerStoreMenu ? (
                 <SellerStoreDashboard hasStoreAccess={hasSellerStoreAccess} />
               ) : (
                 <Navigate to="/minha-conta/meu-plano" replace />
@@ -3188,4 +3315,3 @@ const UserDashboardView: React.FC = () => {
 };
 
 export default UserDashboardView;
-

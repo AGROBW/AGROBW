@@ -63,7 +63,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
     }
 
     if (nextPlan.has_seller_store && !currentPlan?.has_seller_store) {
-      items.push('Loja oficial e perfil mais profissional');
+      items.push('Loja parceira e perfil mais profissional');
     }
 
     if (nextPlan.has_email_marketing && !currentPlan?.has_email_marketing) {

@@ -230,10 +230,10 @@ const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({
                     return (
                       <article
                         key={item.title}
-                        className={`self-start rounded-2xl border bg-white p-5 transition-all ${
+                        className={`group self-start overflow-hidden rounded-[30px] border p-6 transition-all duration-300 ${
                           item.highlight
-                            ? 'border-green-200 shadow-[0_12px_32px_rgba(21,128,61,0.08)]'
-                            : 'border-slate-200'
+                            ? 'border-emerald-200 bg-[linear-gradient(180deg,#ffffff_0%,#f7fef9_100%)] shadow-[0_20px_50px_-40px_rgba(22,163,74,0.35)] hover:-translate-y-1 hover:shadow-[0_26px_62px_-40px_rgba(22,163,74,0.42)]'
+                            : 'border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-[0_18px_45px_-42px_rgba(15,23,42,0.32)] hover:-translate-y-1 hover:border-slate-300 hover:shadow-[0_24px_60px_-40px_rgba(15,23,42,0.4)]'
                         }`}
                       >
                         <button
@@ -241,26 +241,43 @@ const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({
                           onClick={() => setOpenTitle(isOpen ? null : item.title)}
                           className="w-full text-left"
                         >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="w-10 h-10 rounded-xl bg-green-50 text-green-700 flex items-center justify-center mb-4">
-                                <item.icon className="w-5 h-5" strokeWidth={1.5} />
-                              </div>
-                              <h4 className="text-sm font-semibold text-slate-900">{item.title}</h4>
-                              <p className="text-sm text-slate-500 mt-2 leading-6">{item.description}</p>
-                            </div>
+                          <div className="relative">
                             <ChevronDown
-                              className={`mt-1 h-4 w-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                              className={`absolute right-0 top-0 h-4 w-4 shrink-0 text-slate-300 transition-transform duration-300 ${isOpen ? 'rotate-180 text-emerald-700' : 'group-hover:text-slate-500'}`}
                             />
+
+                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] border border-emerald-100 bg-[radial-gradient(circle_at_top,#ffffff_0%,#f4fdf7_55%,#ecfdf3_100%)] text-emerald-700 shadow-[0_18px_36px_-26px_rgba(22,163,74,0.38)]">
+                              <item.icon className="h-7 w-7" strokeWidth={1.6} />
+                            </div>
+
+                            <div className="mt-5 text-center">
+                              <h4 className="mx-auto max-w-[220px] text-[19px] font-black leading-[1.25] text-slate-900">
+                                {item.title}
+                              </h4>
+                              <p className="mx-auto mt-3 max-w-[250px] text-sm leading-6 text-slate-500">
+                                {item.description}
+                              </p>
+                            </div>
+
+                            <div className="mt-5 flex items-center justify-center gap-2 text-xs font-semibold text-slate-400">
+                              <span>{item.details.length} passo(s)</span>
+                              {item.highlight ? (
+                                <>
+                                  <span className="h-1 w-1 rounded-full bg-slate-300" />
+                                  <span className="text-emerald-700">Em destaque</span>
+                                </>
+                              ) : null}
+                            </div>
                           </div>
                         </button>
 
                         {isOpen && (
-                          <div className="mt-5 border-t border-slate-100 pt-4 space-y-4">
-                            <ul className="space-y-2">
+                          <div className="mt-6 space-y-4 border-t border-slate-100/90 pt-5">
+                            <ul className="space-y-2.5">
                               {item.details.map((detail) => (
-                                <li key={detail} className="text-sm leading-6 text-slate-600">
-                                  {detail}
+                                <li key={detail} className="flex gap-2.5 text-sm leading-6 text-slate-600">
+                                  <span className="mt-[9px] h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                  <span>{detail}</span>
                                 </li>
                               ))}
                             </ul>
@@ -268,7 +285,7 @@ const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({
                             {item.action.to ? (
                               <Link
                                 to={item.action.to}
-                                className="inline-flex items-center gap-2 text-sm font-semibold text-green-700 hover:text-green-800"
+                                className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800"
                               >
                                 {item.action.label}
                                 <ArrowRight className="h-4 w-4" />
@@ -277,7 +294,7 @@ const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({
                               <button
                                 type="button"
                                 onClick={item.action.onClick}
-                                className="inline-flex items-center gap-2 text-sm font-semibold text-green-700 hover:text-green-800"
+                                className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800"
                               >
                                 {item.action.label}
                                 <ArrowRight className="h-4 w-4" />

@@ -157,6 +157,7 @@ const PreviewAnnouncementModal: React.FC<{
   if (!isOpen) return null;
 
   const mainImage = previewAd.images?.[0] || '';
+  const previewVideoUrl = previewAd.videoPreviewUrl || previewAd.videoUrl || '';
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -216,6 +217,31 @@ const PreviewAnnouncementModal: React.FC<{
                   </p>
                 </div>
               </div>
+
+              {previewVideoUrl ? (
+                <div className="rounded-2xl border border-white/10 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/50">
+                      Video do anuncio
+                    </p>
+                    {previewAd.videoDurationSeconds ? (
+                      <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-green-200">
+                        {previewAd.videoDurationSeconds}s
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-black/30">
+                    <video
+                      src={previewVideoUrl}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      poster={mainImage || undefined}
+                      className="aspect-video w-full bg-slate-950 object-contain"
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -1184,7 +1210,7 @@ const AdCreationView: React.FC = () => {
 
   const handleVideoSelected = async (files: FileList | null) => {
     if (!hasStoreListingAccess) {
-      toast.error('O envio de video esta disponivel apenas para Loja Oficial.');
+      toast.error('O envio de video esta disponivel apenas para Loja Parceira.');
       return;
     }
 
@@ -1947,7 +1973,7 @@ const AdCreationView: React.FC = () => {
               <div className="rounded-[2.5rem] border border-emerald-100 bg-emerald-50/70 p-6 sm:p-8">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">Loja Oficial</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">Loja Parceira</p>
                     <h3 className="mt-2 text-xl font-black text-slate-900">Vídeo institucional do anúncio</h3>
                     <p className="mt-2 text-sm leading-6 text-slate-500">
                       Envie 1 vídeo de até 60 segundos. A plataforma tenta otimizar o arquivo para algo próximo de 12MB antes de salvar.
@@ -2004,7 +2030,7 @@ const AdCreationView: React.FC = () => {
                   </div>
                 ) : (
                   <div className="mt-6 rounded-[2rem] border border-dashed border-emerald-200 bg-white/80 p-6 text-sm text-slate-500">
-                    Nenhum vídeo enviado. Esse recurso aparece apenas para anúncios publicados por Loja Oficial.
+                    Nenhum vídeo enviado. Esse recurso aparece apenas para anúncios publicados por Loja Parceira.
                   </div>
                 )}
               </div>
@@ -2124,7 +2150,9 @@ const AdCreationView: React.FC = () => {
           createdAt: new Date().toISOString(),
           userId: 'u1',
           whatsapp: '11999999999',
-          location: { city: formData.location.city || 'Cidade', state: formData.location.state || 'UF' }
+          location: { city: formData.location.city || 'Cidade', state: formData.location.state || 'UF' },
+          videoPreviewUrl: videoItem?.previewUrl || formData.videoUrl || '',
+          videoDurationSeconds: videoItem?.durationSeconds || formData.videoDurationSeconds || 0,
         };
         return (
           <div className="flex flex-col lg:flex-row gap-12 items-start max-w-5xl mx-auto">

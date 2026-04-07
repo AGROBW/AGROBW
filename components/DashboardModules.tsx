@@ -599,7 +599,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
   // Se não houver dados de mercado, mostrar mensagem de aguardo
   if (!has_market_data || !market_avg_price || !percentage) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
         {/* Header com Seletor */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -819,7 +819,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
 
   if (loading) {
     return (
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xl animate-pulse">
+      <div className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_55px_-38px_rgba(15,23,42,0.32)] animate-pulse">
         <div className="space-y-4">
           <div className="h-12 bg-slate-100 rounded-lg"></div>
           <div className="h-12 bg-slate-100 rounded-lg"></div>
@@ -847,7 +847,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
 
   return (
     <div 
-      className="bg-white p-6 rounded-xl shadow-xl"
+      className="rounded-[24px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_55px_-38px_rgba(15,23,42,0.32)]"
       style={{ 
         animation: 'goldBorderPulse 3s ease-in-out infinite',
         borderStyle: 'solid'

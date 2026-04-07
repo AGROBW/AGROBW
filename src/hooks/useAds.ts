@@ -201,6 +201,7 @@ export const usePublicAds = (filters?: {
             .select('user_id, slug, store_name, logo_url, is_verified')
             .eq('is_active', true)
             .eq('is_store_feature_enabled', true)
+            .eq('is_paused_due_to_plan', false)
             .in('user_id', sellerIds)
 
           if (storesError) {
@@ -420,6 +421,7 @@ export const useAd = (adId: string | undefined) => {
           .eq('user_id', adData.user_id)
           .eq('is_active', true)
           .eq('is_store_feature_enabled', true)
+          .eq('is_paused_due_to_plan', false)
           .maybeSingle()
 
         if (!storeError && storeRow) {

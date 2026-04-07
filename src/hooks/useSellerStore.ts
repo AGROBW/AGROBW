@@ -9,6 +9,8 @@ type SellerStoreInput = {
   description?: string;
   logoUrl?: string;
   coverUrl?: string;
+  coverPositionX?: number;
+  coverPositionY?: number;
   whatsapp?: string;
   email?: string;
   facebookUrl?: string;
@@ -20,6 +22,38 @@ type SellerStoreInput = {
   isActive?: boolean;
 };
 
+type MySellerStoreAnnouncementRow = {
+  id: string;
+  title: string;
+  description: string;
+  price?: string | number | null;
+  unit_price?: string | number | null;
+  city?: string | null;
+  state?: string | null;
+  cep?: string | null;
+  category_id: string;
+  sub_category_id?: string | null;
+  sub_category_label?: string | null;
+  images?: string[] | null;
+  user_id: string;
+  status: string;
+  views?: number | null;
+  is_premium?: boolean | null;
+  created_at: string;
+  store_display_order?: number | null;
+  expires_at?: string | null;
+  expired_at?: string | null;
+  deletion_scheduled_at?: string | null;
+  whatsapp?: string | null;
+  highlight_category?: boolean | null;
+  highlight_category_until?: string | null;
+  highlight_home?: boolean | null;
+  highlight_home_until?: string | null;
+  categories?: {
+    slug?: string | null;
+  } | null;
+};
+
 type SellerStoreRow = {
   id: string;
   user_id: string;
@@ -28,6 +62,8 @@ type SellerStoreRow = {
   description?: string | null;
   logo_url?: string | null;
   cover_url?: string | null;
+  cover_position_x?: number | null;
+  cover_position_y?: number | null;
   whatsapp?: string | null;
   email?: string | null;
   facebook_url?: string | null;
@@ -38,6 +74,7 @@ type SellerStoreRow = {
   state?: string | null;
   is_active: boolean;
   is_store_feature_enabled?: boolean | null;
+  is_paused_due_to_plan?: boolean | null;
   is_verified: boolean;
   created_at: string;
   updated_at: string;
@@ -56,6 +93,8 @@ const mapStoreRow = (row: SellerStoreRow): SellerStore => ({
   description: row.description,
   logoUrl: row.logo_url,
   coverUrl: row.cover_url,
+  coverPositionX: row.cover_position_x,
+  coverPositionY: row.cover_position_y,
   whatsapp: row.whatsapp,
   email: row.email,
   facebookUrl: row.facebook_url,
@@ -66,6 +105,7 @@ const mapStoreRow = (row: SellerStoreRow): SellerStore => ({
   state: row.state,
   isActive: row.is_active,
   isStoreFeatureEnabled: !!row.is_store_feature_enabled,
+  isPausedDueToPlan: !!row.is_paused_due_to_plan,
   isVerified: row.is_verified,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -91,6 +131,7 @@ const mapAnnouncement = (ad: any): Ad => ({
   views: ad.views || 0,
   isPremium: ad.is_premium || false,
   createdAt: ad.created_at,
+  storeDisplayOrder: ad.store_display_order,
   expiresAt: ad.expires_at,
   expiredAt: ad.expired_at,
   deletionScheduledAt: ad.deletion_scheduled_at,
@@ -119,11 +160,19 @@ const normalizeExternalUrl = (value?: string | null) => {
   return `https://${trimmedValue.replace(/^\/+/, '')}`;
 };
 
+const normalizeCoverPosition = (value?: number | null) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 50;
+  return Math.min(100, Math.max(0, Math.round(value)));
+};
+
 export const useMySellerStore = () => {
   const { user } = useAuth();
   const [store, setStore] = useState<SellerStore | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [storeAnnouncements, setStoreAnnouncements] = useState<Ad[]>([]);
+  const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(true);
+  const [isSavingAnnouncementOrder, setIsSavingAnnouncementOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchStore = useCallback(async () => {
@@ -157,6 +206,38 @@ export const useMySellerStore = () => {
     void fetchStore();
   }, [fetchStore]);
 
+  const fetchStoreAnnouncements = useCallback(async () => {
+    if (!user?.id) {
+      setStoreAnnouncements([]);
+      setIsLoadingAnnouncements(false);
+      return;
+    }
+
+    setIsLoadingAnnouncements(true);
+
+    const { data, error: announcementsError } = await supabase
+      .from('announcements')
+      .select('id,title,description,price,unit_price,city,state,cep,category_id,sub_category_id,sub_category_label,images,user_id,status,views,is_premium,created_at,store_display_order,expires_at,expired_at,deletion_scheduled_at,whatsapp,highlight_category,highlight_category_until,highlight_home,highlight_home_until,categories(slug)')
+      .eq('user_id', user.id)
+      .eq('status', 'ACTIVE')
+      .order('store_display_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false });
+
+    if (announcementsError) {
+      console.error('[useMySellerStore] Erro ao buscar anúncios da loja:', announcementsError);
+      setStoreAnnouncements([]);
+      setIsLoadingAnnouncements(false);
+      return;
+    }
+
+    setStoreAnnouncements(((data as MySellerStoreAnnouncementRow[]) || []).map(mapAnnouncement));
+    setIsLoadingAnnouncements(false);
+  }, [user?.id]);
+
+  useEffect(() => {
+    void fetchStoreAnnouncements();
+  }, [fetchStoreAnnouncements]);
+
   const saveStore = useCallback(
     async (input: SellerStoreInput, hasStoreAccess: boolean) => {
       if (!user?.id) {
@@ -164,7 +245,7 @@ export const useMySellerStore = () => {
       }
 
       if (!hasStoreAccess) {
-        throw new Error('Seu plano atual não inclui a Loja Oficial.');
+        throw new Error('Seu plano atual não inclui a Loja Parceira.');
       }
 
       setIsSaving(true);
@@ -183,6 +264,8 @@ export const useMySellerStore = () => {
         description: input.description?.trim() || null,
         logo_url: input.logoUrl?.trim() || null,
         cover_url: input.coverUrl?.trim() || null,
+        cover_position_x: normalizeCoverPosition(input.coverPositionX),
+        cover_position_y: normalizeCoverPosition(input.coverPositionY),
         whatsapp: null,
         email: input.email?.trim() || user.email || null,
         facebook_url: normalizeExternalUrl(input.facebookUrl),
@@ -215,13 +298,63 @@ export const useMySellerStore = () => {
     [store, user]
   );
 
+  const saveAnnouncementOrder = useCallback(
+    async (orderedIds: string[]) => {
+      if (!user?.id) {
+        throw new Error('Você precisa estar logado para organizar a vitrine.');
+      }
+
+      setIsSavingAnnouncementOrder(true);
+
+      try {
+        const updates = orderedIds.map((announcementId, index) =>
+          supabase
+            .from('announcements')
+            .update({ store_display_order: index + 1 })
+            .eq('id', announcementId)
+            .eq('user_id', user.id)
+        );
+
+        const results = await Promise.all(updates);
+        const failed = results.find((result) => result.error);
+
+        if (failed?.error) {
+          throw failed.error;
+        }
+
+        setStoreAnnouncements((current) => {
+          const byId = new Map(current.map((announcement) => [announcement.id, announcement]));
+          return orderedIds
+            .map((announcementId, index) => {
+              const announcement = byId.get(announcementId);
+              return announcement
+                ? {
+                    ...announcement,
+                    storeDisplayOrder: index + 1,
+                  }
+                : null;
+            })
+            .filter(Boolean) as Ad[];
+        });
+      } finally {
+        setIsSavingAnnouncementOrder(false);
+      }
+    },
+    [user?.id]
+  );
+
   return {
     store,
     isLoading,
     isSaving,
+    storeAnnouncements,
+    isLoadingAnnouncements,
+    isSavingAnnouncementOrder,
     error,
     refresh: fetchStore,
+    refreshAnnouncements: fetchStoreAnnouncements,
     saveStore,
+    saveAnnouncementOrder,
   };
 };
 
@@ -250,6 +383,7 @@ export const usePublicSellerStore = (slug: string | undefined) => {
         .eq('slug', slug)
         .eq('is_active', true)
         .eq('is_store_feature_enabled', true)
+        .eq('is_paused_due_to_plan', false)
         .maybeSingle();
 
       if (storeError) {
@@ -274,6 +408,7 @@ export const usePublicSellerStore = (slug: string | undefined) => {
         .select('*, categories (name, slug)')
         .eq('user_id', storeRow.user_id)
         .eq('status', 'ACTIVE')
+        .order('store_display_order', { ascending: true, nullsFirst: false })
         .order('highlight_home', { ascending: false })
         .order('highlight_category', { ascending: false })
         .order('created_at', { ascending: false });
@@ -323,6 +458,7 @@ export const usePublicSellerStoresCatalog = () => {
       .select('*')
       .eq('is_active', true)
       .eq('is_store_feature_enabled', true)
+      .eq('is_paused_due_to_plan', false)
       .order('updated_at', { ascending: false });
 
     if (storesError) {

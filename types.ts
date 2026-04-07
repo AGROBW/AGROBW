@@ -63,6 +63,7 @@ export interface Ad {
   views: number;
   isPremium: boolean;
   createdAt: string;
+  storeDisplayOrder?: number | null;
   expiresAt?: string;
   expiredAt?: string;
   deletionScheduledAt?: string;
@@ -97,6 +98,8 @@ export interface SellerStore {
   description?: string | null;
   logoUrl?: string | null;
   coverUrl?: string | null;
+  coverPositionX?: number | null;
+  coverPositionY?: number | null;
   whatsapp?: string | null;
   email?: string | null;
   facebookUrl?: string | null;
@@ -107,6 +110,7 @@ export interface SellerStore {
   state?: string | null;
   isActive: boolean;
   isStoreFeatureEnabled?: boolean;
+  isPausedDueToPlan?: boolean;
   isVerified: boolean;
   createdAt: string;
   updatedAt: string;
@@ -592,6 +596,77 @@ export interface LayoutSettings {
   warningColor: string;
   errorColor: string;
   lastUpdatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GrowthConversionSettings {
+  id: string;
+  isEnabled: boolean;
+  dailyUserLimit: number;
+  minViewsForHighViews: number;
+  minViewsForNoLeads: number;
+  minViewsForExpiring: number;
+  expireSoonDays: number;
+  triggerHighViewsEnabled: boolean;
+  triggerTopCategoryEnabled: boolean;
+  triggerNoLeadsEnabled: boolean;
+  triggerExpiringEnabled: boolean;
+  triggerPlanLimitEnabled: boolean;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RenewalNotificationSettings {
+  id: string;
+  isEnabled: boolean;
+  dailyUserLimit: number;
+  notifySevenDaysBefore: boolean;
+  notifyThreeDaysBefore: boolean;
+  notifyOneDayBefore: boolean;
+  notifyOnExpirationDay: boolean;
+  notifyAfterExpiration: boolean;
+  daysAfterExpiration: number;
+  showDashboardToast: boolean;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RadarMatchEmailJob {
+  id: string;
+  matchId: string;
+  userId: string;
+  announcementId: string;
+  recipientEmail?: string | null;
+  recipientName?: string | null;
+  announcementTitle?: string | null;
+  alertName?: string | null;
+  status: 'pending' | 'processing' | 'sent' | 'failed' | 'skipped';
+  provider: string;
+  attempts: number;
+  lastError?: string | null;
+  queuedAt: string;
+  processingStartedAt?: string | null;
+  lastAttemptAt?: string | null;
+  sentAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RadarMatchEmailDispatchLog {
+  id: string;
+  triggeredBy: 'cron' | 'admin';
+  status: 'processing' | 'completed' | 'failed';
+  requestedLimit: number;
+  processedCount: number;
+  sentCount: number;
+  failedCount: number;
+  skippedCount: number;
+  notes?: string | null;
+  startedAt: string;
+  finishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

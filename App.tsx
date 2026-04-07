@@ -40,6 +40,7 @@ const AdminDashboardOverview = lazy(() => import('./pages/admin/AdminDashboardOv
 const ModerationQueue = lazy(() => import('./pages/admin/ModerationQueue'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const CategoriesManagement = lazy(() => import('./pages/admin/CategoriesManagement'));
+const AnnouncementsMonitoring = lazy(() => import('./pages/admin/AnnouncementsMonitoring'));
 const PaymentsManagement = lazy(() => import('./pages/admin/PaymentsManagement'));
 const NewsManagement = lazy(() => import('./pages/admin/NewsManagement'));
 const NewsletterSubscriptionsManagement = lazy(() => import('./pages/admin/NewsletterSubscriptionsManagement'));
@@ -232,6 +233,7 @@ const AppContent: React.FC = () => {
               <Route path="moderation" element={<ModerationQueue />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="categories" element={<CategoriesManagement />} />
+              <Route path="monitoring" element={<AnnouncementsMonitoring />} />
               <Route path="payments" element={<PaymentsManagement />} />
               <Route path="news" element={<NewsManagement />} />
               <Route path="newsletter" element={<NewsletterSubscriptionsManagement />} />

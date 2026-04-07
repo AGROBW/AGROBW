@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
+  BarChart3,
   Bell,
   ChevronDown,
   FileCheck,
@@ -57,6 +58,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       icon: FolderTree,
     },
     {
+      label: 'Monitoramento',
+      path: '/admin/monitoring',
+      icon: BarChart3,
+    },
+    {
       label: 'Financeiro',
       path: '/admin/payments',
       icon: Receipt,
@@ -108,22 +114,30 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <aside
-        className={`fixed left-0 top-0 h-full bg-slate-900 text-white transition-all duration-300 z-40 ${
+        className={`fixed left-0 top-0 z-40 h-full border-r border-slate-800/80 bg-[#0f172a] text-white shadow-[30px_0_60px_-45px_rgba(15,23,42,0.82)] transition-all duration-300 ${
           sidebarOpen ? 'w-64' : 'w-20'
         }`}
       >
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
+        <div className="flex h-20 items-center justify-between border-b border-white/10 px-4">
           {sidebarOpen ? (
             <>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-black text-lg">T</span>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#16a34a_0%,#15803d_100%)] text-white shadow-[0_18px_35px_-18px_rgba(22,163,74,0.8)]">
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt={user?.name || 'Admin'} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-base font-black">{user?.name?.charAt(0).toUpperCase() || 'A'}</span>
+                  )}
                 </div>
-                <span className="font-black text-lg">ADMIN</span>
+                <div>
+                  <span className="block text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300/90">
+                    Painel Admin
+                  </span>
+                </div>
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-1 hover:bg-slate-800 rounded transition-colors"
+                className="rounded-xl p-2 text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -131,31 +145,39 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           ) : (
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-1 hover:bg-slate-800 rounded transition-colors mx-auto"
+              className="mx-auto rounded-xl p-2 text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
             >
               <Menu className="w-5 h-5" />
             </button>
           )}
         </div>
 
-        <nav className="p-4 space-y-1">
+        <nav className="space-y-1.5 p-4">
           {menuItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               end={item.exact}
               className={({ isActive }) => `
-                flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
-                ${isActive ? 'bg-green-500 text-white font-semibold' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}
+                group flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm transition-all
+                ${isActive ? 'border-emerald-400/30 bg-[linear-gradient(135deg,rgba(22,163,74,0.22)_0%,rgba(15,23,42,0.08)_100%)] text-white shadow-[0_18px_35px_-24px_rgba(22,163,74,0.65)] font-semibold' : 'border-transparent text-slate-300/88 hover:border-white/10 hover:bg-white/5 hover:text-white'}
                 ${!sidebarOpen && 'justify-center'}
               `}
             >
-              <item.icon className="w-5 h-5 flex-shrink-0" />
+              <span
+                className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-all ${
+                  sidebarOpen
+                    ? 'bg-white/5 text-slate-300 group-hover:bg-white/10 group-hover:text-emerald-200'
+                    : 'bg-white/5 text-slate-300'
+                }`}
+              >
+                <item.icon className="w-5 h-5 flex-shrink-0" />
+              </span>
               {sidebarOpen && (
                 <>
                   <span className="flex-1 text-sm">{item.label}</span>
                   {item.badge && (
-                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#f59e0b] px-2 text-xs font-bold text-slate-950 shadow-[0_10px_20px_-12px_rgba(245,158,11,0.9)]">
                       {item.badge}
                     </span>
                   )}
@@ -165,19 +187,23 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           ))}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800">
+        <div className="absolute bottom-0 left-0 right-0 border-t border-white/10 p-4">
           {sidebarOpen ? (
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center text-sm font-bold">
-                {user?.name?.charAt(0).toUpperCase() || 'A'}
+            <div className="flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/5 p-3 backdrop-blur">
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-700 text-sm font-bold ring-2 ring-white/10">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt={user?.name || 'Admin'} className="h-full w-full object-cover" />
+                ) : (
+                  user?.name?.charAt(0).toUpperCase() || 'A'
+                )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{user?.name || 'Admin'}</p>
-                <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+                <p className="truncate text-sm font-semibold text-white">{user?.name || 'Admin'}</p>
+                <p className="truncate text-xs text-slate-400">{user?.email}</p>
               </div>
               <button
                 onClick={handleLogout}
-                className="p-2 hover:bg-slate-800 rounded transition-colors"
+                className="rounded-xl p-2 text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
                 title="Sair"
               >
                 <LogOut className="w-4 h-4" />
@@ -186,7 +212,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           ) : (
             <button
               onClick={handleLogout}
-              className="w-full p-2 hover:bg-slate-800 rounded transition-colors"
+              className="w-full rounded-xl p-2 text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
               title="Sair"
             >
               <LogOut className="w-5 h-5 mx-auto" />
