@@ -100,6 +100,44 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
     },
   ];
 
+  const renewalPreviews = [
+    {
+      key: 'notifySevenDaysBefore' as const,
+      title: 'Renovacao AGRO BW: seu plano expira em 7 dias',
+      content:
+        'Seu plano "Loja Parceira" expira em 7 dias. Renove com antecedência para manter anúncios, destaques e benefícios ativos sem interrupção.',
+      cta: 'Renovar com antecedência',
+    },
+    {
+      key: 'notifyThreeDaysBefore' as const,
+      title: 'Renovacao AGRO BW: seu plano expira em 3 dias',
+      content:
+        'Seu plano "Profissional" expira em 3 dias. Vale revisar a renovação agora para não perder sua exposição na plataforma.',
+      cta: 'Revisar renovação',
+    },
+    {
+      key: 'notifyOneDayBefore' as const,
+      title: 'Renovacao AGRO BW: seu plano expira amanha',
+      content:
+        'Seu plano "Loja Parceira" vence amanhã. Garanta a renovação para continuar com acesso aos recursos pagos sem pausa.',
+      cta: 'Renovar hoje',
+    },
+    {
+      key: 'notifyOnExpirationDay' as const,
+      title: 'Renovacao AGRO BW: seu plano vence hoje',
+      content:
+        'Seu plano "Loja Parceira" vence hoje. Renove agora para não interromper seus benefícios e a exposição dos seus anúncios.',
+      cta: 'Renovar agora',
+    },
+    {
+      key: 'notifyAfterExpiration' as const,
+      title: 'Renovacao AGRO BW: seu plano expirou',
+      content:
+        'Seu plano "Loja Parceira" já expirou. Reative a assinatura para recuperar recursos pagos, exposição e continuidade operacional.',
+      cta: 'Reativar assinatura',
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_72%,rgba(245,158,11,0.10)_100%)] p-6 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.4)]">
@@ -242,6 +280,56 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
                 <h4 className="text-base font-black text-slate-950">{stage.title}</h4>
                 <p className="mt-2 text-sm leading-6 text-slate-500">{stage.description}</p>
               </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.4)]">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Prévia dos textos</p>
+            <h3 className="mt-1 text-lg font-black text-slate-950">Mensagens de retenção e renovação</h3>
+          </div>
+          <span className="text-xs font-semibold text-slate-400">
+            Central de notificações {form.showDashboardToast ? '+ toast no painel' : 'sem toast no painel'}
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          {renewalPreviews.map((preview) => {
+            const enabled = form[preview.key];
+
+            return (
+              <div
+                key={preview.key}
+                className={`rounded-[24px] border p-5 transition ${
+                  enabled
+                    ? 'border-amber-200 bg-[linear-gradient(135deg,rgba(245,158,11,0.10)_0%,#ffffff_75%)]'
+                    : 'border-slate-200 bg-slate-50/80 opacity-70'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span
+                    className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
+                      enabled ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'
+                    }`}
+                  >
+                    {enabled ? 'Ativo' : 'Pausado'}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Plan alert</span>
+                </div>
+
+                <p className="mt-4 text-base font-black leading-6 text-slate-950">{preview.title}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-500">{preview.content}</p>
+
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                  <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600">
+                    CTA: {preview.cta}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-400">/minha-conta/meu-plano</span>
+                </div>
+              </div>
             );
           })}
         </div>

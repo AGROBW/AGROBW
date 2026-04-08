@@ -109,6 +109,44 @@ const GrowthConversionSettingsManagement: React.FC = () => {
     },
   ];
 
+  const notificationPreviews = [
+    {
+      key: 'triggerHighViewsEnabled' as const,
+      title: 'Oportunidade AGRO BW: anúncio com boa tração',
+      content:
+        'Seu anúncio "Trator John Deere 6125J" já acumulou 24 visualizações. Destacá-lo agora pode ajudar a transformar audiência em contatos.',
+      cta: 'Ver planos e impulsionar',
+    },
+    {
+      key: 'triggerTopCategoryEnabled' as const,
+      title: 'Oportunidade AGRO BW: anúncio em evidência na categoria',
+      content:
+        'Seu anúncio "Colheitadeira S660" está entre os mais vistos da categoria. Um destaque pode acelerar contatos e ampliar a exposição.',
+      cta: 'Comprar destaque',
+    },
+    {
+      key: 'triggerNoLeadsEnabled' as const,
+      title: 'Oportunidade AGRO BW: alta audiência sem conversão',
+      content:
+        'Seu anúncio "Pulverizador 2000L" já acumulou 57 visualizações e ainda não recebeu contatos. Um plano com destaque pode aumentar suas chances de conversão.',
+      cta: 'Ver planos com mais alcance',
+    },
+    {
+      key: 'triggerExpiringEnabled' as const,
+      title: 'Oportunidade AGRO BW: anúncio perto do vencimento',
+      content:
+        'Seu anúncio "Fazenda 120 hectares" expira em 3 dia(s) e já chamou atenção de compradores. Aproveite o momento para reforçar a exposição.',
+      cta: 'Renovar estratégia do anúncio',
+    },
+    {
+      key: 'triggerPlanLimitEnabled' as const,
+      title: 'Oportunidade AGRO BW: seu plano limita a exposição',
+      content:
+        'Seu anúncio "Sementes de milho híbrido" já está gerando interesse, mas o plano atual não libera destaques Home/Categoria. Fazer upgrade agora pode ampliar o alcance.',
+      cta: 'Fazer upgrade agora',
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_72%,rgba(22,163,74,0.08)_100%)] p-6 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.4)]">
@@ -270,6 +308,56 @@ const GrowthConversionSettingsManagement: React.FC = () => {
                 <h4 className="text-base font-black text-slate-950">{trigger.title}</h4>
                 <p className="mt-2 text-sm leading-6 text-slate-500">{trigger.description}</p>
               </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.4)]">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Prévia dos textos</p>
+            <h3 className="mt-1 text-lg font-black text-slate-950">O que o usuário vai receber</h3>
+          </div>
+          <span className="text-xs font-semibold text-slate-400">
+            Toast de destaque + central de notificações
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          {notificationPreviews.map((preview) => {
+            const enabled = form[preview.key];
+
+            return (
+              <div
+                key={preview.key}
+                className={`rounded-[24px] border p-5 transition ${
+                  enabled
+                    ? 'border-emerald-200 bg-[linear-gradient(135deg,rgba(22,163,74,0.08)_0%,#ffffff_75%)]'
+                    : 'border-slate-200 bg-slate-50/80 opacity-70'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span
+                    className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
+                      enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'
+                    }`}
+                  >
+                    {enabled ? 'Ativo' : 'Pausado'}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Plan alert</span>
+                </div>
+
+                <p className="mt-4 text-base font-black leading-6 text-slate-950">{preview.title}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-500">{preview.content}</p>
+
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                  <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600">
+                    CTA: {preview.cta}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-400">/minha-conta/meu-plano</span>
+                </div>
+              </div>
             );
           })}
         </div>

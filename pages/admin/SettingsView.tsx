@@ -22,6 +22,7 @@ import GrowthConversionSettingsManagement from './GrowthConversionSettingsManage
 import IntegrationsManagement from './IntegrationsManagement';
 import MarketQuotesManagement from './MarketQuotesManagement';
 import PagesManagement from './PagesManagement';
+import PlanAlertEmailManagement from './PlanAlertEmailManagement';
 import PlansManagement from './PlansManagement';
 import PrivacyPageManagement from './PrivacyPageManagement';
 import RadarMatchEmailManagement from './RadarMatchEmailManagement';
@@ -41,6 +42,7 @@ type SettingsTab =
   | 'fiscal'
   | 'email'
   | 'radarEmail'
+  | 'planAlertEmail'
   | 'conversion'
   | 'renewal';
 
@@ -60,6 +62,7 @@ const SettingsView: React.FC = () => {
     { id: 'fiscal' as SettingsTab, label: 'Fiscal NFS-e', icon: FileText },
     { id: 'email' as SettingsTab, label: 'Config. E-mail', icon: Mail },
     { id: 'radarEmail' as SettingsTab, label: 'Radar por E-mail', icon: Mail },
+    { id: 'planAlertEmail' as SettingsTab, label: 'Alertas por E-mail', icon: Mail },
     { id: 'conversion' as SettingsTab, label: 'Conversao', icon: BellRing },
     { id: 'renewal' as SettingsTab, label: 'Renovacao', icon: CreditCard },
   ];
@@ -111,6 +114,7 @@ const SettingsView: React.FC = () => {
         {activeTab === 'fiscal' && <FiscalSettingsManagement />}
         {activeTab === 'email' && <SMTPConfigPanel />}
         {activeTab === 'radarEmail' && <RadarMatchEmailManagement />}
+        {activeTab === 'planAlertEmail' && <PlanAlertEmailManagement />}
         {activeTab === 'conversion' && <GrowthConversionSettingsManagement />}
         {activeTab === 'renewal' && <RenewalNotificationSettingsManagement />}
       </div>
