@@ -110,6 +110,8 @@ const UserDashboardView: React.FC = () => {
   const [newLeadsCount, setNewLeadsCount] = useState(0);
   const lastGrowthNotificationIdRef = useRef<string | null>(null);
   const lastRenewalNotificationIdRef = useRef<string | null>(null);
+  const sidebarNavRef = useRef<HTMLDivElement | null>(null);
+  const [showSidebarScrollHint, setShowSidebarScrollHint] = useState(false);
   
   // Estados para upload
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -243,6 +245,29 @@ const UserDashboardView: React.FC = () => {
       cancelled = true;
     };
   }, [user?.id, location.pathname]);
+
+  useEffect(() => {
+    const element = sidebarNavRef.current;
+    if (!element) {
+      setShowSidebarScrollHint(false);
+      return;
+    }
+
+    const updateHint = () => {
+      const canScroll = element.scrollHeight > element.clientHeight + 8;
+      const nearBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - 12;
+      setShowSidebarScrollHint(canScroll && !nearBottom);
+    };
+
+    updateHint();
+    element.addEventListener('scroll', updateHint);
+    window.addEventListener('resize', updateHint);
+
+    return () => {
+      element.removeEventListener('scroll', updateHint);
+      window.removeEventListener('resize', updateHint);
+    };
+  }, [showSellerStoreMenu, location.pathname]);
 
   // FunÃ§Ã£o para slugificar nome do usuÃ¡rio
   const slugify = (text: string): string => {
@@ -1382,7 +1407,7 @@ const UserDashboardView: React.FC = () => {
           </motion.div>
         </AnimatePresence>
 
-        {/* Modal de Confirmação de ExclusÃ£o */}
+        {/* Modal de Confirmação de Exclusão */}
         {deleteModalOpen && adToDelete && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
@@ -1678,7 +1703,13 @@ const UserDashboardView: React.FC = () => {
     }, [activePlans, subscription?.plan_id]);
     const nextRecommendedPlan = useMemo(() => {
       if (!currentPlanRecord) return null;
-      return activePlans.find((plan) => plan.position > currentPlanRecord.position) || null;
+      return (
+        activePlans.find(
+          (plan) =>
+            !plan.is_downgrade_plan &&
+            plan.position > currentPlanRecord.position
+        ) || null
+      );
     }, [activePlans, currentPlanRecord]);
 
     const cycleEndLabel = usage.periodEndDate
@@ -1842,34 +1873,7 @@ const UserDashboardView: React.FC = () => {
             )}
           </div>
 
-          <div className="space-y-6">
-            <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_18px_45px_-35px_rgba(15,23,42,0.32)]">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-700/10 text-green-700">
-                  <ShieldCheck className="w-5 h-5" strokeWidth={1.5} />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Beneficios inclusos</p>
-                  <h3 className="text-lg font-semibold text-slate-900">Recursos ativos do seu plano</h3>
-                </div>
-              </div>
-
-              {includedFeatures.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
-                  Nenhum beneficio adicional configurado para este plano no momento.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {includedFeatures.map((feature) => (
-                    <div key={feature} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" strokeWidth={1.75} />
-                      <span className="text-sm font-medium text-slate-700">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
+          <div className="space-y-6" />
         </section>
 
         {nextRecommendedPlan && (
@@ -1950,7 +1954,13 @@ const UserDashboardView: React.FC = () => {
     }, [activePlans, subscription?.plan_id]);
     const nextRecommendedPlan = useMemo(() => {
       if (!currentPlanRecord) return null;
-      return activePlans.find((plan) => plan.position > currentPlanRecord.position) || null;
+      return (
+        activePlans.find(
+          (plan) =>
+            !plan.is_downgrade_plan &&
+            plan.position > currentPlanRecord.position
+        ) || null
+      );
     }, [activePlans, currentPlanRecord]);
 
     const formatCurrency = (value: number, currency = 'BRL') =>
@@ -3230,37 +3240,50 @@ const UserDashboardView: React.FC = () => {
           </div>
         </div>
 
-        <nav className="flex-grow space-y-1.5">
-          {menuItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`group flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition-all ${
-                location.pathname === item.path
-                  ? 'border-emerald-400/30 bg-[linear-gradient(135deg,rgba(22,163,74,0.22)_0%,rgba(15,23,42,0.08)_100%)] text-white shadow-[0_18px_35px_-24px_rgba(22,163,74,0.65)]'
-                  : 'border-transparent text-slate-300/88 hover:border-white/10 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <span
-                  className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
-                    location.pathname === item.path
-                      ? 'bg-white/10 text-emerald-300'
-                      : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-emerald-200'
-                  }`}
-                >
-                  {item.icon}
-                </span>
-                {item.label}
+        <div className="relative min-h-0 flex-grow">
+          <nav
+            ref={sidebarNavRef}
+            className="h-full space-y-1.5 overflow-y-auto pr-1 [scrollbar-color:rgba(148,163,184,0.4)_transparent] [scrollbar-width:thin]"
+          >
+            {menuItems.map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`group flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition-all ${
+                  location.pathname === item.path
+                    ? 'border-emerald-400/30 bg-[linear-gradient(135deg,rgba(22,163,74,0.22)_0%,rgba(15,23,42,0.08)_100%)] text-white shadow-[0_18px_35px_-24px_rgba(22,163,74,0.65)]'
+                    : 'border-transparent text-slate-300/88 hover:border-white/10 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
+                      location.pathname === item.path
+                        ? 'bg-white/10 text-emerald-300'
+                        : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-emerald-200'
+                    }`}
+                  >
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </div>
+                {item.badge > 0 && (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#f59e0b] px-2 text-xs font-bold text-slate-950 shadow-[0_10px_20px_-12px_rgba(245,158,11,0.9)]">
+                    {item.badge}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </nav>
+
+          {showSidebarScrollHint ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-[22px] bg-gradient-to-t from-[#0f172a] via-[#0f172a]/95 to-transparent px-3 pb-1 pt-12">
+              <div className="mx-auto w-fit rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-slate-300">
+                Role para ver mais
               </div>
-              {item.badge > 0 && (
-                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#f59e0b] px-2 text-xs font-bold text-slate-950 shadow-[0_10px_20px_-12px_rgba(245,158,11,0.9)]">
-                  {item.badge}
-                </span>
-              )}
-            </Link>
-          ))}
-        </nav>
+            </div>
+          ) : null}
+        </div>
 
         <div className="mt-6 border-t border-white/10 pt-6">
           <button 

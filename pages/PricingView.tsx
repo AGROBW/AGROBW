@@ -611,17 +611,6 @@ const PricingView: React.FC = () => {
                   </div>
 
                   <div className="rounded-[1.5rem] bg-slate-950 p-5 text-white">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <span
-                        className="inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]"
-                        style={{
-                          backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)`,
-                          color: settings.primaryColor,
-                        }}
-                      >
-                        {getBillingCycleLabel(billingCycle)}
-                      </span>
-                    </div>
                     <div className="flex items-baseline gap-1">
                       <span className="text-base font-bold text-slate-400">R$</span>
                       <span className="text-5xl font-black tracking-tighter">

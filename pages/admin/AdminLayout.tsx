@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
@@ -33,6 +33,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const navScrollRef = useRef<HTMLDivElement | null>(null);
+  const [showSidebarScrollHint, setShowSidebarScrollHint] = useState(false);
 
   const menuItems = [
     {
@@ -111,10 +113,33 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     }
   };
 
+  useEffect(() => {
+    const element = navScrollRef.current;
+    if (!element || !sidebarOpen) {
+      setShowSidebarScrollHint(false);
+      return;
+    }
+
+    const updateHint = () => {
+      const canScroll = element.scrollHeight > element.clientHeight + 8;
+      const nearBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - 12;
+      setShowSidebarScrollHint(canScroll && !nearBottom);
+    };
+
+    updateHint();
+    element.addEventListener('scroll', updateHint);
+    window.addEventListener('resize', updateHint);
+
+    return () => {
+      element.removeEventListener('scroll', updateHint);
+      window.removeEventListener('resize', updateHint);
+    };
+  }, [sidebarOpen]);
+
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <aside
-        className={`fixed left-0 top-0 z-40 h-full border-r border-slate-800/80 bg-[#0f172a] text-white shadow-[30px_0_60px_-45px_rgba(15,23,42,0.82)] transition-all duration-300 ${
+        className={`fixed left-0 top-0 z-40 flex h-full flex-col border-r border-slate-800/80 bg-[#0f172a] text-white shadow-[30px_0_60px_-45px_rgba(15,23,42,0.82)] transition-all duration-300 ${
           sidebarOpen ? 'w-64' : 'w-20'
         }`}
       >
@@ -152,42 +177,55 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           )}
         </div>
 
-        <nav className="space-y-1.5 p-4">
-          {menuItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.exact}
-              className={({ isActive }) => `
+        <div className="relative min-h-0 flex-1 px-4 pb-4 pt-4">
+          <nav
+            ref={navScrollRef}
+            className="h-full space-y-1.5 overflow-y-auto pr-1 [scrollbar-color:rgba(148,163,184,0.4)_transparent] [scrollbar-width:thin]"
+          >
+            {menuItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.exact}
+                className={({ isActive }) => `
                 group flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm transition-all
                 ${isActive ? 'border-emerald-400/30 bg-[linear-gradient(135deg,rgba(22,163,74,0.22)_0%,rgba(15,23,42,0.08)_100%)] text-white shadow-[0_18px_35px_-24px_rgba(22,163,74,0.65)] font-semibold' : 'border-transparent text-slate-300/88 hover:border-white/10 hover:bg-white/5 hover:text-white'}
                 ${!sidebarOpen && 'justify-center'}
               `}
-            >
-              <span
-                className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-all ${
-                  sidebarOpen
-                    ? 'bg-white/5 text-slate-300 group-hover:bg-white/10 group-hover:text-emerald-200'
-                    : 'bg-white/5 text-slate-300'
-                }`}
               >
-                <item.icon className="w-5 h-5 flex-shrink-0" />
-              </span>
-              {sidebarOpen && (
-                <>
-                  <span className="flex-1 text-sm">{item.label}</span>
-                  {item.badge && (
-                    <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#f59e0b] px-2 text-xs font-bold text-slate-950 shadow-[0_10px_20px_-12px_rgba(245,158,11,0.9)]">
-                      {item.badge}
-                    </span>
-                  )}
-                </>
-              )}
-            </NavLink>
-          ))}
-        </nav>
+                <span
+                  className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-all ${
+                    sidebarOpen
+                      ? 'bg-white/5 text-slate-300 group-hover:bg-white/10 group-hover:text-emerald-200'
+                      : 'bg-white/5 text-slate-300'
+                  }`}
+                >
+                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                </span>
+                {sidebarOpen && (
+                  <>
+                    <span className="flex-1 text-sm">{item.label}</span>
+                    {item.badge && (
+                      <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#f59e0b] px-2 text-xs font-bold text-slate-950 shadow-[0_10px_20px_-12px_rgba(245,158,11,0.9)]">
+                        {item.badge}
+                      </span>
+                    )}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 border-t border-white/10 p-4">
+          {sidebarOpen && showSidebarScrollHint ? (
+            <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-b-[22px] bg-gradient-to-t from-[#0f172a] via-[#0f172a]/95 to-transparent px-3 pb-1 pt-12">
+              <div className="mx-auto w-fit rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-slate-300">
+                Role para ver mais
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="border-t border-white/10 p-4">
           {sidebarOpen ? (
             <div className="flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/5 p-3 backdrop-blur">
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-700 text-sm font-bold ring-2 ring-white/10">
