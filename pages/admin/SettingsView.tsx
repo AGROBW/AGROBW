@@ -22,6 +22,7 @@ import GrowthConversionSettingsManagement from './GrowthConversionSettingsManage
 import IntegrationsManagement from './IntegrationsManagement';
 import MarketQuotesManagement from './MarketQuotesManagement';
 import PagesManagement from './PagesManagement';
+import ContactNotificationEmailManagement from './ContactNotificationEmailManagement';
 import PlanAlertEmailManagement from './PlanAlertEmailManagement';
 import PlansManagement from './PlansManagement';
 import PrivacyPageManagement from './PrivacyPageManagement';
@@ -41,6 +42,7 @@ type SettingsTab =
   | 'market'
   | 'fiscal'
   | 'email'
+  | 'contactEmail'
   | 'radarEmail'
   | 'planAlertEmail'
   | 'conversion'
@@ -61,6 +63,7 @@ const SettingsView: React.FC = () => {
     { id: 'market' as SettingsTab, label: 'Cotacoes', icon: TrendingUp },
     { id: 'fiscal' as SettingsTab, label: 'Fiscal NFS-e', icon: FileText },
     { id: 'email' as SettingsTab, label: 'Config. E-mail', icon: Mail },
+    { id: 'contactEmail' as SettingsTab, label: 'Mensagens por E-mail', icon: MessageCircle },
     { id: 'radarEmail' as SettingsTab, label: 'Radar por E-mail', icon: Mail },
     { id: 'planAlertEmail' as SettingsTab, label: 'Alertas por E-mail', icon: Mail },
     { id: 'conversion' as SettingsTab, label: 'Conversao', icon: BellRing },
@@ -113,6 +116,7 @@ const SettingsView: React.FC = () => {
         {activeTab === 'market' && <MarketQuotesManagement />}
         {activeTab === 'fiscal' && <FiscalSettingsManagement />}
         {activeTab === 'email' && <SMTPConfigPanel />}
+        {activeTab === 'contactEmail' && <ContactNotificationEmailManagement />}
         {activeTab === 'radarEmail' && <RadarMatchEmailManagement />}
         {activeTab === 'planAlertEmail' && <PlanAlertEmailManagement />}
         {activeTab === 'conversion' && <GrowthConversionSettingsManagement />}

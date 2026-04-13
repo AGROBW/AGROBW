@@ -709,6 +709,46 @@ export interface PlanAlertEmailDispatchLog {
   updatedAt: string;
 }
 
+export interface ContactNotificationEmailJob {
+  id: string;
+  sourceKind: 'new_message' | 'new_lead';
+  messageId?: string | null;
+  leadId?: string | null;
+  recipientUserId: string;
+  recipientEmail?: string | null;
+  recipientName?: string | null;
+  senderName?: string | null;
+  announcementTitle?: string | null;
+  messagePreview?: string | null;
+  link?: string | null;
+  status: 'pending' | 'processing' | 'sent' | 'failed' | 'skipped';
+  provider: string;
+  attempts: number;
+  lastError?: string | null;
+  queuedAt: string;
+  processingStartedAt?: string | null;
+  lastAttemptAt?: string | null;
+  sentAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContactNotificationEmailDispatchLog {
+  id: string;
+  triggeredBy: 'cron' | 'admin';
+  status: 'processing' | 'completed' | 'failed';
+  requestedLimit: number;
+  processedCount: number;
+  sentCount: number;
+  failedCount: number;
+  skippedCount: number;
+  notes?: string | null;
+  startedAt: string;
+  finishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FiscalDocumentJob {
   id: string;
   paymentId: string;
