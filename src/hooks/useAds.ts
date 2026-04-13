@@ -54,21 +54,36 @@ export const useUserAds = () => {
 
     const fetchAds = async () => {
       setIsLoading(true)
-      const { data, error } = await supabase
-        .from('announcements')
-        .select(`
-          *,
-          categories (name, slug)
-        `)
-        .eq('user_id', user.id)
-        .order('highlight_category', { ascending: false })
-        .order('highlight_home', { ascending: false })
-        .order('created_at', { ascending: false })
+      const [{ data, error }, { data: pendingEditRequests, error: pendingEditRequestsError }] = await Promise.all([
+        supabase
+          .from('announcements')
+          .select(`
+            *,
+            categories (name, slug)
+          `)
+          .eq('user_id', user.id)
+          .order('highlight_category', { ascending: false })
+          .order('highlight_home', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('announcement_edit_requests')
+          .select('announcement_id')
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+      ])
 
       if (error) {
         setError(error.message)
         console.error('Erro ao buscar anuncios:', error)
       } else {
+        if (pendingEditRequestsError && pendingEditRequestsError.code !== 'PGRST205') {
+          console.error('Erro ao buscar edicoes pendentes do usuario:', pendingEditRequestsError)
+        }
+
+        const pendingEditAnnouncementIds = new Set(
+          (pendingEditRequests || []).map((item: any) => item.announcement_id)
+        )
+
         const mappedAds: Ad[] = data.map(ad => ({
           id: ad.id,
           title: ad.title,
@@ -95,7 +110,11 @@ export const useUserAds = () => {
           videoDurationSeconds: ad.video_duration_seconds || undefined,
           videoSizeBytes: ad.video_size_bytes || undefined,
           userId: ad.user_id,
-          status: getEffectiveAdStatus(ad.status, ad.expires_at) as Ad['status'],
+          status: (
+            pendingEditAnnouncementIds.has(ad.id)
+              ? 'PENDING'
+              : getEffectiveAdStatus(ad.status, ad.expires_at)
+          ) as Ad['status'],
           views: ad.views || 0,
           isPremium: ad.is_premium || false,
           createdAt: ad.created_at,

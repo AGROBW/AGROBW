@@ -189,11 +189,33 @@ export const useChats = (announcementId?: string | null) => {
           void fetchChats(true)
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages'
+        },
+        () => {
+          void fetchChats(true)
+          emitCountsRefresh()
+        }
+      )
       .subscribe()
 
     return () => {
       chatsChannel.unsubscribe()
     }
+  }, [user?.id, announcementId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user?.id) return
+
+    const intervalId = window.setInterval(() => {
+      void fetchChats(true)
+    }, 15000)
+
+    return () => window.clearInterval(intervalId)
   }, [user?.id, announcementId])
 
   return { chats, isLoading, error, refreshChats: fetchChats }

@@ -9,13 +9,13 @@ interface PendingAnnouncement {
   id: string;
   title: string;
   description: string;
-  category: string;
+  category?: string;
   category_slug?: string;
   price: number;
   type: 'VENDA' | 'COMPRA';
   status: string;
   created_at: string;
-  owner_id: string;
+  user_id: string;
   owner?: { name: string; email: string; phone: string };
   images?: string[];
 }
@@ -66,7 +66,10 @@ const ModerationQueue: React.FC = () => {
 
   const fetchAnnouncementsMap = async (ids: string[]) => {
     if (ids.length === 0) return new Map<string, PendingAnnouncement>();
-    const { data, error } = await supabase.from('announcements').select('id,title,description,category,category_slug,price,type,status,created_at,owner_id,images').in('id', ids);
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('id,title,description,category_slug,price,type,status,created_at,user_id,images')
+      .in('id', ids);
     if (error) throw error;
     return new Map(((data || []) as PendingAnnouncement[]).map((item) => [item.id, item]));
   };
@@ -83,8 +86,8 @@ const ModerationQueue: React.FC = () => {
       const { data, error, count } = await query;
       if (error) throw error;
       const rows = (data || []) as PendingAnnouncement[];
-      const ownersMap = await fetchOwnersMap(Array.from(new Set(rows.map((item) => item.owner_id).filter(Boolean))));
-      setAnnouncements(rows.map((item) => ({ ...item, owner: item.owner_id ? ownersMap.get(item.owner_id) : undefined })));
+      const ownersMap = await fetchOwnersMap(Array.from(new Set(rows.map((item) => item.user_id).filter(Boolean))));
+      setAnnouncements(rows.map((item) => ({ ...item, owner: item.user_id ? ownersMap.get(item.user_id) : undefined })));
       setTotalAnnouncementsCount(count || 0);
     } catch (error) {
       console.error('[ModerationQueue] Erro ao carregar anuncios:', error);
@@ -123,10 +126,9 @@ const ModerationQueue: React.FC = () => {
 
   const handleApprove = async (announcement: PendingAnnouncement) => {
     try {
-      const approvedAt = new Date().toISOString();
-      const { error } = await supabase.from('announcements').update({ status: 'ACTIVE', approved_at: approvedAt }).eq('id', announcement.id);
+      const { error } = await supabase.from('announcements').update({ status: 'ACTIVE' }).eq('id', announcement.id);
       if (error) throw error;
-      await logAction({ action: ADMIN_ACTIONS.APPROVE_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: announcement.id, oldValue: { status: announcement.status }, newValue: { status: 'ACTIVE', approved_at: approvedAt }, reason: `Anuncio "${announcement.title}" aprovado apos revisao manual` });
+      await logAction({ action: ADMIN_ACTIONS.APPROVE_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: announcement.id, oldValue: { status: announcement.status }, newValue: { status: 'ACTIVE' }, reason: `Anuncio "${announcement.title}" aprovado apos revisao manual` });
       toast.success('Anuncio aprovado com sucesso');
       await loadPendingAnnouncements();
     } catch (error) {
@@ -137,12 +139,10 @@ const ModerationQueue: React.FC = () => {
 
   const handleFeature = async (announcement: PendingAnnouncement) => {
     try {
-      const approvedAt = new Date().toISOString();
-      const featuredUntil = new Date(); featuredUntil.setDate(featuredUntil.getDate() + 30);
-      const { error } = await supabase.from('announcements').update({ status: 'ACTIVE', approved_at: approvedAt, featured: true, featured_until: featuredUntil.toISOString() }).eq('id', announcement.id);
+      const { error } = await supabase.from('announcements').update({ status: 'ACTIVE' }).eq('id', announcement.id);
       if (error) throw error;
-      await logAction({ action: ADMIN_ACTIONS.FEATURE_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: announcement.id, oldValue: { status: announcement.status, featured: false }, newValue: { status: 'ACTIVE', featured: true, featured_until: featuredUntil.toISOString() }, reason: `Anuncio "${announcement.title}" aprovado e destacado por 30 dias` });
-      toast.success('Anuncio aprovado e destacado');
+      await logAction({ action: ADMIN_ACTIONS.FEATURE_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: announcement.id, oldValue: { status: announcement.status }, newValue: { status: 'ACTIVE' }, reason: `Anuncio "${announcement.title}" aprovado com prioridade manual` });
+      toast.success('Anuncio aprovado');
       await loadPendingAnnouncements();
     } catch (error) {
       console.error('[ModerationQueue] Erro ao destacar:', error);

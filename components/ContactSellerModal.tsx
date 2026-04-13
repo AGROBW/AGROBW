@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Send, AlertCircle, Check } from 'lucide-react';
+import { X, Send, AlertCircle } from 'lucide-react';
 import { supabase } from '../src/lib/supabaseClient';
 import { useAuth } from '../src/contexts/AuthContext';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { LEAD_STATUS, CHAT_STATUS } from '../constants/status';
 import { useLayout } from '../src/contexts/LayoutContext';
 
@@ -278,7 +278,9 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
       // TODO: Integração futura com WhatsApp
       // await sendWhatsAppNotification(sellerId, formData.message);
 
-      toast.success('Mensagem enviada! O vendedor receberá uma notificação.');
+      toast.success('Mensagem enviada!', {
+        description: 'O vendedor recebeu seu contato e a conversa foi iniciada com sucesso.',
+      });
 
       onClose();
       

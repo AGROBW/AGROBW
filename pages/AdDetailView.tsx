@@ -56,6 +56,19 @@ const AdDetailView: React.FC = () => {
     );
   }
 
+  if (ad.status !== 'ACTIVE') {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-4">
+        <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" strokeWidth={1.5} />
+        <h2 className="text-2xl font-bold text-slate-800 mb-4">Anuncio indisponivel</h2>
+        <p className="text-slate-600 mb-4 text-center max-w-xl">
+          Este anuncio nao esta mais disponivel para visualizacao publica porque venceu ou saiu do ar.
+        </p>
+        <Link to="/anuncios" className="text-green-700 font-bold hover:underline">Voltar para anuncios</Link>
+      </div>
+    );
+  }
+
   // Fallback: se price for 0, usar unit_price
   const priceToDisplay = ad.price > 0 ? ad.price : ((ad as any).unit_price || 0);
   const formattedPrice = new Intl.NumberFormat('pt-BR', {

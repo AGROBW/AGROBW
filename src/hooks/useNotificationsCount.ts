@@ -117,6 +117,7 @@ export const useNotificationsCount = (): NotificationCounts => {
     if (!user) return
 
     let chatsChannel: RealtimeChannel | null = null
+    let messagesChannel: RealtimeChannel | null = null
 
     chatsChannel = supabase
       .channel('chats_count_changes')
@@ -146,9 +147,27 @@ export const useNotificationsCount = (): NotificationCounts => {
       )
       .subscribe()
 
+    messagesChannel = supabase
+      .channel('messages_count_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages'
+        },
+        () => {
+          void fetchMessagesCount()
+        }
+      )
+      .subscribe()
+
     return () => {
       if (chatsChannel) {
         supabase.removeChannel(chatsChannel)
+      }
+      if (messagesChannel) {
+        supabase.removeChannel(messagesChannel)
       }
     }
   }, [user?.id])
