@@ -1,10 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/email/process-jobs",
-      "schedule": "* * * * *"
-    }
-  ],
   "functions": {
     "api/email/*.mjs": {
       "maxDuration": 60
