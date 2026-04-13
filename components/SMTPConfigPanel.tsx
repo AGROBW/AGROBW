@@ -218,6 +218,9 @@ export const SMTPConfigPanel: React.FC = () => {
                     )}
                   </button>
                 </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  A senha nao volta do backend. Preencha esse campo apenas se quiser alterar a credencial SMTP.
+                </p>
               </div>
             </div>
 

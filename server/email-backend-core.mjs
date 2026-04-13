@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+import crypto from 'node:crypto';
 
 export const APP_URL = process.env.APP_URL || process.env.VITE_APP_URL || 'https://bwagro.com.br';
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -16,6 +17,8 @@ export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
 export const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+
+const EMAIL_CONFIG_SECRET = process.env.EMAIL_CONFIG_SECRET || process.env.EMAIL_BACKEND_SECRET || '';
 
 export const clampLimit = (value, fallback = 25) => {
   const parsed = Number(value);
@@ -54,6 +57,47 @@ export const requireAdminByToken = async (token) => {
   return { ok: true, user };
 };
 
+const deriveKey = () => {
+  if (!EMAIL_CONFIG_SECRET) {
+    throw new Error('Missing EMAIL_CONFIG_SECRET or EMAIL_BACKEND_SECRET');
+  }
+
+  return crypto.createHash('sha256').update(EMAIL_CONFIG_SECRET).digest();
+};
+
+const isEncryptedValue = (value) => typeof value === 'string' && value.startsWith('enc:v1:');
+
+export const encryptSecret = (plainText) => {
+  if (!plainText) return '';
+
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', deriveKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(String(plainText), 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return `enc:v1:${iv.toString('base64')}:${tag.toString('base64')}:${encrypted.toString('base64')}`;
+};
+
+export const decryptSecret = (value) => {
+  if (!value) return '';
+  if (!isEncryptedValue(value)) return value;
+
+  const [, , ivB64, tagB64, dataB64] = value.split(':');
+  const decipher = crypto.createDecipheriv(
+    'aes-256-gcm',
+    deriveKey(),
+    Buffer.from(ivB64, 'base64')
+  );
+  decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(dataB64, 'base64')),
+    decipher.final(),
+  ]);
+
+  return decrypted.toString('utf8');
+};
+
 export const loadSmtpSettings = async () => {
   const { data, error } = await supabaseAdmin
     .from('smtp_settings')
@@ -69,7 +113,10 @@ export const loadSmtpSettings = async () => {
     return null;
   }
 
-  return data;
+  return {
+    ...data,
+    password: decryptSecret(data.password || ''),
+  };
 };
 
 export const validateSmtpSettings = (settings) => {
@@ -79,6 +126,61 @@ export const validateSmtpSettings = (settings) => {
   }
   return null;
 };
+
+export const getStoredSmtpSettings = async () => {
+  const { data, error } = await supabaseAdmin
+    .from('smtp_settings')
+    .select('id, host, port, user_name, password, encryption, from_email, from_name, is_active, updated_at')
+    .eq('id', 'smtp_config_1')
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load SMTP settings: ${error.message}`);
+  }
+
+  if (!data) return null;
+
+  return data;
+};
+
+export const saveSmtpSettings = async (payload) => {
+  const current = await getStoredSmtpSettings();
+  const nextPassword = payload.password
+    ? encryptSecret(payload.password)
+    : current?.password || '';
+
+  const record = {
+    id: 'smtp_config_1',
+    host: payload.host,
+    port: payload.port,
+    user_name: payload.user_name,
+    password: nextPassword,
+    encryption: payload.encryption,
+    from_email: payload.from_email,
+    from_name: payload.from_name,
+    is_active: payload.is_active,
+  };
+
+  const { error } = await supabaseAdmin.from('smtp_settings').upsert(record);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return record;
+};
+
+export const mapStoredSmtpSettingsToClient = (row) => ({
+  id: row.id,
+  host: row.host,
+  port: row.port,
+  user: row.user_name,
+  password: '',
+  encryption: row.encryption,
+  fromEmail: row.from_email,
+  fromName: row.from_name,
+  isActive: row.is_active,
+  updatedAt: row.updated_at,
+});
 
 export const buildTransporter = (settings) => {
   const port = Number(settings.port || 587);

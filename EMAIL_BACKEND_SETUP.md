@@ -37,8 +37,10 @@ SUPABASE_SERVICE_ROLE_KEY=SEU_SERVICE_ROLE_KEY
 APP_URL=https://seudominio.com.br
 EMAIL_BACKEND_PORT=4010
 EMAIL_BACKEND_SECRET=UMA_CHAVE_FORTE
+EMAIL_CONFIG_SECRET=UMA_CHAVE_FORTE_PARA_CRIPTOGRAFAR_O_SMTP
 EMAIL_PROCESSOR_AUTO_START=false
 EMAIL_PROCESSOR_INTERVAL_MS=60000
+CRON_SECRET=UM_SEGREDO_PARA_O_CRON
 ```
 
 Para o frontend usar esse backend no painel SMTP:
@@ -80,6 +82,8 @@ SUPABASE_ANON_KEY=SEU_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY=SEU_SERVICE_ROLE_KEY
 APP_URL=https://SEU-PROJETO.vercel.app
 EMAIL_BACKEND_SECRET=UMA_CHAVE_FORTE
+EMAIL_CONFIG_SECRET=UMA_CHAVE_FORTE_PARA_CRIPTOGRAFAR_O_SMTP
+CRON_SECRET=UM_SEGREDO_PARA_O_CRON
 ```
 
 3. o painel SMTP vai chamar as rotas `/api/email/...` da propria Vercel
@@ -88,6 +92,7 @@ Observacao:
 
 - isso serve bem para teste
 - para operacao continua em producao, o backend tradicional continua sendo o caminho mais solido
+- o SMTP agora deve ser salvo e lido pelo backend para manter a senha criptografada no banco
 
 ## Autenticacao
 
@@ -133,6 +138,16 @@ Invoke-RestMethod `
 ```bash
 * * * * * curl -X POST http://localhost:4010/api/email/process-jobs -H "x-email-backend-secret: SUA_CHAVE_FORTE" -H "Content-Type: application/json" -d '{}'
 ```
+
+### Vercel
+
+Com `CRON_SECRET` configurado e o `vercel.json` publicado, a propria Vercel chama:
+
+- `/api/email/process-jobs`
+
+a cada 1 minuto.
+
+O cron usa autenticacao por `Authorization: Bearer <CRON_SECRET>`.
 
 ## Modo automatico
 

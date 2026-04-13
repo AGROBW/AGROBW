@@ -20,6 +20,27 @@ const mapRowToConfig = (row: any): SMTPConfig => ({
 });
 
 export const getSMTPConfig = async (): Promise<SMTPConfig | null> => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (emailBackendUrl) {
+    const response = await fetch(`${emailBackendUrl}/api/email/settings`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token || ''}`,
+      },
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.message || `Falha ao carregar configuracao SMTP (${response.status})`);
+    }
+
+    return payload?.data ? (payload.data as SMTPConfig) : null;
+  }
+
   const { data, error } = await supabase
     .from('smtp_settings')
     .select('*')
@@ -34,6 +55,37 @@ export const getSMTPConfig = async (): Promise<SMTPConfig | null> => {
 };
 
 export const saveSMTPConfig = async (config: SMTPConfig): Promise<void> => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (emailBackendUrl) {
+    const response = await fetch(`${emailBackendUrl}/api/email/settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token || ''}`,
+      },
+      body: JSON.stringify({
+        id: SMTP_CONFIG_ID,
+        host: config.host,
+        port: config.port,
+        user_name: config.user,
+        password: config.password,
+        encryption: config.encryption,
+        from_email: config.fromEmail,
+        from_name: config.fromName,
+        is_active: config.isActive,
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.message || `Falha ao salvar configuracao SMTP (${response.status})`);
+    }
+    return;
+  }
+
   const { error } = await supabase.from('smtp_settings').upsert({
     id: SMTP_CONFIG_ID,
     host: config.host,

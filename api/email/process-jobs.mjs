@@ -4,24 +4,27 @@ import {
 } from '../../server/email-backend-core.mjs';
 
 const EMAIL_BACKEND_SECRET = process.env.EMAIL_BACKEND_SECRET || '';
+const CRON_SECRET = process.env.CRON_SECRET || '';
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-email-backend-secret');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.status(200).json({ success: true });
     return;
   }
 
-  if (req.method !== 'POST') {
+  if (req.method !== 'POST' && req.method !== 'GET') {
     res.status(405).json({ success: false, message: 'Method not allowed' });
     return;
   }
 
   const secret = req.headers['x-email-backend-secret'];
-  if (!(EMAIL_BACKEND_SECRET && secret === EMAIL_BACKEND_SECRET)) {
-    const authHeader = req.headers.authorization || '';
+  const authHeader = req.headers.authorization || '';
+  const cronToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  if (!((EMAIL_BACKEND_SECRET && secret === EMAIL_BACKEND_SECRET) || (CRON_SECRET && cronToken === CRON_SECRET))) {
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
     const auth = await requireAdminByToken(token);
 
@@ -31,6 +34,7 @@ export default async function handler(req, res) {
     }
   }
 
-  const summary = await processAllQueues(req.body?.limit, 'admin');
+  const limit = req.method === 'POST' ? req.body?.limit : undefined;
+  const summary = await processAllQueues(limit, cronToken === CRON_SECRET ? 'cron' : 'admin');
   res.status(200).json({ success: true, summary });
 }
