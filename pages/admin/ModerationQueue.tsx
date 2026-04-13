@@ -12,7 +12,6 @@ interface PendingAnnouncement {
   category?: string;
   category_slug?: string;
   price: number;
-  type: 'VENDA' | 'COMPRA';
   status: string;
   created_at: string;
   user_id: string;
@@ -68,7 +67,7 @@ const ModerationQueue: React.FC = () => {
     if (ids.length === 0) return new Map<string, PendingAnnouncement>();
     const { data, error } = await supabase
       .from('announcements')
-      .select('id,title,description,category_slug,price,type,status,created_at,user_id,images')
+      .select('id,title,description,category_slug,price,status,created_at,user_id,images')
       .in('id', ids);
     if (error) throw error;
     return new Map(((data || []) as PendingAnnouncement[]).map((item) => [item.id, item]));
@@ -243,13 +242,12 @@ const ModerationQueue: React.FC = () => {
         <div className="overflow-x-auto">
           {activeTab === 'announcements' ? (
             <table className="w-full">
-              <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Anuncio</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Categoria</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Tipo</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Anunciante</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Data</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Acoes</th></tr></thead>
+              <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Anuncio</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Categoria</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Anunciante</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Data</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Acoes</th></tr></thead>
               <tbody className="divide-y divide-slate-200">
-                {loading ? <tr><td colSpan={6} className="px-6 py-12 text-center"><div className="flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-green-600"></div></div></td></tr> : announcements.length === 0 ? <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500">Nenhum anuncio pendente de moderacao</td></tr> : announcements.map((announcement) => (
+                {loading ? <tr><td colSpan={5} className="px-6 py-12 text-center"><div className="flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-green-600"></div></div></td></tr> : announcements.length === 0 ? <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">Nenhum anuncio pendente de moderacao</td></tr> : announcements.map((announcement) => (
                   <tr key={announcement.id} className="transition-colors hover:bg-slate-50">
                     <td className="px-6 py-4"><div className="flex items-start gap-3"><div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">{announcement.images?.[0] ? <img src={announcement.images[0]} alt={announcement.title} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><AlertTriangle className="h-6 w-6" /></div>}</div><div className="min-w-0 flex-1"><p className="truncate font-semibold text-slate-900">{announcement.title}</p><p className="line-clamp-2 text-sm text-slate-500">{announcement.description}</p><p className="mt-1 text-sm font-bold text-green-600">R$ {announcement.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div></div></td>
                     <td className="px-6 py-4"><span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">{getAnnouncementGroupLabel(announcement)}</span></td>
-                    <td className="px-6 py-4"><span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${announcement.type === 'VENDA' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}>{announcement.type}</span></td>
                     <td className="px-6 py-4"><div className="text-sm"><p className="font-semibold text-slate-900">{announcement.owner?.name}</p><p className="text-slate-500">{announcement.owner?.email}</p></div></td>
                     <td className="px-6 py-4 text-sm text-slate-500">{new Date(announcement.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
                     <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApprove(announcement)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedEditRequest(null); setSelectedAnnouncement(announcement); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar"><X className="h-5 w-5" /></button><button onClick={() => void handleFeature(announcement)} className="rounded-lg p-2 text-yellow-600 hover:bg-yellow-50" title="Aprovar e destacar"><Star className="h-5 w-5" /></button><button onClick={() => window.open(`/#/anuncio/${announcement.id}`, '_blank')} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Visualizar"><Eye className="h-5 w-5" /></button></div></td>
