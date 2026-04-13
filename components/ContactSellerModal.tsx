@@ -138,6 +138,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
       }
 
       let chatId = existingChat?.id;
+      let existingLeadId: string | null = null;
 
       if (!chatId) {
         const { data: newChat, error: chatError } = await supabase
@@ -217,6 +218,68 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         }
 
         console.log('[Lead] Lead criado com sucesso! ID:', leadData.id);
+      } else {
+        const { data: existingLead, error: existingLeadError } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('chat_id', chatId)
+          .maybeSingle();
+
+        if (existingLeadError) {
+          console.error('[Lead] Erro ao verificar lead existente:', existingLeadError);
+          toast.error('Erro ao validar o contato.', {
+            description: 'Nao foi possivel confirmar o lead dessa conversa. Tente novamente.',
+          });
+          return;
+        }
+
+        existingLeadId = existingLead?.id ?? null;
+
+        if (!existingLeadId) {
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('name, email, phone, cep')
+            .eq('id', user.id)
+            .single();
+
+          if (userError) {
+            console.warn('[Lead] Erro ao buscar dados do usuario para recriar lead:', userError);
+          }
+
+          const buyerName = formData.name?.trim() || userData?.name?.trim() || user.email?.split('@')[0] || 'Comprador';
+          const buyerEmail = formData.email?.trim() || userData?.email?.trim() || user.email || '';
+          const buyerPhone = formData.phone?.trim() || userData?.phone?.trim() || null;
+          const buyerCep = formData.cep?.trim() || userData?.cep?.trim() || null;
+
+          const { data: recoveredLead, error: recoveredLeadError } = await supabase
+            .from('leads')
+            .insert({
+              chat_id: chatId,
+              announcement_id: announcementId,
+              buyer_id: user.id,
+              seller_id: sellerId,
+              buyer_name: buyerName,
+              buyer_email: buyerEmail,
+              buyer_phone: buyerPhone,
+              buyer_cep: buyerCep,
+              initial_message: formData.message,
+              status: LEAD_STATUS.NEW,
+            })
+            .select('id')
+            .single();
+
+          if (recoveredLeadError) {
+            console.error('[Lead] ERRO ao recriar lead ausente:', recoveredLeadError);
+            console.error('[Lead] Detalhes do erro:', JSON.stringify(recoveredLeadError, null, 2));
+            toast.error('Erro ao registrar interesse.', {
+              description: 'Nao foi possivel recriar o lead desta conversa. Tente novamente.',
+            });
+            return;
+          }
+
+          existingLeadId = recoveredLead.id;
+          console.log('[Lead] Lead ausente recriado com sucesso! ID:', existingLeadId);
+        }
       }
 
       const { error: messageError } = await supabase

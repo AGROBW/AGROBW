@@ -19,6 +19,7 @@ declare
   v_status text := 'pending';
   v_last_error text := null;
   v_message_count integer := 0;
+  v_has_lead boolean := false;
 begin
   select
     case
@@ -40,6 +41,13 @@ begin
   from public.messages m
   where m.chat_id = new.chat_id;
 
+  select exists (
+    select 1
+    from public.leads l
+    where l.chat_id = new.chat_id
+  )
+  into v_has_lead;
+
   select
     coalesce(nullif(trim(u.name), ''), split_part(coalesce(u.email, ''), '@', 1), 'Usuario')
   into v_sender_name
@@ -55,7 +63,7 @@ begin
   from public.users u
   where u.id = v_recipient_user_id;
 
-  if v_message_count = 1 then
+  if v_message_count = 1 and v_has_lead then
     v_status := 'skipped';
     v_last_error := 'Primeira mensagem coberta pelo e-mail de lead';
   elsif v_recipient_user_id is null then
