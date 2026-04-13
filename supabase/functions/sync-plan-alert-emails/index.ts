@@ -1,6 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 import { SmtpClient } from 'https://deno.land/x/smtp@v0.7.0/mod.ts';
+import {
+  connectSmtpClientWithSettings,
+  loadSmtpSettings,
+  validateSmtpSettings,
+} from '../_shared/smtpSettings.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -102,35 +107,6 @@ const clampLimit = (value: unknown, fallback = 25) => {
   return Math.floor(parsed);
 };
 
-const connectSmtpClient = async (client: SmtpClient) => {
-  const smtpHost = Deno.env.get('SMTP_HOST');
-  const smtpPort = Number(Deno.env.get('SMTP_PORT') || '587');
-  const smtpUser = Deno.env.get('SMTP_USER');
-  const smtpPassword = Deno.env.get('SMTP_PASSWORD');
-  const smtpEncryption = (Deno.env.get('SMTP_ENCRYPTION') || 'TLS').toUpperCase();
-
-  if (!smtpHost || !smtpUser || !smtpPassword) {
-    throw new Error('SMTP secrets are not configured');
-  }
-
-  if (smtpEncryption === 'SSL' || smtpPort === 465) {
-    await client.connectTLS({
-      hostname: smtpHost,
-      port: smtpPort,
-      username: smtpUser,
-      password: smtpPassword,
-    });
-    return;
-  }
-
-  await client.connect({
-    hostname: smtpHost,
-    port: smtpPort,
-    username: smtpUser,
-    password: smtpPassword,
-  });
-};
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -216,9 +192,9 @@ serve(async (req) => {
     }
 
     const appUrl = Deno.env.get('APP_URL') || 'https://bwagro.com.br';
-    const siteName = Deno.env.get('SMTP_FROM_NAME') || 'AGRO BW';
-    const smtpFromEmail = Deno.env.get('SMTP_FROM_EMAIL');
-    const smtpFromName = Deno.env.get('SMTP_FROM_NAME') || 'AGRO BW';
+    const smtpSettings = await loadSmtpSettings(supabaseAdmin);
+    const smtpValidationError = validateSmtpSettings(smtpSettings);
+    const siteName = smtpSettings?.from_name || 'AGRO BW';
 
     let processedCount = 0;
     let sentCount = 0;
@@ -243,13 +219,15 @@ serve(async (req) => {
 
       processedCount += 1;
 
-      if (!claimedJob.recipient_email || !smtpFromEmail) {
+      if (!claimedJob.recipient_email || smtpValidationError) {
         skippedCount += 1;
         await supabaseAdmin
           .from('plan_alert_email_jobs')
           .update({
             status: 'skipped',
-            last_error: !claimedJob.recipient_email ? 'Usuario sem e-mail valido' : 'SMTP_FROM_EMAIL nao configurado',
+            last_error: !claimedJob.recipient_email
+              ? 'Usuario sem e-mail valido'
+              : smtpValidationError,
           })
           .eq('id', claimedJob.id);
         continue;
@@ -268,9 +246,9 @@ serve(async (req) => {
       const client = new SmtpClient();
 
       try {
-        await connectSmtpClient(client);
+        await connectSmtpClientWithSettings(client, smtpSettings!);
         await client.send({
-          from: `${smtpFromName} <${smtpFromEmail}>`,
+          from: `${smtpSettings!.from_name} <${smtpSettings!.from_email}>`,
           to: claimedJob.recipient_email,
           subject: email.subject,
           content: email.html,

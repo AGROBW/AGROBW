@@ -1,6 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 import { SmtpClient } from 'https://deno.land/x/smtp@v0.7.0/mod.ts';
+import {
+  connectSmtpClientWithSettings,
+  loadSmtpSettings,
+  validateSmtpSettings,
+} from '../_shared/smtpSettings.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -139,7 +144,9 @@ serve(async (req) => {
 
     const appUrl = Deno.env.get('APP_URL') || 'https://bwagro.com';
     const helpLink = `${appUrl.replace(/\/$/, '')}/#/minha-conta/ajuda`;
-    const siteName = Deno.env.get('SMTP_FROM_NAME') || 'AGRO BW';
+    const smtpSettings = await loadSmtpSettings(supabaseAdmin);
+    const smtpValidationError = validateSmtpSettings(smtpSettings);
+    const siteName = smtpSettings?.from_name || 'AGRO BW';
 
     const title =
       eventType === 'ticket_resolved'
@@ -165,17 +172,10 @@ serve(async (req) => {
       console.error('[notify-support-ticket-update] failed to insert site notification:', notificationError);
     }
 
-    const smtpHost = Deno.env.get('SMTP_HOST');
-    const smtpPort = Number(Deno.env.get('SMTP_PORT') || '587');
-    const smtpUser = Deno.env.get('SMTP_USER');
-    const smtpPassword = Deno.env.get('SMTP_PASSWORD');
-    const smtpFromEmail = Deno.env.get('SMTP_FROM_EMAIL');
-    const smtpFromName = Deno.env.get('SMTP_FROM_NAME') || siteName;
-
     let emailSent = false;
     let emailError: string | null = null;
 
-    if (ticketUser.email && smtpHost && smtpPort && smtpUser && smtpPassword && smtpFromEmail) {
+    if (ticketUser.email && !smtpValidationError) {
       const email = getEmailTemplate({
         appUrl,
         siteName,
@@ -190,15 +190,10 @@ serve(async (req) => {
       const client = new SmtpClient();
 
       try {
-        await client.connectTLS({
-          hostname: smtpHost,
-          port: smtpPort,
-          username: smtpUser,
-          password: smtpPassword,
-        });
+        await connectSmtpClientWithSettings(client, smtpSettings!);
 
         await client.send({
-          from: `${smtpFromName} <${smtpFromEmail}>`,
+          from: `${smtpSettings!.from_name} <${smtpSettings!.from_email}>`,
           to: ticketUser.email,
           subject: email.subject,
           content: email.html,
@@ -215,7 +210,7 @@ serve(async (req) => {
     } else if (!ticketUser.email) {
       emailError = 'User does not have email';
     } else {
-      emailError = 'SMTP secrets are not configured';
+      emailError = smtpValidationError || 'Configuracao SMTP do painel nao encontrada ou inativa';
     }
 
     return jsonResponse({
