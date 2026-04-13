@@ -4,6 +4,7 @@ import { supabase } from '../src/lib/supabaseClient';
 const SMTP_CONFIG_ID = 'smtp_config_1';
 const supabaseFunctionsUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const emailBackendUrl = import.meta.env.VITE_EMAIL_BACKEND_URL?.replace(/\/$/, '');
 
 const mapRowToConfig = (row: any): SMTPConfig => ({
   id: row.id,
@@ -54,6 +55,33 @@ const invokeSmtpFunction = async (body: Record<string, unknown>) => {
   const {
     data: { session },
   } = await supabase.auth.getSession();
+
+  if (emailBackendUrl) {
+    const backendPath = body.action === 'send_test_email' ? '/api/email/send-test' : '/api/email/test-connection';
+    const backendPayload = body.action === 'send_test_email'
+      ? { toEmail: body.toEmail }
+      : {};
+
+    const response = await fetch(`${emailBackendUrl}${backendPath}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token || ''}`,
+      },
+      body: JSON.stringify(backendPayload),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    const rawMessage = payload?.message || payload?.error;
+    const hint = payload?.hint;
+
+    return {
+      success: response.ok && Boolean(payload?.success),
+      message: hint && rawMessage
+        ? `${rawMessage} ${hint}`
+        : String(rawMessage || hint || `Falha ao chamar o backend de e-mail (${response.status})`),
+    };
+  }
 
   const response = await fetch(`${supabaseFunctionsUrl}/test-smtp-settings`, {
     method: 'POST',
