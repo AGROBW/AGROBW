@@ -283,6 +283,9 @@ const AppContent: React.FC = () => {
         position="top-right"
         expand={false}
         toastOptions={{
+          style: {
+            zIndex: 100000,
+          },
           classNames: {
             toast: 'rounded-2xl shadow-lg font-sans border border-slate-100',
             title: 'text-slate-900 font-bold',

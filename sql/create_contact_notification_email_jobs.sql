@@ -224,7 +224,7 @@ begin
     v_status,
     v_last_error
   )
-  on conflict (message_id) do nothing;
+  on conflict do nothing;
 
   return new;
 end;
@@ -291,7 +291,7 @@ begin
     v_status,
     v_last_error
   )
-  on conflict (lead_id) do nothing;
+  on conflict do nothing;
 
   return new;
 end;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Send, AlertCircle } from 'lucide-react';
 import { supabase } from '../src/lib/supabaseClient';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { LEAD_STATUS, CHAT_STATUS } from '../constants/status';
 import { useLayout } from '../src/contexts/LayoutContext';
 
-// Funções de máscara
 const applyPhoneMask = (value: string) => {
   const numbers = value.replace(/\D/g, '');
   if (numbers.length <= 10) {
@@ -33,22 +32,20 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
   onClose,
   announcementId,
   announcementTitle,
-  sellerId
+  sellerId,
 }) => {
   const { user } = useAuth();
   const { settings } = useLayout();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     cep: '',
-    message: ''
+    message: '',
   });
 
-  // Autopreenchimento com dados do usuário
   useEffect(() => {
     if (isOpen && user) {
       const fetchUserData = async () => {
@@ -64,7 +61,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             email: data.email || '',
             phone: data.phone || '',
             cep: data.cep || '',
-            message: `Olá, tenho interesse no anúncio: ${announcementTitle}`
+            message: `Ola, tenho interesse no anuncio: ${announcementTitle}`,
           });
         }
       };
@@ -75,26 +72,31 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) {
-      toast.error('Você precisa estar logado para enviar mensagens.');
+      toast.error('Voce precisa estar logado para enviar mensagens.', {
+        description: 'Entre na sua conta e tente novamente para falar com o vendedor.',
+      });
       return;
     }
 
     if (!acceptedTerms) {
-      toast.error('Você precisa aceitar os termos e condições.');
+      toast.error('Aceite os termos antes de continuar.', {
+        description: 'Marque a confirmacao de termos para liberar o envio da mensagem.',
+      });
       return;
     }
 
     if (user.id === sellerId) {
-      toast.error('Você não pode enviar mensagem para o seu próprio anúncio.');
+      toast.error('Nao e possivel falar com o seu proprio anuncio.', {
+        description: 'Esse contato e exclusivo para compradores interessados.',
+      });
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // 1. Verificar se já existe um chat
       const { data: announcementData, error: announcementError } = await supabase
         .from('announcements')
         .select('status, expires_at')
@@ -102,8 +104,9 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         .single();
 
       if (announcementError || !announcementData) {
-        toast.error('Nao foi possivel validar o anuncio antes do contato.');
-        setIsSubmitting(false);
+        toast.error('Nao foi possivel validar o anuncio antes do contato.', {
+          description: 'Atualize a pagina e tente novamente em seguida.',
+        });
         return;
       }
 
@@ -112,8 +115,9 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         new Date(announcementData.expires_at).getTime() <= Date.now();
 
       if (announcementData.status !== 'ACTIVE' || isExpiredByDate) {
-        toast.error('Este anuncio expirou e nao aceita novos contatos.');
-        setIsSubmitting(false);
+        toast.error('Este anuncio nao aceita novos contatos.', {
+          description: 'O anuncio expirou ou nao esta mais ativo na plataforma.',
+        });
         return;
       }
 
@@ -127,21 +131,15 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
 
       if (checkError) {
         console.error('[Chat] Erro ao verificar chat existente:', checkError);
-        toast.error('Erro ao verificar conversas existentes.');
-        setIsSubmitting(false);
+        toast.error('Erro ao verificar conversas existentes.', {
+          description: 'Tente novamente daqui a pouco.',
+        });
         return;
       }
 
       let chatId = existingChat?.id;
 
-      // 2. Se não existe chat, criar um novo
       if (!chatId) {
-        console.log('[Chat] Criando novo chat...', {
-          announcement_id: announcementId,
-          buyer_id: user.id,
-          seller_id: sellerId
-        });
-
         const { data: newChat, error: chatError } = await supabase
           .from('chats')
           .insert({
@@ -150,7 +148,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             seller_id: sellerId,
             status: CHAT_STATUS.NOVO,
             last_message: formData.message,
-            last_message_time: new Date().toISOString()
+            last_message_time: new Date().toISOString(),
           })
           .select('id')
           .single();
@@ -158,26 +156,25 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         if (chatError) {
           console.error('[Chat] Erro ao criar chat:', chatError);
           console.error('[Chat] Detalhes do erro:', JSON.stringify(chatError, null, 2));
-          
-          let errorMessage = 'Não foi possível iniciar a conversa.';
-          
+
+          let errorMessage = 'Nao foi possivel iniciar a conversa.';
+
           if (chatError.code === '23505') {
-            errorMessage = 'Você já possui uma conversa aberta para este anúncio.';
+            errorMessage = 'Voce ja possui uma conversa aberta para este anuncio.';
           } else if (chatError.code === '23503') {
-            errorMessage = 'Dados inválidos. Por favor, recarregue a página e tente novamente.';
+            errorMessage = 'Dados invalidos. Recarregue a pagina e tente novamente.';
           } else if (chatError.message?.includes('constraint')) {
-            errorMessage = 'Erro de validação. Verifique seus dados e tente novamente.';
+            errorMessage = 'Erro de validacao. Verifique seus dados e tente novamente.';
           }
-          
-          toast.error(errorMessage);
-          setIsSubmitting(false);
+
+          toast.error(errorMessage, {
+            description: 'Revise os dados do contato e tente novamente.',
+          });
           return;
         }
 
         chatId = newChat.id;
-        console.log('[Chat] Chat criado com sucesso! ID:', chatId);
 
-        // 3. Buscar dados atualizados do usuário para garantir completude do lead
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('name, email, phone, cep')
@@ -185,25 +182,13 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
           .single();
 
         if (userError) {
-          console.warn('[Lead] Erro ao buscar dados do usuário:', userError);
+          console.warn('[Lead] Erro ao buscar dados do usuario:', userError);
         }
 
-        // Usar dados do formulário com fallback para dados do banco
-        const buyerName = (formData.name?.trim() || userData?.name?.trim() || user.email?.split('@')[0] || 'Comprador');
-        const buyerEmail = (formData.email?.trim() || userData?.email?.trim() || user.email || '');
-        const buyerPhone = (formData.phone?.trim() || userData?.phone?.trim() || null);
-        const buyerCep = (formData.cep?.trim() || userData?.cep?.trim() || null);
-
-        console.log('[Lead] Criando lead com dados completos...', {
-          chat_id: chatId,
-          announcement_id: announcementId,
-          buyer_id: user.id,
-          seller_id: sellerId,
-          buyer_name: buyerName,
-          buyer_email: buyerEmail,
-          buyer_phone: buyerPhone,
-          buyer_cep: buyerCep
-        });
+        const buyerName = formData.name?.trim() || userData?.name?.trim() || user.email?.split('@')[0] || 'Comprador';
+        const buyerEmail = formData.email?.trim() || userData?.email?.trim() || user.email || '';
+        const buyerPhone = formData.phone?.trim() || userData?.phone?.trim() || null;
+        const buyerCep = formData.cep?.trim() || userData?.cep?.trim() || null;
 
         const { data: leadData, error: leadError } = await supabase
           .from('leads')
@@ -217,7 +202,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             buyer_phone: buyerPhone,
             buyer_cep: buyerCep,
             initial_message: formData.message,
-            status: LEAD_STATUS.NEW
+            status: LEAD_STATUS.NEW,
           })
           .select('id')
           .single();
@@ -225,35 +210,14 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         if (leadError) {
           console.error('[Lead] ERRO ao criar lead:', leadError);
           console.error('[Lead] Detalhes do erro:', JSON.stringify(leadError, null, 2));
-          toast.error('Erro ao registrar interesse. Tente novamente.');
-          setIsSubmitting(false);
+          toast.error('Erro ao registrar interesse.', {
+            description: 'Nao foi possivel criar o lead deste contato. Tente novamente.',
+          });
           return;
         }
 
         console.log('[Lead] Lead criado com sucesso! ID:', leadData.id);
-      } else {
-        console.log('[Chat] Chat já existe. ID:', chatId);
-        
-        // Verificar se já existe lead para este chat
-        const { data: existingLead } = await supabase
-          .from('leads')
-          .select('id')
-          .eq('chat_id', chatId)
-          .maybeSingle();
-        
-        if (existingLead) {
-          console.log('[Lead] Lead já existe para este chat. ID:', existingLead.id);
-        } else {
-          console.log('[Lead] AVISO: Chat existe mas não tem lead vinculado!');
-        }
       }
-
-      // 4. Enviar mensagem
-      console.log('[Message] Enviando mensagem...', {
-        chat_id: chatId,
-        sender_id: user.id,
-        content_length: formData.message.length
-      });
 
       const { error: messageError } = await supabase
         .from('messages')
@@ -261,50 +225,45 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
           chat_id: chatId,
           sender_id: user.id,
           content: formData.message,
-          is_read: false
+          is_read: false,
         });
 
       if (messageError) {
         console.error('[Message] Erro ao enviar mensagem:', messageError);
         console.error('[Message] Detalhes do erro:', JSON.stringify(messageError, null, 2));
-        toast.error('Erro ao enviar mensagem.');
-        setIsSubmitting(false);
+        toast.error('Erro ao enviar mensagem.', {
+          description: 'A conversa nao foi atualizada. Tente novamente em instantes.',
+        });
         return;
       }
 
-      console.log('[Message] Mensagem enviada com sucesso!');
-      console.log('[Contact] ✅ Fluxo completo executado com sucesso!');
-
-      // TODO: Integração futura com WhatsApp
-      // await sendWhatsAppNotification(sellerId, formData.message);
-
-      toast.success('Mensagem enviada!', {
+      toast.success('Mensagem enviada com sucesso.', {
         description: 'O vendedor recebeu seu contato e a conversa foi iniciada com sucesso.',
       });
 
       onClose();
-      
-      // Limpar formulário após fechar
+
       setTimeout(() => {
         setFormData({
           name: '',
           email: '',
           phone: '',
           cep: '',
-          message: ''
+          message: '',
         });
         setAcceptedTerms(false);
       }, 300);
-
     } catch (error) {
       console.error('[Contact] Erro inesperado:', error);
-      toast.error('Erro ao processar sua solicitação.');
+      toast.error('Erro ao processar sua solicitacao.', {
+        description: 'Algo saiu do esperado durante o contato com o vendedor.',
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const isFormValid = 
+  const isFormValid =
     formData.name.trim() !== '' &&
     formData.email.trim() !== '' &&
     formData.message.trim() !== '' &&
@@ -313,38 +272,37 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
-        
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 p-6 flex items-center justify-between rounded-t-3xl z-10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-3xl border-b border-gray-100 bg-white p-6">
           <div>
             <h2 className="text-2xl font-black text-slate-900">Fale com o Vendedor</h2>
-            <p className="text-sm text-slate-500 mt-1">Envie uma mensagem sobre este anúncio</p>
+            <p className="mt-1 text-sm text-slate-500">Envie uma mensagem sobre este anuncio</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X className="w-6 h-6 text-slate-600" />
+          <button onClick={onClose} className="rounded-full p-2 transition-colors hover:bg-gray-100">
+            <X className="h-6 w-6 text-slate-600" />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          
-          {/* Info Alert */}
-          <div className="border rounded-2xl p-4 flex items-start gap-3" style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 8%, white)`, borderColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)` }}>
-            <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: settings.primaryColor }} />
+        <form onSubmit={handleSubmit} className="space-y-6 p-6">
+          <div
+            className="flex items-start gap-3 rounded-2xl border p-4"
+            style={{
+              backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 8%, white)`,
+              borderColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)`,
+            }}
+          >
+            <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" style={{ color: settings.primaryColor }} />
             <div className="text-sm" style={{ color: settings.textColor }}>
-              <p className="font-bold mb-1">Seus dados estão protegidos</p>
-              <p style={{ color: settings.secondaryColor }}>As informações abaixo serão compartilhadas apenas com o vendedor deste anúncio.</p>
+              <p className="mb-1 font-bold">Seus dados estao protegidos</p>
+              <p style={{ color: settings.secondaryColor }}>
+                As informacoes abaixo serao compartilhadas apenas com o vendedor deste anuncio.
+              </p>
             </div>
           </div>
 
-          {/* Nome */}
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">
+            <label className="mb-2 block text-sm font-bold text-slate-700">
               Nome Completo <span className="text-red-500">*</span>
             </label>
             <input
@@ -352,16 +310,15 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               readOnly={!!user}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed"
+              className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none transition-all disabled:cursor-not-allowed disabled:bg-gray-50"
               style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
               placeholder="Seu nome completo"
               required
             />
           </div>
 
-          {/* Email */}
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">
+            <label className="mb-2 block text-sm font-bold text-slate-700">
               E-mail <span className="text-red-500">*</span>
             </label>
             <input
@@ -369,19 +326,16 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               readOnly={!!user}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed"
+              className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none transition-all disabled:cursor-not-allowed disabled:bg-gray-50"
               style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
               placeholder="seu@email.com"
               required
             />
           </div>
 
-          {/* Telefone e CEP */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Telefone
-              </label>
+              <label className="mb-2 block text-sm font-bold text-slate-700">Telefone</label>
               <input
                 type="tel"
                 value={formData.phone}
@@ -391,16 +345,14 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
                 }}
                 readOnly={!!user}
                 maxLength={15}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed read-only:bg-gray-50 read-only:cursor-not-allowed"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none transition-all read-only:cursor-not-allowed read-only:bg-gray-50"
                 style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                 placeholder="(00) 00000-0000"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                CEP
-              </label>
+              <label className="mb-2 block text-sm font-bold text-slate-700">CEP</label>
               <input
                 type="text"
                 value={formData.cep}
@@ -410,40 +362,36 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
                 }}
                 readOnly={!!user}
                 maxLength={9}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 transition-all outline-none disabled:bg-gray-50 disabled:cursor-not-allowed read-only:bg-gray-50 read-only:cursor-not-allowed"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none transition-all read-only:cursor-not-allowed read-only:bg-gray-50"
                 style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                 placeholder="00000-000"
               />
             </div>
           </div>
 
-          {/* Mensagem */}
           <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">
+            <label className="mb-2 block text-sm font-bold text-slate-700">
               Mensagem <span className="text-red-500">*</span>
             </label>
             <textarea
               value={formData.message}
               onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 transition-all outline-none resize-none"
+              className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 outline-none transition-all"
               style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
               rows={5}
               placeholder="Escreva sua mensagem para o vendedor..."
               required
             />
-            <p className="text-xs text-slate-400 mt-2">
-              {formData.message.length} caracteres
-            </p>
+            <p className="mt-2 text-xs text-slate-400">{formData.message.length} caracteres</p>
           </div>
 
-          {/* Checkbox Termos */}
           <div className="flex items-start gap-3">
             <input
               type="checkbox"
               id="terms"
               checked={acceptedTerms}
               onChange={(e) => setAcceptedTerms(e.target.checked)}
-              className="mt-1 w-5 h-5 rounded border-gray-300"
+              className="mt-1 h-5 w-5 rounded border-gray-300"
               style={{ accentColor: settings.primaryColor }}
             />
             <label htmlFor="terms" className="text-sm text-slate-600">
@@ -453,35 +401,34 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
               </a>{' '}
               e a{' '}
               <a href="/privacidade" target="_blank" className="font-bold hover:underline" style={{ color: settings.primaryColor }}>
-                Política de Privacidade
+                Politica de Privacidade
               </a>
-              <span className="text-red-500 ml-1">*</span>
+              <span className="ml-1 text-red-500">*</span>
             </label>
           </div>
 
-          {/* Botões */}
           <div className="flex gap-4 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 px-6 rounded-xl border-2 border-gray-200 text-slate-700 font-bold hover:bg-gray-50 transition-colors"
+              className="flex-1 rounded-xl border-2 border-gray-200 px-6 py-3 font-bold text-slate-700 transition-colors hover:bg-gray-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={!isFormValid || isSubmitting}
-              className="flex-1 py-3 px-6 rounded-xl text-white font-bold disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl px-6 py-3 font-bold text-white transition-colors disabled:cursor-not-allowed disabled:bg-gray-300"
               style={{ backgroundColor: settings.primaryColor }}
             >
               {isSubmitting ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                   Enviando...
                 </>
               ) : (
                 <>
-                  <Send className="w-5 h-5" />
+                  <Send className="h-5 w-5" />
                   Enviar Mensagem
                 </>
               )}
