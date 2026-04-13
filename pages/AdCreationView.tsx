@@ -59,6 +59,13 @@ type VideoItem = {
   sizeBytes?: number;
 };
 
+type AnnouncementEditRequestRecord = {
+  id: string;
+  payload: Record<string, any>;
+  technical_details?: Array<{ label: string; value: string; icon_name?: string | null }> | null;
+  status: 'pending' | 'approved' | 'rejected';
+};
+
 const STORE_PRODUCT_CONDITIONS = [
   { value: 'novo', label: 'Novo' },
   { value: 'seminovo', label: 'Seminovo' },
@@ -467,7 +474,7 @@ const AdCreationView: React.FC = () => {
     const draft = localStorage.getItem('bwagro_ad_draft');
     if (draft) setFormData(JSON.parse(draft));
     const draftId = localStorage.getItem('bwagro_ad_draft_id');
-    if (draftId) setDraftAdId(draftId);
+    if (draftId && !editAdId) setDraftAdId(draftId);
   }, []);
 
   useEffect(() => {
@@ -495,11 +502,25 @@ const AdCreationView: React.FC = () => {
           return;
         }
 
+        const { data: pendingEditRequestData } = await supabase
+          .from('announcement_edit_requests')
+          .select('id,payload,technical_details,status')
+          .eq('announcement_id', editAdId)
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle<AnnouncementEditRequestRecord>();
+
         const fetchedTechnicalDetails = Array.isArray(adData.announcement_technical_details)
           ? adData.announcement_technical_details
           : [];
+        const requestPayload = pendingEditRequestData?.payload || {};
+        const sourceTechnicalDetails = Array.isArray(pendingEditRequestData?.technical_details) && pendingEditRequestData.technical_details.length > 0
+          ? pendingEditRequestData.technical_details
+          : fetchedTechnicalDetails;
 
-        const technicalDetails = fetchedTechnicalDetails.reduce((acc: Record<string, string>, item: { label: string; value: string }) => {
+        const technicalDetails = sourceTechnicalDetails.reduce((acc: Record<string, string>, item: { label: string; value: string }) => {
           const matchingField = (dbCategories.find((category) => category.id === adData.category_id)?.technical_fields_schema || [])
             .find((field: any) => normalizeTechnicalLabel(field.label || field.key || '') === normalizeTechnicalLabel(item.label));
 
@@ -511,42 +532,42 @@ const AdCreationView: React.FC = () => {
         }, {});
 
         const nextFormData = {
-          title: adData.title || '',
-          description: adData.description || '',
-          price: Number(adData.price || 0),
+          title: requestPayload.title ?? adData.title ?? '',
+          description: requestPayload.description ?? adData.description ?? '',
+          price: Number(requestPayload.price ?? adData.price ?? 0),
           priceNegotiable: false,
-          categoryGroupSlug: getCategoryGroupForCategorySlug(adData.category_slug)?.slug || getCategoryGroupBySlug(adData.category_slug)?.slug || adData.category_slug || '',
-          categoryId: adData.category_id || '',
-          categorySlug: adData.category_slug || '',
-          subCategoryId: adData.sub_category_id || '',
-          subCategoryLabel: adData.sub_category_label || '',
-          quantity: Number(adData.quantity || 1),
-          unit: adData.unit || 'Unidade',
-          unitPrice: Number(adData.unit_price || adData.price || 0),
-          currency: adData.currency || 'BRL',
+          categoryGroupSlug: getCategoryGroupForCategorySlug(requestPayload.category_slug || adData.category_slug)?.slug || getCategoryGroupBySlug(requestPayload.category_slug || adData.category_slug)?.slug || requestPayload.category_slug || adData.category_slug || '',
+          categoryId: requestPayload.category_id || adData.category_id || '',
+          categorySlug: requestPayload.category_slug || adData.category_slug || '',
+          subCategoryId: requestPayload.sub_category_id || adData.sub_category_id || '',
+          subCategoryLabel: requestPayload.sub_category_label || adData.sub_category_label || '',
+          quantity: Number(requestPayload.quantity ?? adData.quantity ?? 1),
+          unit: requestPayload.unit || adData.unit || 'Unidade',
+          unitPrice: Number(requestPayload.unit_price ?? adData.unit_price ?? adData.price ?? 0),
+          currency: requestPayload.currency || adData.currency || 'BRL',
           location: {
-            cep: adData.cep || '',
-            city: adData.city || '',
-            state: adData.state || ''
+            cep: requestPayload.cep || adData.cep || '',
+            city: requestPayload.city || adData.city || '',
+            state: requestPayload.state || adData.state || ''
           },
-          productCondition: adData.product_condition || '',
-          availability: adData.availability || '',
-          acceptsTrade: Boolean(adData.accepts_trade),
-          hasWarranty: Boolean(adData.has_warranty),
-          warrantyDetails: adData.warranty_details || '',
-          hasInvoice: Boolean(adData.has_invoice),
+          productCondition: requestPayload.product_condition || adData.product_condition || '',
+          availability: requestPayload.availability || adData.availability || '',
+          acceptsTrade: Boolean(requestPayload.accepts_trade ?? adData.accepts_trade),
+          hasWarranty: Boolean(requestPayload.has_warranty ?? adData.has_warranty),
+          warrantyDetails: requestPayload.warranty_details || adData.warranty_details || '',
+          hasInvoice: Boolean(requestPayload.has_invoice ?? adData.has_invoice),
           technical: technicalDetails,
-          images: Array.isArray(adData.images) ? adData.images : [],
-          videoUrl: adData.video_url || '',
-          videoStoragePath: adData.video_storage_path || '',
-          videoDurationSeconds: Number(adData.video_duration_seconds || 0),
-          videoSizeBytes: Number(adData.video_size_bytes || 0),
-          isPremium: Boolean(adData.is_premium)
+          images: Array.isArray(requestPayload.images) ? requestPayload.images : Array.isArray(adData.images) ? adData.images : [],
+          videoUrl: requestPayload.video_url || adData.video_url || '',
+          videoStoragePath: requestPayload.video_storage_path || adData.video_storage_path || '',
+          videoDurationSeconds: Number(requestPayload.video_duration_seconds ?? adData.video_duration_seconds ?? 0),
+          videoSizeBytes: Number(requestPayload.video_size_bytes ?? adData.video_size_bytes ?? 0),
+          isPremium: Boolean(requestPayload.is_premium ?? adData.is_premium)
         };
 
         setFormData(nextFormData);
         setImageItems(
-          (Array.isArray(adData.images) ? adData.images : []).map((url: string, index: number) => ({
+          (Array.isArray(nextFormData.images) ? nextFormData.images : []).map((url: string, index: number) => ({
             id: `${adData.id}-image-${index}`,
             previewUrl: url,
             publicUrl: url,
@@ -555,25 +576,28 @@ const AdCreationView: React.FC = () => {
           }))
         );
         setVideoItem(
-          adData.video_url
+          nextFormData.videoUrl
             ? {
                 id: `${adData.id}-video`,
-                previewUrl: adData.video_url,
-                publicUrl: adData.video_url,
-                storagePath: adData.video_storage_path || undefined,
+                previewUrl: nextFormData.videoUrl,
+                publicUrl: nextFormData.videoUrl,
+                storagePath: nextFormData.videoStoragePath || undefined,
                 uploading: false,
                 progress: 100,
-                durationSeconds: Number(adData.video_duration_seconds || 0) || undefined,
-                sizeBytes: Number(adData.video_size_bytes || 0) || undefined,
+                durationSeconds: Number(nextFormData.videoDurationSeconds || 0) || undefined,
+                sizeBytes: Number(nextFormData.videoSizeBytes || 0) || undefined,
               }
             : null
         );
-        setDraftAdId(adData.id);
-        setPendingTechnicalDetails(fetchedTechnicalDetails);
-        draftIdRef.current = adData.id;
+        setDraftAdId(null);
+        setPendingTechnicalDetails(sourceTechnicalDetails);
+        draftIdRef.current = null;
         loadedEditAdIdRef.current = adData.id;
         localStorage.setItem('bwagro_ad_draft', JSON.stringify(nextFormData));
-        localStorage.setItem('bwagro_ad_draft_id', adData.id);
+        localStorage.removeItem('bwagro_ad_draft_id');
+        if (pendingEditRequestData?.id) {
+          toast.info('Voce esta editando uma alteracao ja pendente. Ao salvar, a solicitacao existente sera atualizada.');
+        }
         setCurrentStep('DETAILS');
       } catch (error) {
         console.error('[AdCreation] Erro ao carregar anúncio para edição:', error);
@@ -915,8 +939,18 @@ const AdCreationView: React.FC = () => {
     videoSizeBytes: override?.videoSizeBytes ?? (hasStoreListingAccess ? (formData.videoSizeBytes || null) : null),
   });
 
+  const buildTechnicalDetailsPayload = () =>
+    technicalFieldsSchema
+      .filter((field) => formData.technical?.[field.key] && String(formData.technical[field.key]).trim() !== '')
+      .map((field) => ({
+        label: field.label,
+        value: String(formData.technical[field.key]),
+        icon_name: field.icon || 'Circle'
+      }));
+
   const ensureDraftAd = async (media: ReturnType<typeof buildCurrentDraftMedia>) => {
     if (!user?.id) return null;
+    if (isEditingExistingAd) return null;
     if (!ensureAdCreationAllowed()) return null;
     if (draftIdRef.current) return draftIdRef.current;
 
@@ -1037,6 +1071,7 @@ const AdCreationView: React.FC = () => {
   };
 
   const syncDraftMedia = async (media: ReturnType<typeof buildCurrentDraftMedia>) => {
+    if (isEditingExistingAd) return;
     const currentDraftId = await ensureDraftAd(media);
     const images = media.images;
     if (!currentDraftId) {
@@ -1481,7 +1516,7 @@ const AdCreationView: React.FC = () => {
         return;
       }
 
-      const payload = {
+      const editablePayload = {
         title: formData.title,
         description: formData.description,
         price: Number.isNaN(numericPrice) ? 0 : numericPrice,
@@ -1507,11 +1542,67 @@ const AdCreationView: React.FC = () => {
         video_storage_path: hasStoreListingAccess ? (formData.videoStoragePath || null) : null,
         video_duration_seconds: hasStoreListingAccess ? (formData.videoDurationSeconds || null) : null,
         video_size_bytes: hasStoreListingAccess ? (formData.videoSizeBytes || null) : null,
+        is_premium: !!formData.isPremium,
+        whatsapp: user?.whatsapp || user?.phone || null
+      };
+
+      const technicalDetailsPayload = buildTechnicalDetailsPayload();
+
+      if (isEditingExistingAd && editAdId) {
+        const { data: existingRequest } = await supabase
+          .from('announcement_edit_requests')
+          .select('id')
+          .eq('announcement_id', editAdId)
+          .eq('user_id', userId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle<{ id: string }>();
+
+        const requestData = {
+          announcement_id: editAdId,
+          user_id: userId,
+          payload: editablePayload,
+          technical_details: technicalDetailsPayload,
+          status: 'pending' as const,
+          rejection_reason: null,
+          reviewed_at: null,
+          reviewed_by: null
+        };
+
+        const requestResult = existingRequest?.id
+          ? await supabase
+              .from('announcement_edit_requests')
+              .update(requestData)
+              .eq('id', existingRequest.id)
+              .select('id')
+              .single()
+          : await supabase
+              .from('announcement_edit_requests')
+              .insert(requestData)
+              .select('id')
+              .single();
+
+        if (requestResult.error) {
+          toast.error('Erro ao enviar alteracoes para analise.', { description: requestResult.error.message });
+          return;
+        }
+
+        hasPublishedSuccessfullyRef.current = true;
+        localStorage.removeItem('bwagro_ad_draft');
+        localStorage.removeItem('bwagro_ad_draft_id');
+        setDraftAdId(null);
+        draftIdRef.current = null;
+        toast.success('Alteracoes enviadas para analise da equipe.');
+        navigate('/minha-conta/anuncios');
+        return;
+      }
+
+      const payload = {
+        ...editablePayload,
         user_id: userId,
         status: AdStatus.ACTIVE,
         expires_at: buildAnnouncementExpiresAt(),
-        is_premium: !!formData.isPremium,
-        whatsapp: user?.whatsapp || user?.phone || null
       };
 
       let data = null;
@@ -1592,7 +1683,7 @@ const AdCreationView: React.FC = () => {
       console.log('[Debug] Schema de campos técnicos:', technicalFieldsSchema);
 
       // Salvar especificações técnicas na tabela announcement_technical_details
-      if (technicalFieldsSchema.length > 0 && formData.technical) {
+      if (technicalDetailsPayload.length > 0) {
         // Limpar detalhes técnicos antigos (caso seja edição)
         const { error: deleteError } = await supabase
           .from('announcement_technical_details')
@@ -1605,18 +1696,12 @@ const AdCreationView: React.FC = () => {
           console.log('[Publish] Detalhes técnicos antigos removidos (se existiam)');
         }
 
-        const technicalDetailsToInsert = technicalFieldsSchema
-          .filter(field => {
-            const hasValue = formData.technical[field.key] && String(formData.technical[field.key]).trim() !== '';
-            console.log(`[Debug] Campo "${field.label}" (${field.key}):`, formData.technical[field.key], '| Incluir:', hasValue);
-            return hasValue;
-          })
-          .map(field => ({
-            announcement_id: announcementId,
-            label: field.label,
-            value: String(formData.technical[field.key]),
-            icon_name: field.icon || 'Circle'
-          }));
+        const technicalDetailsToInsert = technicalDetailsPayload.map(detail => ({
+          announcement_id: announcementId,
+          label: detail.label,
+          value: detail.value,
+          icon_name: detail.icon_name || 'Circle'
+        }));
 
         console.log('[Debug] Detalhes técnicos a serem inseridos:', technicalDetailsToInsert);
 

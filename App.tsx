@@ -5,6 +5,7 @@ import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LayoutProvider } from './src/contexts/LayoutContext';
 import { useAppSyncStatus } from './src/lib/appSyncStatus';
+import { useSiteAnalyticsTracking } from './src/hooks/useSiteAnalyticsTracking';
 import { ProtectedAdminRoute } from './components/ProtectedAdminRoute';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -41,6 +42,7 @@ const ModerationQueue = lazy(() => import('./pages/admin/ModerationQueue'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const CategoriesManagement = lazy(() => import('./pages/admin/CategoriesManagement'));
 const AnnouncementsMonitoring = lazy(() => import('./pages/admin/AnnouncementsMonitoring'));
+const SiteAnalyticsView = lazy(() => import('./pages/admin/SiteAnalyticsView'));
 const PaymentsManagement = lazy(() => import('./pages/admin/PaymentsManagement'));
 const NewsManagement = lazy(() => import('./pages/admin/NewsManagement'));
 const NewsletterSubscriptionsManagement = lazy(() => import('./pages/admin/NewsletterSubscriptionsManagement'));
@@ -135,9 +137,18 @@ class RouteErrorBoundary extends React.Component<{ children: React.ReactNode; re
 
 const AppContent: React.FC = () => {
   const location = useLocation();
+  const { user } = useAuth();
   const { isSyncing } = useAppSyncStatus();
   const isAdminPath = location.pathname.startsWith('/admin');
   const isUserAreaPath = location.pathname.startsWith('/minha-conta');
+
+  useSiteAnalyticsTracking({
+    pathname: location.pathname,
+    userId: user?.id ?? null,
+    isAdminArea: isAdminPath,
+    userCity: user?.cidade ?? null,
+    userState: user?.estado ?? null,
+  });
 
   return (
     <div className="min-h-screen flex flex-col font-sans antialiased text-slate-900">
@@ -234,6 +245,7 @@ const AppContent: React.FC = () => {
               <Route path="users" element={<UserManagement />} />
               <Route path="categories" element={<CategoriesManagement />} />
               <Route path="monitoring" element={<AnnouncementsMonitoring />} />
+              <Route path="statistics" element={<SiteAnalyticsView />} />
               <Route path="payments" element={<PaymentsManagement />} />
               <Route path="news" element={<NewsManagement />} />
               <Route path="newsletter" element={<NewsletterSubscriptionsManagement />} />

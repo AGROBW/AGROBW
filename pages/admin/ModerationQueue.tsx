@@ -1,23 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Check, 
-  X, 
-  Star, 
-  Eye, 
-  ChevronLeft, 
-  ChevronRight,
-  Filter,
-  Search,
-  AlertTriangle
-} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Eye, Filter, PencilLine, Search, Star, X } from 'lucide-react';
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { toast } from 'sonner';
-import {
-  CATEGORY_HIERARCHY,
-  getCategoryGroupBySlug,
-  getGroupCategorySlugs
-} from '../../src/lib/categoryHierarchy';
+import { CATEGORY_HIERARCHY, getCategoryGroupBySlug, getGroupCategorySlugs } from '../../src/lib/categoryHierarchy';
 
 interface PendingAnnouncement {
   id: string;
@@ -30,98 +16,106 @@ interface PendingAnnouncement {
   status: string;
   created_at: string;
   owner_id: string;
-  owner?: {
-    name: string;
-    email: string;
-    phone: string;
-  };
+  owner?: { name: string; email: string; phone: string };
   images?: string[];
 }
 
+interface PendingEditRequest {
+  id: string;
+  announcement_id: string;
+  user_id: string;
+  payload: Record<string, any>;
+  technical_details: Array<{ label: string; value: string; icon_name?: string | null }>;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  announcement?: PendingAnnouncement | null;
+  requester?: { name: string; email: string; phone: string };
+}
+
+type ModerationTab = 'announcements' | 'edits';
+const PAGE_SIZE = 20;
+
 const ModerationQueue: React.FC = () => {
   const { logAction } = useAdminAudit();
+  const [activeTab, setActiveTab] = useState<ModerationTab>('announcements');
   const [announcements, setAnnouncements] = useState<PendingAnnouncement[]>([]);
+  const [editRequests, setEditRequests] = useState<PendingEditRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
+  const [totalAnnouncementsCount, setTotalAnnouncementsCount] = useState(0);
+  const [totalEditRequestsCount, setTotalEditRequestsCount] = useState(0);
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<PendingAnnouncement | null>(null);
+  const [selectedEditRequest, setSelectedEditRequest] = useState<PendingEditRequest | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  const PAGE_SIZE = 20;
 
-  useEffect(() => {
-    loadPendingAnnouncements();
-  }, [page, filterCategory, searchTerm]);
+  useEffect(() => setPage(0), [activeTab, filterCategory, searchTerm]);
+  useEffect(() => { void (activeTab === 'announcements' ? loadPendingAnnouncements() : loadPendingEditRequests()); }, [activeTab, page, filterCategory, searchTerm]);
+
+  const totalCount = activeTab === 'announcements' ? totalAnnouncementsCount : totalEditRequestsCount;
+  const totalPages = Math.ceil(Math.max(totalCount, 1) / PAGE_SIZE);
+
+  const fetchOwnersMap = async (ids: string[]) => {
+    if (ids.length === 0) return new Map<string, PendingAnnouncement['owner']>();
+    const { data, error } = await supabase.from('users').select('id,name,email,phone').in('id', ids);
+    if (error) throw error;
+    return new Map((data || []).map((owner) => [owner.id, { name: owner.name, email: owner.email, phone: owner.phone }]));
+  };
+
+  const fetchAnnouncementsMap = async (ids: string[]) => {
+    if (ids.length === 0) return new Map<string, PendingAnnouncement>();
+    const { data, error } = await supabase.from('announcements').select('id,title,description,category,category_slug,price,type,status,created_at,owner_id,images').in('id', ids);
+    if (error) throw error;
+    return new Map(((data || []) as PendingAnnouncement[]).map((item) => [item.id, item]));
+  };
 
   const loadPendingAnnouncements = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('announcements')
-        .select('*', { count: 'exact' })
-        .eq('status', 'PENDING')
-        .order('created_at', { ascending: false })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
+      let query = supabase.from('announcements').select('*', { count: 'exact' }).eq('status', 'PENDING').order('created_at', { ascending: false }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       if (filterCategory !== 'all') {
         const groupedCategorySlugs = getGroupCategorySlugs(filterCategory);
-        if (groupedCategorySlugs.length > 0) {
-          query = query.in('category_slug', groupedCategorySlugs);
-        }
+        if (groupedCategorySlugs.length > 0) query = query.in('category_slug', groupedCategorySlugs);
       }
-
-      if (searchTerm) {
-        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
-      }
-
+      if (searchTerm) query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
       const { data, error, count } = await query;
-
       if (error) throw error;
-
-      const pendingAnnouncements = (data || []) as PendingAnnouncement[];
-      const ownerIds = Array.from(
-        new Set(
-          pendingAnnouncements
-            .map((announcement) => announcement.owner_id)
-            .filter(Boolean)
-        )
-      );
-
-      let ownersMap = new Map<string, PendingAnnouncement['owner']>();
-
-      if (ownerIds.length > 0) {
-        const { data: ownersData, error: ownersError } = await supabase
-          .from('users')
-          .select('id,name,email,phone')
-          .in('id', ownerIds);
-
-        if (ownersError) throw ownersError;
-
-        ownersMap = new Map(
-          (ownersData || []).map((owner) => [
-            owner.id,
-            {
-              name: owner.name,
-              email: owner.email,
-              phone: owner.phone,
-            },
-          ])
-        );
-      }
-
-      setAnnouncements(
-        pendingAnnouncements.map((announcement) => ({
-          ...announcement,
-          owner: announcement.owner_id ? ownersMap.get(announcement.owner_id) : undefined,
-        }))
-      );
-      setTotalCount(count || 0);
+      const rows = (data || []) as PendingAnnouncement[];
+      const ownersMap = await fetchOwnersMap(Array.from(new Set(rows.map((item) => item.owner_id).filter(Boolean))));
+      setAnnouncements(rows.map((item) => ({ ...item, owner: item.owner_id ? ownersMap.get(item.owner_id) : undefined })));
+      setTotalAnnouncementsCount(count || 0);
     } catch (error) {
-      console.error('[ModerationQueue] Erro ao carregar anúncios:', error);
-      toast.error('Erro ao carregar anúncios pendentes');
+      console.error('[ModerationQueue] Erro ao carregar anuncios:', error);
+      toast.error('Erro ao carregar anuncios pendentes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPendingEditRequests = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from('announcement_edit_requests').select('*').eq('status', 'pending').order('created_at', { ascending: false });
+      if (error) throw error;
+      let rows = ((data || []) as any[]).map((item) => ({ ...item, technical_details: Array.isArray(item.technical_details) ? item.technical_details : [] })) as PendingEditRequest[];
+      const announcementMap = await fetchAnnouncementsMap(Array.from(new Set(rows.map((item) => item.announcement_id))));
+      const ownersMap = await fetchOwnersMap(Array.from(new Set(rows.map((item) => item.user_id))));
+      rows = rows.map((item) => ({ ...item, announcement: announcementMap.get(item.announcement_id) || null, requester: ownersMap.get(item.user_id) }));
+      if (filterCategory !== 'all') {
+        const grouped = getGroupCategorySlugs(filterCategory);
+        rows = rows.filter((item) => grouped.includes(String(item.payload?.category_slug || item.announcement?.category_slug || '')));
+      }
+      if (searchTerm.trim()) {
+        const term = searchTerm.trim().toLowerCase();
+        rows = rows.filter((item) => String(item.payload?.title || item.announcement?.title || '').toLowerCase().includes(term) || String(item.payload?.description || item.announcement?.description || '').toLowerCase().includes(term));
+      }
+      setTotalEditRequestsCount(rows.length);
+      setEditRequests(rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE));
+    } catch (error) {
+      console.error('[ModerationQueue] Erro ao carregar edicoes:', error);
+      toast.error('Erro ao carregar edicoes pendentes');
     } finally {
       setLoading(false);
     }
@@ -129,398 +123,168 @@ const ModerationQueue: React.FC = () => {
 
   const handleApprove = async (announcement: PendingAnnouncement) => {
     try {
-      // 1. Buscar dados antigos
-      const oldValue = {
-        status: announcement.status,
-        approved_at: null
-      };
-
-      // 2. Atualizar status
-      const { error } = await supabase
-        .from('announcements')
-        .update({ 
-          status: 'ACTIVE',
-          approved_at: new Date().toISOString()
-        })
-        .eq('id', announcement.id);
-
+      const approvedAt = new Date().toISOString();
+      const { error } = await supabase.from('announcements').update({ status: 'ACTIVE', approved_at: approvedAt }).eq('id', announcement.id);
       if (error) throw error;
-
-      // 3. Registrar auditoria (OBRIGATÓRIO)
-      await logAction({
-        action: ADMIN_ACTIONS.APPROVE_AD,
-        resourceType: RESOURCE_TYPES.ANNOUNCEMENT,
-        resourceId: announcement.id,
-        oldValue,
-        newValue: {
-          status: 'ACTIVE',
-          approved_at: new Date().toISOString()
-        },
-        reason: `Anúncio "${announcement.title}" aprovado após revisão manual de conteúdo e compliance`
-      });
-
-      toast.success('Anúncio aprovado com sucesso!');
-      loadPendingAnnouncements();
+      await logAction({ action: ADMIN_ACTIONS.APPROVE_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: announcement.id, oldValue: { status: announcement.status }, newValue: { status: 'ACTIVE', approved_at: approvedAt }, reason: `Anuncio "${announcement.title}" aprovado apos revisao manual` });
+      toast.success('Anuncio aprovado com sucesso');
+      await loadPendingAnnouncements();
     } catch (error) {
       console.error('[ModerationQueue] Erro ao aprovar:', error);
-      toast.error('Erro ao aprovar anúncio');
-    }
-  };
-
-  const handleReject = async () => {
-    if (!selectedAnnouncement || !rejectionReason.trim()) {
-      toast.error('Informe o motivo da rejeição');
-      return;
-    }
-
-    try {
-      // 1. Buscar dados antigos
-      const oldValue = {
-        status: selectedAnnouncement.status,
-        rejection_reason: null
-      };
-
-      // 2. Atualizar status
-      const { error } = await supabase
-        .from('announcements')
-        .update({ 
-          status: 'REJECTED',
-          rejection_reason: rejectionReason,
-          rejected_at: new Date().toISOString()
-        })
-        .eq('id', selectedAnnouncement.id);
-
-      if (error) throw error;
-
-      // 3. Registrar auditoria (OBRIGATÓRIO)
-      await logAction({
-        action: ADMIN_ACTIONS.REJECT_AD,
-        resourceType: RESOURCE_TYPES.ANNOUNCEMENT,
-        resourceId: selectedAnnouncement.id,
-        oldValue,
-        newValue: {
-          status: 'REJECTED',
-          rejection_reason: rejectionReason,
-          rejected_at: new Date().toISOString()
-        },
-        reason: `Anúncio "${selectedAnnouncement.title}" rejeitado: ${rejectionReason}`
-      });
-
-      toast.success('Anúncio rejeitado');
-      setShowRejectModal(false);
-      setRejectionReason('');
-      setSelectedAnnouncement(null);
-      loadPendingAnnouncements();
-    } catch (error) {
-      console.error('[ModerationQueue] Erro ao rejeitar:', error);
-      toast.error('Erro ao rejeitar anúncio');
+      toast.error('Erro ao aprovar anuncio');
     }
   };
 
   const handleFeature = async (announcement: PendingAnnouncement) => {
     try {
-      // Aprovar e destacar simultaneamente
-      const featuredUntil = new Date();
-      featuredUntil.setDate(featuredUntil.getDate() + 30); // 30 dias de destaque
-
-      const oldValue = {
-        status: announcement.status,
-        featured: false
-      };
-
-      const { error } = await supabase
-        .from('announcements')
-        .update({ 
-          status: 'ACTIVE',
-          featured: true,
-          featured_until: featuredUntil.toISOString(),
-          approved_at: new Date().toISOString()
-        })
-        .eq('id', announcement.id);
-
+      const approvedAt = new Date().toISOString();
+      const featuredUntil = new Date(); featuredUntil.setDate(featuredUntil.getDate() + 30);
+      const { error } = await supabase.from('announcements').update({ status: 'ACTIVE', approved_at: approvedAt, featured: true, featured_until: featuredUntil.toISOString() }).eq('id', announcement.id);
       if (error) throw error;
-
-      // Registrar auditoria
-      await logAction({
-        action: ADMIN_ACTIONS.FEATURE_AD,
-        resourceType: RESOURCE_TYPES.ANNOUNCEMENT,
-        resourceId: announcement.id,
-        oldValue,
-        newValue: {
-          status: 'ACTIVE',
-          featured: true,
-          featured_until: featuredUntil.toISOString()
-        },
-        reason: `Anúncio "${announcement.title}" aprovado e destacado por 30 dias`
-      });
-
-      toast.success('Anúncio aprovado e destacado!');
-      loadPendingAnnouncements();
+      await logAction({ action: ADMIN_ACTIONS.FEATURE_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: announcement.id, oldValue: { status: announcement.status, featured: false }, newValue: { status: 'ACTIVE', featured: true, featured_until: featuredUntil.toISOString() }, reason: `Anuncio "${announcement.title}" aprovado e destacado por 30 dias` });
+      toast.success('Anuncio aprovado e destacado');
+      await loadPendingAnnouncements();
     } catch (error) {
       console.error('[ModerationQueue] Erro ao destacar:', error);
-      toast.error('Erro ao destacar anúncio');
+      toast.error('Erro ao destacar anuncio');
     }
   };
 
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const handleApproveEditRequest = async (request: PendingEditRequest) => {
+    if (!request.announcement) return toast.error('Anuncio original nao encontrado');
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const reviewerId = authData.user?.id || null;
+      const { error: announcementError } = await supabase.from('announcements').update(request.payload || {}).eq('id', request.announcement_id);
+      if (announcementError) throw announcementError;
+      await supabase.from('announcement_technical_details').delete().eq('announcement_id', request.announcement_id);
+      const details = (request.technical_details || []).map((detail) => ({ announcement_id: request.announcement_id, label: detail.label, value: detail.value, icon_name: detail.icon_name || 'Circle' }));
+      if (details.length > 0) {
+        const { error: detailsError } = await supabase.from('announcement_technical_details').insert(details);
+        if (detailsError) throw detailsError;
+      }
+      const { error: requestError } = await supabase.from('announcement_edit_requests').update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: reviewerId, rejection_reason: null }).eq('id', request.id);
+      if (requestError) throw requestError;
+      await logAction({ action: ADMIN_ACTIONS.APPROVE_AD_EDIT, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: request.announcement_id, oldValue: { title: request.announcement.title, description: request.announcement.description, price: request.announcement.price }, newValue: request.payload, reason: `Edicao do anuncio "${request.announcement.title}" aprovada pela moderacao` });
+      toast.success('Edicao aprovada e aplicada');
+      await loadPendingEditRequests();
+    } catch (error) {
+      console.error('[ModerationQueue] Erro ao aprovar edicao:', error);
+      toast.error('Erro ao aprovar edicao');
+    }
+  };
 
-  const getAnnouncementGroupLabel = (announcement: PendingAnnouncement) => {
-    const groupName = getCategoryGroupBySlug(announcement.category_slug)?.name;
-    return groupName || announcement.category || announcement.category_slug || 'Categoria';
+  const handleReject = async () => {
+    if (!rejectionReason.trim()) return toast.error('Informe o motivo da rejeicao');
+    try {
+      if (selectedEditRequest) {
+        const { data: authData } = await supabase.auth.getUser();
+        const reviewerId = authData.user?.id || null;
+        const { error } = await supabase.from('announcement_edit_requests').update({ status: 'rejected', rejection_reason: rejectionReason, reviewed_at: new Date().toISOString(), reviewed_by: reviewerId }).eq('id', selectedEditRequest.id);
+        if (error) throw error;
+        await logAction({ action: ADMIN_ACTIONS.REJECT_AD_EDIT, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: selectedEditRequest.announcement_id, oldValue: selectedEditRequest.payload, newValue: { status: 'rejected', rejection_reason: rejectionReason }, reason: `Edicao rejeitada: ${rejectionReason}` });
+        toast.success('Edicao rejeitada');
+        setSelectedEditRequest(null);
+        await loadPendingEditRequests();
+      } else if (selectedAnnouncement) {
+        const rejectedAt = new Date().toISOString();
+        const { error } = await supabase.from('announcements').update({ status: 'REJECTED', rejection_reason: rejectionReason, rejected_at: rejectedAt }).eq('id', selectedAnnouncement.id);
+        if (error) throw error;
+        await logAction({ action: ADMIN_ACTIONS.REJECT_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: selectedAnnouncement.id, oldValue: { status: selectedAnnouncement.status }, newValue: { status: 'REJECTED', rejection_reason: rejectionReason, rejected_at: rejectedAt }, reason: `Anuncio "${selectedAnnouncement.title}" rejeitado: ${rejectionReason}` });
+        toast.success('Anuncio rejeitado');
+        setSelectedAnnouncement(null);
+        await loadPendingAnnouncements();
+      }
+      setShowRejectModal(false);
+      setRejectionReason('');
+    } catch (error) {
+      console.error('[ModerationQueue] Erro ao rejeitar:', error);
+      toast.error('Erro ao rejeitar item');
+    }
+  };
+
+  const getAnnouncementGroupLabel = (announcement: PendingAnnouncement) => getCategoryGroupBySlug(announcement.category_slug)?.name || announcement.category || announcement.category_slug || 'Categoria';
+  const getEditRequestGroupLabel = (request: PendingEditRequest) => getCategoryGroupBySlug(String(request.payload?.category_slug || request.announcement?.category_slug || ''))?.name || request.announcement?.category || 'Categoria';
+  const getEditHighlights = (request: PendingEditRequest) => {
+    const current = request.announcement; if (!current) return ['Anuncio indisponivel'];
+    const next = request.payload || {}; const changes: string[] = [];
+    if ((next.title || '') !== (current.title || '')) changes.push('Titulo');
+    if ((next.description || '') !== (current.description || '')) changes.push('Descricao');
+    if (Number(next.price ?? current.price) !== Number(current.price)) changes.push('Preco');
+    if ((next.category_slug || current.category_slug || '') !== (current.category_slug || '')) changes.push('Categoria');
+    if (JSON.stringify(next.images || current.images || []) !== JSON.stringify(current.images || [])) changes.push('Midia');
+    if ((request.technical_details || []).length > 0) changes.push('Ficha tecnica');
+    return changes.length > 0 ? changes : ['Dados gerais'];
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-slate-900">Fila de Moderação</h1>
-          <p className="text-slate-500 mt-1">
-            {totalCount} anúncio{totalCount !== 1 ? 's' : ''} aguardando aprovação
-          </p>
+          <h1 className="mt-1 text-3xl font-black text-slate-900">Fila de Moderacao</h1>
+          <p className="mt-1 text-slate-500">{activeTab === 'announcements' ? `${totalAnnouncementsCount} anuncio${totalAnnouncementsCount !== 1 ? 's' : ''} aguardando aprovacao` : `${totalEditRequestsCount} edicao${totalEditRequestsCount !== 1 ? 'oes' : ''} aguardando aprovacao`}</p>
         </div>
-        <button
-          onClick={loadPendingAnnouncements}
-          className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors"
-        >
-          Atualizar
-        </button>
+        <button onClick={() => void (activeTab === 'announcements' ? loadPendingAnnouncements() : loadPendingEditRequests())} className="rounded-lg bg-green-500 px-4 py-2 font-semibold text-white hover:bg-green-600">Atualizar</button>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por título ou descrição..."
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-          </div>
+      <div className="flex flex-wrap gap-3">
+        <button type="button" onClick={() => setActiveTab('announcements')} className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-black ${activeTab === 'announcements' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-600'}`}>Novos anuncios <span className={`rounded-full px-2 py-0.5 text-[11px] ${activeTab === 'announcements' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'}`}>{totalAnnouncementsCount}</span></button>
+        <button type="button" onClick={() => setActiveTab('edits')} className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-black ${activeTab === 'edits' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-600'}`}>Edicoes <span className={`rounded-full px-2 py-0.5 text-[11px] ${activeTab === 'edits' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'}`}>{totalEditRequestsCount}</span></button>
+      </div>
 
-          {/* Category Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-slate-400" />
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              <option value="all">Todas as Categorias</option>
-              {CATEGORY_HIERARCHY.map((group) => (
-                <option key={group.slug} value={group.slug}>{group.name}</option>
-              ))}
-            </select>
-          </div>
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-4 md:flex-row">
+          <div className="flex-1"><div className="relative"><Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={activeTab === 'announcements' ? 'Buscar por titulo ou descricao...' : 'Buscar alteracoes por titulo ou descricao...'} className="w-full rounded-lg border border-slate-200 py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-green-500" /></div></div>
+          <div className="flex items-center gap-2"><Filter className="h-5 w-5 text-slate-400" /><select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="rounded-lg border border-slate-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"><option value="all">Todas as Categorias</option>{CATEGORY_HIERARCHY.map((group) => <option key={group.slug} value={group.slug}>{group.name}</option>)}</select></div>
         </div>
       </div>
 
-      {/* Announcements Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  Anúncio
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  Categoria
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  Tipo
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  Anunciante
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  Data
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-                    </div>
-                  </td>
-                </tr>
-              ) : announcements.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                    Nenhum anúncio pendente de moderação
-                  </td>
-                </tr>
-              ) : (
-                announcements.map((announcement) => (
-                  <tr key={announcement.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-start gap-3">
-                        <div className="w-16 h-16 bg-slate-100 rounded-lg flex-shrink-0 overflow-hidden">
-                          {announcement.images?.[0] ? (
-                            <img 
-                              src={announcement.images[0]} 
-                              alt={announcement.title}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-slate-400">
-                              <AlertTriangle className="w-6 h-6" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-slate-900 truncate">{announcement.title}</p>
-                          <p className="text-sm text-slate-500 line-clamp-2">{announcement.description}</p>
-                          <p className="text-sm font-bold text-green-600 mt-1">
-                            R$ {announcement.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                        {getAnnouncementGroupLabel(announcement)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                        announcement.type === 'VENDA' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-purple-100 text-purple-800'
-                      }`}>
-                        {announcement.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm">
-                        <p className="font-semibold text-slate-900">{announcement.owner?.name}</p>
-                        <p className="text-slate-500">{announcement.owner?.email}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-500">
-                      {new Date(announcement.created_at).toLocaleDateString('pt-BR', {
-                        day: '2-digit',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleApprove(announcement)}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                          title="Aprovar"
-                        >
-                          <Check className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedAnnouncement(announcement);
-                            setShowRejectModal(true);
-                          }}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Rejeitar"
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleFeature(announcement)}
-                          className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
-                          title="Aprovar e Destacar"
-                        >
-                          <Star className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => window.open(`/anuncio/${announcement.id}`, '_blank')}
-                          className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
-                          title="Visualizar"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
+          {activeTab === 'announcements' ? (
+            <table className="w-full">
+              <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Anuncio</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Categoria</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Tipo</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Anunciante</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Data</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Acoes</th></tr></thead>
+              <tbody className="divide-y divide-slate-200">
+                {loading ? <tr><td colSpan={6} className="px-6 py-12 text-center"><div className="flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-green-600"></div></div></td></tr> : announcements.length === 0 ? <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-500">Nenhum anuncio pendente de moderacao</td></tr> : announcements.map((announcement) => (
+                  <tr key={announcement.id} className="transition-colors hover:bg-slate-50">
+                    <td className="px-6 py-4"><div className="flex items-start gap-3"><div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">{announcement.images?.[0] ? <img src={announcement.images[0]} alt={announcement.title} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><AlertTriangle className="h-6 w-6" /></div>}</div><div className="min-w-0 flex-1"><p className="truncate font-semibold text-slate-900">{announcement.title}</p><p className="line-clamp-2 text-sm text-slate-500">{announcement.description}</p><p className="mt-1 text-sm font-bold text-green-600">R$ {announcement.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div></div></td>
+                    <td className="px-6 py-4"><span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">{getAnnouncementGroupLabel(announcement)}</span></td>
+                    <td className="px-6 py-4"><span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${announcement.type === 'VENDA' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}>{announcement.type}</span></td>
+                    <td className="px-6 py-4"><div className="text-sm"><p className="font-semibold text-slate-900">{announcement.owner?.name}</p><p className="text-slate-500">{announcement.owner?.email}</p></div></td>
+                    <td className="px-6 py-4 text-sm text-slate-500">{new Date(announcement.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                    <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApprove(announcement)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedEditRequest(null); setSelectedAnnouncement(announcement); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar"><X className="h-5 w-5" /></button><button onClick={() => void handleFeature(announcement)} className="rounded-lg p-2 text-yellow-600 hover:bg-yellow-50" title="Aprovar e destacar"><Star className="h-5 w-5" /></button><button onClick={() => window.open(`/#/anuncio/${announcement.id}`, '_blank')} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Visualizar"><Eye className="h-5 w-5" /></button></div></td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full">
+              <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Anuncio</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Alteracoes</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Anunciante</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Data</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Acoes</th></tr></thead>
+              <tbody className="divide-y divide-slate-200">
+                {loading ? <tr><td colSpan={5} className="px-6 py-12 text-center"><div className="flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-green-600"></div></div></td></tr> : editRequests.length === 0 ? <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">Nenhuma edicao pendente de moderacao</td></tr> : editRequests.map((request) => {
+                  const currentTitle = request.announcement?.title || 'Anuncio indisponivel';
+                  const proposedTitle = request.payload?.title || currentTitle;
+                  const currentPrice = Number(request.announcement?.price || 0);
+                  const proposedPrice = Number(request.payload?.price ?? currentPrice);
+                  return (
+                    <tr key={request.id} className="transition-colors hover:bg-slate-50">
+                      <td className="px-6 py-4"><div className="space-y-1"><div className="flex items-center gap-2"><span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-700"><PencilLine className="h-3.5 w-3.5" />Edicao</span><span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">{getEditRequestGroupLabel(request)}</span></div><p className="font-semibold text-slate-900">{currentTitle}</p>{proposedTitle !== currentTitle ? <p className="text-sm text-slate-500">Novo titulo: <span className="font-semibold text-slate-700">{proposedTitle}</span></p> : null}{proposedPrice !== currentPrice ? <p className="text-sm text-slate-500">Preco: <span className="font-semibold text-slate-700">R$ {currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span> para <span className="font-semibold text-green-700">R$ {proposedPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p> : null}</div></td>
+                      <td className="px-6 py-4"><div className="flex max-w-xs flex-wrap gap-2">{getEditHighlights(request).map((change) => <span key={change} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{change}</span>)}</div></td>
+                      <td className="px-6 py-4"><div className="text-sm"><p className="font-semibold text-slate-900">{request.requester?.name}</p><p className="text-slate-500">{request.requester?.email}</p></div></td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{new Date(request.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                      <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApproveEditRequest(request)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar edicao"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedAnnouncement(null); setSelectedEditRequest(request); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar edicao"><X className="h-5 w-5" /></button><button onClick={() => window.open(`/#/anuncio/${request.announcement_id}`, '_blank')} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Ver anuncio atual"><Eye className="h-5 w-5" /></button></div></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="border-t border-slate-200 px-6 py-4 flex items-center justify-between">
-            <p className="text-sm text-slate-500">
-              Página {page + 1} de {totalPages} ({totalCount} total)
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage(Math.max(0, page - 1))}
-                disabled={page === 0}
-                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
-                disabled={page >= totalPages - 1}
-                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Reject Modal */}
-      {showRejectModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Rejeitar Anúncio</h3>
-            <p className="text-slate-600 mb-4">
-              Informe o motivo da rejeição. Esta mensagem será enviada ao anunciante.
-            </p>
-            <textarea
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="Ex: Imagens de baixa qualidade, descrição incompleta, preço fora do padrão..."
-              className="w-full border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[120px]"
-            />
-            <div className="flex items-center gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setRejectionReason('');
-                  setSelectedAnnouncement(null);
-                }}
-                className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg font-semibold hover:bg-slate-50 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleReject}
-                disabled={!rejectionReason.trim()}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Rejeitar Anúncio
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {totalPages > 1 ? <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-6 py-4"><p className="text-sm text-slate-500">Pagina {page + 1} de {totalPages} ({totalCount} total)</p><div className="flex items-center gap-2"><button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"><ChevronLeft className="h-5 w-5" /></button><button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"><ChevronRight className="h-5 w-5" /></button></div></div> : null}
+
+      {showRejectModal ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6"><h3 className="mb-4 text-xl font-bold text-slate-900">{selectedEditRequest ? 'Rejeitar Edicao' : 'Rejeitar Anuncio'}</h3><p className="mb-4 text-slate-600">Informe o motivo da rejeicao. Esta mensagem ficara registrada para a equipe.</p><textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} placeholder="Ex: descricao inconsistente, midia inadequada, categoria incorreta..." className="min-h-[120px] w-full rounded-lg border border-slate-200 p-3 focus:outline-none focus:ring-2 focus:ring-red-500" /><div className="mt-6 flex items-center gap-3"><button onClick={() => { setShowRejectModal(false); setRejectionReason(''); setSelectedAnnouncement(null); setSelectedEditRequest(null); }} className="flex-1 rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-50">Cancelar</button><button onClick={() => void handleReject()} disabled={!rejectionReason.trim()} className="flex-1 rounded-lg bg-red-500 px-4 py-2 font-semibold text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50">Confirmar rejeicao</button></div></div></div> : null}
     </div>
   );
 };

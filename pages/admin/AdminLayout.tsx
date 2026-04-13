@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
+  Activity,
   BarChart3,
   Bell,
   ChevronDown,
@@ -21,7 +22,8 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { useNotificationsCount } from '../../src/hooks/useNotificationsCount';
+import AdminNotificationsModal from '../../components/admin/AdminNotificationsModal';
+import { fetchAdminNotificationItems, subscribeToAdminNotificationEvents } from '../../src/lib/adminNotificationCenter';
 
 interface AdminLayoutProps {
   children?: React.ReactNode;
@@ -29,10 +31,12 @@ interface AdminLayoutProps {
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const { user, signOut } = useAuth();
-  const { notificationsCount: unreadCount } = useNotificationsCount();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [moderationBadgeCount, setModerationBadgeCount] = useState(0);
+  const [adminNotificationCount, setAdminNotificationCount] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const navScrollRef = useRef<HTMLDivElement | null>(null);
   const [showSidebarScrollHint, setShowSidebarScrollHint] = useState(false);
 
@@ -47,7 +51,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'Fila de Moderacao',
       path: '/admin/moderation',
       icon: FileCheck,
-      badge: unreadCount > 0 ? unreadCount : undefined,
+      badge: moderationBadgeCount > 0 ? moderationBadgeCount : undefined,
     },
     {
       label: 'Gestao de Usuarios',
@@ -63,6 +67,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'Monitoramento',
       path: '/admin/monitoring',
       icon: BarChart3,
+    },
+    {
+      label: 'Estatisticas',
+      path: '/admin/statistics',
+      icon: Activity,
     },
     {
       label: 'Financeiro',
@@ -135,6 +144,54 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       window.removeEventListener('resize', updateHint);
     };
   }, [sidebarOpen]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAdminNotificationCounts = async () => {
+      try {
+        const items = await fetchAdminNotificationItems();
+
+        if (isMounted) {
+          setModerationBadgeCount(
+            items
+              .filter((item) => item.category === 'moderation')
+              .reduce((sum, item) => sum + item.count, 0),
+          );
+          setAdminNotificationCount(items.reduce((sum, item) => sum + item.count, 0));
+        }
+      } catch (error) {
+        console.error('[AdminLayout] Erro ao carregar badge da moderacao:', error);
+        if (isMounted) {
+          setModerationBadgeCount(0);
+          setAdminNotificationCount(0);
+        }
+      }
+    };
+
+    void loadAdminNotificationCounts();
+
+    const refreshOnFocus = () => {
+      void loadAdminNotificationCounts();
+    };
+
+    const unsubscribe = subscribeToAdminNotificationEvents(() => {
+      void loadAdminNotificationCounts();
+    });
+
+    const intervalId = window.setInterval(() => {
+      void loadAdminNotificationCounts();
+    }, 30000);
+
+    window.addEventListener('focus', refreshOnFocus);
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -280,13 +337,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
             <div className="flex items-center gap-4 ml-6">
               <button
-                onClick={() => navigate('/admin/notifications')}
+                onClick={() => setNotificationsOpen(true)}
                 className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors"
               >
                 <Bell className="w-5 h-5 text-slate-600" />
-                {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                )}
+                {adminNotificationCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white shadow-[0_10px_18px_-10px_rgba(239,68,68,0.95)]">
+                    {adminNotificationCount > 99 ? '99+' : adminNotificationCount}
+                  </span>
+                ) : null}
               </button>
 
               <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
@@ -305,6 +364,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </div>
         </main>
       </div>
+
+      <AdminNotificationsModal
+        isOpen={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+      />
     </div>
   );
 };
