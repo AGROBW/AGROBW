@@ -250,45 +250,152 @@ export const getLinkHref = (link) => {
   return `${APP_URL.replace(/\/$/, '')}/#${link}`;
 };
 
+const EMAIL_BRAND_LOGO_URL = process.env.EMAIL_BRAND_LOGO_URL || process.env.VITE_EMAIL_BRAND_LOGO_URL || '';
+const DEFAULT_EMAIL_BRAND = {
+  siteName: 'AGRO BW',
+  logoUrl: EMAIL_BRAND_LOGO_URL || '',
+};
+
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
+const renderEmailShell = ({
+  eyebrow,
+  title,
+  subtitle = '',
+  recipientName,
+  bodyHtml,
+  footerNote,
+  branding = DEFAULT_EMAIL_BRAND,
+}) => {
+  const safeTitle = escapeHtml(title);
+  const safeRecipientName = escapeHtml(recipientName || 'Cliente');
+  const safeEyebrow = escapeHtml(eyebrow || 'AGRO BW');
+  const safeSubtitle = subtitle ? escapeHtml(subtitle) : '';
+  const safeFooterNote = escapeHtml(
+    footerNote || 'Voce recebeu este aviso porque existe uma interacao ativa vinculada a sua conta.'
+  );
+  const safeSiteUrl = APP_URL.replace(/\/$/, '');
+  const brandName = branding?.siteName || DEFAULT_EMAIL_BRAND.siteName;
+  const brandLogoUrl = branding?.logoUrl || DEFAULT_EMAIL_BRAND.logoUrl;
+  const brandLogo = brandLogoUrl
+    ? `<img src="${escapeHtml(brandLogoUrl)}" alt="${escapeHtml(brandName)}" style="display:block;max-width:180px;max-height:46px;">`
+    : `<div style="display:inline-block;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.14);font-size:15px;font-weight:800;letter-spacing:0.24em;text-transform:uppercase;color:#ffffff;">${escapeHtml(brandName)}</div>`;
+
+  return `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+      <body style="margin:0;padding:24px;background:#eef3f8;font-family:Arial,sans-serif;color:#0f172a;">
+        <div style="max-width:680px;margin:0 auto;">
+          <div style="background:linear-gradient(135deg,#0f172a 0%,#16233b 58%,#13351f 100%);border-radius:26px 26px 0 0;padding:28px 32px 30px;color:#ffffff;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+              <div>${brandLogo}</div>
+              <div style="padding:8px 12px;border-radius:999px;background:rgba(134,239,172,0.12);border:1px solid rgba(134,239,172,0.22);font-size:11px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:#86efac;">${safeEyebrow}</div>
+            </div>
+            <h1 style="margin:0 0 12px;font-size:32px;line-height:1.12;font-weight:800;color:#ffffff;">${safeTitle}</h1>
+            ${
+              safeSubtitle
+                ? `<p style="margin:0;max-width:480px;font-size:15px;line-height:1.7;color:rgba(226,232,240,0.92);">${safeSubtitle}</p>`
+                : ''
+            }
+          </div>
+          <div style="background:#ffffff;border:1px solid #dbe5f0;border-top:0;border-radius:0 0 26px 26px;overflow:hidden;box-shadow:0 24px 60px rgba(15,23,42,0.08);">
+            <div style="padding:32px;">
+              <div style="margin:0 0 24px;padding:18px 20px;border-radius:18px;background:linear-gradient(180deg,#f8fbff 0%,#f1f6fb 100%);border:1px solid #dbe5f0;">
+                <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">Conta</p>
+                <p style="margin:0;font-size:17px;line-height:1.5;color:#0f172a;">Ola, <strong>${safeRecipientName}</strong>.</p>
+              </div>
+              ${bodyHtml}
+            </div>
+            <div style="padding:20px 32px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+              <p style="margin:0 0 10px;font-size:12px;line-height:1.7;color:#64748b;">${safeFooterNote}</p>
+              <p style="margin:0;font-size:12px;line-height:1.7;color:#94a3b8;">
+                ${escapeHtml(brandName)} · <a href="${safeSiteUrl}" style="color:#16a34a;text-decoration:none;font-weight:700;">${safeSiteUrl.replace(/^https?:\/\//, '')}</a>
+              </p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `.trim();
+};
+
+const renderPrimaryButton = (href, label) => {
+  if (!href) return '';
+  return `
+    <a href="${href}" style="display:inline-block;padding:15px 24px;border-radius:14px;background:linear-gradient(135deg,#16a34a 0%,#15803d 100%);color:#ffffff;text-decoration:none;font-weight:800;font-size:15px;box-shadow:0 12px 24px rgba(22,163,74,0.18);">
+      ${escapeHtml(label)}
+    </a>
+  `.trim();
+};
+
 export const getContactTemplate = (params) => {
   const isLead = params.sourceKind === 'new_lead';
   const title = isLead
     ? `Novo lead no anuncio ${params.announcementTitle}`
     : `Nova mensagem sobre ${params.announcementTitle}`;
   const linkHref = getLinkHref(params.link);
-  const ctaLabel = isLead ? 'Ver lead' : 'Abrir conversa';
-  const preview = params.messagePreview?.trim();
+  const isPlanLocked = params.lockReason === 'lead_contact_expired';
+  const isAnnouncementExpired = params.lockReason === 'announcement_expired';
+  const ctaLabel = isPlanLocked ? 'Ver meu plano' : isLead ? 'Ver lead' : 'Abrir conversa';
+  const preview = isPlanLocked || isAnnouncementExpired ? null : params.messagePreview?.trim();
+  const intro = isPlanLocked
+    ? 'Uma nova interacao foi registrada, mas o acesso ao conteúdo completo deste lead está bloqueado pelas regras do seu plano atual.'
+    : isAnnouncementExpired
+      ? 'Uma nova interacao foi registrada, mas este anuncio já expirou e a conversa está congelada para novas ações.'
+      : isLead
+        ? `${params.senderName} demonstrou interesse no seu anuncio e abriu um novo contato na ${params.siteName}.`
+        : `${params.senderName} enviou uma nova mensagem para voce na ${params.siteName}.`;
+  const accentBlock = isPlanLocked
+    ? `<div style="margin:0 0 24px;padding:18px 20px;border-radius:14px;background:#fff7ed;border:1px solid #fdba74;">
+         <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#c2410c;">Conteudo protegido</p>
+         <p style="margin:0;font-size:15px;line-height:1.7;color:#9a3412;">Seu plano atual nao permite visualizar os dados completos e o conteudo desta conversa. Faça upgrade para desbloquear o lead e responder normalmente.</p>
+       </div>`
+    : isAnnouncementExpired
+      ? `<div style="margin:0 0 24px;padding:18px 20px;border-radius:14px;background:#fef2f2;border:1px solid #fecaca;">
+           <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#b91c1c;">Conversa congelada</p>
+           <p style="margin:0;font-size:15px;line-height:1.7;color:#991b1b;">Este anuncio expirou. O historico continua registrado, mas novas mensagens e detalhes comerciais ficam bloqueados ate a republicacao ou renovacao adequada.</p>
+         </div>`
+      : '';
 
   return {
     subject: title,
-    html: `
-      <!DOCTYPE html>
-      <html lang="pt-BR"><body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
-      <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;">
-      <div style="padding:28px 32px;background:#0f172a;color:#ffffff;">
-      <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#86efac;">${isLead ? 'Novo lead' : 'Nova mensagem'}</p>
-      <h1 style="margin:0;font-size:24px;line-height:1.2;">${title}</h1></div>
-      <div style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:15px;">Ola, <strong>${params.recipientName}</strong>.</p>
-      <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#475569;">${
-        isLead
-          ? `${params.senderName} demonstrou interesse no seu anuncio e abriu um novo contato na ${params.siteName}.`
-          : `${params.senderName} enviou uma nova mensagem para voce na ${params.siteName}.`
-      }</p>
-      <div style="margin:0 0 20px;padding:18px 20px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">
-      <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">Anuncio</p>
-      <p style="margin:0;font-size:17px;font-weight:700;color:#0f172a;">${params.announcementTitle}</p></div>
-      ${
-        preview
-          ? `<div style="margin:0 0 24px;padding:18px 20px;border-radius:14px;background:#ecfdf5;border:1px solid #bbf7d0;"><p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#15803d;">${isLead ? 'Mensagem inicial' : 'Conteudo da mensagem'}</p><p style="margin:0;font-size:15px;line-height:1.7;color:#166534;">${preview}</p></div>`
-          : ''
-      }
-      ${
-        linkHref
-          ? `<a href="${linkHref}" style="display:inline-block;padding:14px 22px;background:#16a34a;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;">${ctaLabel}</a>`
-          : ''
-      }</div></div></body></html>
-    `.trim(),
+    html: renderEmailShell({
+      eyebrow: isLead ? 'Novo lead' : 'Nova mensagem',
+      title,
+      subtitle: isLead
+        ? 'Um novo interesse comercial chegou para um dos seus anuncios.'
+        : 'Uma conversa ativa recebeu uma nova resposta e pode pedir acao rapida.',
+      recipientName: params.recipientName,
+      branding: params.branding,
+      footerNote: isPlanLocked
+        ? 'Os detalhes deste contato continuam protegidos ate a renovacao ou upgrade do seu plano.'
+        : isAnnouncementExpired
+          ? 'Como o anuncio esta expirado, o conteudo fica visivel apenas dentro das regras atuais da plataforma.'
+          : 'Para sua seguranca, responda e conduza a negociacao sempre dentro da plataforma.',
+      bodyHtml: `
+        <p style="margin:0 0 18px;font-size:15px;line-height:1.8;color:#475569;">${escapeHtml(intro)}</p>
+        <div style="margin:0 0 20px;padding:20px 22px;border-radius:18px;background:linear-gradient(180deg,#f8fbff 0%,#f3f7fb 100%);border:1px solid #dce5ef;">
+          <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">Anuncio</p>
+          <p style="margin:0;font-size:20px;font-weight:800;line-height:1.35;color:#0f172a;">${escapeHtml(params.announcementTitle)}</p>
+        </div>
+        ${accentBlock}
+        ${
+          preview
+            ? `<div style="margin:0 0 24px;padding:20px 22px;border-radius:18px;background:linear-gradient(180deg,#ecfdf5 0%,#dff8eb 100%);border:1px solid #bbf7d0;">
+                 <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#15803d;">${isLead ? 'Mensagem inicial' : 'Conteudo da mensagem'}</p>
+                 <p style="margin:0;font-size:15px;line-height:1.8;color:#166534;">${escapeHtml(preview)}</p>
+               </div>`
+            : ''
+        }
+        ${renderPrimaryButton(linkHref, ctaLabel)}
+      `,
+    }),
   };
 };
 
@@ -296,43 +403,70 @@ export const getPlanAlertTemplate = (params) => {
   const linkHref = getLinkHref(params.link);
   return {
     subject: params.title,
-    html: `
-      <!DOCTYPE html>
-      <html lang="pt-BR"><body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
-      <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;">
-      <div style="padding:28px 32px;background:#0f172a;color:#ffffff;">
-      <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#86efac;">${params.alertKind === 'conversion' ? 'Conversao inteligente' : 'Renovacao inteligente'}</p>
-      <h1 style="margin:0;font-size:24px;line-height:1.2;">${params.title}</h1></div>
-      <div style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:15px;">Ola, <strong>${params.userName}</strong>.</p>
-      <p style="margin:0 0 24px;font-size:15px;line-height:1.7;color:#475569;">${params.content}</p>
-      ${
-        linkHref
-          ? `<a href="${linkHref}" style="display:inline-block;padding:14px 22px;background:#16a34a;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;">${params.alertKind === 'conversion' ? 'Ver oportunidade' : 'Ver meu plano'}</a>`
-          : ''
-      }</div></div></body></html>
-    `.trim(),
+    html: renderEmailShell({
+      eyebrow: params.alertKind === 'conversion' ? 'Conversao inteligente' : 'Renovacao inteligente',
+      title: params.title,
+      subtitle:
+        params.alertKind === 'conversion'
+          ? 'Selecionamos uma oportunidade que pode aumentar sua exposicao e acelerar resultados.'
+          : 'Seu plano precisa de atencao para manter recursos e continuidade operacional.',
+      recipientName: params.userName,
+      branding: params.branding,
+      footerNote:
+        params.alertKind === 'conversion'
+          ? 'Este aviso foi gerado com base no seu momento atual de uso da plataforma.'
+          : 'Renovar no tempo certo evita pausa de recursos e mantem sua operacao ativa.',
+      bodyHtml: `
+        <div style="margin:0 0 24px;padding:22px;border-radius:18px;background:linear-gradient(180deg,#f8fbff 0%,#f3f7fb 100%);border:1px solid #dce5ef;">
+          <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">Resumo</p>
+          <p style="margin:0;font-size:15px;line-height:1.85;color:#334155;">${escapeHtml(params.content)}</p>
+        </div>
+        ${renderPrimaryButton(linkHref, params.alertKind === 'conversion' ? 'Ver oportunidade' : 'Ver meu plano')}
+      `,
+    }),
   };
 };
 
 export const getRadarTemplate = (params) => ({
   subject: `${params.siteName}: nova oportunidade no seu Radar`,
-  html: `
-    <!DOCTYPE html>
-    <html lang="pt-BR"><body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
-    <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;">
-    <div style="padding:28px 32px;background:#0f172a;color:#ffffff;">
-    <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#86efac;">Radar de Oportunidades</p>
-    <h1 style="margin:0;font-size:24px;line-height:1.2;">Nova oportunidade encontrada</h1></div>
-    <div style="padding:32px;">
-    <p style="margin:0 0 16px;font-size:15px;">Ola, <strong>${params.userName}</strong>.</p>
-    <div style="padding:18px 20px;border:1px solid #dcfce7;background:#f0fdf4;border-radius:14px;margin-bottom:18px;">
-    <p style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">${params.announcementTitle}</p></div>
-    <p style="margin:0 0 24px;font-size:15px;line-height:1.7;color:#475569;">${params.alertName ? `Esse anuncio combinou com o alerta "${params.alertName}".` : 'Esse anuncio combinou com um alerta ativo do seu Radar.'}</p>
-    <a href="${params.ctaLink}" style="display:inline-block;padding:14px 22px;background:#16a34a;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;">Ver anuncio</a>
-    </div></div></body></html>
-  `.trim(),
+  html: renderEmailShell({
+    eyebrow: 'Radar de oportunidades',
+    title: 'Nova oportunidade encontrada',
+    subtitle: 'Seu Radar identificou um anuncio aderente aos filtros que voce deixou ativos.',
+    recipientName: params.userName,
+    branding: params.branding,
+    footerNote: 'Acompanhar o Radar com frequencia ajuda voce a responder mais rapido e aproveitar oportunidades quentes.',
+    bodyHtml: `
+      <div style="margin:0 0 18px;padding:22px;border-radius:18px;background:linear-gradient(180deg,#f0fdf4 0%,#e3f8ec 100%);border:1px solid #bbf7d0;">
+        <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#15803d;">Anuncio em destaque</p>
+        <p style="margin:0;font-size:21px;font-weight:800;line-height:1.35;color:#0f172a;">${escapeHtml(params.announcementTitle)}</p>
+      </div>
+      <p style="margin:0 0 24px;font-size:15px;line-height:1.8;color:#475569;">${escapeHtml(
+        params.alertName
+          ? `Esse anuncio combinou com o alerta "${params.alertName}".`
+          : 'Esse anuncio combinou com um alerta ativo do seu Radar.'
+      )}</p>
+      ${renderPrimaryButton(params.ctaLink, 'Ver anuncio')}
+    `,
+  }),
 });
+
+const loadEmailBranding = async () => {
+  const { data, error } = await supabaseAdmin
+    .from('layout_settings')
+    .select('site_name, logo_url')
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return DEFAULT_EMAIL_BRAND;
+  }
+
+  return {
+    siteName: data.site_name || DEFAULT_EMAIL_BRAND.siteName,
+    logoUrl: data.logo_url || DEFAULT_EMAIL_BRAND.logoUrl,
+  };
+};
 
 const claimJob = async (table, job) => {
   const { data, error } = await supabaseAdmin
@@ -357,8 +491,69 @@ const finalizeLog = async (table, id, payload) => {
   await supabaseAdmin.from(table).update(payload).eq('id', id);
 };
 
+const getContactAccessContext = async (claimedJob) => {
+  if (claimedJob.lead_id) {
+    const { data: lead } = await supabaseAdmin
+      .from('leads')
+      .select('id, chat_id, contact_expires_at, announcement_id')
+      .eq('id', claimedJob.lead_id)
+      .maybeSingle();
+
+    if (lead) {
+      const { data: announcement } = await supabaseAdmin
+        .from('announcements')
+        .select('status, expires_at')
+        .eq('id', lead.announcement_id)
+        .maybeSingle();
+
+      if (announcement?.status === 'EXPIRED' || (announcement?.expires_at && new Date(announcement.expires_at).getTime() <= Date.now())) {
+        return { lockReason: 'announcement_expired' };
+      }
+
+      if (lead.contact_expires_at && new Date(lead.contact_expires_at).getTime() <= Date.now()) {
+        return { lockReason: 'lead_contact_expired' };
+      }
+    }
+  }
+
+  if (claimedJob.message_id) {
+    const { data: message } = await supabaseAdmin
+      .from('messages')
+      .select('id, chat_id')
+      .eq('id', claimedJob.message_id)
+      .maybeSingle();
+
+    if (message?.chat_id) {
+      const { data: lead } = await supabaseAdmin
+        .from('leads')
+        .select('contact_expires_at, announcement_id')
+        .eq('chat_id', message.chat_id)
+        .maybeSingle();
+
+      if (lead) {
+        const { data: announcement } = await supabaseAdmin
+          .from('announcements')
+          .select('status, expires_at')
+          .eq('id', lead.announcement_id)
+          .maybeSingle();
+
+        if (announcement?.status === 'EXPIRED' || (announcement?.expires_at && new Date(announcement.expires_at).getTime() <= Date.now())) {
+          return { lockReason: 'announcement_expired' };
+        }
+
+        if (lead.contact_expires_at && new Date(lead.contact_expires_at).getTime() <= Date.now()) {
+          return { lockReason: 'lead_contact_expired' };
+        }
+      }
+    }
+  }
+
+  return { lockReason: null };
+};
+
 export const processContactJobs = async (smtpSettings, smtpValidationError, limit, triggeredBy = 'admin') => {
   const result = { processed: 0, sent: 0, failed: 0, skipped: 0 };
+  const branding = await loadEmailBranding();
   const { data: log } = await supabaseAdmin
     .from('contact_notification_email_dispatch_logs')
     .insert({ triggered_by: triggeredBy, status: 'processing', requested_limit: limit })
@@ -368,7 +563,7 @@ export const processContactJobs = async (smtpSettings, smtpValidationError, limi
   try {
     const { data: jobs, error } = await supabaseAdmin
       .from('contact_notification_email_jobs')
-      .select('id, source_kind, recipient_email, recipient_name, sender_name, announcement_title, message_preview, link, status, attempts')
+      .select('id, source_kind, message_id, lead_id, recipient_email, recipient_name, sender_name, announcement_title, message_preview, link, status, attempts')
       .in('status', ['pending', 'failed'])
       .lt('attempts', 3)
       .order('queued_at', { ascending: true })
@@ -392,6 +587,7 @@ export const processContactJobs = async (smtpSettings, smtpValidationError, limi
         continue;
       }
 
+      const accessContext = await getContactAccessContext(claimed);
       const email = getContactTemplate({
         siteName: smtpSettings?.from_name || 'AGRO BW',
         recipientName: claimed.recipient_name || 'Cliente',
@@ -400,6 +596,8 @@ export const processContactJobs = async (smtpSettings, smtpValidationError, limi
         messagePreview: claimed.message_preview,
         link: claimed.link,
         sourceKind: claimed.source_kind,
+        lockReason: accessContext.lockReason,
+        branding,
       });
 
       try {
@@ -441,6 +639,7 @@ export const processContactJobs = async (smtpSettings, smtpValidationError, limi
 
 export const processPlanAlertJobs = async (smtpSettings, smtpValidationError, limit, triggeredBy = 'admin') => {
   const result = { processed: 0, sent: 0, failed: 0, skipped: 0 };
+  const branding = await loadEmailBranding();
   const { data: log } = await supabaseAdmin
     .from('plan_alert_email_dispatch_logs')
     .insert({ triggered_by: triggeredBy, status: 'processing', requested_limit: limit })
@@ -478,6 +677,7 @@ export const processPlanAlertJobs = async (smtpSettings, smtpValidationError, li
         content: claimed.notification_content,
         link: claimed.link,
         alertKind: claimed.alert_kind,
+        branding,
       });
 
       try {
@@ -519,6 +719,7 @@ export const processPlanAlertJobs = async (smtpSettings, smtpValidationError, li
 
 export const processRadarJobs = async (smtpSettings, smtpValidationError, limit, triggeredBy = 'admin') => {
   const result = { processed: 0, sent: 0, failed: 0, skipped: 0 };
+  const branding = await loadEmailBranding();
   const { data: log } = await supabaseAdmin
     .from('radar_match_email_dispatch_logs')
     .insert({ triggered_by: triggeredBy, status: 'processing', requested_limit: limit })
@@ -556,6 +757,7 @@ export const processRadarJobs = async (smtpSettings, smtpValidationError, limit,
         announcementTitle: claimed.announcement_title || 'Nova oportunidade no Radar',
         alertName: claimed.alert_name,
         ctaLink: `${APP_URL.replace(/\/$/, '')}/#/anuncio/${claimed.announcement_id}`,
+        branding,
       });
 
       try {
