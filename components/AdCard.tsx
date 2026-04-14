@@ -60,10 +60,12 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
   
   // Suporta tanto price quanto unit_price
   const priceValue = (ad as any).unit_price || ad.price;
+  const isPriceOnRequest = !!ad.priceNegotiable || !!ad.acceptsTrade;
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
   }).format(priceValue);
+  const displayPrice = isPriceOnRequest ? 'Sob consulta' : formattedPrice;
 
   // Verificar se o destaque está ativo (não expirado)
   const isCategoryHighlightActive = ad.highlightCategory && (!ad.highlightCategoryUntil || new Date(ad.highlightCategoryUntil) > new Date());
@@ -124,8 +126,8 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
           </div>
         )}
         {hasOfficialStore && (
-          <div className="flex items-center gap-1 text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg w-fit bg-gradient-to-r from-emerald-100 to-teal-50 text-emerald-800">
-            <Store className="w-3 h-3" strokeWidth={2.5} />
+          <div className="flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.18em] px-2.5 py-1 rounded-full shadow-md w-fit bg-gradient-to-r from-emerald-100 to-teal-50 text-emerald-800">
+            <Store className="w-2.5 h-2.5" strokeWidth={2.3} />
             LOJA PARCEIRA
           </div>
         )}
@@ -161,10 +163,18 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-          <p className="text-white text-xs font-semibold flex items-center gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-white text-xs font-semibold flex items-center gap-1.5">
             <MapPin className="w-3.5 h-3.5" strokeWidth={1.5} style={{ color: settings.primaryColor }} />
             {ad.location.city} - {ad.location.state}
-          </p>
+            </p>
+            {ad.acceptsTrade && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/70 bg-amber-50/95 px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.14em] text-amber-800 shadow-sm">
+                <Sparkles className="w-2.5 h-2.5" strokeWidth={2.3} />
+                Aceita troca
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -184,7 +194,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
         <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-100">
           <div>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Investimento</p>
-            <p className="text-base font-semibold tracking-tight" style={{ color: settings.primaryColor }}>{formattedPrice}</p>
+            <p className="text-base font-semibold tracking-tight" style={{ color: settings.primaryColor }}>{displayPrice}</p>
           </div>
           <div className="flex flex-col items-end">
              <div className="flex items-center gap-1 text-slate-400 text-[11px] font-semibold">

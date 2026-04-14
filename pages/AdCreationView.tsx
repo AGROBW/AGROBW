@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CATEGORIES } from '../constants';
@@ -169,6 +169,7 @@ const PreviewAnnouncementModal: React.FC<{
     style: 'currency',
     currency: 'BRL',
   }).format(previewAd.price || 0);
+  const displayPrice = previewAd.priceNegotiable || previewAd.acceptsTrade ? 'Sob consulta' : formattedPrice;
   const previewDescription = censorContactData(previewAd.description || '').censored;
 
   return (
@@ -208,7 +209,7 @@ const PreviewAnnouncementModal: React.FC<{
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-green-200">
                   Investimento
                 </p>
-                <p className="mt-2 text-2xl font-black text-green-300 lg:text-3xl">{formattedPrice}</p>
+                <p className="mt-2 text-2xl font-black text-green-300 lg:text-3xl">{displayPrice}</p>
                 <p className="mt-1 text-sm text-white/70">
                   {previewAd.quantity || 1} {previewAd.unit || 'Unidade'}
                 </p>
@@ -285,7 +286,7 @@ const PreviewAnnouncementModal: React.FC<{
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
                       Investimento
                     </p>
-                    <p className="mt-1 text-xl font-black text-green-700">{formattedPrice}</p>
+                    <p className="mt-1 text-xl font-black text-green-700">{displayPrice}</p>
                   </div>
                   <div className="flex items-center gap-1 text-xs font-semibold text-slate-400">
                     <Eye className="w-4 h-4" strokeWidth={1.5} />
@@ -311,7 +312,7 @@ const AdCreationView: React.FC = () => {
   const { handleAction } = usePlanCheck();
   const { subscription, usage, canCreateAd, adLimitMessage, refreshUsage } = useSubscription();
   
-  // A rota já é protegida pelo RequireAuth no App.tsx.
+  // A rota jÃ¡ Ã© protegida pelo RequireAuth no App.tsx.
   if (!user) return null;
 
   const [currentStep, setCurrentStep] = useState<Step>('CATEGORY');
@@ -429,7 +430,7 @@ const AdCreationView: React.FC = () => {
     });
   }, [user]);
 
-  // Persistência de rascunho
+  // PersistÃªncia de rascunho
   const categoryIconMap: Record<string, LucideIcon> = {
     animais: PawPrint,
     maquinas: Cog,
@@ -497,7 +498,7 @@ const AdCreationView: React.FC = () => {
 
         if (adError) throw adError;
         if (!adData) {
-          toast.error('Anúncio não encontrado para edição.');
+          toast.error('AnÃºncio nÃ£o encontrado para ediÃ§Ã£o.');
           navigate('/minha-conta/anuncios');
           return;
         }
@@ -535,7 +536,7 @@ const AdCreationView: React.FC = () => {
           title: requestPayload.title ?? adData.title ?? '',
           description: requestPayload.description ?? adData.description ?? '',
           price: Number(requestPayload.price ?? adData.price ?? 0),
-          priceNegotiable: false,
+          priceNegotiable: Boolean(requestPayload.accepts_trade ?? adData.accepts_trade),
           categoryGroupSlug: getCategoryGroupForCategorySlug(requestPayload.category_slug || adData.category_slug)?.slug || getCategoryGroupBySlug(requestPayload.category_slug || adData.category_slug)?.slug || requestPayload.category_slug || adData.category_slug || '',
           categoryId: requestPayload.category_id || adData.category_id || '',
           categorySlug: requestPayload.category_slug || adData.category_slug || '',
@@ -600,8 +601,8 @@ const AdCreationView: React.FC = () => {
         }
         setCurrentStep('DETAILS');
       } catch (error) {
-        console.error('[AdCreation] Erro ao carregar anúncio para edição:', error);
-        toast.error('Não foi possível carregar o anúncio para edição.');
+        console.error('[AdCreation] Erro ao carregar anÃºncio para ediÃ§Ã£o:', error);
+        toast.error('NÃ£o foi possÃ­vel carregar o anÃºncio para ediÃ§Ã£o.');
       } finally {
         if (isMountedRef.current) {
           setIsLoadingEditAd(false);
@@ -636,10 +637,10 @@ const AdCreationView: React.FC = () => {
     });
   }, [pendingTechnicalDetails, technicalFieldsSchema]);
 
-  // Cálculo automático: price = quantity * unitPrice
+  // CÃ¡lculo automÃ¡tico: price = quantity * unitPrice
   useEffect(() => {
     const calculatedPrice = (formData.quantity || 1) * (formData.unitPrice || 0);
-    // Só atualiza se o valor calculado for diferente do atual
+    // SÃ³ atualiza se o valor calculado for diferente do atual
     if (calculatedPrice !== formData.price) {
       setFormData(prev => ({ ...prev, price: calculatedPrice }));
     }
@@ -660,17 +661,17 @@ const AdCreationView: React.FC = () => {
     loadCategories();
   }, []);
 
-  // Atualizar schema de campos técnicos quando categoria mudar
+  // Atualizar schema de campos tÃ©cnicos quando categoria mudar
   useEffect(() => {
     if (formData.categoryId) {
       const selectedCategory = dbCategories.find(cat => cat.id === formData.categoryId);
       console.log('[Debug] Categoria selecionada:', selectedCategory?.name, selectedCategory?.slug);
       
       if (selectedCategory?.technical_fields_schema) {
-        console.log('[Debug] Schema de campos técnicos carregado:', selectedCategory.technical_fields_schema);
+        console.log('[Debug] Schema de campos tÃ©cnicos carregado:', selectedCategory.technical_fields_schema);
         setTechnicalFieldsSchema(selectedCategory.technical_fields_schema);
       } else {
-        console.log('[Debug] Nenhum schema de campos técnicos definido para esta categoria');
+        console.log('[Debug] Nenhum schema de campos tÃ©cnicos definido para esta categoria');
         setTechnicalFieldsSchema([]);
       }
     } else {
@@ -679,25 +680,25 @@ const AdCreationView: React.FC = () => {
   }, [formData.categoryId, dbCategories]);
 
   const categoryIcons: Record<string, string> = {
-    animais: '🐂',
-    maquinas: '⚙️',
-    insumos: '🧪',
-    imoveis: '🏡',
-    servicos: '🛠️',
-    sementes: '🌱',
-    pecas: '🔩',
-    'maquinas-equipamentos': '🚜',
-    implementos: '🧰',
-    fazendas: '🌾',
-    'imoveis-rurais': '🏡',
-    'armazenagem-de-produtos': '🏬',
-    'alimentos-em-geral': '🥕',
-    'arvores-adultas-mudas': '🌳',
-    'tratores-agricolas': '🚜',
-    'maquinas-pesadas': '🚧',
-    'fertilizantes-agricolas': '🧫',
-    'colheitadeiras-colhedoras': '🌾',
-    'alimentos-para-nutricao-animal': '🐄'
+    animais: 'ðŸ‚',
+    maquinas: 'âš™ï¸',
+    insumos: 'ðŸ§ª',
+    imoveis: 'ðŸ¡',
+    servicos: 'ðŸ› ï¸',
+    sementes: 'ðŸŒ±',
+    pecas: 'ðŸ”©',
+    'maquinas-equipamentos': 'ðŸšœ',
+    implementos: 'ðŸ§°',
+    fazendas: 'ðŸŒ¾',
+    'imoveis-rurais': 'ðŸ¡',
+    'armazenagem-de-produtos': 'ðŸ¬',
+    'alimentos-em-geral': 'ðŸ¥•',
+    'arvores-adultas-mudas': 'ðŸŒ³',
+    'tratores-agricolas': 'ðŸšœ',
+    'maquinas-pesadas': 'ðŸš§',
+    'fertilizantes-agricolas': 'ðŸ§«',
+    'colheitadeiras-colhedoras': 'ðŸŒ¾',
+    'alimentos-para-nutricao-animal': 'ðŸ„'
   };
 
   useEffect(() => {
@@ -858,7 +859,7 @@ const AdCreationView: React.FC = () => {
   const resolveCategoryId = async () => {
     if (isUuid(formData.categoryId)) return formData.categoryId;
     if (!formData.categorySlug) {
-      toast.error('Erro interno: Slug da categoria ausente. Recarregue a página.');
+      toast.error('Erro interno: Slug da categoria ausente. Recarregue a pÃ¡gina.');
       return null;
     }
     const { data, error } = await supabase
@@ -867,7 +868,7 @@ const AdCreationView: React.FC = () => {
       .eq('slug', formData.categorySlug)
       .single();
     if (error || !data?.id) {
-      toast.error('Categoria não encontrada no banco.');
+      toast.error('Categoria nÃ£o encontrada no banco.');
       return null;
     }
     return data.id as string;
@@ -954,14 +955,14 @@ const AdCreationView: React.FC = () => {
     if (!ensureAdCreationAllowed()) return null;
     if (draftIdRef.current) return draftIdRef.current;
 
-    // Singleton pattern: se já está criando, aguarda o ID
+    // Singleton pattern: se jÃ¡ estÃ¡ criando, aguarda o ID
     if (isCreatingDraft.current) {
-      console.log('[Draft] Aguardando criação do rascunho...');
-      // Aguarda até 5 segundos pelo ID (50 tentativas x 100ms)
+      console.log('[Draft] Aguardando criaÃ§Ã£o do rascunho...');
+      // Aguarda atÃ© 5 segundos pelo ID (50 tentativas x 100ms)
       for (let i = 0; i < 50; i++) {
         await new Promise(resolve => setTimeout(resolve, 100));
         if (draftIdRef.current) {
-          console.log('[Draft] ID encontrado após aguardar:', draftIdRef.current);
+          console.log('[Draft] ID encontrado apÃ³s aguardar:', draftIdRef.current);
           return draftIdRef.current;
         }
       }
@@ -971,7 +972,7 @@ const AdCreationView: React.FC = () => {
 
     // Bloquear outras tentativas
     isCreatingDraft.current = true;
-    console.log('[Draft] Iniciando criação de rascunho único...');
+    console.log('[Draft] Iniciando criaÃ§Ã£o de rascunho Ãºnico...');
 
     const numericPrice = parseFloat(String(formData.price || 0).replace(/[^0-9.,]/g, '').replace(/\./g, '').replace(',', '.'));
     const numericUnitPrice = parseFloat(String(formData.unitPrice || 0).replace(/[^0-9.,]/g, '').replace(/\./g, '').replace(',', '.'));
@@ -1075,7 +1076,7 @@ const AdCreationView: React.FC = () => {
     const currentDraftId = await ensureDraftAd(media);
     const images = media.images;
     if (!currentDraftId) {
-      console.warn('[Ads] Rascunho não salvo, mas fotos permanecem no estado local.');
+      console.warn('[Ads] Rascunho nÃ£o salvo, mas fotos permanecem no estado local.');
       return;
     }
     const { error } = await supabase
@@ -1104,7 +1105,7 @@ const AdCreationView: React.FC = () => {
   const handleImagesSelected = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     if (!user?.id) {
-      toast.error('Sessão inválida. Faça login novamente.');
+      toast.error('SessÃ£o invÃ¡lida. FaÃ§a login novamente.');
       return;
     }
 
@@ -1126,7 +1127,7 @@ const AdCreationView: React.FC = () => {
       toast.info('Algumas imagens foram ignoradas para respeitar o limite de 9.');
     }
 
-    // CRIAR PREVIEW INSTANTÂNEO ANTES DE QUALQUER AWAIT
+    // CRIAR PREVIEW INSTANTÃ‚NEO ANTES DE QUALQUER AWAIT
     const previewItems = fileArray.map(file => ({
       id: `${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 7)}`,
       previewUrl: URL.createObjectURL(file),
@@ -1140,7 +1141,7 @@ const AdCreationView: React.FC = () => {
       setIsUploadingImages(true);
     }
 
-    // VALIDAR CATEGORIA APÓS MOSTRAR PREVIEW
+    // VALIDAR CATEGORIA APÃ“S MOSTRAR PREVIEW
     if (!formData.categoryId) {
       const resolvedCategoryId = await resolveCategoryId();
       if (!resolvedCategoryId) {
@@ -1169,7 +1170,7 @@ const AdCreationView: React.FC = () => {
             clearInterval(progressTimer);
             return;
           }
-          // Agrupa atualização em um único render
+          // Agrupa atualizaÃ§Ã£o em um Ãºnico render
           setImageItems(prev => {
             const updated = prev.map(item => 
               item.id === itemId && item.progress < 90
@@ -1195,8 +1196,8 @@ const AdCreationView: React.FC = () => {
           console.error('[Ads] Erro ao enviar imagem:', uploadError);
           const isPermission = /permission|rls|not allowed|denied|unauthorized|400/i.test(uploadError.message || '');
           toast.error(
-            isPermission ? 'Permissão negada no envio.' : 'Falha ao enviar imagem.',
-            { description: isPermission ? 'Tente novamente ou verifique sua conexão.' : uploadError.message }
+            isPermission ? 'PermissÃ£o negada no envio.' : 'Falha ao enviar imagem.',
+            { description: isPermission ? 'Tente novamente ou verifique sua conexÃ£o.' : uploadError.message }
           );
           clearInterval(progressTimer);
           if (isMountedRef.current) {
@@ -1471,7 +1472,7 @@ const AdCreationView: React.FC = () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     
-    console.log('[Publish] Iniciando publicação com dados:', {
+    console.log('[Publish] Iniciando publicaÃ§Ã£o com dados:', {
       categoryId: formData.categoryId,
       technical: formData.technical,
       technicalFieldsSchemaLength: technicalFieldsSchema.length
@@ -1480,8 +1481,8 @@ const AdCreationView: React.FC = () => {
     try {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) {
-        console.error('[Ads] Erro ao obter usuário autenticado:', authError);
-        toast.error('Não foi possível validar seu login.');
+        console.error('[Ads] Erro ao obter usuÃ¡rio autenticado:', authError);
+        toast.error('NÃ£o foi possÃ­vel validar seu login.');
         return;
       }
 
@@ -1490,7 +1491,7 @@ const AdCreationView: React.FC = () => {
 
       if (!userId) {
         console.error('[Ads] user.id nulo, cancelando insert');
-        toast.error('Sessão inválida. Faça login novamente.');
+        toast.error('SessÃ£o invÃ¡lida. FaÃ§a login novamente.');
         return;
       }
 
@@ -1506,13 +1507,13 @@ const AdCreationView: React.FC = () => {
       const resolvedSubCategoryId = await resolveSubCategoryId(resolvedCategoryId);
 
       if (!resolvedCategoryId) {
-        toast.error('Categoria inválida. Atualize a página e tente novamente.');
+        toast.error('Categoria invÃ¡lida. Atualize a pÃ¡gina e tente novamente.');
         return;
       }
 
-      // Validar localização antes de publicar
+      // Validar localizaÃ§Ã£o antes de publicar
       if (!formData.location?.city || formData.location.city === 'A definir' || !formData.location?.state || formData.location.state === '--') {
-        toast.error('Preencha a localização completa antes de publicar.', { description: 'Informe o CEP para autocompletar cidade e estado.' });
+        toast.error('Preencha a localizaÃ§Ã£o completa antes de publicar.', { description: 'Informe o CEP para autocompletar cidade e estado.' });
         return;
       }
 
@@ -1627,7 +1628,7 @@ const AdCreationView: React.FC = () => {
         }
       } else {
         // Sem rascunho, fazer insert direto
-        console.log('[Publish] Criando novo anúncio (sem rascunho)');
+        console.log('[Publish] Criando novo anÃºncio (sem rascunho)');
         const insertResult = await supabase
           .from('announcements')
           .insert(payload)
@@ -1645,17 +1646,17 @@ const AdCreationView: React.FC = () => {
       console.log('[Publish] Resultado final:', { data, error });
 
       if (error) {
-        toast.error('Erro ao publicar anúncio.', { description: error.message });
+        toast.error('Erro ao publicar anÃºncio.', { description: error.message });
         return;
       }
 
       if (!data?.id) {
-        toast.error('Erro ao obter ID do anúncio publicado.');
+        toast.error('Erro ao obter ID do anÃºncio publicado.');
         return;
       }
 
       const announcementId = data.id;
-      console.log('[Publish] Anúncio publicado com sucesso:', announcementId);
+      console.log('[Publish] AnÃºncio publicado com sucesso:', announcementId);
 
       if (cleanCep) {
         const geoUpdated = await updateAnnouncementCoordinates(
@@ -1676,15 +1677,15 @@ const AdCreationView: React.FC = () => {
           }
         );
         if (!geoUpdated) {
-          console.warn('[Ads] Não foi possível atualizar coordenadas do anúncio após publicação:', announcementId);
+          console.warn('[Ads] NÃ£o foi possÃ­vel atualizar coordenadas do anÃºncio apÃ³s publicaÃ§Ã£o:', announcementId);
         }
       }
-      console.log('[Debug] Dados técnicos para salvar:', formData.technical);
-      console.log('[Debug] Schema de campos técnicos:', technicalFieldsSchema);
+      console.log('[Debug] Dados tÃ©cnicos para salvar:', formData.technical);
+      console.log('[Debug] Schema de campos tÃ©cnicos:', technicalFieldsSchema);
 
-      // Salvar especificações técnicas na tabela announcement_technical_details
+      // Salvar especificaÃ§Ãµes tÃ©cnicas na tabela announcement_technical_details
       if (technicalDetailsPayload.length > 0) {
-        // Limpar detalhes técnicos antigos (caso seja edição)
+        // Limpar detalhes tÃ©cnicos antigos (caso seja ediÃ§Ã£o)
         const { error: deleteError } = await supabase
           .from('announcement_technical_details')
           .delete()
@@ -1693,7 +1694,7 @@ const AdCreationView: React.FC = () => {
         if (deleteError) {
           console.warn('[Publish] Aviso ao limpar detalhes antigos:', deleteError);
         } else {
-          console.log('[Publish] Detalhes técnicos antigos removidos (se existiam)');
+          console.log('[Publish] Detalhes tÃ©cnicos antigos removidos (se existiam)');
         }
 
         const technicalDetailsToInsert = technicalDetailsPayload.map(detail => ({
@@ -1703,7 +1704,7 @@ const AdCreationView: React.FC = () => {
           icon_name: detail.icon_name || 'Circle'
         }));
 
-        console.log('[Debug] Detalhes técnicos a serem inseridos:', technicalDetailsToInsert);
+        console.log('[Debug] Detalhes tÃ©cnicos a serem inseridos:', technicalDetailsToInsert);
 
         if (technicalDetailsToInsert.length > 0) {
           const { error: detailsError } = await supabase
@@ -1711,16 +1712,16 @@ const AdCreationView: React.FC = () => {
             .insert(technicalDetailsToInsert);
 
           if (detailsError) {
-            console.error('[Publish] Erro ao salvar especificações técnicas:', detailsError);
-            toast.error('Erro ao salvar especificações técnicas', { description: detailsError.message });
+            console.error('[Publish] Erro ao salvar especificaÃ§Ãµes tÃ©cnicas:', detailsError);
+            toast.error('Erro ao salvar especificaÃ§Ãµes tÃ©cnicas', { description: detailsError.message });
           } else {
-            console.log('[Publish] Especificações técnicas salvas com sucesso:', technicalDetailsToInsert.length, 'registros');
+            console.log('[Publish] EspecificaÃ§Ãµes tÃ©cnicas salvas com sucesso:', technicalDetailsToInsert.length, 'registros');
           }
         } else {
-          console.log('[Publish] Nenhuma especificação técnica para salvar (campos vazios)');
+          console.log('[Publish] Nenhuma especificaÃ§Ã£o tÃ©cnica para salvar (campos vazios)');
         }
       } else {
-        console.log('[Publish] Schema vazio ou dados técnicos não disponíveis');
+        console.log('[Publish] Schema vazio ou dados tÃ©cnicos nÃ£o disponÃ­veis');
       }
 
       hasPublishedSuccessfullyRef.current = true;
@@ -1730,8 +1731,8 @@ const AdCreationView: React.FC = () => {
       setCurrentStep('SUCCESS');
       navigate('/minha-conta/anuncios');
     } catch (error: any) {
-      console.error('[Publish] Erro inesperado ao publicar anúncio:', error);
-      toast.error('Erro ao publicar anúncio', {
+      console.error('[Publish] Erro inesperado ao publicar anÃºncio:', error);
+      toast.error('Erro ao publicar anÃºncio', {
         description: error.message || 'Tente novamente mais tarde.'
       });
     } finally {
@@ -1762,11 +1763,11 @@ const AdCreationView: React.FC = () => {
               >
                 {cat.icon ? (
                   <div className="hidden">
-                    {cat.icon || categoryIcons[cat.slug] || '📦'}
+                    {cat.icon || categoryIcons[cat.slug] || 'ðŸ“¦'}
                   </div>
                 ) : (
                   <div className="hidden">
-                    {CATEGORIES.find(base => base.slug === cat.slug)?.icon || categoryIcons[cat.slug] || '📦'}
+                    {CATEGORIES.find(base => base.slug === cat.slug)?.icon || categoryIcons[cat.slug] || 'ðŸ“¦'}
                   </div>
                 )}
                 <div className="mb-4 flex justify-center">
@@ -1824,7 +1825,7 @@ const AdCreationView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Título do Anúncio</label>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">TÃ­tulo do AnÃºncio</label>
                 <input 
                   type="text" 
                   value={formData.title}
@@ -1833,21 +1834,21 @@ const AdCreationView: React.FC = () => {
                     const result = censorContactData(e.target.value);
                     if (result.hadContactData) {
                       setFormData({...formData, title: result.censored});
-                      toast.error('Por sua segurança, removemos dados de contato do título', {
+                      toast.error('Por sua seguranÃ§a, removemos dados de contato do tÃ­tulo', {
                         description: 'Use o chat oficial da plataforma para negociar',
                         duration: 5000
                       });
                     }
                   }}
                   className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none" 
-                  placeholder="Ex: Trator John Deere 6125J - Único Dono"
+                  placeholder="Ex: Trator John Deere 6125J - Ãšnico Dono"
                 />
               </div>
 
-              {/* Campos Dinâmicos baseados no Schema */}
+              {/* Campos DinÃ¢micos baseados no Schema */}
               {technicalFieldsSchema.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-black text-slate-700 mb-4">Especificações Técnicas</h3>
+                  <h3 className="text-sm font-black text-slate-700 mb-4">EspecificaÃ§Ãµes TÃ©cnicas</h3>
                   <div className="grid grid-cols-2 gap-4">
                     {technicalFieldsSchema.map((field, index) => (
                       <div key={index}>
@@ -1891,7 +1892,7 @@ const AdCreationView: React.FC = () => {
               )}
 
               <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Descrição Completa</label>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">DescriÃ§Ã£o Completa</label>
                 <textarea 
                   rows={6}
                   value={formData.description}
@@ -1900,14 +1901,14 @@ const AdCreationView: React.FC = () => {
                     const result = censorContactData(e.target.value);
                     if (result.hadContactData) {
                       setFormData({...formData, description: result.censored});
-                      toast.error('Por sua segurança, removemos dados de contato da descrição', {
+                      toast.error('Por sua seguranÃ§a, removemos dados de contato da descriÃ§Ã£o', {
                         description: 'Use o chat oficial da plataforma para negociar',
                         duration: 5000
                       });
                     }
                   }}
                   className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none resize-none" 
-                  placeholder="Descreva detalhes do produto, histórico e condições de conservação..."
+                  placeholder="Descreva detalhes do produto, histÃ³rico e condiÃ§Ãµes de conservaÃ§Ã£o..."
                 ></textarea>
               </div>
 
@@ -1918,16 +1919,16 @@ const AdCreationView: React.FC = () => {
                       <Building2 className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-base font-black text-slate-900">Informações comerciais da loja</h3>
+                      <h3 className="text-base font-black text-slate-900">InformaÃ§Ãµes comerciais da loja</h3>
                       <p className="mt-1 text-sm leading-6 text-slate-600">
-                        Esses campos deixam o anúncio com mais cara de catálogo profissional e ajudam o comprador a entender a operação da sua loja.
+                        Esses campos deixam o anÃºncio com mais cara de catÃ¡logo profissional e ajudam o comprador a entender a operaÃ§Ã£o da sua loja.
                       </p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Condição do item</label>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">CondiÃ§Ã£o do item</label>
                       <select
                         value={formData.productCondition}
                         onChange={e => setFormData({ ...formData, productCondition: e.target.value })}
@@ -1997,7 +1998,7 @@ const AdCreationView: React.FC = () => {
                         value={formData.warrantyDetails}
                         onChange={e => setFormData({ ...formData, warrantyDetails: e.target.value })}
                         className="w-full bg-white border border-emerald-100 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
-                        placeholder="Ex: Garantia de motor por 90 dias ou conforme avaliação"
+                        placeholder="Ex: Garantia de motor por 90 dias ou conforme avaliaÃ§Ã£o"
                       />
                     </div>
                   )}
@@ -2020,7 +2021,7 @@ const AdCreationView: React.FC = () => {
                     onChange={e => setFormData({ ...formData, unit: e.target.value })}
                     className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
                   >
-                    {['Unidade', 'Kg', 'Arroba', 'Litros', 'Toneladas', 'Cabeças'].map(unit => (
+                    {['Unidade', 'Kg', 'Arroba', 'Litros', 'Toneladas', 'CabeÃ§as'].map(unit => (
                       <option key={unit} value={unit}>{unit}</option>
                     ))}
                   </select>
@@ -2029,7 +2030,7 @@ const AdCreationView: React.FC = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={handleBack} className="w-full py-5 border border-slate-200 text-slate-600 rounded-2xl font-black hover:bg-slate-50 transition-all">Voltar</button>
-              <button onClick={() => setCurrentStep('MEDIA')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">Próxima Etapa: Mídia</button>
+              <button onClick={() => setCurrentStep('MEDIA')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">PrÃ³xima Etapa: MÃ­dia</button>
             </div>
           </div>
         );
@@ -2038,9 +2039,9 @@ const AdCreationView: React.FC = () => {
         return (
           <div className="max-w-2xl mx-auto space-y-8">
             <label htmlFor="ad-images-input" className="border-4 border-dashed border-slate-100 rounded-[2.5rem] p-12 text-center hover:border-green-200 transition-colors bg-slate-50/50 cursor-pointer block relative">
-              <div className="text-6xl mb-4">📸</div>
+              <div className="text-6xl mb-4">ðŸ“¸</div>
               <h3 className="text-lg font-black text-slate-800">Clique ou arraste suas fotos aqui</h3>
-              <p className="text-slate-400 text-sm mt-2">Formatos aceitos: JPG, PNG. Tamanho máximo 5MB por foto.</p>
+              <p className="text-slate-400 text-sm mt-2">Formatos aceitos: JPG, PNG. Tamanho mÃ¡ximo 5MB por foto.</p>
               <input
                 id="ad-images-input"
                 type="file"
@@ -2059,16 +2060,16 @@ const AdCreationView: React.FC = () => {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">Loja Parceira</p>
-                    <h3 className="mt-2 text-xl font-black text-slate-900">Vídeo institucional do anúncio</h3>
+                    <h3 className="mt-2 text-xl font-black text-slate-900">VÃ­deo institucional do anÃºncio</h3>
                     <p className="mt-2 text-sm leading-6 text-slate-500">
-                      Envie 1 vídeo de até 60 segundos. A plataforma tenta otimizar o arquivo para algo próximo de 12MB antes de salvar.
+                      Envie 1 vÃ­deo de atÃ© 60 segundos. A plataforma tenta otimizar o arquivo para algo prÃ³ximo de 12MB antes de salvar.
                     </p>
                   </div>
                   <label
                     htmlFor="ad-video-input"
                     className="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800"
                   >
-                    Escolher vídeo
+                    Escolher vÃ­deo
                   </label>
                   <input
                     id="ad-video-input"
@@ -2098,10 +2099,10 @@ const AdCreationView: React.FC = () => {
                     </div>
                     <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="text-sm font-black text-slate-900">Vídeo pronto para o anúncio</p>
+                        <p className="text-sm font-black text-slate-900">VÃ­deo pronto para o anÃºncio</p>
                         <p className="mt-1 text-xs text-slate-500">
-                          {videoItem.durationSeconds ? `${videoItem.durationSeconds}s` : 'Duração em processamento'}
-                          {videoItem.sizeBytes ? ` • ${formatVideoSize(videoItem.sizeBytes)}` : ''}
+                          {videoItem.durationSeconds ? `${videoItem.durationSeconds}s` : 'DuraÃ§Ã£o em processamento'}
+                          {videoItem.sizeBytes ? ` â€¢ ${formatVideoSize(videoItem.sizeBytes)}` : ''}
                         </p>
                       </div>
                       <button
@@ -2109,13 +2110,13 @@ const AdCreationView: React.FC = () => {
                         onClick={handleRemoveVideo}
                         className="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                       >
-                        Remover vídeo
+                        Remover vÃ­deo
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div className="mt-6 rounded-[2rem] border border-dashed border-emerald-200 bg-white/80 p-6 text-sm text-slate-500">
-                    Nenhum vídeo enviado. Esse recurso aparece apenas para anúncios publicados por Loja Parceira.
+                    Nenhum vÃ­deo enviado. Esse recurso aparece apenas para anÃºncios publicados por Loja Parceira.
                   </div>
                 )}
               </div>
@@ -2137,7 +2138,7 @@ const AdCreationView: React.FC = () => {
             )}
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={handleBack} className="w-full py-5 border border-slate-200 text-slate-600 rounded-2xl font-black hover:bg-slate-50 transition-all">Voltar</button>
-              <button onClick={() => setCurrentStep('PRICING')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">Próxima Etapa: Preço e Local</button>
+              <button onClick={() => setCurrentStep('PRICING')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">PrÃ³xima Etapa: PreÃ§o e Local</button>
             </div>
           </div>
         );
@@ -2147,7 +2148,7 @@ const AdCreationView: React.FC = () => {
           <div className="max-w-2xl mx-auto space-y-10">
             <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
               <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Valor Unitário (R$)</label>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Valor UnitÃ¡rio (R$)</label>
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-4">
                   <div className="relative">
                     <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
@@ -2166,7 +2167,7 @@ const AdCreationView: React.FC = () => {
                   />
                 </div>
                 
-                {/* Exibição do Valor Total Calculado */}
+                {/* ExibiÃ§Ã£o do Valor Total Calculado */}
                 {formData.unitPrice > 0 && (
                   <div className="mt-4 p-4 bg-green-50 border-2 border-green-200 rounded-xl">
                     <p className="text-xs font-black text-green-700 uppercase tracking-widest mb-1">Valor Total na Vitrine</p>
@@ -2174,20 +2175,29 @@ const AdCreationView: React.FC = () => {
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(formData.price || 0)}
                     </p>
                     <p className="text-xs text-green-600 mt-1">
-                      {formData.quantity} {formData.unit} × R$ {formData.unitPrice.toFixed(2)}
+                      {formData.quantity} {formData.unit} Ã— R$ {formData.unitPrice.toFixed(2)}
                     </p>
                   </div>
                 )}
                 
-                <div className="mt-4 flex items-center gap-2">
-                   <input type="checkbox" className="w-5 h-5 rounded border-slate-300 text-green-600 focus:ring-green-500" />
-                   <span className="text-sm font-bold text-slate-600">Preço sob consulta / Aceita troca</span>
-                </div>
+                <label className="mt-4 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!formData.priceNegotiable}
+                    onChange={e => setFormData({
+                      ...formData,
+                      priceNegotiable: e.target.checked,
+                      acceptsTrade: e.target.checked,
+                    })}
+                    className="w-5 h-5 rounded border-slate-300 text-green-600 focus:ring-green-500"
+                  />
+                  <span className="text-sm font-bold text-slate-600">Preço sob consulta / Aceita troca</span>
+                </label>
               </div>
 
               <div className="pt-6 border-t border-slate-50 grid grid-cols-2 gap-6">
                 <div className="col-span-2">
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">CEP Localização</label>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">CEP LocalizaÃ§Ã£o</label>
                   <input 
                     type="text" 
                     maxLength={9}
@@ -2221,7 +2231,7 @@ const AdCreationView: React.FC = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={handleBack} className="w-full py-5 border border-slate-200 text-slate-600 rounded-2xl font-black hover:bg-slate-50 transition-all">Voltar</button>
-              <button onClick={() => setCurrentStep('REVIEW')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">Revisar Anúncio</button>
+              <button onClick={() => setCurrentStep('REVIEW')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">Revisar AnÃºncio</button>
             </div>
           </div>
         );
@@ -2243,8 +2253,8 @@ const AdCreationView: React.FC = () => {
           <div className="flex flex-col lg:flex-row gap-12 items-start max-w-5xl mx-auto">
             <div className="flex-1 space-y-8">
               <div className="bg-green-50 p-8 rounded-[2rem] border border-green-100">
-                <h3 className="text-xl font-black text-green-900 mb-2">Quase lá!</h3>
-                <p className="text-green-700">Verifique se todas as informações estão corretas. Seu anúncio será publicado instantaneamente.</p>
+                <h3 className="text-xl font-black text-green-900 mb-2">Quase lÃ¡!</h3>
+                <p className="text-green-700">Verifique se todas as informaÃ§Ãµes estÃ£o corretas. Seu anÃºncio serÃ¡ publicado instantaneamente.</p>
               </div>
 
               {/* Alerta de limite atingido */}
@@ -2253,10 +2263,10 @@ const AdCreationView: React.FC = () => {
                   <div className="flex items-start gap-4">
                     <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-lg font-bold text-red-900 mb-2">Limite de anúncios atingido</h4>
+                      <h4 className="text-lg font-bold text-red-900 mb-2">Limite de anÃºncios atingido</h4>
                       <p className="text-sm text-red-800 mb-3">{adLimitMessage}</p>
                       <p className="text-xs text-red-700 mb-3">
-                        <strong>Anúncios usados neste ciclo:</strong> {usage.adsUsed} de {usage.adsLimit}
+                        <strong>AnÃºncios usados neste ciclo:</strong> {usage.adsUsed} de {usage.adsLimit}
                       </p>
                       <button
                         onClick={() => navigate('/planos')}
@@ -2273,25 +2283,25 @@ const AdCreationView: React.FC = () => {
                 <button 
                   onClick={async () => {
                     if (!canCreateAd) {
-                      toast.error('Limite de anúncios atingido', {
+                      toast.error('Limite de anÃºncios atingido', {
                         description: adLimitMessage
                       });
                       return;
                     }
                     await handleSubmitAd();
-                    await refreshUsage(); // Atualizar contadores após publicar
+                    await refreshUsage(); // Atualizar contadores apÃ³s publicar
                   }}
                   className="w-full py-6 bg-green-700 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-green-900/20 hover:bg-green-800 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                   disabled={isSubmitting || isUploadingImages || !canCreateAd}
                 >
-                  {isUploadingImages ? 'Aguardando uploads...' : isSubmitting ? 'Publicando...' : 'Publicar Anúncio Agora'}
+                  {isUploadingImages ? 'Aguardando uploads...' : isSubmitting ? 'Publicando...' : 'Publicar AnÃºncio Agora'}
                 </button>
                 <button onClick={handleBack} className="w-full py-4 text-slate-400 font-bold hover:text-slate-600 transition-all">Voltar</button>
               </div>
             </div>
             <div className="w-full lg:w-[400px]">
                <div className="sticky top-28">
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Visualização no App</p>
+                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">VisualizaÃ§Ã£o no App</p>
                   <div className="group bg-white rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full relative border border-slate-100">
                     <div className="absolute top-4 right-4 z-10 p-2 bg-white/90 rounded-full shadow-md">
                       <Heart className="w-5 h-5 text-slate-500" strokeWidth={1.5} />
@@ -2361,12 +2371,12 @@ const AdCreationView: React.FC = () => {
         return (
           <div className="max-w-xl mx-auto text-center py-20">
             <div className="w-32 h-32 bg-green-100 text-green-700 rounded-full flex items-center justify-center mx-auto mb-10 text-6xl shadow-xl shadow-green-100">
-               ✅
+               âœ…
             </div>
-            <h1 className="text-4xl font-black text-slate-900 font-display mb-4">Anúncio Publicado!</h1>
-            <p className="text-slate-500 text-lg mb-12">Seu anúncio já está no ar e visível para milhares de produtores rurais.</p>
+            <h1 className="text-4xl font-black text-slate-900 font-display mb-4">AnÃºncio Publicado!</h1>
+            <p className="text-slate-500 text-lg mb-12">Seu anÃºncio jÃ¡ estÃ¡ no ar e visÃ­vel para milhares de produtores rurais.</p>
             <div className="flex flex-col gap-4">
-               <button onClick={() => navigate('/anuncios')} className="w-full py-5 bg-green-700 text-white rounded-2xl font-black shadow-lg">Ver Meus Anúncios</button>
+               <button onClick={() => navigate('/anuncios')} className="w-full py-5 bg-green-700 text-white rounded-2xl font-black shadow-lg">Ver Meus AnÃºncios</button>
                <button onClick={() => { setFormData({title: '', description: '', price: 0, location: {cep:'', city:'', state:''}, images:[], videoUrl:'', videoStoragePath:'', videoDurationSeconds:0, videoSizeBytes:0}); setVideoItem(null); setCurrentStep('CATEGORY'); }} className="w-full py-5 border-2 border-slate-100 text-slate-600 rounded-2xl font-black">Anunciar Outro Produto</button>
             </div>
           </div>
@@ -2378,9 +2388,9 @@ const AdCreationView: React.FC = () => {
     <div className="bg-gray-50 min-h-screen pb-32">
       <div className="max-w-7xl mx-auto px-4 pt-10">
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-sm text-yellow-900">
-          <strong className="block text-xs font-black uppercase tracking-widest mb-2">ATENÇÃO!</strong>
+          <strong className="block text-xs font-black uppercase tracking-widest mb-2">ATENÃ‡ÃƒO!</strong>
           <p>
-            Preencha os dados do anúncio com veracidade. Informações falsas podem resultar em bloqueio do anúncio e da conta.
+            Preencha os dados do anÃºncio com veracidade. InformaÃ§Ãµes falsas podem resultar em bloqueio do anÃºncio e da conta.
           </p>
         </div>
       </div>
@@ -2402,7 +2412,7 @@ const AdCreationView: React.FC = () => {
                     {i + 1}
                   </div>
                   <span className={`hidden md:block absolute -bottom-8 whitespace-nowrap text-[10px] font-black uppercase tracking-widest ${i <= currentStepIndex ? 'text-green-700' : 'text-slate-300'}`}>
-                    {s === 'CATEGORY' ? 'Categoria' : s === 'DETAILS' ? 'Dados' : s === 'MEDIA' ? 'Fotos' : s === 'PRICING' ? 'Preço' : 'Revisão'}
+                    {s === 'CATEGORY' ? 'Categoria' : s === 'DETAILS' ? 'Dados' : s === 'MEDIA' ? 'Fotos' : s === 'PRICING' ? 'PreÃ§o' : 'RevisÃ£o'}
                   </span>
                 </div>
               ))}
@@ -2419,3 +2429,4 @@ const AdCreationView: React.FC = () => {
 };
 
 export default AdCreationView;
+

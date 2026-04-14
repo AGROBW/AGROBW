@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+﻿import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import crypto from 'node:crypto';
 
@@ -265,7 +265,6 @@ const escapeHtml = (value) =>
     .replaceAll("'", '&#39;');
 
 const renderEmailShell = ({
-  eyebrow,
   title,
   subtitle = '',
   recipientName,
@@ -275,10 +274,9 @@ const renderEmailShell = ({
 }) => {
   const safeTitle = escapeHtml(title);
   const safeRecipientName = escapeHtml(recipientName || 'Cliente');
-  const safeEyebrow = escapeHtml(eyebrow || 'AGRO BW');
   const safeSubtitle = subtitle ? escapeHtml(subtitle) : '';
   const safeFooterNote = escapeHtml(
-    footerNote || 'Voce recebeu este aviso porque existe uma interacao ativa vinculada a sua conta.'
+    footerNote || 'Você recebeu este aviso porque existe uma interação ativa vinculada à sua conta.'
   );
   const safeSiteUrl = APP_URL.replace(/\/$/, '');
   const brandName = branding?.siteName || DEFAULT_EMAIL_BRAND.siteName;
@@ -293,23 +291,17 @@ const renderEmailShell = ({
       <body style="margin:0;padding:24px;background:#eef3f8;font-family:Arial,sans-serif;color:#0f172a;">
         <div style="max-width:680px;margin:0 auto;">
           <div style="background:linear-gradient(135deg,#0f172a 0%,#16233b 58%,#13351f 100%);border-radius:26px 26px 0 0;padding:28px 32px 30px;color:#ffffff;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
-              <div>${brandLogo}</div>
-              <div style="padding:8px 12px;border-radius:999px;background:rgba(134,239,172,0.12);border:1px solid rgba(134,239,172,0.22);font-size:11px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:#86efac;">${safeEyebrow}</div>
-            </div>
-            <h1 style="margin:0 0 12px;font-size:32px;line-height:1.12;font-weight:800;color:#ffffff;">${safeTitle}</h1>
+            <div style="margin-bottom:20px;">${brandLogo}</div>
+            <h1 style="margin:0 0 10px;font-size:28px;line-height:1.18;font-weight:800;color:#ffffff;">${safeTitle}</h1>
             ${
               safeSubtitle
-                ? `<p style="margin:0;max-width:480px;font-size:15px;line-height:1.7;color:rgba(226,232,240,0.92);">${safeSubtitle}</p>`
+                ? `<p style="margin:0;max-width:500px;font-size:14px;line-height:1.75;color:rgba(226,232,240,0.92);">${safeSubtitle}</p>`
                 : ''
             }
           </div>
           <div style="background:#ffffff;border:1px solid #dbe5f0;border-top:0;border-radius:0 0 26px 26px;overflow:hidden;box-shadow:0 24px 60px rgba(15,23,42,0.08);">
             <div style="padding:32px;">
-              <div style="margin:0 0 24px;padding:18px 20px;border-radius:18px;background:linear-gradient(180deg,#f8fbff 0%,#f1f6fb 100%);border:1px solid #dbe5f0;">
-                <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">Conta</p>
-                <p style="margin:0;font-size:17px;line-height:1.5;color:#0f172a;">Ola, <strong>${safeRecipientName}</strong>.</p>
-              </div>
+              <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#0f172a;">Olá, <strong>${safeRecipientName}</strong>.</p>
               ${bodyHtml}
             </div>
             <div style="padding:20px 32px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;">
@@ -337,7 +329,7 @@ const renderPrimaryButton = (href, label) => {
 export const getContactTemplate = (params) => {
   const isLead = params.sourceKind === 'new_lead';
   const title = isLead
-    ? `Novo lead no anuncio ${params.announcementTitle}`
+    ? `Novo lead no anúncio ${params.announcementTitle}`
     : `Nova mensagem sobre ${params.announcementTitle}`;
   const linkHref = getLinkHref(params.link);
   const isPlanLocked = params.lockReason === 'lead_contact_expired';
@@ -345,21 +337,21 @@ export const getContactTemplate = (params) => {
   const ctaLabel = isPlanLocked ? 'Ver meu plano' : isLead ? 'Ver lead' : 'Abrir conversa';
   const preview = isPlanLocked || isAnnouncementExpired ? null : params.messagePreview?.trim();
   const intro = isPlanLocked
-    ? 'Uma nova interacao foi registrada, mas o acesso ao conteúdo completo deste lead está bloqueado pelas regras do seu plano atual.'
+    ? 'Uma nova interação foi registrada, mas o acesso ao conteúdo completo deste lead está bloqueado pelas regras do seu plano atual.'
     : isAnnouncementExpired
-      ? 'Uma nova interacao foi registrada, mas este anuncio já expirou e a conversa está congelada para novas ações.'
+      ? 'Uma nova interação foi registrada, mas este anúncio já expirou e a conversa está congelada para novas ações.'
       : isLead
-        ? `${params.senderName} demonstrou interesse no seu anuncio e abriu um novo contato na ${params.siteName}.`
-        : `${params.senderName} enviou uma nova mensagem para voce na ${params.siteName}.`;
+        ? `${params.senderName} demonstrou interesse no seu anúncio e abriu um novo contato na ${params.siteName}.`
+        : `${params.senderName} enviou uma nova mensagem para você na ${params.siteName}.`;
   const accentBlock = isPlanLocked
     ? `<div style="margin:0 0 24px;padding:18px 20px;border-radius:14px;background:#fff7ed;border:1px solid #fdba74;">
-         <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#c2410c;">Conteudo protegido</p>
-         <p style="margin:0;font-size:15px;line-height:1.7;color:#9a3412;">Seu plano atual nao permite visualizar os dados completos e o conteudo desta conversa. Faça upgrade para desbloquear o lead e responder normalmente.</p>
+         <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#c2410c;">Conteúdo protegido</p>
+         <p style="margin:0;font-size:14px;line-height:1.75;color:#9a3412;">Seu plano atual não permite visualizar os dados completos e o conteúdo desta conversa. Faça upgrade para desbloquear o lead e responder normalmente.</p>
        </div>`
     : isAnnouncementExpired
       ? `<div style="margin:0 0 24px;padding:18px 20px;border-radius:14px;background:#fef2f2;border:1px solid #fecaca;">
            <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#b91c1c;">Conversa congelada</p>
-           <p style="margin:0;font-size:15px;line-height:1.7;color:#991b1b;">Este anuncio expirou. O historico continua registrado, mas novas mensagens e detalhes comerciais ficam bloqueados ate a republicacao ou renovacao adequada.</p>
+           <p style="margin:0;font-size:14px;line-height:1.75;color:#991b1b;">Este anúncio expirou. O histórico continua registrado, mas novas mensagens e detalhes comerciais ficam bloqueados até a republicação ou renovação adequada.</p>
          </div>`
       : '';
 
@@ -369,27 +361,27 @@ export const getContactTemplate = (params) => {
       eyebrow: isLead ? 'Novo lead' : 'Nova mensagem',
       title,
       subtitle: isLead
-        ? 'Um novo interesse comercial chegou para um dos seus anuncios.'
-        : 'Uma conversa ativa recebeu uma nova resposta e pode pedir acao rapida.',
+        ? 'Um novo interesse comercial chegou para um dos seus anúncios.'
+        : 'Uma conversa ativa recebeu uma nova resposta e pode pedir ação rápida.',
       recipientName: params.recipientName,
       branding: params.branding,
       footerNote: isPlanLocked
-        ? 'Os detalhes deste contato continuam protegidos ate a renovacao ou upgrade do seu plano.'
+        ? 'Os detalhes deste contato continuam protegidos até a renovação ou upgrade do seu plano.'
         : isAnnouncementExpired
-          ? 'Como o anuncio esta expirado, o conteudo fica visivel apenas dentro das regras atuais da plataforma.'
-          : 'Para sua seguranca, responda e conduza a negociacao sempre dentro da plataforma.',
+          ? 'Como o anúncio está expirado, o conteúdo fica visível apenas dentro das regras atuais da plataforma.'
+          : 'Para sua segurança, responda e conduza a negociação sempre dentro da plataforma.',
       bodyHtml: `
-        <p style="margin:0 0 18px;font-size:15px;line-height:1.8;color:#475569;">${escapeHtml(intro)}</p>
+        <p style="margin:0 0 18px;font-size:14px;line-height:1.8;color:#475569;">${escapeHtml(intro)}</p>
         <div style="margin:0 0 20px;padding:20px 22px;border-radius:18px;background:linear-gradient(180deg,#f8fbff 0%,#f3f7fb 100%);border:1px solid #dce5ef;">
-          <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">Anuncio</p>
-          <p style="margin:0;font-size:20px;font-weight:800;line-height:1.35;color:#0f172a;">${escapeHtml(params.announcementTitle)}</p>
+          <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">Anúncio</p>
+          <p style="margin:0;font-size:18px;font-weight:800;line-height:1.4;color:#0f172a;">${escapeHtml(params.announcementTitle)}</p>
         </div>
         ${accentBlock}
         ${
           preview
             ? `<div style="margin:0 0 24px;padding:20px 22px;border-radius:18px;background:linear-gradient(180deg,#ecfdf5 0%,#dff8eb 100%);border:1px solid #bbf7d0;">
-                 <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#15803d;">${isLead ? 'Mensagem inicial' : 'Conteudo da mensagem'}</p>
-                 <p style="margin:0;font-size:15px;line-height:1.8;color:#166534;">${escapeHtml(preview)}</p>
+                 <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#15803d;">${isLead ? 'Mensagem inicial' : 'Conteúdo da mensagem'}</p>
+                 <p style="margin:0;font-size:14px;line-height:1.8;color:#166534;">${escapeHtml(preview)}</p>
                </div>`
             : ''
         }
@@ -404,22 +396,22 @@ export const getPlanAlertTemplate = (params) => {
   return {
     subject: params.title,
     html: renderEmailShell({
-      eyebrow: params.alertKind === 'conversion' ? 'Conversao inteligente' : 'Renovacao inteligente',
+      eyebrow: params.alertKind === 'conversion' ? 'Conversão inteligente' : 'Renovação inteligente',
       title: params.title,
       subtitle:
         params.alertKind === 'conversion'
-          ? 'Selecionamos uma oportunidade que pode aumentar sua exposicao e acelerar resultados.'
-          : 'Seu plano precisa de atencao para manter recursos e continuidade operacional.',
+          ? 'Selecionamos uma oportunidade que pode aumentar sua exposição e acelerar resultados.'
+          : 'Seu plano precisa de atenção para manter recursos e continuidade operacional.',
       recipientName: params.userName,
       branding: params.branding,
       footerNote:
         params.alertKind === 'conversion'
           ? 'Este aviso foi gerado com base no seu momento atual de uso da plataforma.'
-          : 'Renovar no tempo certo evita pausa de recursos e mantem sua operacao ativa.',
+          : 'Renovar no tempo certo evita pausa de recursos e mantém sua operação ativa.',
       bodyHtml: `
         <div style="margin:0 0 24px;padding:22px;border-radius:18px;background:linear-gradient(180deg,#f8fbff 0%,#f3f7fb 100%);border:1px solid #dce5ef;">
           <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">Resumo</p>
-          <p style="margin:0;font-size:15px;line-height:1.85;color:#334155;">${escapeHtml(params.content)}</p>
+          <p style="margin:0;font-size:14px;line-height:1.85;color:#334155;">${escapeHtml(params.content)}</p>
         </div>
         ${renderPrimaryButton(linkHref, params.alertKind === 'conversion' ? 'Ver oportunidade' : 'Ver meu plano')}
       `,
@@ -432,21 +424,21 @@ export const getRadarTemplate = (params) => ({
   html: renderEmailShell({
     eyebrow: 'Radar de oportunidades',
     title: 'Nova oportunidade encontrada',
-    subtitle: 'Seu Radar identificou um anuncio aderente aos filtros que voce deixou ativos.',
+    subtitle: 'Seu Radar identificou um anúncio aderente aos filtros que você deixou ativos.',
     recipientName: params.userName,
     branding: params.branding,
-    footerNote: 'Acompanhar o Radar com frequencia ajuda voce a responder mais rapido e aproveitar oportunidades quentes.',
+    footerNote: 'Acompanhar o Radar com frequência ajuda você a responder mais rápido e aproveitar oportunidades quentes.',
     bodyHtml: `
       <div style="margin:0 0 18px;padding:22px;border-radius:18px;background:linear-gradient(180deg,#f0fdf4 0%,#e3f8ec 100%);border:1px solid #bbf7d0;">
-        <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#15803d;">Anuncio em destaque</p>
-        <p style="margin:0;font-size:21px;font-weight:800;line-height:1.35;color:#0f172a;">${escapeHtml(params.announcementTitle)}</p>
+        <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#15803d;">Anúncio em destaque</p>
+        <p style="margin:0;font-size:18px;font-weight:800;line-height:1.4;color:#0f172a;">${escapeHtml(params.announcementTitle)}</p>
       </div>
-      <p style="margin:0 0 24px;font-size:15px;line-height:1.8;color:#475569;">${escapeHtml(
+      <p style="margin:0 0 24px;font-size:14px;line-height:1.8;color:#475569;">${escapeHtml(
         params.alertName
-          ? `Esse anuncio combinou com o alerta "${params.alertName}".`
-          : 'Esse anuncio combinou com um alerta ativo do seu Radar.'
+          ? `Esse anúncio combinou com o alerta "${params.alertName}".`
+          : 'Esse anúncio combinou com um alerta ativo do seu Radar.'
       )}</p>
-      ${renderPrimaryButton(params.ctaLink, 'Ver anuncio')}
+      ${renderPrimaryButton(params.ctaLink, 'Ver anúncio')}
     `,
   }),
 });
@@ -810,3 +802,4 @@ export const processAllQueues = async (limit = 25, triggeredBy = 'admin') => {
 
   return { contact, planAlert, radar, smtpValidationError };
 };
+

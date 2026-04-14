@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import toast from 'react-hot-toast';
 import HelpCenterQuickHelpTab from '../components/help-center/HelpCenterQuickHelpTab';
 import HelpCenterTicketsTab from '../components/help-center/HelpCenterTicketsTab';
 import HelpCenterNewTicketTab from '../components/help-center/HelpCenterNewTicketTab';
 import { useSupportTickets } from '../src/hooks/useSupportTickets';
+import { usePersistentState } from '../src/hooks/usePersistentState';
 
 type HelpCenterTab = 'quick' | 'tickets' | 'new';
 
 const HelpCenterView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<HelpCenterTab>('quick');
+  const [activeTab, setActiveTab] = usePersistentState<HelpCenterTab>('help-center:active-tab', 'quick');
   const {
     tickets,
     messages,

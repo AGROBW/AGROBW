@@ -38,6 +38,7 @@ export interface Ad {
   title: string;
   description: string;
   price: number;
+  priceNegotiable?: boolean;
   videoUrl?: string;
   videoStoragePath?: string;
   videoDurationSeconds?: number;

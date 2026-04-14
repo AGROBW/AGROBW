@@ -30,6 +30,7 @@ import toast from 'react-hot-toast';
 import { toast as sonnerToast } from 'sonner';
 import { useDashboardStats } from '../src/hooks/useDashboardStats';
 import { useRadar } from '../src/hooks/useRadar';
+import { usePersistentState } from '../src/hooks/usePersistentState';
 import { updateUserCoordinates } from '../services/geoService';
 import { 
   DashboardStatsCard, 
@@ -897,10 +898,13 @@ const UserDashboardView: React.FC = () => {
 
   const AdsDashboard = () => {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'all' | 'active' | 'pending' | 'paused' | 'blocked' | 'expired'>('all');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [itemsPerPage, setItemsPerPage] = useState(10);
-    const [isBoosterExpanded, setIsBoosterExpanded] = useState(false);
+    const [activeTab, setActiveTab] = usePersistentState<'all' | 'active' | 'pending' | 'paused' | 'blocked' | 'expired'>(
+      'user-dashboard:ads-active-tab',
+      'all'
+    );
+    const [searchTerm, setSearchTerm] = usePersistentState('user-dashboard:ads-search', '');
+    const [itemsPerPage, setItemsPerPage] = usePersistentState('user-dashboard:ads-items-per-page', 10);
+    const [isBoosterExpanded, setIsBoosterExpanded] = usePersistentState('user-dashboard:ads-booster-expanded', false);
     const [removedAdIds, setRemovedAdIds] = useState<string[]>([]);
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [adToDelete, setAdToDelete] = useState<Ad | null>(null);

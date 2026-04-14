@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { ArrowRight, BookOpen, ChevronDown, CreditCard, LifeBuoy, MessageSquare, Search, Sparkles, Ticket } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { usePersistentState } from '../../src/hooks/usePersistentState';
 
 type HelpAction = {
   label: string;
@@ -129,8 +130,8 @@ const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({
   onOpenNewTicket,
   onOpenMyTickets,
 }) => {
-  const [search, setSearch] = useState('');
-  const [openTitle, setOpenTitle] = useState<string | null>(helpItems[0]?.title ?? null);
+  const [search, setSearch] = usePersistentState('help-center:quick-search', '');
+  const [openTitle, setOpenTitle] = usePersistentState<string | null>('help-center:quick-open-title', helpItems[0]?.title ?? null);
 
   const itemsWithActions = useMemo(
     () =>
