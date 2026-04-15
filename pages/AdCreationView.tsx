@@ -1829,7 +1829,7 @@ const AdCreationView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">TÃ­tulo do AnÃºncio</label>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Título do Anúncio</label>
                 <input 
                   type="text" 
                   value={formData.title}
@@ -1838,21 +1838,21 @@ const AdCreationView: React.FC = () => {
                     const result = censorContactData(e.target.value);
                     if (result.hadContactData) {
                       setFormData({...formData, title: result.censored});
-                      toast.error('Por sua seguranÃ§a, removemos dados de contato do tÃ­tulo', {
+                      toast.error('Por sua segurança, removemos dados de contato do título', {
                         description: 'Use o chat oficial da plataforma para negociar',
                         duration: 5000
                       });
                     }
                   }}
                   className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none" 
-                  placeholder="Ex: Trator John Deere 6125J - Ãšnico Dono"
+                  placeholder="Ex: Trator John Deere 6125J - Único Dono"
                 />
               </div>
 
-              {/* Campos DinÃ¢micos baseados no Schema */}
+              {/* Campos Dinâmicos baseados no Schema */}
               {technicalFieldsSchema.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-black text-slate-700 mb-4">EspecificaÃ§Ãµes TÃ©cnicas</h3>
+                  <h3 className="text-sm font-black text-slate-700 mb-4">Especificações Técnicas</h3>
                   <div className="grid grid-cols-2 gap-4">
                     {technicalFieldsSchema.map((field, index) => (
                       <div key={index}>
@@ -1896,7 +1896,7 @@ const AdCreationView: React.FC = () => {
               )}
 
               <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">DescriÃ§Ã£o Completa</label>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Descrição Completa</label>
                 <textarea 
                   rows={6}
                   value={formData.description}
@@ -1905,14 +1905,14 @@ const AdCreationView: React.FC = () => {
                     const result = censorContactData(e.target.value);
                     if (result.hadContactData) {
                       setFormData({...formData, description: result.censored});
-                      toast.error('Por sua seguranÃ§a, removemos dados de contato da descriÃ§Ã£o', {
+                      toast.error('Por sua segurança, removemos dados de contato da descrição', {
                         description: 'Use o chat oficial da plataforma para negociar',
                         duration: 5000
                       });
                     }
                   }}
                   className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none resize-none" 
-                  placeholder="Descreva detalhes do produto, histÃ³rico e condiÃ§Ãµes de conservaÃ§Ã£o..."
+                  placeholder="Descreva detalhes do produto, histórico e condições de conservação..."
                 ></textarea>
               </div>
 
@@ -1923,16 +1923,16 @@ const AdCreationView: React.FC = () => {
                       <Building2 className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-base font-black text-slate-900">InformaÃ§Ãµes comerciais da loja</h3>
+                      <h3 className="text-base font-black text-slate-900">Informações comerciais da loja</h3>
                       <p className="mt-1 text-sm leading-6 text-slate-600">
-                        Esses campos deixam o anÃºncio com mais cara de catÃ¡logo profissional e ajudam o comprador a entender a operaÃ§Ã£o da sua loja.
+                        Esses campos deixam o anúncio com mais cara de catálogo profissional e ajudam o comprador a entender a operação da sua loja.
                       </p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">CondiÃ§Ã£o do item</label>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Condição do item</label>
                       <select
                         value={formData.productCondition}
                         onChange={e => setFormData({ ...formData, productCondition: e.target.value })}
@@ -2002,7 +2002,7 @@ const AdCreationView: React.FC = () => {
                         value={formData.warrantyDetails}
                         onChange={e => setFormData({ ...formData, warrantyDetails: e.target.value })}
                         className="w-full bg-white border border-emerald-100 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
-                        placeholder="Ex: Garantia de motor por 90 dias ou conforme avaliaÃ§Ã£o"
+                        placeholder="Ex: Garantia de motor por 90 dias ou conforme avaliação"
                       />
                     </div>
                   )}
@@ -2025,7 +2025,7 @@ const AdCreationView: React.FC = () => {
                     onChange={e => setFormData({ ...formData, unit: e.target.value })}
                     className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
                   >
-                    {['Unidade', 'Kg', 'Arroba', 'Litros', 'Toneladas', 'CabeÃ§as'].map(unit => (
+                    {['Unidade', 'Kg', 'Arroba', 'Litros', 'Toneladas', 'Cabeças'].map(unit => (
                       <option key={unit} value={unit}>{unit}</option>
                     ))}
                   </select>
@@ -2034,7 +2034,7 @@ const AdCreationView: React.FC = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={handleBack} className="w-full py-5 border border-slate-200 text-slate-600 rounded-2xl font-black hover:bg-slate-50 transition-all">Voltar</button>
-              <button onClick={() => setCurrentStep('MEDIA')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">PrÃ³xima Etapa: MÃ­dia</button>
+              <button onClick={() => setCurrentStep('MEDIA')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">Próxima Etapa: Mídia</button>
             </div>
           </div>
         );
@@ -2043,9 +2043,9 @@ const AdCreationView: React.FC = () => {
         return (
           <div className="max-w-2xl mx-auto space-y-8">
             <label htmlFor="ad-images-input" className="border-4 border-dashed border-slate-100 rounded-[2.5rem] p-12 text-center hover:border-green-200 transition-colors bg-slate-50/50 cursor-pointer block relative">
-              <div className="text-6xl mb-4">ðŸ“¸</div>
+              <div className="text-6xl mb-4">📸</div>
               <h3 className="text-lg font-black text-slate-800">Clique ou arraste suas fotos aqui</h3>
-              <p className="text-slate-400 text-sm mt-2">Formatos aceitos: JPG, PNG. Tamanho mÃ¡ximo 5MB por foto.</p>
+              <p className="text-slate-400 text-sm mt-2">Formatos aceitos: JPG, PNG. Tamanho máximo de 5MB por foto.</p>
               <input
                 id="ad-images-input"
                 type="file"
@@ -2064,16 +2064,16 @@ const AdCreationView: React.FC = () => {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">Loja Parceira</p>
-                    <h3 className="mt-2 text-xl font-black text-slate-900">VÃ­deo institucional do anÃºncio</h3>
+                    <h3 className="mt-2 text-xl font-black text-slate-900">Vídeo institucional do anúncio</h3>
                     <p className="mt-2 text-sm leading-6 text-slate-500">
-                      Envie 1 vÃ­deo de atÃ© 60 segundos. A plataforma tenta otimizar o arquivo para algo prÃ³ximo de 12MB antes de salvar.
+                      Envie 1 vídeo de até 60 segundos. A plataforma tenta otimizar o arquivo para algo próximo de 12MB antes de salvar.
                     </p>
                   </div>
                   <label
                     htmlFor="ad-video-input"
                     className="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-800"
                   >
-                    Escolher vÃ­deo
+                    Escolher vídeo
                   </label>
                   <input
                     id="ad-video-input"
@@ -2103,10 +2103,10 @@ const AdCreationView: React.FC = () => {
                     </div>
                     <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="text-sm font-black text-slate-900">VÃ­deo pronto para o anÃºncio</p>
+                        <p className="text-sm font-black text-slate-900">Vídeo pronto para o anúncio</p>
                         <p className="mt-1 text-xs text-slate-500">
-                          {videoItem.durationSeconds ? `${videoItem.durationSeconds}s` : 'DuraÃ§Ã£o em processamento'}
-                          {videoItem.sizeBytes ? ` â€¢ ${formatVideoSize(videoItem.sizeBytes)}` : ''}
+                          {videoItem.durationSeconds ? `${videoItem.durationSeconds}s` : 'Duração em processamento'}
+                          {videoItem.sizeBytes ? ` • ${formatVideoSize(videoItem.sizeBytes)}` : ''}
                         </p>
                       </div>
                       <button
@@ -2114,13 +2114,13 @@ const AdCreationView: React.FC = () => {
                         onClick={handleRemoveVideo}
                         className="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                       >
-                        Remover vÃ­deo
+                        Remover vídeo
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div className="mt-6 rounded-[2rem] border border-dashed border-emerald-200 bg-white/80 p-6 text-sm text-slate-500">
-                    Nenhum vÃ­deo enviado. Esse recurso aparece apenas para anÃºncios publicados por Loja Parceira.
+                    Nenhum vídeo enviado. Esse recurso aparece apenas para anúncios publicados por Loja Parceira.
                   </div>
                 )}
               </div>
@@ -2142,7 +2142,7 @@ const AdCreationView: React.FC = () => {
             )}
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={handleBack} className="w-full py-5 border border-slate-200 text-slate-600 rounded-2xl font-black hover:bg-slate-50 transition-all">Voltar</button>
-              <button onClick={() => setCurrentStep('PRICING')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">PrÃ³xima Etapa: PreÃ§o e Local</button>
+              <button onClick={() => setCurrentStep('PRICING')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">Próxima Etapa: Preço e Local</button>
             </div>
           </div>
         );
@@ -2152,7 +2152,7 @@ const AdCreationView: React.FC = () => {
           <div className="max-w-2xl mx-auto space-y-10">
             <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
               <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Valor UnitÃ¡rio (R$)</label>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Valor Unitário (R$)</label>
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-4">
                   <div className="relative">
                     <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
@@ -2171,7 +2171,7 @@ const AdCreationView: React.FC = () => {
                   />
                 </div>
                 
-                {/* ExibiÃ§Ã£o do Valor Total Calculado */}
+                {/* Exibição do Valor Total Calculado */}
                 {formData.unitPrice > 0 && (
                   <div className="mt-4 p-4 bg-green-50 border-2 border-green-200 rounded-xl">
                     <p className="text-xs font-black text-green-700 uppercase tracking-widest mb-1">Valor Total na Vitrine</p>
@@ -2179,7 +2179,7 @@ const AdCreationView: React.FC = () => {
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(formData.price || 0)}
                     </p>
                     <p className="text-xs text-green-600 mt-1">
-                      {formData.quantity} {formData.unit} Ã— R$ {formData.unitPrice.toFixed(2)}
+                      {formData.quantity} {formData.unit} × R$ {formData.unitPrice.toFixed(2)}
                     </p>
                   </div>
                 )}
@@ -2201,7 +2201,7 @@ const AdCreationView: React.FC = () => {
 
               <div className="pt-6 border-t border-slate-50 grid grid-cols-2 gap-6">
                 <div className="col-span-2">
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">CEP LocalizaÃ§Ã£o</label>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">CEP Localização</label>
                   <input 
                     type="text" 
                     maxLength={9}
@@ -2235,7 +2235,7 @@ const AdCreationView: React.FC = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={handleBack} className="w-full py-5 border border-slate-200 text-slate-600 rounded-2xl font-black hover:bg-slate-50 transition-all">Voltar</button>
-              <button onClick={() => setCurrentStep('REVIEW')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">Revisar AnÃºncio</button>
+              <button onClick={() => setCurrentStep('REVIEW')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">Revisar Anúncio</button>
             </div>
           </div>
         );
@@ -2257,8 +2257,8 @@ const AdCreationView: React.FC = () => {
           <div className="flex flex-col lg:flex-row gap-12 items-start max-w-5xl mx-auto">
             <div className="flex-1 space-y-8">
               <div className="bg-green-50 p-8 rounded-[2rem] border border-green-100">
-                <h3 className="text-xl font-black text-green-900 mb-2">Quase lÃ¡!</h3>
-                <p className="text-green-700">Verifique se todas as informaÃ§Ãµes estÃ£o corretas. Seu anÃºncio serÃ¡ publicado instantaneamente.</p>
+                <h3 className="text-xl font-black text-green-900 mb-2">Quase lá!</h3>
+                <p className="text-green-700">Verifique se todas as informações estão corretas. Seu anúncio será publicado instantaneamente.</p>
               </div>
 
               {/* Alerta de limite atingido */}
@@ -2267,10 +2267,10 @@ const AdCreationView: React.FC = () => {
                   <div className="flex items-start gap-4">
                     <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-lg font-bold text-red-900 mb-2">Limite de anÃºncios atingido</h4>
+                      <h4 className="text-lg font-bold text-red-900 mb-2">Limite de anúncios atingido</h4>
                       <p className="text-sm text-red-800 mb-3">{adLimitMessage}</p>
                       <p className="text-xs text-red-700 mb-3">
-                        <strong>AnÃºncios usados neste ciclo:</strong> {usage.adsUsed} de {usage.adsLimit}
+                        <strong>Anúncios usados neste ciclo:</strong> {usage.adsUsed} de {usage.adsLimit}
                       </p>
                       <button
                         onClick={() => navigate('/planos')}
@@ -2287,25 +2287,25 @@ const AdCreationView: React.FC = () => {
                 <button 
                   onClick={async () => {
                     if (!canCreateAd) {
-                      toast.error('Limite de anÃºncios atingido', {
+                      toast.error('Limite de anúncios atingido', {
                         description: adLimitMessage
                       });
                       return;
                     }
                     await handleSubmitAd();
-                    await refreshUsage(); // Atualizar contadores apÃ³s publicar
+                    await refreshUsage(); // Atualizar contadores após publicar
                   }}
                   className="w-full py-6 bg-green-700 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-green-900/20 hover:bg-green-800 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                   disabled={isSubmitting || isUploadingImages || !canCreateAd}
                 >
-                  {isUploadingImages ? 'Aguardando uploads...' : isSubmitting ? 'Publicando...' : 'Publicar AnÃºncio Agora'}
+                  {isUploadingImages ? 'Aguardando uploads...' : isSubmitting ? 'Publicando...' : 'Publicar Anúncio Agora'}
                 </button>
                 <button onClick={handleBack} className="w-full py-4 text-slate-400 font-bold hover:text-slate-600 transition-all">Voltar</button>
               </div>
             </div>
             <div className="w-full lg:w-[400px]">
                <div className="sticky top-28">
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">VisualizaÃ§Ã£o no App</p>
+                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Visualização no App</p>
                   <div className="group bg-white rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full relative border border-slate-100">
                     <div className="absolute top-4 right-4 z-10 p-2 bg-white/90 rounded-full shadow-md">
                       <Heart className="w-5 h-5 text-slate-500" strokeWidth={1.5} />
@@ -2376,12 +2376,12 @@ const AdCreationView: React.FC = () => {
         return (
           <div className="max-w-xl mx-auto text-center py-20">
             <div className="w-32 h-32 bg-green-100 text-green-700 rounded-full flex items-center justify-center mx-auto mb-10 text-6xl shadow-xl shadow-green-100">
-               âœ…
+               ✅
             </div>
-            <h1 className="text-4xl font-black text-slate-900 font-display mb-4">AnÃºncio Publicado!</h1>
-            <p className="text-slate-500 text-lg mb-12">Seu anÃºncio jÃ¡ estÃ¡ no ar e visÃ­vel para milhares de produtores rurais.</p>
+            <h1 className="text-4xl font-black text-slate-900 font-display mb-4">Anúncio Publicado!</h1>
+            <p className="text-slate-500 text-lg mb-12">Seu anúncio já está no ar e visível para milhares de produtores rurais.</p>
             <div className="flex flex-col gap-4">
-               <button onClick={() => navigate('/anuncios')} className="w-full py-5 bg-green-700 text-white rounded-2xl font-black shadow-lg">Ver Meus AnÃºncios</button>
+               <button onClick={() => navigate('/anuncios')} className="w-full py-5 bg-green-700 text-white rounded-2xl font-black shadow-lg">Ver Meus Anúncios</button>
                <button onClick={() => { setFormData({title: '', description: '', price: 0, location: {cep:'', city:'', state:''}, images:[], videoUrl:'', videoStoragePath:'', videoDurationSeconds:0, videoSizeBytes:0}); setVideoItem(null); setCurrentStep('CATEGORY'); }} className="w-full py-5 border-2 border-slate-100 text-slate-600 rounded-2xl font-black">Anunciar Outro Produto</button>
             </div>
           </div>
@@ -2393,9 +2393,9 @@ const AdCreationView: React.FC = () => {
     <div className="bg-gray-50 min-h-screen pb-32">
       <div className="max-w-7xl mx-auto px-4 pt-10">
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-sm text-yellow-900">
-          <strong className="block text-xs font-black uppercase tracking-widest mb-2">ATENÃ‡ÃƒO!</strong>
+          <strong className="block text-xs font-black uppercase tracking-widest mb-2">ATENÇÃO!</strong>
           <p>
-            Preencha os dados do anÃºncio com veracidade. InformaÃ§Ãµes falsas podem resultar em bloqueio do anÃºncio e da conta.
+            Preencha os dados do anúncio com veracidade. Informações falsas podem resultar em bloqueio do anúncio e da conta.
           </p>
         </div>
       </div>
@@ -2417,7 +2417,7 @@ const AdCreationView: React.FC = () => {
                     {i + 1}
                   </div>
                   <span className={`hidden md:block absolute -bottom-8 whitespace-nowrap text-[10px] font-black uppercase tracking-widest ${i <= currentStepIndex ? 'text-green-700' : 'text-slate-300'}`}>
-                    {s === 'CATEGORY' ? 'Categoria' : s === 'DETAILS' ? 'Dados' : s === 'MEDIA' ? 'Fotos' : s === 'PRICING' ? 'PreÃ§o' : 'RevisÃ£o'}
+                    {s === 'CATEGORY' ? 'Categoria' : s === 'DETAILS' ? 'Dados' : s === 'MEDIA' ? 'Fotos' : s === 'PRICING' ? 'Preço' : 'Revisão'}
                   </span>
                 </div>
               ))}

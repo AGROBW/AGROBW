@@ -340,35 +340,73 @@ const PricingView: React.FC = () => {
 
       {(boostersLoading || boosters.length > 0) && (
         <section className="mx-auto max-w-7xl px-4 pt-12">
-          <div className="rounded-[2rem] border border-slate-200 bg-white/90 p-6 shadow-[0_24px_80px_-50px_rgba(15,23,42,0.35)] backdrop-blur">
-            <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-400">Booster Avulso</p>
-                <h2 className="text-2xl font-black text-slate-950">Mais destaque quando sua campanha pedir reforco</h2>
-                <p className="mt-2 max-w-2xl text-sm text-slate-500">Compra exclusiva para reforçar vitrines sem banalizar os planos. O consumo continua usando primeiro os créditos do plano e depois o saldo extra do booster.</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Limite de compra</span>
-                <span className="font-bold text-slate-900">Até 2 boosters a cada 30 dias</span>
-              </div>
-            </div>
-            {boostersLoading ? (
-              <div className="h-[220px] animate-pulse rounded-[1.5rem] border border-slate-100 bg-slate-50" />
-            ) : (
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr,0.8fr]">
-                <HighlightBoosterCard booster={boosters[0]} summary={boosterSummary} onPurchase={handleBoosterPurchase} loading={loadingPlanId === `booster-${boosters[0].id}`} showAccountSummary={!!user} />
-                <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Como funciona</p>
-                  <ul className="mt-4 space-y-3 text-sm text-slate-600">
-                    <li>O combo adiciona 5 destaques em categoria e 5 destaques na home.</li>
-                    <li>Os créditos extras não expiram e continuam válidos mesmo se o plano for cancelado.</li>
-                    <li>Quando você aplica um destaque, o sistema consome primeiro o saldo do plano.</li>
-                    <li>Depois disso, o uso passa automaticamente para o saldo do booster.</li>
-                    <li>Se houver uso, a compra deixa de ser reembolsável.</li>
-                  </ul>
+          <style>
+            {`
+              @keyframes boosterSectionBorderFlow {
+                0% {
+                  background-position: 0% 50%;
+                  box-shadow:
+                    0 26px 85px -52px rgba(15, 23, 42, 0.42),
+                    0 0 0 1px rgba(255, 255, 255, 0.7);
+                }
+                50% {
+                  background-position: 100% 50%;
+                  box-shadow:
+                    0 30px 90px -48px rgba(15, 23, 42, 0.46),
+                    0 0 34px -10px color-mix(in srgb, ${settings.primaryColor} 22%, transparent);
+                }
+                100% {
+                  background-position: 0% 50%;
+                  box-shadow:
+                    0 26px 85px -52px rgba(15, 23, 42, 0.42),
+                    0 0 0 1px rgba(255, 255, 255, 0.7);
+                }
+              }
+            `}
+          </style>
+          <div
+            className="rounded-[2rem] p-[1px] backdrop-blur"
+            style={{
+              background: `linear-gradient(120deg,
+                color-mix(in srgb, ${settings.primaryColor} 42%, #dbeafe) 0%,
+                color-mix(in srgb, ${settings.accentColor} 24%, #ffffff) 28%,
+                rgba(255,255,255,0.95) 50%,
+                color-mix(in srgb, ${settings.primaryColor} 28%, #ecfeff) 72%,
+                color-mix(in srgb, ${settings.secondaryColor} 34%, #dbeafe) 100%)`,
+              backgroundSize: '220% 220%',
+              animation: 'boosterSectionBorderFlow 6.5s ease-in-out infinite',
+            }}
+          >
+            <div className="rounded-[calc(2rem-1px)] bg-white/90 p-6">
+              <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-400">Booster Avulso</p>
+                  <h2 className="text-2xl font-black text-slate-950">Mais destaque quando sua campanha pedir reforco</h2>
+                  <p className="mt-2 max-w-2xl text-sm text-slate-500">Compra exclusiva para reforçar vitrines sem banalizar os planos. O consumo continua usando primeiro os créditos do plano e depois o saldo extra do booster.</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Limite de compra</span>
+                  <span className="font-bold text-slate-900">Até 2 boosters a cada 30 dias</span>
                 </div>
               </div>
-            )}
+              {boostersLoading ? (
+                <div className="h-[220px] animate-pulse rounded-[1.5rem] border border-slate-100 bg-slate-50" />
+              ) : (
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr,0.8fr]">
+                  <HighlightBoosterCard booster={boosters[0]} summary={boosterSummary} onPurchase={handleBoosterPurchase} loading={loadingPlanId === `booster-${boosters[0].id}`} showAccountSummary={!!user} />
+                  <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Como funciona</p>
+                    <ul className="mt-4 space-y-3 text-sm text-slate-600">
+                      <li>O combo adiciona 5 destaques em categoria e 5 destaques na home.</li>
+                      <li>Os créditos extras não expiram e continuam válidos mesmo se o plano for cancelado.</li>
+                      <li>Quando você aplica um destaque, o sistema consome primeiro o saldo do plano.</li>
+                      <li>Depois disso, o uso passa automaticamente para o saldo do booster.</li>
+                      <li>Se houver uso, a compra deixa de ser reembolsável.</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </section>
       )}

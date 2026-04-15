@@ -22,10 +22,12 @@ const statusMeta: Record<
   skipped: { label: 'Ignorado', className: 'border border-slate-200 bg-slate-50 text-slate-600' },
 };
 
-const kindMeta: Record<'conversion' | 'renewal' | 'edit_rejected', { label: string; className: string }> = {
+const kindMeta: Record<'conversion' | 'renewal' | 'edit_rejected' | 'ad_paused' | 'ad_resumed', { label: string; className: string }> = {
   conversion: { label: 'Conversao', className: 'bg-emerald-100 text-emerald-700' },
   renewal: { label: 'Renovacao', className: 'bg-amber-100 text-amber-700' },
   edit_rejected: { label: 'Edicao rejeitada', className: 'bg-rose-100 text-rose-700' },
+  ad_paused: { label: 'Anuncio pausado', className: 'bg-slate-200 text-slate-700' },
+  ad_resumed: { label: 'Anuncio reativado', className: 'bg-sky-100 text-sky-700' },
 };
 
 const formatDateTime = (value?: string | null) => {
@@ -60,7 +62,7 @@ const PlanAlertEmailManagement: React.FC = () => {
   const { summary, jobs, dispatchLogs, isLoading, error, fetchMonitoring, processQueueNow } =
     usePlanAlertEmailMonitoring();
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'processing' | 'sent' | 'failed' | 'skipped'>('all');
-  const [kindFilter, setKindFilter] = useState<'all' | 'conversion' | 'renewal' | 'edit_rejected'>('all');
+  const [kindFilter, setKindFilter] = useState<'all' | 'conversion' | 'renewal' | 'edit_rejected' | 'ad_paused' | 'ad_resumed'>('all');
   const [isProcessingNow, setIsProcessingNow] = useState(false);
 
   const filteredJobs = useMemo(() => {

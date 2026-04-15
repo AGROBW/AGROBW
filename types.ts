@@ -681,7 +681,7 @@ export interface PlanAlertEmailJob {
   userId: string;
   recipientEmail?: string | null;
   recipientName?: string | null;
-  alertKind: 'conversion' | 'renewal' | 'edit_rejected';
+  alertKind: 'conversion' | 'renewal' | 'edit_rejected' | 'ad_paused' | 'ad_resumed';
   notificationTitle: string;
   notificationContent: string;
   link?: string | null;

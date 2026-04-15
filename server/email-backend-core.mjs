@@ -396,29 +396,56 @@ export const getPlanAlertTemplate = (params) => {
   const isConversion = params.alertKind === 'conversion';
   const isRenewal = params.alertKind === 'renewal';
   const isEditRejected = params.alertKind === 'edit_rejected';
+  const isAdPaused = params.alertKind === 'ad_paused';
+  const isAdResumed = params.alertKind === 'ad_resumed';
   return {
     subject: params.title,
     html: renderEmailShell({
-      eyebrow: isConversion ? 'Conversão inteligente' : isRenewal ? 'Renovação inteligente' : 'Edição rejeitada',
+      eyebrow: isConversion
+        ? 'Conversão inteligente'
+        : isRenewal
+          ? 'Renovação inteligente'
+          : isEditRejected
+            ? 'Edição rejeitada'
+            : isAdPaused
+              ? 'Anúncio pausado'
+              : 'Anúncio reativado',
       title: params.title,
       subtitle: isConversion
         ? 'Selecionamos uma oportunidade que pode aumentar sua exposição e acelerar resultados.'
         : isRenewal
           ? 'Seu plano precisa de atenção para manter recursos e continuidade operacional.'
-          : 'Sua alteração foi revisada pela equipe e precisa de ajustes antes de ser aprovada.',
+          : isEditRejected
+            ? 'Sua alteração foi revisada pela equipe e precisa de ajustes antes de ser aprovada.'
+            : isAdPaused
+              ? 'A equipe aplicou uma pausa operacional no anúncio e registrou o motivo para você acompanhar.'
+              : 'Seu anúncio voltou a ficar ativo e disponível na plataforma.',
       recipientName: params.userName,
       branding: params.branding,
       footerNote: isConversion
         ? 'Este aviso foi gerado com base no seu momento atual de uso da plataforma.'
         : isRenewal
           ? 'Renovar no tempo certo evita pausa de recursos e mantém sua operação ativa.'
-          : 'Revise o motivo informado pela equipe, ajuste o anúncio e envie uma nova alteração quando estiver pronto.',
+          : isEditRejected
+            ? 'Revise o motivo informado pela equipe, ajuste o anúncio e envie uma nova alteração quando estiver pronto.'
+            : isAdPaused
+              ? 'Se precisar ajustar o anúncio, revise o motivo informado pela equipe no seu painel.'
+              : 'Aproveite a retomada do anúncio para revisar preço, mídia e descrição, se necessário.',
       bodyHtml: `
         <div style="margin:0 0 24px;padding:22px;border-radius:18px;background:linear-gradient(180deg,#f8fbff 0%,#f3f7fb 100%);border:1px solid #dce5ef;">
           <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">Resumo</p>
           <p style="margin:0;font-size:14px;line-height:1.85;color:#334155;">${escapeHtml(params.content)}</p>
         </div>
-        ${renderPrimaryButton(linkHref, isConversion ? 'Ver oportunidade' : isRenewal ? 'Ver meu plano' : 'Revisar meu anúncio')}
+        ${renderPrimaryButton(
+          linkHref,
+          isConversion
+            ? 'Ver oportunidade'
+            : isRenewal
+              ? 'Ver meu plano'
+              : isEditRejected || isAdPaused
+                ? 'Revisar meu anúncio'
+                : 'Ver meus anúncios'
+        )}
       `,
     }),
   };

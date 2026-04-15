@@ -98,6 +98,9 @@ const AnnouncementsMonitoring: React.FC = () => {
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<MonitoringAnnouncement | null>(null);
+  const [pauseTarget, setPauseTarget] = useState<MonitoringAnnouncement | null>(null);
+  const [pauseReason, setPauseReason] = useState('');
+  const [isSubmittingPause, setIsSubmittingPause] = useState(false);
   const [openActionsMenuId, setOpenActionsMenuId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -319,34 +322,117 @@ const AnnouncementsMonitoring: React.FC = () => {
     return count;
   }, [statusFilter, categoryFilter, performanceFilter, searchTerm]);
 
-  const handleTogglePause = async (announcement: MonitoringAnnouncement) => {
+  const openPauseModal = (announcement: MonitoringAnnouncement) => {
+    setPauseTarget(announcement);
+    setPauseReason('');
+  };
+
+  const closePauseModal = () => {
+    setPauseTarget(null);
+    setPauseReason('');
+    setIsSubmittingPause(false);
+  };
+
+  const handleTogglePause = async (announcement: MonitoringAnnouncement, reason?: string) => {
     const nextStatus = announcement.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+    const isPausing = nextStatus === 'PAUSED';
+    const pauseReasonValue = reason?.trim() || '';
+
+    if (isPausing && !pauseReasonValue) {
+      toast.error('Informe o motivo da pausa do anúncio');
+      return;
+    }
 
     try {
-      const { error } = await supabase
+      setIsSubmittingPause(true);
+      const { data, error } = await supabase
         .from('announcements')
         .update({ status: nextStatus })
-        .eq('id', announcement.id);
+        .eq('id', announcement.id)
+        .select('id,status')
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) {
+        throw new Error('Nenhum anúncio foi atualizado. Verifique as permissões do administrador.');
+      }
+
+      setAnnouncements((current) =>
+        current.map((item) =>
+          item.id === announcement.id
+            ? { ...item, status: nextStatus }
+            : item
+        )
+      );
+
+      setSelectedAnnouncement((current) =>
+        current?.id === announcement.id
+          ? { ...current, status: nextStatus }
+          : current
+      );
 
       await logAction({
-        action: nextStatus === 'PAUSED' ? ADMIN_ACTIONS.REJECT_AD : ADMIN_ACTIONS.APPROVE_AD,
+        action: isPausing ? 'PAUSE_AD' : 'RESUME_AD',
         resourceType: RESOURCE_TYPES.ANNOUNCEMENT,
         resourceId: announcement.id,
         oldValue: { status: announcement.status },
         newValue: { status: nextStatus },
-        reason:
-          nextStatus === 'PAUSED'
-            ? `Anúncio "${announcement.title}" pausado via monitoramento.`
-            : `Anúncio "${announcement.title}" reativado via monitoramento.`,
+        reason: isPausing
+          ? `Anúncio "${announcement.title}" pausado via monitoramento. Motivo: ${pauseReasonValue}`
+          : `Anúncio "${announcement.title}" reativado via monitoramento.`
       });
 
-      toast.success(nextStatus === 'PAUSED' ? 'Anúncio pausado com sucesso' : 'Anúncio reativado com sucesso');
+      const notificationTitle = isPausing
+        ? 'Seu anúncio foi pausado pela equipe'
+        : 'Seu anúncio foi reativado pela equipe';
+      const notificationContent = isPausing
+        ? `O anúncio "${announcement.title}" foi pausado temporariamente pela equipe AGRO BW. Motivo: ${pauseReasonValue}`
+        : `O anúncio "${announcement.title}" foi reativado pela equipe AGRO BW e voltou a ficar disponível na plataforma.`;
+
+      const { data: notificationRecord, error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: announcement.user_id,
+          type: 'system',
+          title: notificationTitle,
+          content: notificationContent,
+          link: '/minha-conta/anuncios',
+          is_read: false,
+        })
+        .select('id')
+        .single();
+
+      if (notificationError) {
+        console.error('[AnnouncementsMonitoring] Erro ao criar notificação para o anunciante:', notificationError);
+      } else {
+        const recipientEmail = announcement.owner?.email?.trim() || null;
+        const recipientName = announcement.owner?.name?.trim() || 'Cliente';
+        const { error: emailJobError } = await supabase.from('plan_alert_email_jobs').insert({
+          notification_id: notificationRecord.id,
+          user_id: announcement.user_id,
+          recipient_email: recipientEmail,
+          recipient_name: recipientName,
+          alert_kind: isPausing ? 'ad_paused' : 'ad_resumed',
+          notification_title: notificationTitle,
+          notification_content: notificationContent,
+          link: '/minha-conta/anuncios',
+          status: recipientEmail ? 'pending' : 'skipped',
+          last_error: recipientEmail ? null : 'Usuario sem e-mail valido',
+        });
+
+        if (emailJobError) {
+          console.error('[AnnouncementsMonitoring] Erro ao criar job de e-mail do anunciante:', emailJobError);
+        }
+      }
+
+      toast.success(isPausing ? 'Anúncio pausado com sucesso' : 'Anúncio reativado com sucesso');
+      closePauseModal();
       await loadAnnouncements();
     } catch (error) {
       console.error('[AnnouncementsMonitoring] Erro ao alterar status:', error);
-      toast.error('Não foi possível atualizar o status do anúncio');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o status do anúncio');
+    } finally {
+      setIsSubmittingPause(false);
     }
   };
 
@@ -546,6 +632,10 @@ const AnnouncementsMonitoring: React.FC = () => {
                                       type="button"
                                       onClick={() => {
                                         setOpenActionsMenuId(null);
+                                        if (announcement.status === 'ACTIVE') {
+                                          openPauseModal(announcement);
+                                          return;
+                                        }
                                         void handleTogglePause(announcement);
                                       }}
                                       className="flex h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
@@ -752,6 +842,10 @@ const AnnouncementsMonitoring: React.FC = () => {
                                       type="button"
                                       onClick={() => {
                                         setOpenActionsMenuId(null);
+                                        if (announcement.status === 'ACTIVE') {
+                                          openPauseModal(announcement);
+                                          return;
+                                        }
                                         void handleTogglePause(announcement);
                                       }}
                                       className="flex h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
@@ -845,6 +939,62 @@ const AnnouncementsMonitoring: React.FC = () => {
           </div>
         )}
       </section>
+
+      {pauseTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-[1px]">
+          <div className="w-full max-w-xl rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_32px_80px_-32px_rgba(15,23,42,0.45)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">Pausar anúncio</p>
+                <h3 className="mt-2 text-xl font-bold text-slate-900">{pauseTarget.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Informe o motivo da pausa. Esse texto será mostrado ao anunciante no painel e no e-mail.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closePauseModal}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <label htmlFor="pause-reason" className="text-sm font-semibold text-slate-700">
+                Motivo da pausa
+              </label>
+              <textarea
+                id="pause-reason"
+                value={pauseReason}
+                onChange={(event) => setPauseReason(event.target.value)}
+                rows={5}
+                placeholder="Explique por que o anúncio está sendo pausado e o que o anunciante precisa ajustar."
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/15"
+              />
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={closePauseModal}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 px-5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleTogglePause(pauseTarget, pauseReason)}
+                disabled={isSubmittingPause}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-amber-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <PauseCircle className="h-4 w-4" />
+                {isSubmittingPause ? 'Pausando...' : 'Confirmar pausa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedAnnouncement && (
         <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/45 backdrop-blur-[1px]">
@@ -957,7 +1107,13 @@ const AnnouncementsMonitoring: React.FC = () => {
                 {(selectedAnnouncement.status === 'ACTIVE' || selectedAnnouncement.status === 'PAUSED') && (
                   <button
                     type="button"
-                    onClick={() => void handleTogglePause(selectedAnnouncement)}
+                    onClick={() => {
+                      if (selectedAnnouncement.status === 'ACTIVE') {
+                        openPauseModal(selectedAnnouncement);
+                        return;
+                      }
+                      void handleTogglePause(selectedAnnouncement);
+                    }}
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
                   >
                     {selectedAnnouncement.status === 'ACTIVE' ? (

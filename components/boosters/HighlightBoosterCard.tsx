@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Sparkles, Tag } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { HighlightBoosterRecord, HighlightBoosterSummary } from '../../types';
 import { useLayout } from '../../src/contexts/LayoutContext';
 
@@ -96,12 +96,59 @@ const HighlightBoosterCard: React.FC<HighlightBoosterCardProps> = ({
   }
 
   return (
-    <div
-      className={`overflow-hidden rounded-[2rem] border bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)] shadow-[0_20px_45px_-36px_rgba(15,23,42,0.45)] ${
-        compact ? 'p-5' : 'p-7'
-      }`}
-      style={{ borderColor: `color-mix(in srgb, ${settings.primaryColor} 20%, #e2e8f0)` }}
-    >
+    <>
+      <style>
+        {`
+          @keyframes boosterCardGlow {
+            0%, 100% {
+              box-shadow:
+                0 24px 52px -34px rgba(15, 23, 42, 0.42),
+                0 0 0 1px color-mix(in srgb, ${settings.primaryColor} 28%, transparent),
+                0 0 0 0 color-mix(in srgb, ${settings.primaryColor} 0%, transparent);
+            }
+            50% {
+              box-shadow:
+                0 28px 65px -32px rgba(15, 23, 42, 0.48),
+                0 0 0 1px color-mix(in srgb, ${settings.primaryColor} 38%, transparent),
+                0 0 26px 0 color-mix(in srgb, ${settings.primaryColor} 26%, transparent);
+            }
+          }
+
+          @keyframes boosterCardSheen {
+            0% {
+              transform: translateX(-120%) skewX(-18deg);
+              opacity: 0;
+            }
+            18% {
+              opacity: 0.16;
+            }
+            52% {
+              opacity: 0.08;
+            }
+            100% {
+              transform: translateX(220%) skewX(-18deg);
+              opacity: 0;
+            }
+          }
+        `}
+      </style>
+
+      <div
+        className={`relative overflow-hidden rounded-[2rem] border bg-[linear-gradient(180deg,#ffffff_0%,#fbfdff_100%)] ${
+          compact ? 'p-5' : 'p-7'
+        }`}
+        style={{
+          borderColor: `color-mix(in srgb, ${settings.primaryColor} 42%, #cbd5e1)`,
+          animation: 'boosterCardGlow 4.2s ease-in-out infinite',
+        }}
+      >
+        <div
+          className="pointer-events-none absolute inset-y-0 left-0 w-24"
+          style={{
+            background: `linear-gradient(90deg, transparent 0%, color-mix(in srgb, ${settings.primaryColor} 26%, white) 48%, transparent 100%)`,
+            animation: 'boosterCardSheen 5.5s ease-in-out infinite',
+          }}
+        />
       <div
         className="relative mb-6 overflow-hidden rounded-[1.75rem] border p-5"
         style={{
@@ -156,69 +203,9 @@ const HighlightBoosterCard: React.FC<HighlightBoosterCardProps> = ({
       </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-[1.5rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5">
-          <div className="flex items-center gap-2 text-slate-700">
-            <Tag className="h-4 w-4" style={{ color: settings.primaryColor }} />
-            <span className="text-sm font-semibold">Categoria</span>
-          </div>
-          <p className="mt-3 text-3xl font-black tracking-tight text-slate-900">+{booster.categoryCredits}</p>
-          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">Créditos extras</p>
-        </div>
 
-        <div className="rounded-[1.5rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5">
-          <div className="flex items-center gap-2 text-slate-700">
-            <Home className="h-4 w-4" style={{ color: settings.accentColor }} />
-            <span className="text-sm font-semibold">Home</span>
-          </div>
-          <p className="mt-3 text-3xl font-black tracking-tight text-slate-900">+{booster.homeCredits}</p>
-          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">Créditos extras</p>
-        </div>
       </div>
-
-      {shouldShowAccountSummary && (
-        <div className="mt-5 rounded-[1.5rem] border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Saldo extra na sua conta</p>
-              <p className="mt-2 font-semibold text-slate-900">
-                {summary.categoryRemaining} categoria e {summary.homeRemaining} home
-              </p>
-            </div>
-            <div className="md:text-right">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Janela de compra</p>
-              <p className="mt-2 font-semibold text-slate-900">
-                {purchasesLeft} compra(s) restante(s) em 30 dias
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="mt-6 flex flex-col gap-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Regra de consumo</p>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            O sistema consome primeiro os créditos do plano e depois usa os créditos extras do booster.
-          </p>
-        </div>
-        <div className="flex flex-col items-stretch gap-2 md:items-end">
-          <button
-            onClick={onPurchase}
-            disabled={loading || (shouldShowAccountSummary && !summary.canPurchase)}
-            className="h-12 rounded-2xl px-6 text-sm font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ backgroundColor: settings.primaryColor }}
-          >
-            {loading ? 'Processando...' : booster.buttonText || 'Comprar booster'}
-          </button>
-          <p className="text-xs text-slate-500 md:text-right">
-            {shouldShowAccountSummary
-              ? `${purchasesLeft} compra(s) restante(s) na janela atual`
-              : 'Entre na sua conta para acompanhar saldo e janela de compra'}
-          </p>
-        </div>
-      </div>
-    </div>
+    </>
   );
 };
 
