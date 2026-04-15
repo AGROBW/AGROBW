@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store } from 'lucide-react';
@@ -32,6 +32,8 @@ import { useDashboardStats } from '../src/hooks/useDashboardStats';
 import { useRadar } from '../src/hooks/useRadar';
 import { usePersistentState } from '../src/hooks/usePersistentState';
 import { updateUserCoordinates } from '../services/geoService';
+import { useLayout } from '../src/contexts/LayoutContext';
+import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { 
   DashboardStatsCard, 
   ReachModule, 
@@ -83,6 +85,7 @@ const UserDashboardView: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, stats, signOut, refreshStats } = useAuth();
+  const { settings } = useLayout();
   const { ads, isLoading: adsLoading } = useUserAds();
   const { messagesCount, notificationsCount, isLoading: countsLoading } = useNotificationsCount();
   const {
@@ -337,14 +340,14 @@ const UserDashboardView: React.FC = () => {
     return null;
   };
 
-  // FunÃ§Ã£o para validar documento via OCR.space API
+  // Função para validar documento via OCR.space API
   const validateDocumentWithOCR = async (file: File): Promise<{
     success: boolean;
     message: string;
     extractedDocument?: string;
   }> => {
     try {
-      // Preparar FormData para enviar Ã  API
+      // Preparar FormData para enviar à API
       const formData = new FormData();
       formData.append('apikey', 'K85883462288957');
       formData.append('language', 'por');
@@ -379,11 +382,11 @@ const UserDashboardView: React.FC = () => {
       if (!parsedText) {
         return {
           success: false,
-          message: 'âŒ NÃ£o foi possÃ­vel extrair texto do documento. Verifique a qualidade da imagem.'
+          message: 'Não foi possível extrair texto do documento. Verifique a qualidade da imagem.'
         };
       }
 
-      console.log('[OCR] Texto extraÃ­do:', parsedText);
+      console.log('[OCR] Texto extraído:', parsedText);
 
       // Extrair CPF/CNPJ do texto
       const extractedDocument = extractDocumentFromText(parsedText);
@@ -391,34 +394,34 @@ const UserDashboardView: React.FC = () => {
       if (!extractedDocument) {
         return {
           success: false,
-          message: 'âŒ NÃ£o foi possÃ­vel identificar CPF ou CNPJ no documento.'
+          message: 'Não foi possível identificar CPF ou CNPJ no documento.'
         };
       }
 
-      console.log('[OCR] Documento extraÃ­do:', extractedDocument);
+      console.log('[OCR] Documento extraído:', extractedDocument);
 
-      // Comparar com documento do usuÃ¡rio
-      const userDocument = user?.document?.replace(/\D/g, ''); // Remover formataÃ§Ã£o
+      // Comparar com documento do usuário
+      const userDocument = user?.document?.replace(/\D/g, ''); // Remover formatação
 
       if (!userDocument) {
         return {
           success: false,
-          message: 'âš ï¸ VocÃª ainda nÃ£o cadastrou seu CPF/CNPJ no perfil.',
+          message: 'Você ainda não cadastrou seu CPF/CNPJ no perfil.',
           extractedDocument
         };
       }
 
-      // Verificar correspondÃªncia
+      // Verificar correspondência
       if (extractedDocument === userDocument) {
         return {
           success: true,
-          message: 'âœ… Documento validado com sucesso! Os dados conferem.',
+          message: 'Documento validado com sucesso. Os dados conferem.',
           extractedDocument
         };
       } else {
         return {
           success: false,
-          message: `âŒ Os dados do documento nÃ£o batem com o seu perfil. Documento extraÃ­do: ${formatDocument(extractedDocument)} | Cadastrado: ${formatDocument(userDocument)}`,
+          message: `Os dados do documento não batem com o seu perfil. Documento extraído: ${formatDocument(extractedDocument)} | Cadastrado: ${formatDocument(userDocument)}`,
           extractedDocument
         };
       }
@@ -427,7 +430,7 @@ const UserDashboardView: React.FC = () => {
       console.error('[OCR] Erro:', error);
       return {
         success: false,
-        message: `âŒ Erro ao validar documento: ${error.message}`
+        message: `Erro ao validar documento: ${error.message}`
       };
     }
   };
@@ -505,7 +508,7 @@ const UserDashboardView: React.FC = () => {
 
     // Validar tamanho (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('O documento deve ter no mÃ¡ximo 10MB');
+      toast.error('O documento deve ter no máximo 10MB');
       return;
     }
 
@@ -527,15 +530,15 @@ const UserDashboardView: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
-      toast.success('Documento enviado! Iniciando validaÃ§Ã£o...');
+      toast.success('Documento enviado! Iniciando validação...');
       setIsUploadingDocument(false);
       
-      // Verificar se Ã© PDF grande (>1MB) - anÃ¡lise manual
+      // Verificar se é PDF grande (>1MB) - análise manual
       const isPDF = file.type === 'application/pdf';
       const isPDFTooLarge = isPDF && file.size > 1 * 1024 * 1024; // 1MB
       
       if (isPDFTooLarge) {
-        // PDF grande: anÃ¡lise manual
+        // PDF grande: análise manual
         const { error: updateError } = await supabase
           .from('users')
           .update({ 
@@ -546,16 +549,16 @@ const UserDashboardView: React.FC = () => {
 
         if (updateError) throw updateError;
         
-        setUploadSuccess('ðŸ“„ PDF enviado! Por ser um arquivo grande, aguarde anÃ¡lise manual da equipe.');
+        setUploadSuccess('PDF enviado. Por ser um arquivo grande, aguarde a análise manual da equipe.');
       } else {
-        // Imagens ou PDFs pequenos: validaÃ§Ã£o OCR automÃ¡tica
+        // Imagens ou PDFs pequenos: validação OCR automática
         setIsValidatingDocument(true);
         
         const validationResult = await validateDocumentWithOCR(file);
         setValidationResult(validationResult);
         
         if (validationResult.success) {
-          // Atualizar document_path com validaÃ§Ã£o aprovada
+          // Atualizar document_path com validação aprovada
           const { error: updateError } = await supabase
             .from('users')
             .update({ 
@@ -566,12 +569,12 @@ const UserDashboardView: React.FC = () => {
 
           if (updateError) console.error('Erro ao atualizar status:', updateError);
           
-          // Atualizar contexto de autenticaÃ§Ã£o para refletir mudanÃ§a sem reload
+          // Atualizar contexto de autenticação para refletir mudança sem reload
           await refreshStats();
           
-          // Toast especial de sucesso com celebraÃ§Ã£o
+          // Toast especial de sucesso com celebração
           toast.success(
-            'ðŸŽ‰ ParabÃ©ns! Sua identidade foi confirmada e vocÃª agora Ã© um Vendedor Verificado.',
+            'Parabéns! Sua identidade foi confirmada, e você agora é um Vendedor Verificado.',
             {
               duration: 6000,
               style: {
@@ -580,13 +583,13 @@ const UserDashboardView: React.FC = () => {
                 fontWeight: 'bold',
                 padding: '16px',
               },
-              icon: 'ðŸŽŠ',
+              icon: '✅',
             }
           );
           
-          setUploadSuccess(`âœ… ${isPDF ? 'PDF' : 'Documento'} validado e enviado com sucesso!`);
+          setUploadSuccess(`${isPDF ? 'PDF' : 'Documento'} validado e enviado com sucesso.`);
         } else {
-          // Salvar mesmo se nÃ£o validado (para revisÃ£o manual)
+          // Salvar mesmo se não validado (para revisão manual)
           const { error: updateError } = await supabase
             .from('users')
             .update({ 
@@ -601,7 +604,7 @@ const UserDashboardView: React.FC = () => {
         setIsValidatingDocument(false);
       }
       
-      // Limpar mensagens apÃ³s 10 segundos
+      // Limpar mensagens após 10 segundos
       setTimeout(() => {
         setUploadSuccess(null);
         setValidationResult(null);
@@ -1256,7 +1259,7 @@ const UserDashboardView: React.FC = () => {
                   className="flex h-20 cursor-pointer items-center gap-4 rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.32)] transition-all hover:-translate-y-0.5 hover:shadow-[0_24px_55px_-36px_rgba(15,23,42,0.35)]"
                 >
                   <div className="h-[60px] w-[60px] flex-shrink-0 overflow-hidden rounded-2xl bg-slate-100 shadow-sm">
-                    <img src={ad.images[0]} alt={ad.title} className="w-full h-full object-cover" />
+                    <img src={getPrimaryImageFromList(ad.images, settings.defaultAdImageUrl)} alt={ad.title} className="w-full h-full object-cover" />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -1294,6 +1297,11 @@ const UserDashboardView: React.FC = () => {
                     <p className="text-xs text-slate-500">
                       Visitas: {ad.views} | Valor: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.price)}
                     </p>
+                    {ad.latestEditRequestStatus === 'rejected' && ad.latestEditRejectionReason ? (
+                      <p className="mt-1 text-xs font-medium text-amber-700">
+                        Ultima alteracao rejeitada: {ad.latestEditRejectionReason}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="flex items-center gap-4">
@@ -3181,7 +3189,7 @@ const UserDashboardView: React.FC = () => {
                   </div>
                 )}
                 
-                {/* Resultado da ValidaÃ§Ã£o OCR */}
+                {/* Resultado da Validação OCR */}
                 {validationResult && (
                   <div className={`mt-3 rounded-xl border p-3 ${
                     validationResult.success 
@@ -3192,11 +3200,11 @@ const UserDashboardView: React.FC = () => {
                       <div className="flex-shrink-0 mt-0.5">
                         {validationResult.success ? (
                           <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">âœ“</span>
+                            <span className="text-white text-xs font-bold">✓</span>
                           </div>
                         ) : (
                           <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">âœ•</span>
+                            <span className="text-white text-xs font-bold">✕</span>
                           </div>
                         )}
                       </div>
@@ -3208,7 +3216,7 @@ const UserDashboardView: React.FC = () => {
                         </p>
                         {!validationResult.success && (
                           <p className="text-xs text-slate-600 mt-2">
-                            ðŸ’¡ Dica: Certifique-se de que a imagem estÃ¡ nÃ­tida e o documento estÃ¡ bem enquadrado.
+                            Dica: certifique-se de que a imagem está nítida e o documento está bem enquadrado.
                           </p>
                         )}
                       </div>

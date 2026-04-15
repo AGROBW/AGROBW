@@ -8,6 +8,8 @@ import ContactSellerModal from '../components/ContactSellerModal';
 import VerifiedBadge from '../components/VerifiedBadge';
 import toast from 'react-hot-toast';
 import { censorContactData } from '../src/utils/censorContact';
+import { useLayout } from '../src/contexts/LayoutContext';
+import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 
 // Mapa de ícones para renderizar dinamicamente
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -18,6 +20,7 @@ const AdDetailView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { ad, isLoading, error } = useAd(id);
   const { user } = useAuth();
+  const { settings } = useLayout();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleContactSeller = () => {
@@ -76,6 +79,7 @@ const AdDetailView: React.FC = () => {
     currency: 'BRL',
   }).format(priceToDisplay);
   const safeDescription = censorContactData(ad.description || '').censored;
+  const primaryImage = getPrimaryImageFromList(ad.images, settings.defaultAdImageUrl);
   const commercialHighlights = [
     ad.productCondition ? { label: 'Condição', value: ad.productCondition === 'novo' ? 'Novo' : ad.productCondition === 'seminovo' ? 'Seminovo' : 'Usado' } : null,
     ad.availability ? { label: 'Disponibilidade', value: ad.availability === 'pronta_entrega' ? 'Pronta entrega' : ad.availability === 'sob_encomenda' ? 'Sob encomenda' : 'Consultar estoque' } : null,
@@ -104,11 +108,11 @@ const AdDetailView: React.FC = () => {
           
           {/* Gallery Card */}
           <div className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 p-2">
-            {ad.images && ad.images.length > 0 ? (
+            {primaryImage ? (
               <>
                 <div className="relative aspect-video rounded-[1.8rem] overflow-hidden">
                   <img 
-                    src={ad.images[0]} 
+                    src={primaryImage} 
                     alt={ad.title} 
                     className="w-full h-full object-cover"
                   />
@@ -158,7 +162,7 @@ const AdDetailView: React.FC = () => {
                   controls
                   playsInline
                   preload="metadata"
-                  poster={ad.images?.[0] || undefined}
+                  poster={primaryImage || undefined}
                   className="aspect-video w-full bg-slate-950 object-contain"
                 />
               </div>

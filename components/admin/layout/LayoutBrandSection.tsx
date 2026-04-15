@@ -14,19 +14,23 @@ type LayoutBrandFormData = {
   logoLightUrl: string;
   logoDarkUrl: string;
   faviconUrl: string;
+  defaultAdImageUrl: string;
 };
 
 interface LayoutBrandSectionProps {
   formData: LayoutBrandFormData;
   onChange: (field: keyof LayoutBrandFormData, value: string) => void;
-  onUpload: (field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl', file: File) => Promise<void>;
-  uploadingField: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | null;
+  onUpload: (
+    field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | 'defaultAdImageUrl',
+    file: File,
+  ) => Promise<void>;
+  uploadingField: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | 'defaultAdImageUrl' | null;
 }
 
 const inputClassName = 'rounded-xl border border-slate-200 px-4 py-3 text-sm';
 
 const uploadTargets: Array<{
-  field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl';
+  field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | 'defaultAdImageUrl';
   label: string;
   helper: string;
   accept: string;
@@ -34,12 +38,13 @@ const uploadTargets: Array<{
   { field: 'logoUrl', label: 'Logo principal', helper: 'Usada na maior parte do site.', accept: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml' },
   { field: 'logoLightUrl', label: 'Logo clara', helper: 'Ideal para fundos escuros.', accept: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml' },
   { field: 'logoDarkUrl', label: 'Logo escura', helper: 'Ideal para fundos claros.', accept: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml' },
-  { field: 'faviconUrl', label: 'Favicon', helper: 'Ícone da aba do navegador.', accept: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml,image/x-icon' },
+  { field: 'faviconUrl', label: 'Favicon', helper: 'Icone da aba do navegador.', accept: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml,image/x-icon' },
+  { field: 'defaultAdImageUrl', label: 'Imagem padrao dos anuncios', helper: 'Usada quando um anuncio for publicado sem foto.', accept: 'image/png,image/jpeg,image/jpg,image/webp,image/svg+xml' },
 ];
 
 const LayoutBrandSection: React.FC<LayoutBrandSectionProps> = ({ formData, onChange, onUpload, uploadingField }) => {
   const renderAssetCard = (
-    field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl',
+    field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | 'defaultAdImageUrl',
     label: string,
     helper: string,
     accept: string,
@@ -104,7 +109,7 @@ const LayoutBrandSection: React.FC<LayoutBrandSectionProps> = ({ formData, onCha
         </div>
         <div>
           <h3 className="text-lg font-bold text-slate-900">Marca</h3>
-          <p className="text-sm text-slate-500">Controle nome, logo e favicon usados pela plataforma.</p>
+          <p className="text-sm text-slate-500">Controle nome, logo, favicon e a imagem padrao dos anuncios.</p>
         </div>
       </div>
 

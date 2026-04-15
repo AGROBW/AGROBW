@@ -22,7 +22,7 @@ const LayoutManagement: React.FC = () => {
   const { settings, isLoading, saveSettings, defaultSettings } = useLayoutSettings();
   const { logAction } = useAdminAudit();
   const [saving, setSaving] = useState(false);
-  const [uploadingField, setUploadingField] = useState<'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | null>(null);
+  const [uploadingField, setUploadingField] = useState<'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | 'defaultAdImageUrl' | null>(null);
   const [formData, setFormData] = useState({
     siteName: defaultSettings.siteName,
     siteShortName: defaultSettings.siteShortName || '',
@@ -36,6 +36,7 @@ const LayoutManagement: React.FC = () => {
     logoLightUrl: defaultSettings.logoLightUrl || '',
     logoDarkUrl: defaultSettings.logoDarkUrl || '',
     faviconUrl: defaultSettings.faviconUrl || '',
+    defaultAdImageUrl: defaultSettings.defaultAdImageUrl || '',
     facebookUrl: defaultSettings.facebookUrl || '',
     instagramUrl: defaultSettings.instagramUrl || '',
     youtubeUrl: defaultSettings.youtubeUrl || '',
@@ -70,6 +71,7 @@ const LayoutManagement: React.FC = () => {
       logoLightUrl: settings.logoLightUrl || '',
       logoDarkUrl: settings.logoDarkUrl || '',
       faviconUrl: settings.faviconUrl || '',
+      defaultAdImageUrl: settings.defaultAdImageUrl || '',
       facebookUrl: settings.facebookUrl || '',
       instagramUrl: settings.instagramUrl || '',
       youtubeUrl: settings.youtubeUrl || '',
@@ -94,7 +96,7 @@ const LayoutManagement: React.FC = () => {
   };
 
   const handleAssetUpload = async (
-    field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl',
+    field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | 'defaultAdImageUrl',
     file: File,
   ) => {
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/svg+xml', 'image/x-icon'];
@@ -156,6 +158,7 @@ const LayoutManagement: React.FC = () => {
       logoLightUrl: formData.logoLightUrl || null,
       logoDarkUrl: formData.logoDarkUrl || null,
       faviconUrl: formData.faviconUrl || null,
+      defaultAdImageUrl: formData.defaultAdImageUrl || null,
       facebookUrl: normalizeOptionalUrl(formData.facebookUrl),
       instagramUrl: normalizeOptionalUrl(formData.instagramUrl),
       youtubeUrl: normalizeOptionalUrl(formData.youtubeUrl),

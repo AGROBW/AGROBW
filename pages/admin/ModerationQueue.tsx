@@ -15,8 +15,21 @@ interface PendingAnnouncement {
   status: string;
   created_at: string;
   user_id: string;
+  city?: string | null;
+  state?: string | null;
+  product_condition?: string | null;
+  availability?: string | null;
+  accepts_trade?: boolean | null;
+  has_warranty?: boolean | null;
+  has_invoice?: boolean | null;
   owner?: { name: string; email: string; phone: string };
   images?: string[];
+}
+
+interface PendingTechnicalDetail {
+  label: string;
+  value: string;
+  icon_name?: string | null;
 }
 
 interface PendingEditRequest {
@@ -24,11 +37,12 @@ interface PendingEditRequest {
   announcement_id: string;
   user_id: string;
   payload: Record<string, any>;
-  technical_details: Array<{ label: string; value: string; icon_name?: string | null }>;
+  technical_details: PendingTechnicalDetail[];
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   announcement?: PendingAnnouncement | null;
   requester?: { name: string; email: string; phone: string };
+  current_technical_details?: PendingTechnicalDetail[];
 }
 
 type ModerationTab = 'announcements' | 'edits';
@@ -67,10 +81,34 @@ const ModerationQueue: React.FC = () => {
     if (ids.length === 0) return new Map<string, PendingAnnouncement>();
     const { data, error } = await supabase
       .from('announcements')
-      .select('id,title,description,category_slug,price,status,created_at,user_id,images')
+      .select('id,title,description,category_slug,price,status,created_at,user_id,city,state,product_condition,availability,accepts_trade,has_warranty,has_invoice,images')
       .in('id', ids);
     if (error) throw error;
     return new Map(((data || []) as PendingAnnouncement[]).map((item) => [item.id, item]));
+  };
+
+  const fetchTechnicalDetailsMap = async (announcementIds: string[]) => {
+    if (announcementIds.length === 0) return new Map<string, PendingTechnicalDetail[]>();
+
+    const { data, error } = await supabase
+      .from('announcement_technical_details')
+      .select('announcement_id,label,value,icon_name')
+      .in('announcement_id', announcementIds);
+
+    if (error) throw error;
+
+    const map = new Map<string, PendingTechnicalDetail[]>();
+    for (const item of data || []) {
+      const current = map.get(item.announcement_id) || [];
+      current.push({
+        label: item.label,
+        value: item.value,
+        icon_name: item.icon_name,
+      });
+      map.set(item.announcement_id, current);
+    }
+
+    return map;
   };
 
   const loadPendingAnnouncements = async () => {
@@ -103,8 +141,14 @@ const ModerationQueue: React.FC = () => {
       if (error) throw error;
       let rows = ((data || []) as any[]).map((item) => ({ ...item, technical_details: Array.isArray(item.technical_details) ? item.technical_details : [] })) as PendingEditRequest[];
       const announcementMap = await fetchAnnouncementsMap(Array.from(new Set(rows.map((item) => item.announcement_id))));
+      const technicalDetailsMap = await fetchTechnicalDetailsMap(Array.from(new Set(rows.map((item) => item.announcement_id))));
       const ownersMap = await fetchOwnersMap(Array.from(new Set(rows.map((item) => item.user_id))));
-      rows = rows.map((item) => ({ ...item, announcement: announcementMap.get(item.announcement_id) || null, requester: ownersMap.get(item.user_id) }));
+      rows = rows.map((item) => ({
+        ...item,
+        announcement: announcementMap.get(item.announcement_id) || null,
+        requester: ownersMap.get(item.user_id),
+        current_technical_details: technicalDetailsMap.get(item.announcement_id) || [],
+      }));
       if (filterCategory !== 'all') {
         const grouped = getGroupCategorySlugs(filterCategory);
         rows = rows.filter((item) => grouped.includes(String(item.payload?.category_slug || item.announcement?.category_slug || '')));
@@ -154,7 +198,12 @@ const ModerationQueue: React.FC = () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
       const reviewerId = authData.user?.id || null;
-      const { error: announcementError } = await supabase.from('announcements').update(request.payload || {}).eq('id', request.announcement_id);
+      const { data: updatedAnnouncement, error: announcementError } = await supabase
+        .from('announcements')
+        .update(request.payload || {})
+        .eq('id', request.announcement_id)
+        .select('id,title,description,category_slug,price,status,created_at,user_id,images')
+        .single();
       if (announcementError) throw announcementError;
       await supabase.from('announcement_technical_details').delete().eq('announcement_id', request.announcement_id);
       const details = (request.technical_details || []).map((detail) => ({ announcement_id: request.announcement_id, label: detail.label, value: detail.value, icon_name: detail.icon_name || 'Circle' }));
@@ -164,8 +213,26 @@ const ModerationQueue: React.FC = () => {
       }
       const { error: requestError } = await supabase.from('announcement_edit_requests').update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: reviewerId, rejection_reason: null }).eq('id', request.id);
       if (requestError) throw requestError;
-      await logAction({ action: ADMIN_ACTIONS.APPROVE_AD_EDIT, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: request.announcement_id, oldValue: { title: request.announcement.title, description: request.announcement.description, price: request.announcement.price }, newValue: request.payload, reason: `Edicao do anuncio "${request.announcement.title}" aprovada pela moderacao` });
+      await logAction({
+        action: ADMIN_ACTIONS.APPROVE_AD_EDIT,
+        resourceType: RESOURCE_TYPES.ANNOUNCEMENT,
+        resourceId: request.announcement_id,
+        oldValue: {
+          title: request.announcement.title,
+          description: request.announcement.description,
+          price: request.announcement.price,
+          category_slug: request.announcement.category_slug,
+          images: request.announcement.images || [],
+          technical_details: request.current_technical_details || [],
+        },
+        newValue: {
+          ...(updatedAnnouncement || request.payload),
+          technical_details: request.technical_details || [],
+        },
+        reason: `Edicao do anuncio "${request.announcement.title}" aprovada pela moderacao`,
+      });
       toast.success('Edicao aprovada e aplicada');
+      setSelectedEditRequest(null);
       await loadPendingEditRequests();
     } catch (error) {
       console.error('[ModerationQueue] Erro ao aprovar edicao:', error);
@@ -181,6 +248,36 @@ const ModerationQueue: React.FC = () => {
         const reviewerId = authData.user?.id || null;
         const { error } = await supabase.from('announcement_edit_requests').update({ status: 'rejected', rejection_reason: rejectionReason, reviewed_at: new Date().toISOString(), reviewed_by: reviewerId }).eq('id', selectedEditRequest.id);
         if (error) throw error;
+        const { data: notificationRecord, error: notificationError } = await supabase.from('notifications').insert({
+          user_id: selectedEditRequest.user_id,
+          type: 'ad_edit_rejected',
+          title: 'Sua alteracao nao foi aprovada',
+          content: `A equipe revisou a alteracao do anuncio "${selectedEditRequest.announcement?.title || 'seu anuncio'}" e ela foi rejeitada. Motivo: ${rejectionReason}`,
+          link: '/minha-conta/anuncios',
+          is_read: false,
+        }).select('id').single();
+        if (notificationError) {
+          console.error('[ModerationQueue] Erro ao criar notificacao de rejeicao da edicao:', notificationError);
+        } else {
+          const recipientEmail = selectedEditRequest.requester?.email?.trim() || null;
+          const recipientName = selectedEditRequest.requester?.name?.trim() || 'Cliente';
+          const { error: emailJobError } = await supabase.from('plan_alert_email_jobs').insert({
+            notification_id: notificationRecord.id,
+            user_id: selectedEditRequest.user_id,
+            recipient_email: recipientEmail,
+            recipient_name: recipientName,
+            alert_kind: 'edit_rejected',
+            notification_title: 'Sua alteracao nao foi aprovada',
+            notification_content: `A equipe revisou a alteracao do anuncio "${selectedEditRequest.announcement?.title || 'seu anuncio'}" e ela foi rejeitada. Motivo: ${rejectionReason}`,
+            link: '/minha-conta/anuncios',
+            status: recipientEmail ? 'pending' : 'skipped',
+            last_error: recipientEmail ? null : 'Usuario sem e-mail valido',
+          });
+
+          if (emailJobError) {
+            console.error('[ModerationQueue] Erro ao criar job de e-mail para rejeicao da edicao:', emailJobError);
+          }
+        }
         await logAction({ action: ADMIN_ACTIONS.REJECT_AD_EDIT, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: selectedEditRequest.announcement_id, oldValue: selectedEditRequest.payload, newValue: { status: 'rejected', rejection_reason: rejectionReason }, reason: `Edicao rejeitada: ${rejectionReason}` });
         toast.success('Edicao rejeitada');
         setSelectedEditRequest(null);
@@ -214,6 +311,51 @@ const ModerationQueue: React.FC = () => {
     if (JSON.stringify(next.images || current.images || []) !== JSON.stringify(current.images || [])) changes.push('Midia');
     if ((request.technical_details || []).length > 0) changes.push('Ficha tecnica');
     return changes.length > 0 ? changes : ['Dados gerais'];
+  };
+
+  const buildEditComparisonRows = (request: PendingEditRequest) => {
+    const current = request.announcement;
+    if (!current) return [];
+
+    const next = request.payload || {};
+    const rows: Array<{ label: string; before: string; after: string }> = [];
+
+    const pushRow = (label: string, beforeValue: unknown, afterValue: unknown) => {
+      const before = String(beforeValue ?? '').trim();
+      const after = String(afterValue ?? '').trim();
+      if (before !== after) {
+        rows.push({
+          label,
+          before: before || 'Nao informado',
+          after: after || 'Nao informado',
+        });
+      }
+    };
+
+    pushRow('Titulo', current.title, next.title ?? current.title);
+    pushRow('Descricao', current.description, next.description ?? current.description);
+    pushRow('Preco', current.price, next.price ?? current.price);
+    pushRow('Categoria', current.category_slug, next.category_slug ?? current.category_slug);
+    pushRow('Cidade', current.city ?? '', next.city ?? current.city ?? '');
+    pushRow('Estado', current.state ?? '', next.state ?? current.state ?? '');
+    pushRow('Condicao', current.product_condition ?? '', next.product_condition ?? current.product_condition ?? '');
+    pushRow('Disponibilidade', current.availability ?? '', next.availability ?? current.availability ?? '');
+    pushRow('Aceita troca', current.accepts_trade ? 'Sim' : 'Nao', next.accepts_trade ? 'Sim' : 'Nao');
+    pushRow('Garantia', current.has_warranty ? 'Sim' : 'Nao', next.has_warranty ? 'Sim' : 'Nao');
+    pushRow('Nota fiscal', current.has_invoice ? 'Sim' : 'Nao', next.has_invoice ? 'Sim' : 'Nao');
+
+    const currentImages = Array.isArray(current.images) ? current.images.length : 0;
+    const nextImages = Array.isArray(next.images) ? next.images.length : currentImages;
+    pushRow('Midia', `${currentImages} arquivo(s)`, `${nextImages} arquivo(s)`);
+
+    const currentTechnical = new Map((request.current_technical_details || []).map((item) => [item.label, item.value]));
+    const nextTechnical = new Map((request.technical_details || []).map((item) => [item.label, item.value]));
+    const labels = new Set([...currentTechnical.keys(), ...nextTechnical.keys()]);
+    for (const label of labels) {
+      pushRow(`Ficha tecnica: ${label}`, currentTechnical.get(label) || '', nextTechnical.get(label) || '');
+    }
+
+    return rows;
   };
 
   return (
@@ -270,7 +412,7 @@ const ModerationQueue: React.FC = () => {
                       <td className="px-6 py-4"><div className="flex max-w-xs flex-wrap gap-2">{getEditHighlights(request).map((change) => <span key={change} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{change}</span>)}</div></td>
                       <td className="px-6 py-4"><div className="text-sm"><p className="font-semibold text-slate-900">{request.requester?.name}</p><p className="text-slate-500">{request.requester?.email}</p></div></td>
                       <td className="px-6 py-4 text-sm text-slate-500">{new Date(request.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-                      <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApproveEditRequest(request)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar edicao"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedAnnouncement(null); setSelectedEditRequest(request); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar edicao"><X className="h-5 w-5" /></button><button onClick={() => window.open(`/#/anuncio/${request.announcement_id}`, '_blank')} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Ver anuncio atual"><Eye className="h-5 w-5" /></button></div></td>
+                      <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApproveEditRequest(request)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar edicao"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedAnnouncement(null); setSelectedEditRequest(request); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar edicao"><X className="h-5 w-5" /></button><button onClick={() => setSelectedEditRequest(request)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Ver antes e depois"><Eye className="h-5 w-5" /></button></div></td>
                     </tr>
                   );
                 })}
@@ -283,6 +425,130 @@ const ModerationQueue: React.FC = () => {
       {totalPages > 1 ? <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-6 py-4"><p className="text-sm text-slate-500">Pagina {page + 1} de {totalPages} ({totalCount} total)</p><div className="flex items-center gap-2"><button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"><ChevronLeft className="h-5 w-5" /></button><button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"><ChevronRight className="h-5 w-5" /></button></div></div> : null}
 
       {showRejectModal ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6"><h3 className="mb-4 text-xl font-bold text-slate-900">{selectedEditRequest ? 'Rejeitar Edicao' : 'Rejeitar Anuncio'}</h3><p className="mb-4 text-slate-600">Informe o motivo da rejeicao. Esta mensagem ficara registrada para a equipe.</p><textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} placeholder="Ex: descricao inconsistente, midia inadequada, categoria incorreta..." className="min-h-[120px] w-full rounded-lg border border-slate-200 p-3 focus:outline-none focus:ring-2 focus:ring-red-500" /><div className="mt-6 flex items-center gap-3"><button onClick={() => { setShowRejectModal(false); setRejectionReason(''); setSelectedAnnouncement(null); setSelectedEditRequest(null); }} className="flex-1 rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-50">Cancelar</button><button onClick={() => void handleReject()} disabled={!rejectionReason.trim()} className="flex-1 rounded-lg bg-red-500 px-4 py-2 font-semibold text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50">Confirmar rejeicao</button></div></div></div> : null}
+
+      {selectedEditRequest && !showRejectModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-5xl rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Revisao de edicao</p>
+                <h3 className="mt-1 text-2xl font-black text-slate-900">{selectedEditRequest.announcement?.title || 'Anuncio indisponivel'}</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Compare o anuncio atual com a versao enviada pelo anunciante antes de aprovar.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedEditRequest(null)}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                title="Fechar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Versao atual</p>
+                <div className="mt-4 space-y-3 text-sm text-slate-700">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Titulo</p>
+                    <p className="mt-1 font-semibold text-slate-900">{selectedEditRequest.announcement?.title || 'Nao informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Descricao</p>
+                    <p className="mt-1 whitespace-pre-wrap">{selectedEditRequest.announcement?.description || 'Nao informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Ficha tecnica</p>
+                    <div className="mt-2 space-y-2">
+                      {(selectedEditRequest.current_technical_details || []).length > 0 ? (
+                        selectedEditRequest.current_technical_details?.map((detail) => (
+                          <div key={`current-${detail.label}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                            <p className="text-xs font-semibold text-slate-400">{detail.label}</p>
+                            <p className="mt-1 text-sm text-slate-700">{detail.value}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">Sem ficha tecnica cadastrada.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Versao proposta</p>
+                <div className="mt-4 space-y-3 text-sm text-slate-700">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Titulo</p>
+                    <p className="mt-1 font-semibold text-slate-900">{selectedEditRequest.payload?.title || selectedEditRequest.announcement?.title || 'Nao informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Descricao</p>
+                    <p className="mt-1 whitespace-pre-wrap">{selectedEditRequest.payload?.description || selectedEditRequest.announcement?.description || 'Nao informado'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Ficha tecnica</p>
+                    <div className="mt-2 space-y-2">
+                      {(selectedEditRequest.technical_details || []).length > 0 ? (
+                        selectedEditRequest.technical_details?.map((detail) => (
+                          <div key={`next-${detail.label}`} className="rounded-xl border border-emerald-200 bg-white px-3 py-2">
+                            <p className="text-xs font-semibold text-slate-400">{detail.label}</p>
+                            <p className="mt-1 text-sm text-slate-700">{detail.value}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500">Sem ficha tecnica proposta.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Resumo do que muda</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {buildEditComparisonRows(selectedEditRequest).map((row) => (
+                  <div key={row.label} className="rounded-xl border border-slate-200 p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{row.label}</p>
+                    <p className="mt-2 text-sm text-slate-500">Antes: <span className="font-semibold text-slate-700">{row.before}</span></p>
+                    <p className="mt-1 text-sm text-slate-500">Depois: <span className="font-semibold text-emerald-700">{row.after}</span></p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedEditRequest(null)}
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAnnouncement(null);
+                  setShowRejectModal(true);
+                }}
+                className="rounded-lg bg-red-500 px-4 py-2 font-semibold text-white hover:bg-red-600"
+              >
+                Rejeitar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleApproveEditRequest(selectedEditRequest)}
+                className="rounded-lg bg-green-600 px-4 py-2 font-semibold text-white hover:bg-green-700"
+              >
+                Aprovar e aplicar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

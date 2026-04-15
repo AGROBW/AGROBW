@@ -54,7 +54,7 @@ export const useUserAds = () => {
 
     const fetchAds = async () => {
       setIsLoading(true)
-      const [{ data, error }, { data: pendingEditRequests, error: pendingEditRequestsError }] = await Promise.all([
+      const [{ data, error }, { data: editRequests, error: pendingEditRequestsError }] = await Promise.all([
         supabase
           .from('announcements')
           .select(`
@@ -67,9 +67,9 @@ export const useUserAds = () => {
           .order('created_at', { ascending: false }),
         supabase
           .from('announcement_edit_requests')
-          .select('announcement_id')
+          .select('announcement_id,status,rejection_reason,created_at')
           .eq('user_id', user.id)
-          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
       ])
 
       if (error) {
@@ -80,9 +80,15 @@ export const useUserAds = () => {
           console.error('Erro ao buscar edicoes pendentes do usuario:', pendingEditRequestsError)
         }
 
-        const pendingEditAnnouncementIds = new Set(
-          (pendingEditRequests || []).map((item: any) => item.announcement_id)
-        )
+        const latestEditRequestByAnnouncement = new Map<string, { status: 'pending' | 'approved' | 'rejected'; rejection_reason?: string | null }>()
+
+        for (const item of (editRequests || []) as any[]) {
+          if (!item?.announcement_id || latestEditRequestByAnnouncement.has(item.announcement_id)) continue
+          latestEditRequestByAnnouncement.set(item.announcement_id, {
+            status: item.status,
+            rejection_reason: item.rejection_reason || null,
+          })
+        }
 
         const mappedAds: Ad[] = data.map(ad => ({
           id: ad.id,
@@ -112,7 +118,7 @@ export const useUserAds = () => {
           videoSizeBytes: ad.video_size_bytes || undefined,
           userId: ad.user_id,
           status: (
-            pendingEditAnnouncementIds.has(ad.id)
+            latestEditRequestByAnnouncement.get(ad.id)?.status === 'pending'
               ? 'PENDING'
               : getEffectiveAdStatus(ad.status, ad.expires_at)
           ) as Ad['status'],
@@ -126,7 +132,9 @@ export const useUserAds = () => {
           highlightCategory: ad.highlight_category || false,
           highlightCategoryUntil: ad.highlight_category_until,
           highlightHome: ad.highlight_home || false,
-          highlightHomeUntil: ad.highlight_home_until
+          highlightHomeUntil: ad.highlight_home_until,
+          latestEditRequestStatus: latestEditRequestByAnnouncement.get(ad.id)?.status || null,
+          latestEditRejectionReason: latestEditRequestByAnnouncement.get(ad.id)?.rejection_reason || null,
         }))
         setAds(mappedAds)
       }

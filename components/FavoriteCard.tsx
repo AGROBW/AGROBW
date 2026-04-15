@@ -4,6 +4,7 @@ import { MapPin, Clock, Eye, Trash2, ExternalLink, TrendingDown } from 'lucide-r
 import { motion } from 'framer-motion';
 import { useFavorites } from '../src/hooks/useFavorites';
 import { useLayout } from '../src/contexts/LayoutContext';
+import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 
 interface FavoriteCardProps {
   favorite: Favorite;
@@ -26,6 +27,7 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
   const { toggleFavorite } = useFavorites();
   const { settings } = useLayout();
   const { ad } = favorite;
+  const primaryImage = getPrimaryImageFromList(ad.images, settings.defaultAdImageUrl);
 
   const currentPrice = ad.price;
   const priceAtFavorite = favorite.priceAtFavorite;
@@ -80,7 +82,7 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
     >
       <div className={`relative ${compact ? 'aspect-[4/3]' : 'aspect-square'}`}>
         <img
-          src={ad.images[0]}
+          src={primaryImage}
           alt={ad.title}
           className="w-full h-full object-cover"
         />

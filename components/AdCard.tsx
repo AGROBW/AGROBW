@@ -9,6 +9,7 @@ import VerifiedBadge from './VerifiedBadge';
 import { supabase } from '../src/lib/supabaseClient';
 import { detectUserState } from '../src/utils/geoLocation';
 import { useLayout } from '../src/contexts/LayoutContext';
+import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 
 interface AdCardProps {
   ad: Ad;
@@ -66,6 +67,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
     currency: 'BRL',
   }).format(priceValue);
   const displayPrice = isPriceOnRequest ? 'Sob consulta' : formattedPrice;
+  const primaryImage = getPrimaryImageFromList(ad.images, settings.defaultAdImageUrl);
 
   // Verificar se o destaque está ativo (não expirado)
   const isCategoryHighlightActive = ad.highlightCategory && (!ad.highlightCategoryUntil || new Date(ad.highlightCategoryUntil) > new Date());
@@ -158,7 +160,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
       {/* Image Wrapper */}
       <div className="relative h-48 overflow-hidden">
         <img 
-          src={ad.images[0]} 
+          src={primaryImage} 
           alt={ad.title} 
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />

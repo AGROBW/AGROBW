@@ -29,6 +29,8 @@ import {
   LucideIcon,
 } from 'lucide-react';
 import { censorContactData } from '../src/utils/censorContact';
+import { useLayout } from '../src/contexts/LayoutContext';
+import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { updateAnnouncementCoordinates } from '../services/geoService';
 import imageCompression from 'browser-image-compression';
 import { compressAnnouncementVideo, formatVideoSize, VideoCompressionError } from '../src/utils/videoCompression';
@@ -141,7 +143,8 @@ const PreviewAnnouncementModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   previewAd: any;
-}> = ({ isOpen, onClose, previewAd }) => {
+  defaultAdImageUrl?: string | null;
+}> = ({ isOpen, onClose, previewAd, defaultAdImageUrl }) => {
   useEffect(() => {
     if (!isOpen) return;
 
@@ -163,7 +166,7 @@ const PreviewAnnouncementModal: React.FC<{
 
   if (!isOpen) return null;
 
-  const mainImage = previewAd.images?.[0] || '';
+  const mainImage = getPrimaryImageFromList(previewAd.images, defaultAdImageUrl);
   const previewVideoUrl = previewAd.videoPreviewUrl || previewAd.videoUrl || '';
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -309,6 +312,7 @@ const AdCreationView: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const { settings } = useLayout();
   const { handleAction } = usePlanCheck();
   const { subscription, usage, canCreateAd, adLimitMessage, refreshUsage } = useSubscription();
   
@@ -2309,7 +2313,7 @@ const AdCreationView: React.FC = () => {
                     <div className="relative h-48 overflow-hidden">
                       {previewAd.images?.[0] ? (
                         <img
-                          src={previewAd.images[0]}
+                          src={getPrimaryImageFromList(previewAd.images, settings.defaultAdImageUrl)}
                           alt={previewAd.title}
                           className="w-full h-full object-cover"
                         />
@@ -2363,6 +2367,7 @@ const AdCreationView: React.FC = () => {
               isOpen={isPreviewModalOpen}
               onClose={() => setIsPreviewModalOpen(false)}
               previewAd={previewAd}
+              defaultAdImageUrl={settings.defaultAdImageUrl}
             />
           </div>
         );

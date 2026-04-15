@@ -36,8 +36,6 @@ const isAdValid = (ad: any) => {
       ad.id &&
       ad.title &&
       typeof ad.price === 'number' &&
-      Array.isArray(ad.images) &&
-      ad.images[0] &&
       ad.location &&
       ad.location.city &&
       ad.location.state

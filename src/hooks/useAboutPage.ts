@@ -162,7 +162,7 @@ export const ABOUT_PAGE_FALLBACK: AboutPageContent = {
   stat_revenue_value: '850 Mi',
   stat_revenue_label: 'NEGÓCIOS GERADOS',
   history_title: 'Nossa História',
-  history_text: 'Nascida da necessidade real do produtor rural brasileiro, a BWAGRO surgiu em 2020 para eliminar barreiras e burocracias no mercado de compra e venda no campo.',
+  history_text: 'Nascida da necessidade real do produtor rural brasileiro, a AGRO BW surgiu em 2020 para eliminar barreiras e burocracias no mercado de compra e venda no campo.',
   history_image_url: 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?q=80&w=800&auto=format&fit=crop',
   mission_title: 'Missão',
   mission_text: 'Prover as melhores ferramentas tecnológicas para que o produtor rural comercialize seus ativos com segurança e eficiência máxima.',

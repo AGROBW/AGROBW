@@ -78,7 +78,12 @@ const PricingView: React.FC = () => {
   }, [billingCycle, plansRaw]);
 
   const visiblePlans = useMemo(() => plansRaw.filter((plan) => plan.is_active && plan.show_in_public_pricing !== false && (billingCycle === 'yearly' ? !isFreeMonthlyOnlyPlan(plan) : true)), [billingCycle, plansRaw]);
-  const getDisplayPrice = (monthlyPrice: number, yearlyPrice: number) => billingCycle === 'monthly' ? monthlyPrice : yearlyPrice > 0 ? yearlyPrice / 12 : monthlyPrice;
+  const getDisplayPrice = (monthlyPrice: number, yearlyPrice: number) =>
+    billingCycle === 'monthly'
+      ? monthlyPrice
+      : yearlyPrice > 0
+        ? yearlyPrice
+        : monthlyPrice;
   const getPlanSummary = (plan: Plan) => {
     if (plan.display_features?.length) return plan.display_features.filter(Boolean);
     const summary = [`Ate ${formatNumericValue(plan.max_ads)} anuncios ativos`, `${plan.category_highlights_count || 0} destaques por categoria`, `${formatNumericValue(getEffectiveLeadContactLimitDays(plan, billingCycle === 'yearly'), ' dias')} de contato com leads`];
@@ -313,8 +318,12 @@ const PricingView: React.FC = () => {
               <div key={plan.id} className={`flex min-h-[460px] flex-col rounded-[2rem] border bg-white p-7 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.35)] transition-all duration-300 ${plan.is_popular ? '' : 'border-slate-200/70 hover:-translate-y-1'}`} style={plan.is_popular ? { borderColor: settings.primaryColor, boxShadow: `0 0 0 4px color-mix(in srgb, ${settings.primaryColor} 16%, white)` } : undefined}>
                 <div className="mb-6 flex items-start justify-between gap-4"><div><p className="mb-2 text-[11px] font-black uppercase tracking-[0.25em] text-slate-400">{plan.card_eyebrow?.trim() || 'Plano BWAGRO'}</p><h3 className="text-2xl font-black text-slate-950">{plan.name}</h3><p className="mt-2 text-sm leading-relaxed text-slate-500">{plan.description}</p></div>{plan.is_popular && <span className="whitespace-nowrap rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-white" style={{ backgroundColor: settings.primaryColor }}>Escolha segura</span>}</div>
                 <div className="rounded-[1.5rem] bg-slate-950 p-5 text-white">
-                  <div className="flex items-baseline gap-1"><span className="text-base font-bold text-slate-400">R$</span><span className="text-5xl font-black tracking-tighter">{formatCurrency(displayPrice)}</span><span className="text-sm font-medium text-slate-400">/mes</span></div>
-                  {billingCycle === 'yearly' && plan.yearly_price > 0 ? <div className="mt-3 space-y-1.5 text-sm font-semibold" style={{ color: `color-mix(in srgb, ${settings.primaryColor} 55%, white)` }}><p>Cobranca anual: R$ {formatCurrency(plan.yearly_price)}{yearlySavings.amount > 0 ? ` | economia de ${yearlySavings.percentage}%` : ''}</p><p className="text-xs text-slate-300">Beneficios operacionais renovados mensalmente.</p></div> : plan.price_caption?.trim() ? <p className="mt-3 text-sm font-semibold text-slate-400">{plan.price_caption.trim()}</p> : null}
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-base font-bold text-slate-400">R$</span>
+                    <span className="text-5xl font-black tracking-tighter">{formatCurrency(displayPrice)}</span>
+                    <span className="text-sm font-medium text-slate-400">{billingCycle === 'yearly' ? '/ano' : '/mes'}</span>
+                  </div>
+                  {billingCycle === 'yearly' && plan.yearly_price > 0 ? <div className="mt-3 space-y-1.5 text-sm font-semibold" style={{ color: `color-mix(in srgb, ${settings.primaryColor} 55%, white)` }}><p>{yearlySavings.amount > 0 ? `Economia de ${yearlySavings.percentage}% no ciclo anual` : 'Pagamento unico no ciclo anual'}</p><p className="text-xs text-slate-300">Beneficios operacionais renovados mensalmente.</p></div> : plan.price_caption?.trim() ? <p className="mt-3 text-sm font-semibold text-slate-400">{plan.price_caption.trim()}</p> : null}
                 </div>
                 <ul className="mt-6 min-h-[176px] space-y-3 overflow-y-auto pr-2">{summary.map((item) => <li key={item} className="flex items-start gap-3 text-sm font-medium text-slate-700"><Check className="mt-0.5 h-4 w-4 flex-shrink-0" strokeWidth={2} style={{ color: settings.primaryColor }} /><span>{item}</span></li>)}</ul>
                 <div className="mt-auto pt-6">
@@ -382,7 +391,7 @@ const PricingView: React.FC = () => {
                   {visiblePlans.map((plan) => (
                     <th key={plan.id} className="px-6 py-6 text-center">
                       <div className="text-sm font-black text-slate-900">{plan.name}</div>
-                      <div className="mt-1 text-xs font-semibold text-slate-400">R$ {formatCurrency(getDisplayPrice(plan.monthly_price, plan.yearly_price))}/mes</div>
+                      <div className="mt-1 text-xs font-semibold text-slate-400">R$ {formatCurrency(getDisplayPrice(plan.monthly_price, plan.yearly_price))}/{billingCycle === 'yearly' ? 'ano' : 'mes'}</div>
                     </th>
                   ))}
                 </tr>

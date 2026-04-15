@@ -31,6 +31,8 @@ import { useSubscription } from '../src/hooks/useSubscription';
 import { usePlans } from '../src/hooks/usePlans';
 import RecommendedUpgradeModal from './finance/RecommendedUpgradeModal';
 import toast from 'react-hot-toast';
+import { useLayout } from '../src/contexts/LayoutContext';
+import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import {
   CATEGORY_HIERARCHY,
   getCategoryGroupBySlug,
@@ -51,6 +53,7 @@ interface RadarCategoryGroupOption {
 
 const RadarView: React.FC = () => {
   const { user } = useAuth();
+  const { settings } = useLayout();
   const { subscription } = useSubscription();
   const { plansRaw } = usePlans();
   const {
@@ -478,7 +481,7 @@ const RadarView: React.FC = () => {
                   {/* Image */}
                   <div className="relative h-48 bg-slate-100">
                     <img
-                      src={match.announcement?.images[0] || '/placeholder.jpg'}
+                      src={getPrimaryImageFromList(match.announcement?.images, settings.defaultAdImageUrl)}
                       alt={match.announcement?.title}
                       className="w-full h-full object-cover"
                     />

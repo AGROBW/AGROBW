@@ -22,9 +22,10 @@ const statusMeta: Record<
   skipped: { label: 'Ignorado', className: 'border border-slate-200 bg-slate-50 text-slate-600' },
 };
 
-const kindMeta: Record<'conversion' | 'renewal', { label: string; className: string }> = {
+const kindMeta: Record<'conversion' | 'renewal' | 'edit_rejected', { label: string; className: string }> = {
   conversion: { label: 'Conversao', className: 'bg-emerald-100 text-emerald-700' },
   renewal: { label: 'Renovacao', className: 'bg-amber-100 text-amber-700' },
+  edit_rejected: { label: 'Edicao rejeitada', className: 'bg-rose-100 text-rose-700' },
 };
 
 const formatDateTime = (value?: string | null) => {
@@ -59,7 +60,7 @@ const PlanAlertEmailManagement: React.FC = () => {
   const { summary, jobs, dispatchLogs, isLoading, error, fetchMonitoring, processQueueNow } =
     usePlanAlertEmailMonitoring();
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'processing' | 'sent' | 'failed' | 'skipped'>('all');
-  const [kindFilter, setKindFilter] = useState<'all' | 'conversion' | 'renewal'>('all');
+  const [kindFilter, setKindFilter] = useState<'all' | 'conversion' | 'renewal' | 'edit_rejected'>('all');
   const [isProcessingNow, setIsProcessingNow] = useState(false);
 
   const filteredJobs = useMemo(() => {
@@ -162,7 +163,7 @@ const PlanAlertEmailManagement: React.FC = () => {
                 {option === 'all' ? 'Todos' : statusMeta[option].label}
               </button>
             ))}
-            {(['all', 'conversion', 'renewal'] as const).map((option) => (
+            {(['all', 'conversion', 'renewal', 'edit_rejected'] as const).map((option) => (
               <button
                 key={option}
                 type="button"

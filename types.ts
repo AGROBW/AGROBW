@@ -75,6 +75,8 @@ export interface Ad {
   highlightCategoryUntil?: string;
   highlightHome?: boolean;
   highlightHomeUntil?: string;
+  latestEditRequestStatus?: 'pending' | 'approved' | 'rejected' | null;
+  latestEditRejectionReason?: string | null;
   seller?: {
     name: string;
     avatar?: string;
@@ -412,7 +414,7 @@ export interface ContactInfo {
 
 export interface Notification {
   id: string;
-  type: 'new_lead' | 'radar_match' | 'new_message' | 'system' | 'plan_alert' | 'SYSTEM' | 'SECURITY' | 'PROMO' | 'AD_STATUS' | 'NEW_MESSAGE';
+  type: 'new_lead' | 'radar_match' | 'new_message' | 'system' | 'plan_alert' | 'ad_edit_rejected' | 'SYSTEM' | 'SECURITY' | 'PROMO' | 'AD_STATUS' | 'NEW_MESSAGE';
   title: string;
   content: string;
   timestamp: string;
@@ -580,6 +582,7 @@ export interface LayoutSettings {
   logoLightUrl?: string | null;
   logoDarkUrl?: string | null;
   faviconUrl?: string | null;
+  defaultAdImageUrl?: string | null;
   facebookUrl?: string | null;
   instagramUrl?: string | null;
   youtubeUrl?: string | null;
@@ -678,7 +681,7 @@ export interface PlanAlertEmailJob {
   userId: string;
   recipientEmail?: string | null;
   recipientName?: string | null;
-  alertKind: 'conversion' | 'renewal';
+  alertKind: 'conversion' | 'renewal' | 'edit_rejected';
   notificationTitle: string;
   notificationContent: string;
   link?: string | null;
