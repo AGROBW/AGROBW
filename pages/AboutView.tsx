@@ -10,6 +10,12 @@ interface AboutStats {
   generatedDeals: number | null;
 }
 
+interface PublicAboutStatsRow {
+  active_users: number;
+  created_ads: number;
+  generated_deals: number;
+}
+
 const AboutView: React.FC = () => {
   const { content, isLoading } = useAboutPage();
   const [scrolled, setScrolled] = useState(false);
@@ -57,34 +63,21 @@ const AboutView: React.FC = () => {
     let isMounted = true;
 
     const loadRealStats = async () => {
-      const [usersResult, announcementsResult, leadsResult] = await Promise.all([
-        supabase
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .eq('is_suspended', false),
-        supabase
-          .from('announcements')
-          .select('*', { count: 'exact', head: true }),
-        supabase
-          .from('leads')
-          .select('*', { count: 'exact', head: true }),
-      ]);
+      const { data: stats, error } = await supabase
+        .rpc('get_public_about_stats')
+        .single<PublicAboutStatsRow>();
 
-      if (usersResult.error || announcementsResult.error || leadsResult.error) {
-        console.error('[AboutView] Erro ao carregar metricas reais:', {
-          users: usersResult.error,
-          announcements: announcementsResult.error,
-          leads: leadsResult.error,
-        });
+      if (error) {
+        console.error('[AboutView] Erro ao carregar métricas reais:', error);
         return;
       }
 
-      if (!isMounted) return;
+      if (!isMounted || !stats) return;
 
       setRealStats({
-        activeUsers: usersResult.count ?? null,
-        createdAds: announcementsResult.count ?? null,
-        generatedDeals: leadsResult.count ?? null,
+        activeUsers: stats.active_users ?? null,
+        createdAds: stats.created_ads ?? null,
+        generatedDeals: stats.generated_deals ?? null,
       });
     };
 
