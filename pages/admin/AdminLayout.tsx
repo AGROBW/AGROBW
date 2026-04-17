@@ -3,11 +3,13 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   Activity,
   BarChart3,
+  BadgeCheck,
   Bell,
   ChevronDown,
   FileCheck,
   FolderTree,
   LayoutDashboard,
+  Megaphone,
   MonitorSmartphone,
   LogOut,
   Menu,
@@ -59,6 +61,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       icon: Users,
     },
     {
+      label: 'Verificações',
+      path: '/admin/verifications',
+      icon: BadgeCheck,
+    },
+    {
       label: 'Categorias',
       path: '/admin/categories',
       icon: FolderTree,
@@ -87,6 +94,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'Newsletter',
       path: '/admin/newsletter',
       icon: Mail,
+    },
+    {
+      label: 'Campanhas',
+      path: '/admin/campaigns',
+      icon: Megaphone,
     },
     {
       label: 'Layout',

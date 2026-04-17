@@ -160,6 +160,10 @@ export interface User {
   document?: string;
   document_path?: string; // Caminho do documento de verificação
   document_verified?: boolean; // Status de validação OCR do documento
+  document_review_status?: DocumentReviewStatus;
+  document_review_notes?: string | null;
+  document_reviewed_at?: string | null;
+  document_reviewed_by?: string | null;
   whatsapp?: string;
   business_description?: string;
   cep?: string;
@@ -176,6 +180,8 @@ export interface User {
   isAdmin?: boolean;
   credits?: number;
 }
+
+export type DocumentReviewStatus = 'not_submitted' | 'pending' | 'approved' | 'rejected';
 
 export interface Banner {
   id: string;
@@ -363,6 +369,7 @@ export interface Message {
   isRead: boolean;
   senderAvatar?: string;
   isFiltered?: boolean; // Mensagem filtrada por conter contato não autorizado
+  isPending?: boolean;
 }
 
 // Importar tipos de status das constantes centralizadas

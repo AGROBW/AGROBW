@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store } from 'lucide-react';
@@ -543,7 +543,11 @@ const UserDashboardView: React.FC = () => {
           .from('users')
           .update({ 
             document_path: filePath,
-            document_verified: null
+            document_verified: null,
+            document_review_status: 'pending',
+            document_review_notes: null,
+            document_reviewed_at: null,
+            document_reviewed_by: null,
           })
           .eq('id', user.id);
 
@@ -563,7 +567,11 @@ const UserDashboardView: React.FC = () => {
             .from('users')
             .update({ 
               document_path: filePath,
-              document_verified: true
+              document_verified: true,
+              document_review_status: 'approved',
+              document_review_notes: null,
+              document_reviewed_at: new Date().toISOString(),
+              document_reviewed_by: null,
             })
             .eq('id', user.id);
 
@@ -594,7 +602,11 @@ const UserDashboardView: React.FC = () => {
             .from('users')
             .update({ 
               document_path: filePath,
-              document_verified: false
+              document_verified: false,
+              document_review_status: 'pending',
+              document_review_notes: null,
+              document_reviewed_at: null,
+              document_reviewed_by: null,
             })
             .eq('id', user.id);
 
@@ -2635,7 +2647,7 @@ const UserDashboardView: React.FC = () => {
       setProfileForm({
         name: user?.name || '',
         businessDescription: user?.business_description || '',
-        whatsapp: user?.whatsapp || user?.phone || '',
+        whatsapp: user?.phone || '',
         cep: user?.cep || '',
         logradouro: user?.logradouro || '',
         numero: user?.numero || '',
@@ -2647,7 +2659,6 @@ const UserDashboardView: React.FC = () => {
     }, [
       user?.name,
       user?.business_description,
-      user?.whatsapp,
       user?.phone,
       user?.cep,
       user?.logradouro,
@@ -2786,32 +2797,64 @@ const UserDashboardView: React.FC = () => {
 
     const handleSaveProfile = async () => {
       if (!user?.id || !user?.email) {
-        toast.error('Usuário não autenticado');
+        sonnerToast.error('Usuário não autenticado');
         return;
       }
 
       if (!validateProfileForm()) {
-        toast.error('Preencha os campos obrigatorios do perfil');
+        sonnerToast.error('Preencha os campos obrigatórios do perfil');
         return;
       }
 
+      const normalizedProfile = {
+        name: profileForm.name.trim(),
+        businessDescription: profileForm.businessDescription.trim(),
+        whatsapp: profileForm.whatsapp.trim(),
+        cep: profileForm.cep.trim(),
+        logradouro: profileForm.logradouro.trim(),
+        numero: profileForm.numero.trim(),
+        complemento: profileForm.complemento.trim(),
+        bairro: profileForm.bairro.trim(),
+        cidade: profileForm.cidade.trim(),
+        estado: profileForm.estado.trim(),
+      };
+
+      const originalProfile = {
+        name: user.name?.trim() || '',
+        businessDescription: user.business_description?.trim() || '',
+        whatsapp: user.phone?.trim() || '',
+        cep: user.cep?.trim() || '',
+        logradouro: user.logradouro?.trim() || '',
+        numero: user.numero?.trim() || '',
+        complemento: user.complemento?.trim() || '',
+        bairro: user.bairro?.trim() || '',
+        cidade: user.cidade?.trim() || '',
+        estado: user.estado?.trim() || '',
+      };
+
+      const hasProfileChanges = JSON.stringify(normalizedProfile) !== JSON.stringify(originalProfile);
       const wantsPasswordChange = Boolean(
         passwordForm.currentPassword || passwordForm.newPassword || passwordForm.confirmPassword
       );
 
+      if (!hasProfileChanges && !wantsPasswordChange) {
+        sonnerToast.info('Nenhuma alteração pendente para salvar');
+        return;
+      }
+
       if (wantsPasswordChange) {
         if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
-          toast.error('Preencha todos os campos de senha para alterar seu acesso');
+          sonnerToast.error('Preencha todos os campos de senha para alterar seu acesso');
           return;
         }
 
         if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-          toast.error('A nova senha e a confirmação não conferem');
+          sonnerToast.error('A nova senha e a confirmação não conferem');
           return;
         }
 
         if (passwordForm.newPassword.length < 6) {
-          toast.error('A nova senha deve ter pelo menos 6 caracteres');
+          sonnerToast.error('A nova senha deve ter pelo menos 6 caracteres');
           return;
         }
       }
@@ -2820,29 +2863,35 @@ const UserDashboardView: React.FC = () => {
 
       try {
         const location =
-          profileForm.cidade && profileForm.estado
-            ? `${profileForm.cidade}, ${profileForm.estado}`
-            : profileForm.cidade || '';
+          normalizedProfile.cidade && normalizedProfile.estado
+            ? `${normalizedProfile.cidade}, ${normalizedProfile.estado}`
+            : normalizedProfile.cidade || '';
 
-        const { error: profileError } = await supabase
+        const { data: updatedProfile, error: profileError } = await supabase
           .from('users')
           .update({
-            name: profileForm.name.trim(),
-            business_description: profileForm.businessDescription.trim() || null,
-            whatsapp: profileForm.whatsapp.trim(),
-            cep: profileForm.cep.trim(),
-            logradouro: profileForm.logradouro.trim(),
-            numero: profileForm.numero.trim(),
-            complemento: profileForm.complemento.trim(),
-            bairro: profileForm.bairro.trim(),
-            cidade: profileForm.cidade.trim(),
-            estado: profileForm.estado.trim(),
+            name: normalizedProfile.name,
+            business_description: normalizedProfile.businessDescription || null,
+            phone: normalizedProfile.whatsapp,
+            cep: normalizedProfile.cep,
+            logradouro: normalizedProfile.logradouro,
+            numero: normalizedProfile.numero,
+            complemento: normalizedProfile.complemento,
+            bairro: normalizedProfile.bairro,
+            cidade: normalizedProfile.cidade,
+            estado: normalizedProfile.estado,
             location,
           })
-          .eq('id', user.id);
+          .eq('id', user.id)
+          .select('id')
+          .maybeSingle();
 
         if (profileError) {
           throw profileError;
+        }
+
+        if (hasProfileChanges && !updatedProfile) {
+          throw new Error('Não foi possível confirmar a atualização do perfil');
         }
 
         const cleanCep = profileForm.cep.replace(/\D/g, '');
@@ -2866,7 +2915,7 @@ const UserDashboardView: React.FC = () => {
           });
 
           if (reAuthError) {
-            toast.error('Senha atual incorreta');
+            sonnerToast.error('Senha atual incorreta');
             setIsSavingProfile(false);
             return;
           }
@@ -2887,10 +2936,12 @@ const UserDashboardView: React.FC = () => {
         }
 
         await refreshStats();
-        toast.success('Perfil atualizado com sucesso');
-      } catch (error: any) {
+        sonnerToast.success('Perfil atualizado com sucesso');
+      } catch (error) {
         console.error('Erro ao salvar perfil:', error);
-        toast.error(error?.message || 'Não foi possível salvar as alterações do perfil');
+        const errorMessage =
+          error instanceof Error ? error.message : 'Não foi possível salvar as alterações do perfil';
+        sonnerToast.error(errorMessage || 'Não foi possível salvar as alterações do perfil');
       } finally {
         setIsSavingProfile(false);
       }

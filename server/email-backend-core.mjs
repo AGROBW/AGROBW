@@ -475,6 +475,29 @@ export const getRadarTemplate = (params) => ({
   }),
 });
 
+export const getNewsletterCampaignTemplate = (params) => ({
+  subject: params.subject,
+  html: renderEmailShell({
+    title: params.subject,
+    subtitle: params.previewText || 'Conteúdo enviado pela central de campanhas da AGRO BW.',
+    recipientName: params.recipientName || 'Cliente',
+    branding: params.branding,
+    footerNote:
+      'Você recebeu esta campanha porque seu e-mail está em uma audiência ativa da plataforma AGRO BW.',
+    bodyHtml: `
+      <div style="margin:0 0 24px;padding:18px 20px;border:1px solid #dbe5f0;border-radius:22px;background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%);">
+        <p style="margin:0;font-size:12px;font-weight:800;letter-spacing:0.22em;text-transform:uppercase;color:#64748b;">Campanha</p>
+        <p style="margin:10px 0 0;font-size:22px;line-height:1.3;font-weight:800;color:#0f172a;">${escapeHtml(params.name || params.subject)}</p>
+      </div>
+      <div style="margin:0 0 24px;border:1px solid #dbe5f0;border-radius:24px;background:#ffffff;overflow:hidden;">
+        <div style="padding:0;">
+          ${params.htmlContent || ''}
+        </div>
+      </div>
+    `,
+  }),
+});
+
 const loadEmailBranding = async () => {
   const { data, error } = await supabaseAdmin
     .from('layout_settings')
@@ -513,6 +536,47 @@ const claimJob = async (table, job) => {
 const finalizeLog = async (table, id, payload) => {
   if (!id) return;
   await supabaseAdmin.from(table).update(payload).eq('id', id);
+};
+
+const syncNewsletterCampaignStats = async (campaignIds) => {
+  const ids = Array.from(new Set((campaignIds || []).filter(Boolean)));
+  if (!ids.length) return;
+
+  for (const campaignId of ids) {
+    const { data: jobs, error } = await supabaseAdmin
+      .from('newsletter_campaign_email_jobs')
+      .select('status, sent_at')
+      .eq('campaign_id', campaignId);
+
+    if (error) {
+      console.error('[syncNewsletterCampaignStats] erro ao carregar jobs:', error);
+      continue;
+    }
+
+    const rows = jobs || [];
+    const totalRecipients = rows.length;
+    const sentCount = rows.filter((job) => job.status === 'sent').length;
+    const failedCount = rows.filter((job) => job.status === 'failed').length;
+    const skippedCount = rows.filter((job) => job.status === 'skipped').length;
+    const pendingCount = rows.filter((job) => ['pending', 'processing'].includes(job.status)).length;
+
+    let nextStatus = 'draft';
+    if (pendingCount > 0) nextStatus = 'sending';
+    else if (totalRecipients > 0 && sentCount + failedCount + skippedCount === totalRecipients) nextStatus = 'completed';
+    else if (totalRecipients > 0) nextStatus = 'queued';
+
+    await supabaseAdmin
+      .from('newsletter_campaigns')
+      .update({
+        total_recipients: totalRecipients,
+        sent_count: sentCount,
+        failed_count: failedCount,
+        skipped_count: skippedCount,
+        status: nextStatus,
+        last_sent_at: sentCount > 0 ? new Date().toISOString() : null,
+      })
+      .eq('id', campaignId);
+  }
 };
 
 const getContactAccessContext = async (claimedJob) => {
@@ -821,17 +885,123 @@ export const processRadarJobs = async (smtpSettings, smtpValidationError, limit,
   return result;
 };
 
+export const processNewsletterCampaignJobs = async (smtpSettings, smtpValidationError, limit, triggeredBy = 'admin') => {
+  const result = { processed: 0, sent: 0, failed: 0, skipped: 0 };
+  const branding = await loadEmailBranding();
+  const touchedCampaignIds = new Set();
+  const { data: log } = await supabaseAdmin
+    .from('newsletter_campaign_email_dispatch_logs')
+    .insert({ triggered_by: triggeredBy, status: 'processing', requested_limit: limit })
+    .select('id')
+    .single();
+
+  try {
+    const { data: jobs, error } = await supabaseAdmin
+      .from('newsletter_campaign_email_jobs')
+      .select(`
+        id,
+        campaign_id,
+        recipient_email,
+        recipient_name,
+        status,
+        attempts,
+        newsletter_campaigns (
+          id,
+          name,
+          subject,
+          preview_text,
+          html_content
+        )
+      `)
+      .in('status', ['pending', 'failed'])
+      .lt('attempts', 3)
+      .order('queued_at', { ascending: true })
+      .limit(limit);
+
+    if (error) throw new Error(error.message);
+
+    for (const job of jobs || []) {
+      const claimed = await claimJob('newsletter_campaign_email_jobs', job);
+      if (!claimed) continue;
+      result.processed += 1;
+      touchedCampaignIds.add(claimed.campaign_id);
+
+      const campaign = Array.isArray(job.newsletter_campaigns)
+        ? job.newsletter_campaigns[0]
+        : job.newsletter_campaigns;
+
+      if (!claimed.recipient_email || smtpValidationError || !campaign?.subject || !campaign?.html_content) {
+        result.skipped += 1;
+        await supabaseAdmin.from('newsletter_campaign_email_jobs').update({
+          status: 'skipped',
+          last_error: !claimed.recipient_email
+            ? 'Destinatário sem e-mail válido'
+            : smtpValidationError || 'Campanha sem conteúdo válido',
+        }).eq('id', claimed.id);
+        continue;
+      }
+
+      const email = getNewsletterCampaignTemplate({
+        recipientName: claimed.recipient_name || 'Cliente',
+        name: campaign.name,
+        subject: campaign.subject,
+        previewText: campaign.preview_text,
+        htmlContent: campaign.html_content,
+        branding,
+      });
+
+      try {
+        await sendMail(smtpSettings, { to: claimed.recipient_email, subject: email.subject, html: email.html });
+        result.sent += 1;
+        await supabaseAdmin.from('newsletter_campaign_email_jobs').update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          last_error: null,
+        }).eq('id', claimed.id);
+      } catch (error) {
+        result.failed += 1;
+        await supabaseAdmin.from('newsletter_campaign_email_jobs').update({
+          status: 'failed',
+          last_error: error instanceof Error ? error.message : 'Unknown SMTP error',
+        }).eq('id', claimed.id);
+      }
+    }
+
+    await syncNewsletterCampaignStats(Array.from(touchedCampaignIds));
+
+    await finalizeLog('newsletter_campaign_email_dispatch_logs', log?.id, {
+      status: 'completed',
+      processed_count: result.processed,
+      sent_count: result.sent,
+      failed_count: result.failed,
+      skipped_count: result.skipped,
+      finished_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    await syncNewsletterCampaignStats(Array.from(touchedCampaignIds));
+    await finalizeLog('newsletter_campaign_email_dispatch_logs', log?.id, {
+      status: 'failed',
+      notes: error instanceof Error ? error.message : 'Unknown error',
+      finished_at: new Date().toISOString(),
+    });
+    throw error;
+  }
+
+  return result;
+};
+
 export const processAllQueues = async (limit = 25, triggeredBy = 'admin') => {
   const smtpSettings = await loadSmtpSettings();
   const smtpValidationError = validateSmtpSettings(smtpSettings);
   const safeLimit = clampLimit(limit, 25);
 
-  const [contact, planAlert, radar] = await Promise.all([
+  const [contact, planAlert, radar, newsletterCampaign] = await Promise.all([
     processContactJobs(smtpSettings, smtpValidationError, safeLimit, triggeredBy),
     processPlanAlertJobs(smtpSettings, smtpValidationError, safeLimit, triggeredBy),
     processRadarJobs(smtpSettings, smtpValidationError, safeLimit, triggeredBy),
+    processNewsletterCampaignJobs(smtpSettings, smtpValidationError, safeLimit, triggeredBy),
   ]);
 
-  return { contact, planAlert, radar, smtpValidationError };
+  return { contact, planAlert, radar, newsletterCampaign, smtpValidationError };
 };
 

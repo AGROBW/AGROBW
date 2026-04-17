@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   BarChart3,
@@ -124,60 +124,44 @@ const AnnouncementsMonitoring: React.FC = () => {
       const nowIso = new Date().toISOString();
       const sevenDaysAheadIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      const [activeSummary, pendingSummary, expiringSummary, highlightedSummary] = await Promise.all([
-        supabase.from('announcements').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
-        supabase.from('announcements').select('id', { count: 'exact', head: true }).eq('status', 'PENDING'),
-        supabase
-          .from('announcements')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'ACTIVE')
-          .not('expires_at', 'is', null)
-          .gt('expires_at', nowIso)
-          .lte('expires_at', sevenDaysAheadIso),
-        supabase
-          .from('announcements')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'ACTIVE')
-          .or('highlight_home.eq.true,highlight_category.eq.true'),
-      ]);
+      const { data, error } = await supabase.rpc('admin_list_announcements_monitoring');
+      if (error) throw error;
+
+      let rows = (data || []) as MonitoringAnnouncement[];
 
       setSummary({
-        active: activeSummary.count || 0,
-        pending: pendingSummary.count || 0,
-        expiringSoon: expiringSummary.count || 0,
-        highlighted: highlightedSummary.count || 0,
+        active: rows.filter((item) => item.status === 'ACTIVE').length,
+        pending: rows.filter((item) => item.status === 'PENDING').length,
+        expiringSoon: rows.filter((item) =>
+          item.status === 'ACTIVE' &&
+          item.expires_at &&
+          new Date(item.expires_at).getTime() > Date.now() &&
+          new Date(item.expires_at).getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000
+        ).length,
+        highlighted: rows.filter((item) => Boolean(item.highlight_home || item.highlight_category)).length,
       });
 
-      let query = supabase
-        .from('announcements')
-        .select(
-          'id,title,description,status,created_at,expires_at,views,price,images,category_id,category_slug,user_id,highlight_home,highlight_category',
-          { count: 'exact' }
-        )
-        .order('created_at', { ascending: false })
-        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
-
       if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
+        rows = rows.filter((item) => item.status === statusFilter);
       }
 
       if (categoryFilter !== 'all') {
         const group = CATEGORY_HIERARCHY.find((item) => item.slug === categoryFilter);
         if (group?.categorySlugs?.length) {
-          query = query.in('category_slug', group.categorySlugs);
+          rows = rows.filter((item) => group.categorySlugs.includes(item.category_slug || ''));
         } else {
-          query = query.eq('category_slug', categoryFilter);
+          rows = rows.filter((item) => item.category_slug === categoryFilter);
         }
       }
 
       if (searchTerm.trim()) {
-        query = query.or(`title.ilike.%${searchTerm.trim()}%,description.ilike.%${searchTerm.trim()}%`);
+        const normalizedSearch = searchTerm.trim().toLowerCase();
+        rows = rows.filter((item) =>
+          item.title?.toLowerCase().includes(normalizedSearch) ||
+          item.description?.toLowerCase().includes(normalizedSearch)
+        );
       }
 
-      const { data, error, count } = await query;
-      if (error) throw error;
-
-      let rows = (data || []) as MonitoringAnnouncement[];
       const announcementIds = rows.map((item) => item.id);
       const userIds = Array.from(new Set(rows.map((item) => item.user_id).filter(Boolean)));
 
@@ -256,8 +240,8 @@ const AnnouncementsMonitoring: React.FC = () => {
         });
       }
 
-      setAnnouncements(rows);
-      setTotalCount(count || 0);
+      setTotalCount(rows.length);
+      setAnnouncements(rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE));
     } catch (error) {
       console.error('[AnnouncementsMonitoring] Erro ao carregar monitoramento:', error);
     } finally {
@@ -345,16 +329,18 @@ const AnnouncementsMonitoring: React.FC = () => {
 
     try {
       setIsSubmittingPause(true);
-      const { data, error } = await supabase
-        .from('announcements')
-        .update({ status: nextStatus })
-        .eq('id', announcement.id)
-        .select('id,status')
-        .maybeSingle();
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_set_announcement_status', {
+        p_announcement_id: announcement.id,
+        p_status: nextStatus,
+        p_reason: isPausing ? pauseReasonValue : null,
+      });
 
-      if (error) throw error;
-      if (!data) {
-        throw new Error('Nenhum anúncio foi atualizado. Verifique as permissões do administrador.');
+      if (rpcError) throw rpcError;
+
+      const persistedAnnouncement = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+
+      if (!persistedAnnouncement || persistedAnnouncement.status !== nextStatus) {
+        throw new Error('O status do anúncio não foi confirmado no banco. Verifique as permissões do administrador.');
       }
 
       setAnnouncements((current) =>
@@ -381,49 +367,6 @@ const AnnouncementsMonitoring: React.FC = () => {
           ? `Anúncio "${announcement.title}" pausado via monitoramento. Motivo: ${pauseReasonValue}`
           : `Anúncio "${announcement.title}" reativado via monitoramento.`
       });
-
-      const notificationTitle = isPausing
-        ? 'Seu anúncio foi pausado pela equipe'
-        : 'Seu anúncio foi reativado pela equipe';
-      const notificationContent = isPausing
-        ? `O anúncio "${announcement.title}" foi pausado temporariamente pela equipe AGRO BW. Motivo: ${pauseReasonValue}`
-        : `O anúncio "${announcement.title}" foi reativado pela equipe AGRO BW e voltou a ficar disponível na plataforma.`;
-
-      const { data: notificationRecord, error: notificationError } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: announcement.user_id,
-          type: 'system',
-          title: notificationTitle,
-          content: notificationContent,
-          link: '/minha-conta/anuncios',
-          is_read: false,
-        })
-        .select('id')
-        .single();
-
-      if (notificationError) {
-        console.error('[AnnouncementsMonitoring] Erro ao criar notificação para o anunciante:', notificationError);
-      } else {
-        const recipientEmail = announcement.owner?.email?.trim() || null;
-        const recipientName = announcement.owner?.name?.trim() || 'Cliente';
-        const { error: emailJobError } = await supabase.from('plan_alert_email_jobs').insert({
-          notification_id: notificationRecord.id,
-          user_id: announcement.user_id,
-          recipient_email: recipientEmail,
-          recipient_name: recipientName,
-          alert_kind: isPausing ? 'ad_paused' : 'ad_resumed',
-          notification_title: notificationTitle,
-          notification_content: notificationContent,
-          link: '/minha-conta/anuncios',
-          status: recipientEmail ? 'pending' : 'skipped',
-          last_error: recipientEmail ? null : 'Usuario sem e-mail valido',
-        });
-
-        if (emailJobError) {
-          console.error('[AnnouncementsMonitoring] Erro ao criar job de e-mail do anunciante:', emailJobError);
-        }
-      }
 
       toast.success(isPausing ? 'Anúncio pausado com sucesso' : 'Anúncio reativado com sucesso');
       closePauseModal();
@@ -555,7 +498,7 @@ const AnnouncementsMonitoring: React.FC = () => {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_22px_50px_-42px_rgba(15,23,42,0.28)]">
+      <section className="overflow-visible rounded-[24px] border border-slate-200 bg-white shadow-[0_22px_50px_-42px_rgba(15,23,42,0.28)]">
         <div className="border-b border-slate-100 px-6 py-5">
           <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
             <div>
@@ -566,8 +509,8 @@ const AnnouncementsMonitoring: React.FC = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px]">
+        <div className="overflow-x-auto lg:overflow-visible">
+          <table className="w-full min-w-[980px] xl:min-w-0">
             <thead className="bg-slate-50">
               <tr className="text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                 <th className="px-6 py-4">Anúncio</th>

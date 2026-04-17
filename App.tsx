@@ -39,12 +39,14 @@ const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminDashboardOverview = lazy(() => import('./pages/admin/AdminDashboardOverview'));
 const ModerationQueue = lazy(() => import('./pages/admin/ModerationQueue'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
+const VerificationRequestsManagement = lazy(() => import('./pages/admin/VerificationRequestsManagement'));
 const CategoriesManagement = lazy(() => import('./pages/admin/CategoriesManagement'));
 const AnnouncementsMonitoring = lazy(() => import('./pages/admin/AnnouncementsMonitoring'));
 const SiteAnalyticsView = lazy(() => import('./pages/admin/SiteAnalyticsView'));
 const PaymentsManagement = lazy(() => import('./pages/admin/PaymentsManagement'));
 const NewsManagement = lazy(() => import('./pages/admin/NewsManagement'));
 const NewsletterSubscriptionsManagement = lazy(() => import('./pages/admin/NewsletterSubscriptionsManagement'));
+const CampaignsManagement = lazy(() => import('./pages/admin/CampaignsManagement'));
 const LayoutManagement = lazy(() => import('./pages/admin/LayoutManagement'));
 const SupportTicketsManagement = lazy(() => import('./pages/admin/SupportTicketsManagement'));
 const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'));
@@ -232,12 +234,14 @@ const AppContent: React.FC = () => {
               <Route index element={<AdminDashboardOverview />} />
               <Route path="moderation" element={<ModerationQueue />} />
               <Route path="users" element={<UserManagement />} />
+              <Route path="verifications" element={<VerificationRequestsManagement />} />
               <Route path="categories" element={<CategoriesManagement />} />
               <Route path="monitoring" element={<AnnouncementsMonitoring />} />
               <Route path="statistics" element={<SiteAnalyticsView />} />
               <Route path="payments" element={<PaymentsManagement />} />
               <Route path="news" element={<NewsManagement />} />
               <Route path="newsletter" element={<NewsletterSubscriptionsManagement />} />
+              <Route path="campaigns" element={<CampaignsManagement />} />
               <Route path="layout" element={<LayoutManagement />} />
               <Route path="support" element={<SupportTicketsManagement />} />
               <Route path="audit" element={<AuditLogs />} />

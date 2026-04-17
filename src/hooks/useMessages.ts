@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
@@ -192,7 +192,7 @@ export const useChats = (announcementId?: string | null) => {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'messages'
         },
@@ -201,7 +201,16 @@ export const useChats = (announcementId?: string | null) => {
           emitCountsRefresh()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          void fetchChats(true)
+        }
+
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('[useChats] Realtime instável, sincronizando a lista de conversas em segundo plano.')
+          void fetchChats(true)
+        }
+      })
 
     return () => {
       chatsChannel.unsubscribe()
@@ -211,11 +220,22 @@ export const useChats = (announcementId?: string | null) => {
   useEffect(() => {
     if (typeof window === 'undefined' || !user?.id) return
 
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void fetchChats(true)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     const intervalId = window.setInterval(() => {
       void fetchChats(true)
-    }, 15000)
+    }, 5000)
 
-    return () => window.clearInterval(intervalId)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.clearInterval(intervalId)
+    }
   }, [user?.id, announcementId])
 
   return { chats, isLoading, error, refreshChats: fetchChats }
@@ -228,6 +248,20 @@ export const useMessages = (chatId: string | null) => {
   const [error, setError] = useState<string | null>(null)
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
   const retryTimeoutRef = useRef<number | null>(null)
+
+  const mapMessages = useCallback((data: any[] | null | undefined): Message[] => {
+    return (data || []).map(msg => ({
+      id: msg.id,
+      chatId: msg.chat_id,
+      senderId: msg.sender_id,
+      senderName: msg.users?.name || 'Usuário',
+      content: msg.content,
+      timestamp: msg.created_at,
+      isRead: msg.is_read,
+      senderAvatar: msg.users?.avatar,
+      isFiltered: msg.is_filtered
+    }))
+  }, [])
 
   const clearRetry = () => {
     if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
@@ -321,19 +355,7 @@ export const useMessages = (chatId: string | null) => {
       } else {
         clearRetry()
         setError(null)
-        const mappedMessages: Message[] = (data || []).map(msg => ({
-          id: msg.id,
-          chatId: msg.chat_id,
-          senderId: msg.sender_id,
-          senderName: msg.users?.name || 'Usuário',
-          content: msg.content,
-          timestamp: msg.created_at,
-          isRead: msg.is_read,
-          senderAvatar: msg.users?.avatar,
-          isFiltered: msg.is_filtered
-        }))
-
-        setMessages(mappedMessages)
+        setMessages(mapMessages(data))
         await markAsRead(chatId)
       }
 
@@ -385,6 +407,8 @@ export const useMessages = (chatId: string | null) => {
           if (payload.new.sender_id !== user.id) {
             await markAsRead(chatId)
           }
+
+          void fetchMessages(true)
         }
       )
       .on(
@@ -395,30 +419,62 @@ export const useMessages = (chatId: string | null) => {
           table: 'messages',
           filter: `chat_id=eq.${chatId}`
         },
-        (payload) => {
-          setMessages(prev =>
-            prev.map(message =>
-              message.id === payload.new.id
-                ? {
-                    ...message,
-                    content: payload.new.content,
-                    isRead: payload.new.is_read,
-                    isFiltered: payload.new.is_filtered
-                  }
-                : message
-            )
-          )
+        () => {
+          void fetchMessages(true)
         }
       )
-      .subscribe()
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'messages',
+          filter: `chat_id=eq.${chatId}`
+        },
+        () => {
+          void fetchMessages(true)
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          void fetchMessages(true)
+        }
+
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('[useMessages] Realtime instável, sincronizando o chat em segundo plano.')
+          void fetchMessages(true)
+        }
+      })
 
     setChannel(newChannel)
 
+    const intervalId = typeof window !== 'undefined'
+      ? window.setInterval(() => {
+          void fetchMessages(true)
+        }, 5000)
+      : null
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void fetchMessages(true)
+      }
+    }
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+    }
+
     return () => {
       clearRetry()
+      if (intervalId !== null && typeof window !== 'undefined') {
+        window.clearInterval(intervalId)
+      }
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
       newChannel.unsubscribe()
     }
-  }, [chatId, user?.id])
+  }, [chatId, user?.id, mapMessages])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !chatId || !user?.id) return
@@ -444,17 +500,7 @@ export const useMessages = (chatId: string | null) => {
 
           clearRetry()
           setError(null)
-          setMessages((data || []).map(msg => ({
-            id: msg.id,
-            chatId: msg.chat_id,
-            senderId: msg.sender_id,
-            senderName: msg.users?.name || 'Usuário',
-            content: msg.content,
-            timestamp: msg.created_at,
-            isRead: msg.is_read,
-            senderAvatar: msg.users?.avatar,
-            isFiltered: msg.is_filtered
-          })))
+          setMessages(mapMessages(data))
           await markAsRead(chatId)
           setIsLoading(false)
           endAppSync()
@@ -463,22 +509,42 @@ export const useMessages = (chatId: string | null) => {
 
     window.addEventListener('online', handleOnline)
     return () => window.removeEventListener('online', handleOnline)
-  }, [chatId, user?.id])
+  }, [chatId, user?.id, mapMessages])
 
   const sendMessage = async (content: string): Promise<boolean> => {
     if (!chatId || !user || !content.trim()) return false
 
-    const { error } = await supabase
+    const trimmedContent = content.trim()
+    const optimisticMessageId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    const optimisticMessage: Message = {
+      id: optimisticMessageId,
+      chatId,
+      senderId: user.id,
+      senderName: user.name || 'Usuário',
+      content: trimmedContent,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      senderAvatar: user.avatar || undefined,
+      isFiltered: false,
+      isPending: true
+    }
+
+    setMessages(prev => [...prev, optimisticMessage])
+
+    const { data, error } = await supabase
       .from('messages')
       .insert({
         chat_id: chatId,
         sender_id: user.id,
-        content: content.trim(),
+        content: trimmedContent,
         is_read: false,
         is_filtered: false
       })
+      .select('id, chat_id, sender_id, content, created_at, is_read, is_filtered')
+      .single()
 
     if (error) {
+      setMessages(prev => prev.filter(message => message.id !== optimisticMessageId))
       console.error('Erro ao enviar mensagem:', error)
       if (error.message?.includes('Prazo de contato do lead expirado')) {
         toast.error('Prazo de contato expirado', {
@@ -488,11 +554,37 @@ export const useMessages = (chatId: string | null) => {
         toast.error('Anuncio expirado', {
           description: 'Este anuncio nao aceita mais novas mensagens.'
         })
+      } else {
+        toast.error('Não foi possível enviar a mensagem.', {
+          description: 'Tente novamente em instantes.'
+        })
       }
       return false
     }
 
+    if (data) {
+      setMessages(prev =>
+        prev.map(message =>
+          message.id === optimisticMessageId
+            ? {
+                id: data.id,
+                chatId: data.chat_id,
+                senderId: data.sender_id,
+                senderName: user.name || 'Usuário',
+                content: data.content,
+                timestamp: data.created_at,
+                isRead: data.is_read,
+                senderAvatar: user.avatar || undefined,
+                isFiltered: data.is_filtered,
+                isPending: false
+              }
+            : message
+        )
+      )
+    }
+
     await markAsRead(chatId)
+    emitCountsRefresh()
     return true
   }
 

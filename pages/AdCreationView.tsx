@@ -375,6 +375,10 @@ const AdCreationView: React.FC = () => {
   const isEditingExistingAd = Boolean(editAdId);
   const hasStoreListingAccess = !!subscription?.plans?.has_seller_store;
   const normalizeTechnicalLabel = (value: string) => slugify(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const hasConservationStateField = technicalFieldsSchema.some((field: any) =>
+    normalizeTechnicalLabel(field.label || field.key || '') === 'estado_de_conservacao'
+  );
+  const shouldShowStoreProductCondition = hasStoreListingAccess && !hasConservationStateField;
   const selectedCategoryGroup = getCategoryGroupBySlug(formData.categoryGroupSlug || formData.categorySlug);
   const availableSpecificCategories = selectedCategoryGroup
     ? selectedCategoryGroup.categorySlugs
@@ -682,6 +686,15 @@ const AdCreationView: React.FC = () => {
       setTechnicalFieldsSchema([]);
     }
   }, [formData.categoryId, dbCategories]);
+
+  useEffect(() => {
+    if (!shouldShowStoreProductCondition && formData.productCondition) {
+      setFormData((prev: any) => ({
+        ...prev,
+        productCondition: '',
+      }));
+    }
+  }, [shouldShowStoreProductCondition, formData.productCondition]);
 
   const categoryIcons: Record<string, string> = {
     animais: 'ðŸ‚',
@@ -1002,7 +1015,7 @@ const AdCreationView: React.FC = () => {
       city: formData.location?.city || 'A definir',
       state: formData.location?.state || '--',
       cep: (formData.location?.cep || '').replace(/\D/g, '') || null,
-      product_condition: hasStoreListingAccess ? formData.productCondition || null : null,
+      product_condition: shouldShowStoreProductCondition ? formData.productCondition || null : null,
       availability: hasStoreListingAccess ? formData.availability || null : null,
       accepts_trade: hasStoreListingAccess ? !!formData.acceptsTrade : false,
       has_warranty: hasStoreListingAccess ? !!formData.hasWarranty : false,
@@ -1536,7 +1549,7 @@ const AdCreationView: React.FC = () => {
         city: formData.location?.city || null,
         state: formData.location?.state || null,
         cep: cleanCep || null,
-        product_condition: hasStoreListingAccess ? formData.productCondition || null : null,
+      product_condition: shouldShowStoreProductCondition ? formData.productCondition || null : null,
         availability: hasStoreListingAccess ? formData.availability || null : null,
         accepts_trade: hasStoreListingAccess ? !!formData.acceptsTrade : false,
         has_warranty: hasStoreListingAccess ? !!formData.hasWarranty : false,
@@ -1931,20 +1944,21 @@ const AdCreationView: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Condição do item</label>
-                      <select
-                        value={formData.productCondition}
-                        onChange={e => setFormData({ ...formData, productCondition: e.target.value })}
-                        className="w-full bg-white border border-emerald-100 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
-                      >
-                        <option value="">Selecione...</option>
-                        {STORE_PRODUCT_CONDITIONS.map((option) => (
-                          <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
+                    {shouldShowStoreProductCondition && (
+                      <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Condição do item</label>
+                        <select
+                          value={formData.productCondition}
+                          onChange={e => setFormData({ ...formData, productCondition: e.target.value })}
+                          className="w-full bg-white border border-emerald-100 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
+                        >
+                          <option value="">Selecione...</option>
+                          {STORE_PRODUCT_CONDITIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <div>
                       <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Disponibilidade</label>
                       <select

@@ -419,11 +419,13 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                         
                         <div className={`flex items-center gap-1 mt-1 px-1 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
                           <span className="text-xs text-slate-400">
-                            {formatTime(message.timestamp)}
+                            {message.isPending ? 'Enviando...' : formatTime(message.timestamp)}
                           </span>
                           
                           {isOwn && (
-                            message.isRead ? (
+                            message.isPending ? (
+                              <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
+                            ) : message.isRead ? (
                               <CheckCheck className="w-3 h-3 text-green-600" />
                             ) : (
                               <Check className="w-3 h-3 text-slate-400" />
