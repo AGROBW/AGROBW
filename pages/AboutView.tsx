@@ -114,10 +114,10 @@ const AboutView: React.FC = () => {
         </div>
         <div className="max-w-7xl mx-auto px-4 relative z-10 text-center text-white">
           <h1 className="text-4xl md:text-7xl font-black mb-6 font-display leading-tight drop-shadow-2xl animate-in slide-in-from-bottom duration-1000">
-            AGRO BW: Conectando quem produz ao futuro do agronegocio
+            AGRO BW: Conectando o agro a novas oportunidades de negócio.
           </h1>
           <p className="text-xl md:text-2xl text-slate-100 max-w-3xl mx-auto font-medium opacity-90 drop-shadow-md">
-            A plataforma lider que transforma o mercado rural com transparencia e tecnologia.
+            A plataforma que simplifica, conecta e gera resultados no campo.
           </p>
         </div>
       </section>
@@ -155,13 +155,13 @@ const AboutView: React.FC = () => {
         <div className="flex flex-col lg:flex-row items-center gap-16">
           <div className="flex-1 space-y-8 animate-in slide-in-from-left duration-1000">
             <div className="inline-block bg-green-50 text-green-700 text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest">
-              Fundada em 2020
+              Fundada em 2025
             </div>
             <h2 className="text-4xl md:text-5xl font-black text-slate-900 font-display leading-tight">
               {data.history_title}
             </h2>
             <div className="w-20 h-2 bg-green-600 rounded-full" />
-            <p className="text-lg text-slate-500 leading-relaxed font-medium">
+            <p className="text-lg text-slate-500 leading-relaxed font-medium text-justify">
               {data.history_text}
             </p>
           </div>
@@ -190,7 +190,7 @@ const AboutView: React.FC = () => {
               <h3 className="text-2xl font-black text-slate-900 mb-6 font-display group-hover:text-white transition-colors">
                 {data.mission_title}
               </h3>
-              <p className="text-slate-500 group-hover:text-green-50 transition-colors leading-relaxed">
+              <p className="text-slate-500 group-hover:text-green-50 transition-colors leading-relaxed text-justify">
                 {data.mission_text}
               </p>
             </div>
@@ -201,7 +201,7 @@ const AboutView: React.FC = () => {
               <h3 className="text-2xl font-black text-slate-900 mb-6 font-display group-hover:text-white transition-colors">
                 {data.vision_title}
               </h3>
-              <p className="text-slate-500 group-hover:text-green-50 transition-colors leading-relaxed">
+              <p className="text-slate-500 group-hover:text-green-50 transition-colors leading-relaxed text-justify">
                 {data.vision_text}
               </p>
             </div>
@@ -212,7 +212,7 @@ const AboutView: React.FC = () => {
               <h3 className="text-2xl font-black text-slate-900 mb-6 font-display group-hover:text-white transition-colors">
                 {data.values_title}
               </h3>
-              <p className="text-slate-500 group-hover:text-green-50 transition-colors leading-relaxed">
+              <p className="text-slate-500 group-hover:text-green-50 transition-colors leading-relaxed text-justify">
                 {data.values_text}
               </p>
             </div>

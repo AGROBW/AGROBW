@@ -13,6 +13,7 @@ import { supabase } from '../../src/lib/supabaseClient';
 
 type AudienceType = 'newsletter' | 'platform_users' | 'imported';
 type CampaignStatus = 'draft' | 'queued' | 'sending' | 'completed' | 'failed' | 'paused';
+type SponsorLeadStatus = 'new' | 'contacted' | 'qualified' | 'closed' | 'archived';
 
 interface CampaignRecord {
   id: string;
@@ -29,6 +30,19 @@ interface CampaignRecord {
   skipped_count: number;
   queued_at: string | null;
   last_sent_at: string | null;
+  created_at: string;
+}
+
+interface SponsorInterestLeadRecord {
+  id: string;
+  company_name: string;
+  contact_name: string;
+  email: string;
+  phone: string | null;
+  segment: string;
+  message: string | null;
+  preferred_channel: 'whatsapp' | 'email';
+  status: SponsorLeadStatus;
   created_at: string;
 }
 
@@ -70,8 +84,17 @@ const audienceLabelMap: Record<AudienceType, string> = {
   imported: 'Lista importada',
 };
 
+const sponsorLeadStatusLabelMap: Record<SponsorLeadStatus, string> = {
+  new: 'Novo',
+  contacted: 'Contactado',
+  qualified: 'Qualificado',
+  closed: 'Fechado',
+  archived: 'Arquivado',
+};
+
 const CampaignsManagement: React.FC = () => {
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
+  const [sponsorLeads, setSponsorLeads] = useState<SponsorInterestLeadRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isQueueing, setIsQueueing] = useState(false);
@@ -114,6 +137,7 @@ const CampaignsManagement: React.FC = () => {
         campaignsResult,
         newsletterCountResult,
         platformCountResult,
+        sponsorLeadsResult,
       ] = await Promise.all([
         supabase
           .from('newsletter_campaigns')
@@ -130,19 +154,26 @@ const CampaignsManagement: React.FC = () => {
           .select('id', { count: 'exact', head: true })
           .not('email', 'is', null)
           .eq('is_suspended', false),
+        supabase
+          .from('sponsor_interest_leads')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(12),
       ]);
 
       if (campaignsResult.error) throw campaignsResult.error;
       if (newsletterCountResult.error) throw newsletterCountResult.error;
       if (platformCountResult.error) throw platformCountResult.error;
+      if (sponsorLeadsResult.error) throw sponsorLeadsResult.error;
 
       setCampaigns((campaignsResult.data || []) as CampaignRecord[]);
+      setSponsorLeads((sponsorLeadsResult.data || []) as SponsorInterestLeadRecord[]);
       const newsletterRows = (newsletterCountResult.data || []) as Array<{ total_count?: number }>;
       setNewsletterAudienceCount(newsletterRows[0]?.total_count || 0);
       setPlatformAudienceCount(platformCountResult.count || 0);
     } catch (error) {
       console.error('[CampaignsManagement] Erro ao carregar campanhas:', error);
-      toast.error('Não foi possível carregar as campanhas agora.');
+      toast.error('Não foi possível carregar campanhas e leads agora.');
     } finally {
       setLoading(false);
     }
@@ -496,6 +527,90 @@ const CampaignsManagement: React.FC = () => {
       <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_-48px_rgba(15,23,42,0.45)]">
         <div className="mb-6 flex items-center justify-between gap-3">
           <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Patrocínio</p>
+            <h2 className="mt-2 text-2xl font-black text-slate-950">Interessados na landing page</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Leads internos enviados pela página de patrocinador para o time comercial acompanhar.
+            </p>
+          </div>
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+            {sponsorLeads.length} lead(s)
+          </span>
+        </div>
+
+        <div className="overflow-hidden rounded-3xl border border-slate-200">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[940px]">
+              <thead className="border-b border-slate-200 bg-slate-50">
+                <tr>
+                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Empresa</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Contato</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Segmento</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Canal</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Status</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Mensagem</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Data</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-14 text-center">
+                      <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-green-600" />
+                    </td>
+                  </tr>
+                ) : sponsorLeads.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-14 text-center text-slate-500">
+                      Nenhum interessado recebido ainda pela landing page.
+                    </td>
+                  </tr>
+                ) : (
+                  sponsorLeads.map((lead) => (
+                    <tr key={lead.id} className="hover:bg-slate-50">
+                      <td className="px-5 py-4">
+                        <p className="font-bold text-slate-950">{lead.company_name}</p>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        <p className="font-semibold text-slate-900">{lead.contact_name}</p>
+                        <p>{lead.email}</p>
+                        {lead.phone ? <p>{lead.phone}</p> : null}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-slate-600">{lead.segment}</td>
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        {lead.preferred_channel === 'whatsapp' ? 'WhatsApp' : 'E-mail'}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                          {sponsorLeadStatusLabelMap[lead.status]}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        <div className="max-w-[280px] whitespace-pre-line break-words">
+                          {lead.message || 'Sem mensagem adicional.'}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        {new Date(lead.created_at).toLocaleString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_-48px_rgba(15,23,42,0.45)]">
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Histórico</p>
             <h2 className="mt-2 text-2xl font-black text-slate-950">Campanhas salvas</h2>
           </div>
@@ -567,7 +682,7 @@ const CampaignsManagement: React.FC = () => {
                                     p_campaign_id: campaign.id,
                                   });
                                   if (error) throw error;
-                                  toast.success(`Campanha atualizada na fila. Total: ${Number(data?.total_recipients || 0)} destinatário(s).`);
+                                  toast.success(`Campanha atualizada na fila. Total: ${Number(data?.total_recipients || 0)} destinatários.`);
                                   await loadCampaigns();
                                 } catch (error) {
                                   console.error('[CampaignsManagement] Erro ao reenfileirar campanha:', error);

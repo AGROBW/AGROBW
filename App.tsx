@@ -15,6 +15,7 @@ const AdDetailView = lazy(() => import('./pages/AdDetailView'));
 const AdsListingView = lazy(() => import('./pages/AdsListingView'));
 const CategoriesView = lazy(() => import('./pages/CategoriesView'));
 const PricingView = lazy(() => import('./pages/PricingView'));
+const SponsorLandingView = lazy(() => import('./pages/SponsorLandingView'));
 const PartnerStoresView = lazy(() => import('./pages/PartnerStoresView'));
 const StorefrontView = lazy(() => import('./pages/StorefrontView'));
 const AdCreationView = lazy(() => import('./pages/AdCreationView'));
@@ -163,6 +164,7 @@ const AppContent: React.FC = () => {
             <Route path="/anuncios" element={<AdsListingView />} />
             <Route path="/categorias" element={<CategoriesView />} />
             <Route path="/planos" element={<PricingView />} />
+            <Route path="/patrocinador" element={<SponsorLandingView />} />
             <Route path="/lojas-parceiras" element={<PartnerStoresView />} />
             <Route path="/loja/:slug" element={<StorefrontView />} />
             <Route path="/contato" element={<ContactView />} />
