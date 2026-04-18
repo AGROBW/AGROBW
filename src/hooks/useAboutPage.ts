@@ -160,7 +160,7 @@ export const ABOUT_PAGE_FALLBACK: AboutPageContent = {
   stat_ads_value: '50k+',
   stat_ads_label: 'ANÚNCIOS CRIADOS',
   stat_revenue_value: '850 Mi',
-  stat_revenue_label: 'NEGÓCIOS GERADOS',
+  stat_revenue_label: 'LEADS GERADOS',
   history_title: 'Nossa História',
   history_text: 'Nascida da necessidade real do produtor rural brasileiro, a AGRO BW surgiu em 2020 para eliminar barreiras e burocracias no mercado de compra e venda no campo.',
   history_image_url: 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?q=80&w=800&auto=format&fit=crop',

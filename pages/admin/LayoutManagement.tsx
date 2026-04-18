@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import LayoutBrandSection from '../../components/admin/layout/LayoutBrandSection';
 import LayoutColorsSection from '../../components/admin/layout/LayoutColorsSection';
 import LayoutIdentitySection from '../../components/admin/layout/LayoutIdentitySection';
+import LayoutPageImagesSection, { PageImageField } from '../../components/admin/layout/LayoutPageImagesSection';
 import LayoutPreviewPanel from '../../components/admin/layout/LayoutPreviewPanel';
 import LayoutSocialLinksSection from '../../components/admin/layout/LayoutSocialLinksSection';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
@@ -22,7 +23,7 @@ const LayoutManagement: React.FC = () => {
   const { settings, isLoading, saveSettings, defaultSettings } = useLayoutSettings();
   const { logAction } = useAdminAudit();
   const [saving, setSaving] = useState(false);
-  const [uploadingField, setUploadingField] = useState<'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | 'defaultAdImageUrl' | null>(null);
+  const [uploadingField, setUploadingField] = useState<'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | 'defaultAdImageUrl' | PageImageField | null>(null);
   const [formData, setFormData] = useState({
     siteName: defaultSettings.siteName,
     siteShortName: defaultSettings.siteShortName || '',
@@ -37,6 +38,12 @@ const LayoutManagement: React.FC = () => {
     logoDarkUrl: defaultSettings.logoDarkUrl || '',
     faviconUrl: defaultSettings.faviconUrl || '',
     defaultAdImageUrl: defaultSettings.defaultAdImageUrl || '',
+    pricingHeroImageUrl: defaultSettings.pricingHeroImageUrl || '',
+    pricingStoreImageUrl: defaultSettings.pricingStoreImageUrl || '',
+    pricingFieldImageUrl: defaultSettings.pricingFieldImageUrl || '',
+    sponsorHeroImageUrl: defaultSettings.sponsorHeroImageUrl || '',
+    sponsorHarvestImageUrl: defaultSettings.sponsorHarvestImageUrl || '',
+    sponsorFieldImageUrl: defaultSettings.sponsorFieldImageUrl || '',
     facebookUrl: defaultSettings.facebookUrl || '',
     instagramUrl: defaultSettings.instagramUrl || '',
     youtubeUrl: defaultSettings.youtubeUrl || '',
@@ -72,6 +79,12 @@ const LayoutManagement: React.FC = () => {
       logoDarkUrl: settings.logoDarkUrl || '',
       faviconUrl: settings.faviconUrl || '',
       defaultAdImageUrl: settings.defaultAdImageUrl || '',
+      pricingHeroImageUrl: settings.pricingHeroImageUrl || '',
+      pricingStoreImageUrl: settings.pricingStoreImageUrl || '',
+      pricingFieldImageUrl: settings.pricingFieldImageUrl || '',
+      sponsorHeroImageUrl: settings.sponsorHeroImageUrl || '',
+      sponsorHarvestImageUrl: settings.sponsorHarvestImageUrl || '',
+      sponsorFieldImageUrl: settings.sponsorFieldImageUrl || '',
       facebookUrl: settings.facebookUrl || '',
       instagramUrl: settings.instagramUrl || '',
       youtubeUrl: settings.youtubeUrl || '',
@@ -96,7 +109,7 @@ const LayoutManagement: React.FC = () => {
   };
 
   const handleAssetUpload = async (
-    field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | 'defaultAdImageUrl',
+    field: 'logoUrl' | 'logoLightUrl' | 'logoDarkUrl' | 'faviconUrl' | 'defaultAdImageUrl' | PageImageField,
     file: File,
   ) => {
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/svg+xml', 'image/x-icon'];
@@ -159,6 +172,12 @@ const LayoutManagement: React.FC = () => {
       logoDarkUrl: formData.logoDarkUrl || null,
       faviconUrl: formData.faviconUrl || null,
       defaultAdImageUrl: formData.defaultAdImageUrl || null,
+      pricingHeroImageUrl: formData.pricingHeroImageUrl || null,
+      pricingStoreImageUrl: formData.pricingStoreImageUrl || null,
+      pricingFieldImageUrl: formData.pricingFieldImageUrl || null,
+      sponsorHeroImageUrl: formData.sponsorHeroImageUrl || null,
+      sponsorHarvestImageUrl: formData.sponsorHarvestImageUrl || null,
+      sponsorFieldImageUrl: formData.sponsorFieldImageUrl || null,
       facebookUrl: normalizeOptionalUrl(formData.facebookUrl),
       instagramUrl: normalizeOptionalUrl(formData.instagramUrl),
       youtubeUrl: normalizeOptionalUrl(formData.youtubeUrl),
@@ -223,6 +242,28 @@ const LayoutManagement: React.FC = () => {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr,0.9fr]">
         <div className="space-y-6">
           <LayoutBrandSection formData={formData} onChange={handleChange} onUpload={handleAssetUpload} uploadingField={uploadingField} />
+          <LayoutPageImagesSection
+            formData={{
+              pricingHeroImageUrl: formData.pricingHeroImageUrl,
+              pricingStoreImageUrl: formData.pricingStoreImageUrl,
+              pricingFieldImageUrl: formData.pricingFieldImageUrl,
+              sponsorHeroImageUrl: formData.sponsorHeroImageUrl,
+              sponsorHarvestImageUrl: formData.sponsorHarvestImageUrl,
+              sponsorFieldImageUrl: formData.sponsorFieldImageUrl,
+            }}
+            onChange={handleChange}
+            onUpload={handleAssetUpload}
+            uploadingField={
+              uploadingField === 'pricingHeroImageUrl' ||
+              uploadingField === 'pricingStoreImageUrl' ||
+              uploadingField === 'pricingFieldImageUrl' ||
+              uploadingField === 'sponsorHeroImageUrl' ||
+              uploadingField === 'sponsorHarvestImageUrl' ||
+              uploadingField === 'sponsorFieldImageUrl'
+                ? uploadingField
+                : null
+            }
+          />
           <LayoutIdentitySection
             formData={{
               siteTagline: formData.siteTagline,

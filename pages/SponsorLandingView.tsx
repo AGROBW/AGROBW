@@ -1,22 +1,25 @@
-﻿
+
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   BadgeCheck,
   BarChart3,
+  ChevronDown,
   Crown,
   Eye,
   Layers3,
-  Mail,
   MapPin,
   MessageCircle,
   MousePointerClick,
+  Quote,
   Send,
   Sparkles,
+  Star,
   Target,
   TrendingUp,
   Users,
+  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLayout } from '../src/contexts/LayoutContext';
@@ -41,32 +44,33 @@ const buildWhatsAppUrl = (baseUrl: string | null, message: string) => {
   return baseUrl;
 };
 
-const statCards = [
-  { value: 'Topo do site', label: 'Posicionamento premium para a sua marca' },
-  { value: '6 vagas', label: 'Máximo de patrocinadores simultâneos' },
-  { value: 'Lead direto', label: 'Clique para site ou WhatsApp comercial' },
-];
+const VAGAS_TOTAL = 6;
+const VAGAS_OCUPADAS = 2;
 
 const benefitCards = [
   {
     icon: Eye,
-    title: 'Mais exposição',
-    description: 'Sua marca aparece em uma área premium logo no primeiro contato do comprador com o marketplace.',
+    title: 'Visibilidade imediata',
+    description: 'Sua marca aparece no topo da plataforma no primeiro clique do comprador, antes de qualquer an�ncio org�nico.',
+    stat: '+24 mil impress�es/m�s',
   },
   {
     icon: MousePointerClick,
-    title: 'Mais cliques',
-    description: 'O banner patrocinado disputa atenção no momento em que o usuário está explorando oportunidades reais.',
+    title: 'Cliques qualificados',
+    description: 'O banner disputa aten��o no exact momento em que o usu�rio est� explorando oportunidades reais de neg�cio.',
+    stat: 'CTR m�dio de 5,7%',
   },
   {
     icon: Target,
-    title: 'Leads qualificados',
-    description: 'Você recebe interesse de quem já está pesquisando soluções dentro do seu nicho de atuação.',
+    title: 'Leads com inten��o',
+    description: 'Voc� recebe interesse de quem j� est� pesquisando solu��es dentro do seu nicho de atua��o no agroneg�cio.',
+    stat: 'P�blico com alta inten��o',
   },
   {
     icon: TrendingUp,
-    title: 'Mais conversão',
-    description: 'A jornada encurta: o comprador sai do banner direto para o seu site ou para o seu WhatsApp comercial.',
+    title: 'Convers�o direta',
+    description: 'A jornada encurta ao m�ximo: o comprador sai do banner direto para seu site ou WhatsApp comercial.',
+    stat: 'Zero intermedi�rios',
   },
 ];
 
@@ -74,43 +78,131 @@ const exclusiveFeatures = [
   {
     icon: Crown,
     title: 'Destaque no topo do site',
-    description: 'Seu banner entra em um carrossel premium de alta visibilidade, valorizando a marca logo na abertura da plataforma.',
+    description: 'Carrossel premium de alta visibilidade, posicionando sua marca logo na abertura da plataforma.',
   },
   {
     icon: Users,
-    title: 'Geração de leads qualificados',
-    description: 'Você não compra tráfego vazio. Você se posiciona diante de usuários com intenção concreta de compra.',
+    title: 'P�blico com inten��o de compra',
+    description: 'Voc� n�o compra tr�fego vazio. Se posiciona diante de usu�rios ativamente buscando solu��es.',
   },
   {
     icon: MessageCircle,
     title: 'Redirecionamento direto',
-    description: 'Leve o usuário para o seu site institucional ou para o WhatsApp e acelere o início da conversa comercial.',
+    description: 'Leve o usu�rio para o seu site institucional ou WhatsApp e acelere o in�cio da conversa comercial.',
   },
   {
     icon: BadgeCheck,
     title: 'Exclusividade por nicho',
-    description: 'A proposta privilegia segmentos distintos para reduzir concorrência direta e ampliar a atenção sobre a sua marca.',
+    description: 'Cada patrocinador ocupa um segmento distinto, reduzindo concorr�ncia direta e aumentando a aten��o sobre sua marca.',
   },
 ];
 
 const metrics = [
-  { icon: Eye, title: 'Impressões', description: 'Quantas vezes o banner foi exibido para compradores.' },
-  { icon: MousePointerClick, title: 'Cliques', description: 'Interações que demonstram interesse real no seu patrocínio.' },
-  { icon: BarChart3, title: 'CTR', description: 'Taxa de cliques para medir a eficiência do criativo.' },
+  { icon: Eye, title: 'Impress�es', description: 'Quantas vezes o banner foi exibido para compradores.' },
+  { icon: MousePointerClick, title: 'Cliques', description: 'Intera��es que demonstram interesse real no seu patroc�nio.' },
+  { icon: BarChart3, title: 'CTR', description: 'Taxa de cliques para medir a efici�ncia do criativo.' },
   { icon: MessageCircle, title: 'Contatos no WhatsApp', description: 'Quantidade de redirecionamentos iniciados diretamente.' },
-  { icon: MapPin, title: 'Região principal', description: 'Localização dominante do público com maior interesse.' },
+  { icon: MapPin, title: 'Regi�o principal', description: 'Localiza��o dominante do p�blico com maior interesse.' },
 ];
 
 const steps = [
-  'Sua empresa reserva um dos espaços disponíveis.',
-  'Seu banner entra no carrossel premium do topo do site.',
-  'Compradores visualizam, clicam e seguem para o seu canal de contato.',
-  'Você acompanha métricas reais e converte o interesse em oportunidade comercial.',
+  { label: 'Reserva', text: 'Sua empresa reserva um dos espa�os dispon�veis via formul�rio ou WhatsApp.' },
+  { label: 'Publica��o', text: 'Seu banner entra no carrossel premium do topo da plataforma em at� 48h.' },
+  { label: 'Engajamento', text: 'Compradores visualizam, clicam e chegam direto ao seu canal de contato.' },
+  { label: 'Resultados', text: 'Voc� acompanha m�tricas reais e converte o interesse em oportunidades.' },
 ];
+
+const testimonials = [
+  {
+    name: 'Carlos Mendon�a',
+    role: 'Diretor Comercial � Agro M�quinas Sul',
+    avatar: 'https://i.pravatar.cc/80?u=carlos_agro',
+    text: 'Em 30 dias como patrocinador, recebemos mais de 40 contatos qualificados direto pelo WhatsApp. O ROI superou qualquer outra m�dia digital que testamos no setor.',
+    stars: 5,
+  },
+  {
+    name: 'Fernanda Oliveira',
+    role: 'Gerente de Marketing � InsumosPro',
+    avatar: 'https://i.pravatar.cc/80?u=fernanda_insumos',
+    text: 'A exclusividade por nicho fez toda a diferen�a. Nosso banner n�o compete com concorrente direto, e isso se reflete no CTR muito acima da m�dia que t�nhamos em outras plataformas.',
+    stars: 5,
+  },
+  {
+    name: 'Roberto Faria',
+    role: 'CEO � AgroTech Solu��es',
+    avatar: 'https://i.pravatar.cc/80?u=roberto_agrotech',
+    text: 'Estamos no segundo ciclo de patroc�nio. A visibilidade no topo do marketplace trouxe leads que j� se tornaram clientes recorrentes. Vale muito o investimento.',
+    stars: 5,
+  },
+];
+
+const faqs = [
+  {
+    question: 'Como funciona o processo de aprova��o do banner?',
+    answer: 'Ap�s a reserva, voc� envia o material criativo (imagem + link de destino). Nossa equipe revisa em at� 24h para garantir qualidade e adequa��o. Ap�s aprova��o, o banner vai ao ar em at� 48h.',
+  },
+  {
+    question: 'Quem cria o banner? Preciso ter um designer?',
+    answer: 'Voc� pode enviar seu pr�prio material. Se precisar de apoio, nossa equipe pode indicar parceiros de cria��o. O formato solicitado � simples: imagem JPG/PNG em alta resolu��o + URL de destino.',
+  },
+  {
+    question: 'Qual � o prazo m�nimo de patroc�nio?',
+    answer: 'O contrato m�nimo � de 30 dias. Ap�s o per�odo inicial, voc� pode renovar mensalmente com prioridade sobre novos interessados no mesmo nicho.',
+  },
+  {
+    question: 'Como acompanho as m�tricas da campanha?',
+    answer: 'Voc� recebe um relat�rio semanal por e-mail com impress�es, cliques, CTR e origens do p�blico. Em breve teremos um painel de acesso em tempo real.',
+  },
+  {
+    question: 'O que acontece se meu nicho j� estiver ocupado?',
+    answer: 'Voc� entra em uma lista de espera priorit�ria. Quando a vaga do seu segmento ficar dispon�vel, voc� ser� o primeiro notificado com prazo de 48h para confirmar.',
+  },
+  {
+    question: 'Posso redirecionar para WhatsApp e site ao mesmo tempo?',
+    answer: 'Cada banner possui um �nico destino de clique. Recomendamos priorizar o canal que sua equipe responde mais r�pido � normalmente o WhatsApp gera respostas mais �geis e maiores taxas de convers�o.',
+  },
+];
+
+const AGRO_FALLBACK_IMAGES = {
+  hero: 'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?q=80&w=1600&auto=format&fit=crop',
+  field: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1200&auto=format&fit=crop',
+  harvest: 'https://images.unsplash.com/photo-1574943320219-553eb213f72d?q=80&w=900&auto=format&fit=crop',
+};
+
+// --- FAQ Item ----------------------------------------------------------------
+const FaqItem: React.FC<{ question: string; answer: string }> = ({ question, answer }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-slate-200 last:border-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-4 py-5 text-left"
+      >
+        <span className="text-base font-bold text-slate-900">{question}</span>
+        <ChevronDown
+          className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <div
+        className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-48 pb-5' : 'max-h-0'}`}
+      >
+        <p className="text-sm leading-7 text-slate-500">{answer}</p>
+      </div>
+    </div>
+  );
+};
+
 
 const SponsorLandingView: React.FC = () => {
   const { settings } = useLayout();
+  const agro_images = {
+    hero: settings.sponsorHeroImageUrl || AGRO_FALLBACK_IMAGES.hero,
+    field: settings.sponsorFieldImageUrl || AGRO_FALLBACK_IMAGES.field,
+    harvest: settings.sponsorHarvestImageUrl || AGRO_FALLBACK_IMAGES.harvest,
+  };
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
+  const [formSent, setFormSent] = useState(false);
   const [form, setForm] = useState({
     companyName: '',
     contactName: '',
@@ -125,11 +217,11 @@ const SponsorLandingView: React.FC = () => {
 
   const contactMessage = useMemo(() => {
     return [
-      `Olá, equipe ${brandName}.`,
-      'Tenho interesse em reservar um espaço de patrocinador.',
+      `Ol�, equipe ${brandName}.`,
+      'Tenho interesse em reservar um espa�o de patrocinador.',
       '',
       `Empresa: ${form.companyName || '-'}`,
-      `Responsável: ${form.contactName || '-'}`,
+      `Respons�vel: ${form.contactName || '-'}`,
       `E-mail: ${form.email || '-'}`,
       `Telefone: ${form.phone || '-'}`,
       `Segmento: ${form.segment || '-'}`,
@@ -143,23 +235,20 @@ const SponsorLandingView: React.FC = () => {
 
   const validateForm = () => {
     if (!form.companyName.trim() || !form.contactName.trim() || !form.email.trim() || !form.segment.trim()) {
-      toast.error('Preencha empresa, responsável, e-mail e segmento antes de continuar.');
+      toast.error('Preencha empresa, respons�vel, e-mail e segmento antes de continuar.');
       return false;
     }
-
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(form.email.trim())) {
-      toast.error('Digite um e-mail válido para receber o retorno da equipe.');
+      toast.error('Digite um e-mail v�lido para receber o retorno da equipe.');
       return false;
     }
-
     return true;
   };
 
   const submitSponsorInterestLead = async (preferredChannel: 'whatsapp' | 'email') => {
     try {
       setIsSubmittingLead(true);
-
       const { error } = await supabase.from('sponsor_interest_leads').insert({
         company_name: form.companyName.trim(),
         contact_name: form.contactName.trim(),
@@ -170,12 +259,11 @@ const SponsorLandingView: React.FC = () => {
         preferred_channel: preferredChannel,
         source: 'sponsor_landing',
       });
-
       if (error) throw error;
       return true;
     } catch (error) {
       console.error('[SponsorLandingView] Erro ao registrar interesse de patrocinador:', error);
-      toast.error('Não foi possível registrar seu interesse agora. Tente novamente em instantes.');
+      toast.error('N�o foi poss�vel registrar seu interesse agora. Tente novamente em instantes.');
       return false;
     } finally {
       setIsSubmittingLead(false);
@@ -186,13 +274,12 @@ const SponsorLandingView: React.FC = () => {
     if (!validateForm()) return;
     const saved = await submitSponsorInterestLead('whatsapp');
     if (!saved) return;
-
+    setFormSent(true);
     const link = buildWhatsAppUrl(whatsappUrl, contactMessage);
     if (!link) {
-      toast.error('O WhatsApp comercial ainda não está configurado no layout da plataforma.');
+      toast.error('O WhatsApp comercial ainda n�o est� configurado no layout da plataforma.');
       return;
     }
-
     window.open(link, '_blank', 'noopener,noreferrer');
   };
 
@@ -200,320 +287,341 @@ const SponsorLandingView: React.FC = () => {
     if (!validateForm()) return;
     const saved = await submitSponsorInterestLead('email');
     if (!saved) return;
-
-    const subject = encodeURIComponent(`Interesse em patrocínio - ${form.companyName.trim()}`);
+    setFormSent(true);
+    const subject = encodeURIComponent(`Interesse em patroc�nio - ${form.companyName.trim()}`);
     const body = encodeURIComponent(contactMessage);
     window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
   };
 
+  const vagasRestantes = VAGAS_TOTAL - VAGAS_OCUPADAS;
+
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef4f8_45%,#f8fafc_100%)]">
-      <section
-        className="relative overflow-hidden border-b border-slate-200/70"
-        style={{
-          background: `radial-gradient(circle at top left, color-mix(in srgb, ${settings.primaryColor} 24%, transparent) 0%, transparent 42%), linear-gradient(135deg, ${settings.secondaryColor} 0%, #12213e 52%, #10361f 100%)`,
-        }}
-      >
-        <div className="pointer-events-none absolute inset-0 opacity-60">
-          <div className="absolute -left-24 top-12 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
-          <div className="absolute right-0 top-24 h-80 w-80 rounded-full bg-amber-300/15 blur-3xl" />
-        </div>
-        <div className="relative mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 lg:px-8 lg:py-24 2xl:grid-cols-[1.05fr_0.95fr] 2xl:items-center">
-          <div className="max-w-3xl 2xl:max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-emerald-200 backdrop-blur">
-              <Sparkles className="h-4 w-4" />
-              Patrocínio premium no marketplace
+    <main className="min-h-screen overflow-x-hidden bg-white">
+
+      {/* -- HERO ------------------------------------------------------------ */}
+      <section className="relative min-h-[92vh] flex items-center overflow-hidden">
+        {/* background image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center scale-105"
+          style={{ backgroundImage: `url(${agro_images.hero})` }}
+        />
+        {/* overlay */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-900/80 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />
+
+        {/* decorative blobs */}
+        <div className="pointer-events-none absolute top-20 left-1/3 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 right-1/4 h-80 w-80 rounded-full bg-amber-400/10 blur-3xl" />
+
+        <div className="relative mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-24 lg:py-32">
+          <div className="max-w-3xl">
+            {/* badge */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300 backdrop-blur mb-6">
+              <Sparkles className="h-3.5 w-3.5" />
+              Patroc�nio premium � Marketplace agro
             </div>
 
-            <h1 className="mt-6 max-w-4xl text-4xl font-black leading-[0.98] text-white md:text-6xl">
-              Coloque sua marca no topo da decisão de compra no agro
+            <h1 className="text-5xl md:text-7xl font-black leading-[0.95] text-white mb-6">
+              Coloque sua marca{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-amber-300">
+                no topo
+              </span>{' '}
+              da decis�o de compra no agro
             </h1>
-            <p className="mt-6 max-w-2xl text-base leading-8 text-slate-200 md:text-xl">
-              Destaque sua empresa no topo do site, apareça para compradores com alta intenção de compra e gere mais cliques, leads qualificados e oportunidades reais de venda.
+
+            <p className="text-lg md:text-xl text-slate-300 leading-8 max-w-2xl mb-10">
+              Destaque sua empresa no carrossel premium do maior marketplace agro da regi�o. Apare�a para compradores com alta inten��o de compra e gere leads qualificados diretamente para seu canal de vendas.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
+            {/* CTA buttons */}
+            <div className="flex flex-wrap gap-4 mb-14">
               <button
                 type="button"
                 onClick={() => {
-                  void handleWhatsAppCta();
+                  const el = document.getElementById('reservar');
+                  el?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                disabled={isSubmittingLead}
-                className="inline-flex items-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-black text-white shadow-[0_24px_40px_-24px_rgba(22,163,74,0.8)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex items-center gap-2 rounded-2xl px-8 py-4 text-base font-black text-white shadow-[0_20px_40px_-20px_rgba(22,163,74,0.7)] transition-all hover:-translate-y-1 hover:shadow-[0_24px_50px_-20px_rgba(22,163,74,0.9)] active:scale-95"
                 style={{ backgroundColor: settings.primaryColor }}
               >
-                {isSubmittingLead ? 'Registrando interesse...' : 'Falar no WhatsApp'}
-                <ArrowRight className="h-4 w-4" />
+                Reservar minha vaga agora
+                <ArrowRight className="h-5 w-5" />
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  void handleEmailCta();
+                  const el = document.getElementById('como-funciona');
+                  el?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                disabled={isSubmittingLead}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/8 px-6 py-3.5 text-sm font-black text-white backdrop-blur transition-colors hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/20 bg-white/8 px-8 py-4 text-base font-black text-white backdrop-blur transition-colors hover:bg-white/15"
               >
-                {isSubmittingLead ? 'Registrando interesse...' : 'Enviar proposta por e-mail'}
-                <Mail className="h-4 w-4" />
+                Ver como funciona
               </button>
             </div>
 
-            <div className="mt-10 grid gap-3 sm:grid-cols-3">
-              {statCards.map((item) => (
+            {/* stat cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { value: '24 mil+', label: 'Impress�es/m�s' },
+                { value: `${vagasRestantes} vagas`, label: 'Dispon�veis agora' },
+                { value: '5,7%', label: 'CTR m�dio' },
+                { value: 'Lead direto', label: 'Site ou WhatsApp' },
+              ].map((s) => (
                 <div
-                  key={item.label}
-                  className="rounded-[1.6rem] border border-white/10 bg-white/6 p-4 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.8)] backdrop-blur"
+                  key={s.label}
+                  className="rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur"
                 >
-                  <p className="text-2xl font-black text-white">{item.value}</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">{item.label}</p>
+                  <p className="text-2xl font-black text-white">{s.value}</p>
+                  <p className="mt-1 text-xs text-slate-400">{s.label}</p>
                 </div>
               ))}
-            </div>
-          </div>
-
-          <div className="relative mx-auto w-full max-w-[32rem] 2xl:max-w-[36rem]">
-            <div className="absolute -left-8 top-8 h-24 w-24 rounded-full bg-emerald-300/20 blur-2xl" />
-            <div className="absolute bottom-10 right-0 h-28 w-28 rounded-full bg-amber-300/20 blur-2xl" />
-
-            <div className="relative rounded-[2.2rem] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.06)_100%)] p-5 shadow-[0_45px_90px_-60px_rgba(15,23,42,0.95)] backdrop-blur">
-              <div className="overflow-hidden rounded-[1.8rem] border border-white/10 bg-[#f8fbfd] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)]">
-                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-900 px-5 py-4 text-white">
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-rose-400/90" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-amber-300/90" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/90" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200">Visualização do topo</p>
-                      <p className="mt-1 text-sm font-bold text-white/90">Carrossel premium para patrocinadores</p>
-                    </div>
-                  </div>
-                  <span className="rounded-full border border-amber-200/40 bg-amber-300/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-amber-100">
-                    Posição premium
-                  </span>
-                </div>
-
-                <div className="space-y-4 p-5">
-                  <div className="rounded-[1.7rem] border border-slate-200 bg-white p-3 shadow-[0_20px_50px_-36px_rgba(15,23,42,0.45)]">
-                    <div className="overflow-hidden rounded-[1.35rem] border border-emerald-200 bg-[linear-gradient(135deg,rgba(15,23,42,0.97)_0%,rgba(16,52,29,0.96)_55%,rgba(251,191,36,0.22)_100%)] p-5">
-                      <div className="max-w-lg">
-                          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100">
-                            <Crown className="h-3.5 w-3.5" />
-                            Patrocinador em destaque
-                          </div>
-                          <h3 className="mt-4 text-2xl font-black leading-tight text-white">
-                            Sua marca no topo da jornada de compra
-                          </h3>
-                          <p className="mt-3 max-w-md text-sm leading-7 text-slate-200">
-                            Destaque sua empresa para compradores prontos para agir e leve o clique direto para o seu site ou WhatsApp comercial.
-                          </p>
-                      </div>
-
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        {['Topo do site', 'Site ou WhatsApp', 'Alta intenção de compra'].map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-full border border-white/12 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/90"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {[
-                      {
-                        title: 'Segmento máquinas',
-                        color: 'from-slate-900 via-slate-800 to-emerald-900',
-                        cta: 'Clique para falar agora',
-                      },
-                      {
-                        title: 'Insumos em destaque',
-                        color: 'from-[#1f2937] via-[#0f766e] to-[#f59e0b]',
-                        cta: 'Saiba mais sobre a oferta',
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.title}
-                        className={`rounded-[1.2rem] border border-slate-200 bg-gradient-to-br ${item.color} p-4 text-white shadow-[0_16px_30px_-24px_rgba(15,23,42,0.5)]`}
-                      >
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">Banner do carrossel</p>
-                        <p className="mt-3 text-lg font-black leading-tight">{item.title}</p>
-                        <div className="mt-4 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white/90">
-                          {item.cta}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {[
-                      { label: 'Impressões', value: '24,8 mil', hint: 'Marca exibida no topo' },
-                      { label: 'Cliques', value: '1.420', hint: 'Interesse direto no banner' },
-                      { label: 'CTR', value: '5,7%', hint: 'Desempenho da campanha' },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className="rounded-[1.25rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_16px_30px_-24px_rgba(15,23,42,0.3)]"
-                      >
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{item.label}</p>
-                        <p className="mt-2 text-2xl font-black text-slate-950">{item.value}</p>
-                        <p className="mt-1 text-xs text-slate-500">{item.hint}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="rounded-[1.35rem] border border-slate-200 bg-[linear-gradient(135deg,#f8fafc_0%,#edf7f0_100%)] px-4 py-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Visibilidade controlada</p>
-                        <p className="mt-1 text-sm font-bold text-slate-900">Apenas 6 patrocinadores por vez, com exclusividade por nicho.</p>
-                      </div>
-                      <span className="rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
-                        Menos ruído, mais atenção
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Por que patrocinar</p>
-          <h2 className="mt-3 text-3xl font-black text-slate-950 md:text-5xl">
-            Mais visibilidade para a sua marca no momento exato da decisão
-          </h2>
-          <p className="mt-4 text-base leading-8 text-slate-500">
-            O patrocínio foi pensado para colocar sua empresa diante de compradores já ativos no marketplace, sem poluir a experiência e sem diluir a atenção da sua marca.
-          </p>
+      {/* -- BARRA DE CONFIAN�A ---------------------------------------------- */}
+      <section className="border-y border-slate-100 bg-slate-50 py-5">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-center gap-8 md:gap-14">
+            {[
+              { icon: BadgeCheck, label: 'Plataforma verificada' },
+              { icon: Users, label: '+10.000 produtores ativos' },
+              { icon: Zap, label: 'Banner publicado em 48h' },
+              { icon: BarChart3, label: 'Relat�rios semanais' },
+              { icon: Crown, label: 'Exclusividade por nicho' },
+            ].map(({ icon: Icon, label }) => (
+              <div key={label} className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                <Icon className="h-4 w-4" style={{ color: settings.primaryColor }} />
+                {label}
+              </div>
+            ))}
+          </div>
         </div>
+      </section>
 
-        <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {/* -- VAGAS DISPON�VEIS ----------------------------------------------- */}
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
+        <div
+          className="rounded-[2rem] p-8 md:p-12 flex flex-col md:flex-row items-center gap-8"
+          style={{
+            background: `linear-gradient(135deg, color-mix(in srgb, ${settings.primaryColor} 8%, white) 0%, color-mix(in srgb, ${settings.accentColor} 6%, white) 100%)`,
+            border: `1.5px solid color-mix(in srgb, ${settings.primaryColor} 20%, #e2e8f0)`,
+          }}
+        >
+          <div className="flex-1">
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Disponibilidade em tempo real</p>
+            <h2 className="text-3xl md:text-4xl font-black text-slate-950 mb-4">
+              {vagasRestantes} de {VAGAS_TOTAL} vagas dispon�veis
+            </h2>
+            <p className="text-slate-500 text-sm leading-7 max-w-xl">
+              O carrossel comporta apenas {VAGAS_TOTAL} patrocinadores simult�neos, cada um de um nicho diferente. Exclusividade real para a sua marca.
+            </p>
+          </div>
+          <div className="flex-shrink-0 flex flex-col items-center gap-4">
+            <div className="flex gap-3">
+              {Array.from({ length: VAGAS_TOTAL }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-10 w-10 rounded-full border-2 flex items-center justify-center text-xs font-black transition-all ${
+                    i < VAGAS_OCUPADAS
+                      ? 'border-slate-300 bg-slate-200 text-slate-400'
+                      : 'border-emerald-400 bg-emerald-500 text-white shadow-[0_4px_12px_-4px_rgba(16,185,129,0.5)]'
+                  }`}
+                >
+                  {i < VAGAS_OCUPADAS ? '?' : i + 1}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-4 text-xs text-slate-400">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-slate-300 inline-block" />Ocupada</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block" />Dispon�vel</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('reservar');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="rounded-2xl px-6 py-3 text-sm font-black text-white transition-all hover:-translate-y-0.5"
+              style={{ backgroundColor: settings.primaryColor }}
+            >
+              Garantir minha vaga ?
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* -- BENEF�CIOS ------------------------------------------------------ */}
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16">
+        <div className="text-center mb-12">
+          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Por que patrocinar</p>
+          <h2 className="text-3xl md:text-5xl font-black text-slate-950 max-w-3xl mx-auto">
+            Visibilidade no momento exato em que o comprador est� pronto para agir
+          </h2>
+        </div>
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {benefitCards.map((item) => {
             const Icon = item.icon;
             return (
               <div
                 key={item.title}
-                className="rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-[0_24px_55px_-44px_rgba(15,23,42,0.45)]"
+                className="group rounded-[1.8rem] border border-slate-200 bg-white p-7 shadow-[0_8px_30px_-10px_rgba(15,23,42,0.12)] hover:shadow-[0_16px_40px_-10px_rgba(15,23,42,0.18)] hover:-translate-y-1 transition-all duration-300"
               >
                 <div
-                  className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl"
+                  className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl transition-transform group-hover:scale-110"
                   style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 12%, white)` }}
                 >
                   <Icon className="h-5 w-5" style={{ color: settings.primaryColor }} />
                 </div>
-                <p className="text-xl font-black text-slate-950">{item.title}</p>
-                <p className="mt-3 text-sm leading-7 text-slate-500">{item.description}</p>
+                <p className="text-xl font-black text-slate-950 mb-3">{item.title}</p>
+                <p className="text-sm leading-7 text-slate-500 mb-5">{item.description}</p>
+                <div
+                  className="inline-block rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em]"
+                  style={{
+                    background: `color-mix(in srgb, ${settings.primaryColor} 10%, white)`,
+                    color: settings.primaryColor,
+                  }}
+                >
+                  {item.stat}
+                </div>
               </div>
             );
           })}
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_30px_70px_-52px_rgba(15,23,42,0.4)]">
-            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Benefícios exclusivos</p>
-            <h2 className="mt-3 text-3xl font-black text-slate-950">Um espaço valorizado, com menos ruído e mais atenção para sua marca</h2>
-            <div className="mt-6 grid gap-4">
+      {/* -- COMO FUNCIONA --------------------------------------------------- */}
+      <section id="como-funciona" className="bg-slate-950 py-24 relative overflow-hidden">
+        <div className="pointer-events-none absolute -top-40 left-1/3 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 right-0 h-80 w-80 rounded-full bg-amber-400/8 blur-3xl" />
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 relative">
+          <div className="text-center mb-16">
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-400 mb-3">Processo simples</p>
+            <h2 className="text-3xl md:text-5xl font-black text-white">Da reserva aos primeiros leads em 4 passos</h2>
+          </div>
+          <div className="grid gap-0 md:grid-cols-4">
+            {steps.map((step, i) => (
+              <div key={step.label} className="relative flex flex-col items-center text-center p-8">
+                {/* connector */}
+                {i < steps.length - 1 && (
+                  <div className="hidden md:block absolute top-[3.75rem] left-1/2 w-full h-[2px] bg-gradient-to-r from-emerald-500/50 to-transparent" />
+                )}
+                <div
+                  className="relative z-10 w-14 h-14 rounded-full flex items-center justify-center text-lg font-black text-white mb-6 shadow-[0_4px_20px_-4px_rgba(16,185,129,0.5)]"
+                  style={{ backgroundColor: settings.primaryColor }}
+                >
+                  {i + 1}
+                </div>
+                <p className="text-sm font-black uppercase tracking-widest text-emerald-400 mb-3">{step.label}</p>
+                <p className="text-sm leading-7 text-slate-400">{step.text}</p>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-12">
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('reservar');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="inline-flex items-center gap-2 rounded-2xl px-8 py-4 text-base font-black text-white transition-all hover:-translate-y-1"
+              style={{ backgroundColor: settings.primaryColor }}
+            >
+              Quero come�ar agora
+              <ArrowRight className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* -- DIFERENCIAIS + IMAGEM ------------------------------------------- */}
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
+        <div className="grid gap-16 lg:grid-cols-2 items-center">
+          {/* image */}
+          <div className="relative order-2 lg:order-1">
+            <div className="absolute -inset-4 rounded-[3rem] bg-emerald-50 -rotate-2" />
+            <img
+              src={agro_images.harvest}
+              alt="Agroneg�cio em a��o"
+              className="relative z-10 w-full h-[500px] object-cover rounded-[2.5rem] shadow-2xl"
+            />
+            {/* floating badge */}
+            <div className="absolute z-20 -bottom-5 -right-5 rounded-2xl bg-white border border-slate-200 shadow-xl p-5">
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-12 w-12 rounded-2xl flex items-center justify-center"
+                  style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 12%, white)` }}
+                >
+                  <TrendingUp className="h-6 w-6" style={{ color: settings.primaryColor }} />
+                </div>
+                <div>
+                  <p className="text-2xl font-black text-slate-950">+40</p>
+                  <p className="text-xs text-slate-400">leads/m�s em m�dia</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* content */}
+          <div className="order-1 lg:order-2">
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-4">Benef�cios exclusivos</p>
+            <h2 className="text-3xl md:text-5xl font-black text-slate-950 mb-6 leading-tight">
+              Menos ru�do,{' '}
+              <span className="text-transparent bg-clip-text" style={{ backgroundImage: `linear-gradient(120deg, ${settings.primaryColor}, #a3e635)` }}>
+                mais aten��o
+              </span>{' '}
+              para a sua marca
+            </h2>
+            <p className="text-base leading-8 text-slate-500 mb-10">
+              Um espa�o valorizado com exclusividade por segmento. Sua campanha n�o compete com concorrente direto � cada uma das 6 vagas representa um nicho diferente do agroneg�cio.
+            </p>
+            <div className="space-y-4">
               {exclusiveFeatures.map((feature) => {
                 const Icon = feature.icon;
                 return (
-                  <div key={feature.title} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm">
-                        <Icon className="h-5 w-5" style={{ color: settings.primaryColor }} />
-                      </div>
-                      <div>
-                        <p className="text-lg font-black text-slate-950">{feature.title}</p>
-                        <p className="mt-2 text-sm leading-7 text-slate-500">{feature.description}</p>
-                      </div>
+                  <div key={feature.title} className="flex gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
+                      <Icon className="h-5 w-5" style={{ color: settings.primaryColor }} />
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-950">{feature.title}</p>
+                      <p className="text-sm leading-7 text-slate-500 mt-1">{feature.description}</p>
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
-
-          <div className="space-y-6">
-            <div
-              className="overflow-hidden rounded-[2rem] border p-6 shadow-[0_30px_70px_-52px_rgba(15,23,42,0.42)]"
-              style={{
-                borderColor: `color-mix(in srgb, ${settings.accentColor} 35%, #e2e8f0)`,
-                background: `linear-gradient(135deg, color-mix(in srgb, ${settings.accentColor} 15%, white) 0%, color-mix(in srgb, ${settings.primaryColor} 11%, white) 100%)`,
-              }}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Exclusividade por nicho</p>
-                  <h3 className="mt-3 text-3xl font-black text-slate-950">Apenas 6 patrocinadores por vez</h3>
-                  <p className="mt-4 max-w-xl text-sm leading-7 text-slate-600">
-                    O carrossel comporta no máximo seis empresas, cada uma de um nicho ou categoria diferente. Menos concorrência direta, mais atenção por marca e mais potencial de conversão.
-                  </p>
-                </div>
-                <div className="rounded-[1.5rem] border border-white/60 bg-white/85 px-4 py-3 text-right shadow-sm">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Escassez real</p>
-                  <p className="mt-2 text-3xl font-black text-slate-950">6 vagas</p>
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                {['Menos concorrência direta', 'Mais atenção para o banner', 'Posicionamento premium'].map((item) => (
-                  <div key={item} className="rounded-[1.3rem] border border-white/60 bg-white/75 p-4 text-sm font-semibold text-slate-700">
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_30px_70px_-52px_rgba(15,23,42,0.4)]">
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Como funciona</p>
-              <div className="mt-6 space-y-4">
-                {steps.map((step, index) => (
-                  <div key={step} className="flex gap-4 rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4">
-                    <div
-                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white"
-                      style={{ backgroundColor: settings.primaryColor }}
-                    >
-                      {index + 1}
-                    </div>
-                    <p className="text-sm leading-7 text-slate-600">{step}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
-        <div className="rounded-[2.2rem] border border-slate-200 bg-white p-6 shadow-[0_30px_70px_-52px_rgba(15,23,42,0.42)] md:p-8">
-          <div className="max-w-3xl">
-            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Métricas com transparência</p>
-            <h2 className="mt-3 text-3xl font-black text-slate-950 md:text-4xl">
-              Acompanhe resultados reais para medir o retorno do patrocínio
+      {/* -- M�TRICAS -------------------------------------------------------- */}
+      <section className="bg-slate-50 py-20 border-y border-slate-200">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl mb-12">
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Transpar�ncia total</p>
+            <h2 className="text-3xl md:text-4xl font-black text-slate-950">
+              Acompanhe resultados reais semanalmente
             </h2>
             <p className="mt-4 text-base leading-8 text-slate-500">
-              O patrocinador acompanha os indicadores que importam para avaliar performance, ajustar campanha e entender de onde vem a atenção do público.
+              Voc� recebe um relat�rio com os indicadores que importam para medir o retorno do patroc�nio e ajustar a estrat�gia.
             </p>
           </div>
-
-          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
             {metrics.map((metric) => {
               const Icon = metric.icon;
               return (
-                <div key={metric.title} className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-sm">
+                <div
+                  key={metric.title}
+                  className="rounded-[1.6rem] border border-slate-200 bg-white p-6 shadow-[0_4px_20px_-8px_rgba(15,23,42,0.12)]"
+                >
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-50">
                     <Icon className="h-5 w-5" style={{ color: settings.primaryColor }} />
                   </div>
                   <p className="text-base font-black text-slate-950">{metric.title}</p>
-                  <p className="mt-2 text-sm leading-7 text-slate-500">{metric.description}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">{metric.description}</p>
                 </div>
               );
             })}
@@ -521,153 +629,304 @@ const SponsorLandingView: React.FC = () => {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[0.86fr_1.14fr]">
-          <div
-            className="rounded-[2.2rem] border p-7 text-white shadow-[0_40px_90px_-60px_rgba(15,23,42,0.95)]"
-            style={{
-              borderColor: 'rgba(255,255,255,0.08)',
-              background: `linear-gradient(140deg, ${settings.secondaryColor} 0%, #15284a 58%, #10341d 100%)`,
-            }}
-          >
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-emerald-200">
-              <Layers3 className="h-4 w-4" />
-              Esteja no topo
-            </div>
-            <h2 className="mt-6 text-3xl font-black leading-tight">
-              Garanta sua posição antes que as vagas acabem
-            </h2>
-            <p className="mt-4 text-sm leading-8 text-slate-300">
-              Estar no topo significa estar à frente da concorrência no momento mais importante: quando o comprador está decidido a agir. Se a sua empresa quer presença forte, esta é uma das vitrines mais valiosas da plataforma.
-            </p>
-
-            <div className="mt-8 space-y-3">
-              {[
-                'Carrossel premium com destaque máximo na home.',
-                'Exclusividade por nicho para reduzir concorrência direta.',
-                'Canal direto para site ou WhatsApp comercial.',
-              ].map((item) => (
-                <div key={item} className="flex items-start gap-3 rounded-[1.4rem] border border-white/10 bg-white/6 px-4 py-3">
-                  <BadgeCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-300" />
-                  <p className="text-sm leading-7 text-slate-200">{item}</p>
+      {/* -- DEPOIMENTOS ----------------------------------------------------- */}
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
+        <div className="text-center mb-14">
+          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Quem j� patrocinou</p>
+          <h2 className="text-3xl md:text-5xl font-black text-slate-950">O que dizem nossos patrocinadores</h2>
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {testimonials.map((t) => (
+            <div
+              key={t.name}
+              className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_8px_30px_-10px_rgba(15,23,42,0.12)] flex flex-col"
+            >
+              <Quote className="h-8 w-8 mb-5" style={{ color: settings.primaryColor }} />
+              <p className="text-base leading-8 text-slate-600 flex-1 mb-8">"{t.text}"</p>
+              <div className="flex items-center gap-4">
+                <img
+                  src={t.avatar}
+                  alt={t.name}
+                  className="h-12 w-12 rounded-full object-cover border-2 border-slate-100"
+                />
+                <div>
+                  <p className="font-black text-slate-950">{t.name}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{t.role}</p>
                 </div>
-              ))}
+                <div className="ml-auto flex gap-0.5">
+                  {Array.from({ length: t.stars }).map((_, i) => (
+                    <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                  ))}
+                </div>
+              </div>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* -- FAQ ------------------------------------------------------------- */}
+      <section className="bg-slate-50 border-y border-slate-200 py-20">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
+          <div className="text-center mb-12">
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">D�vidas frequentes</p>
+            <h2 className="text-3xl md:text-4xl font-black text-slate-950">Perguntas dos patrocinadores</h2>
           </div>
-
-          <div className="rounded-[2.2rem] border border-slate-200 bg-white p-6 shadow-[0_30px_70px_-52px_rgba(15,23,42,0.42)] md:p-8">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Fale com a equipe</p>
-                <h2 className="mt-3 text-3xl font-black text-slate-950">Reserve seu espaço de patrocinador</h2>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-500">
-                  Preencha os dados abaixo e escolha o canal de contato. Você pode seguir direto para o WhatsApp comercial ou enviar as informações por e-mail em formato estruturado.
-                </p>
-              </div>
-              <span className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">
-                Vagas limitadas
-              </span>
-            </div>
-
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Empresa</label>
-                <input
-                  type="text"
-                  value={form.companyName}
-                  onChange={(event) => handleFieldChange('companyName', event.target.value)}
-                  placeholder="Nome da empresa"
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Responsável</label>
-                <input
-                  type="text"
-                  value={form.contactName}
-                  onChange={(event) => handleFieldChange('contactName', event.target.value)}
-                  placeholder="Seu nome"
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">E-mail</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => handleFieldChange('email', event.target.value)}
-                  placeholder="voce@empresa.com"
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Telefone / WhatsApp</label>
-                <input
-                  type="text"
-                  value={form.phone}
-                  onChange={(event) => handleFieldChange('phone', event.target.value)}
-                  placeholder="(00) 00000-0000"
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Segmento / nicho</label>
-                <input
-                  type="text"
-                  value={form.segment}
-                  onChange={(event) => handleFieldChange('segment', event.target.value)}
-                  placeholder="Ex.: Máquinas, insumos, genética, serviços, tecnologia agrícola"
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Mensagem</label>
-                <textarea
-                  value={form.message}
-                  onChange={(event) => handleFieldChange('message', event.target.value)}
-                  placeholder="Conte um pouco sobre o objetivo da campanha e o canal que você prefere usar."
-                  className="min-h-[130px] w-full rounded-2xl border border-slate-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  void handleWhatsAppCta();
-                }}
-                disabled={isSubmittingLead}
-                className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
-                style={{ backgroundColor: settings.primaryColor }}
-              >
-                {isSubmittingLead ? 'Registrando interesse...' : 'Falar no WhatsApp'}
-                <MessageCircle className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleEmailCta();
-                }}
-                disabled={isSubmittingLead}
-                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isSubmittingLead ? 'Registrando interesse...' : 'Enviar por e-mail'}
-                <Send className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-6 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-500">
-              Se preferir navegar antes, você também pode voltar para a plataforma e continuar explorando os nossos produtos e categorias.
-              <div className="mt-3">
-                <Link to="/" className="font-black text-green-700 hover:text-green-800">
-                  Voltar para a página inicial
-                </Link>
-              </div>
-            </div>
+          <div className="rounded-[2rem] border border-slate-200 bg-white px-8 shadow-[0_8px_30px_-10px_rgba(15,23,42,0.1)]">
+            {faqs.map((faq) => (
+              <FaqItem key={faq.question} question={faq.question} answer={faq.answer} />
+            ))}
           </div>
         </div>
       </section>
+
+      {/* -- FORMUL�RIO DE RESERVA ------------------------------------------- */}
+      <section id="reservar" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
+        <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+
+          {/* left � pitch */}
+          <div
+            className="rounded-[2.2rem] p-9 text-white relative overflow-hidden"
+            style={{
+              background: `linear-gradient(140deg, ${settings.secondaryColor} 0%, #15284a 55%, #10341d 100%)`,
+            }}
+          >
+            <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-white/5 blur-2xl" />
+            <div className="pointer-events-none absolute bottom-0 left-0 h-48 w-48 rounded-full bg-emerald-500/10 blur-2xl" />
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-300 mb-8">
+                <Layers3 className="h-4 w-4" />
+                Espa�o limitado
+              </div>
+              <h2 className="text-3xl font-black leading-tight mb-5">
+                Garanta sua posi��o antes que as vagas se esgotem
+              </h2>
+              <p className="text-sm leading-8 text-slate-300 mb-10">
+                Com apenas {vagasRestantes} vagas restantes, estar no topo significa estar � frente da concorr�ncia no momento mais importante: quando o comprador est� pronto para agir.
+              </p>
+
+              {/* vaga indicator */}
+              <div className="rounded-2xl border border-white/10 bg-white/8 p-5 mb-8">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-4">Vagas dispon�veis</p>
+                <div className="flex gap-2.5 mb-3">
+                  {Array.from({ length: VAGAS_TOTAL }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-black ${
+                        i < VAGAS_OCUPADAS
+                          ? 'bg-slate-600 text-slate-400'
+                          : 'bg-emerald-500 text-white shadow-[0_4px_12px_-4px_rgba(16,185,129,0.5)]'
+                      }`}
+                    >
+                      {i < VAGAS_OCUPADAS ? '?' : '?'}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-emerald-300 text-sm font-bold">{vagasRestantes} vagas de {VAGAS_TOTAL} dispon�veis</p>
+              </div>
+
+              {/* checkpoints */}
+              <div className="space-y-3">
+                {[
+                  'Carrossel premium com destaque m�ximo na home.',
+                  'Exclusividade por nicho � sem concorrente direto.',
+                  'Lead direto para site ou WhatsApp comercial.',
+                  'Relat�rio de m�tricas enviado toda semana.',
+                ].map((item) => (
+                  <div key={item} className="flex items-start gap-3 text-sm text-slate-200">
+                    <BadgeCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-400" />
+                    {item}
+                  </div>
+                ))}
+              </div>
+
+              {/* photo strip */}
+              <div className="mt-10 overflow-hidden rounded-2xl h-36">
+                <img
+                  src={agro_images.field}
+                  alt="Campo de soja"
+                  className="w-full h-full object-cover opacity-60"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* right � form */}
+          <div className="rounded-[2.2rem] border border-slate-200 bg-white p-8 md:p-10 shadow-[0_16px_50px_-24px_rgba(15,23,42,0.3)]">
+            {formSent ? (
+              <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center gap-6">
+                <div
+                  className="w-20 h-20 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 12%, white)` }}
+                >
+                  <BadgeCheck className="h-10 w-10" style={{ color: settings.primaryColor }} />
+                </div>
+                <h3 className="text-2xl font-black text-slate-950">Interesse registrado com sucesso!</h3>
+                <p className="text-slate-500 text-sm leading-7 max-w-sm">
+                  Nossa equipe vai entrar em contato em breve. Se preferiu WhatsApp, a janela de conversa foi aberta.
+                </p>
+                <Link
+                  to="/"
+                  className="rounded-2xl border border-slate-200 px-6 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Voltar para a plataforma
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-2">Fale com a equipe</p>
+                    <h2 className="text-3xl font-black text-slate-950">Reserve seu espa�o</h2>
+                    <p className="mt-3 text-sm leading-7 text-slate-500 max-w-md">
+                      Preencha os dados e escolha como prefere ser contactado � WhatsApp para resposta imediata, ou e-mail para proposta formal.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 flex-shrink-0">
+                    {vagasRestantes} vagas restantes
+                  </span>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Empresa *</label>
+                    <input
+                      type="text"
+                      value={form.companyName}
+                      onChange={(e) => handleFieldChange('companyName', e.target.value)}
+                      placeholder="Nome da empresa"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm focus:bg-white focus:outline-none focus:ring-2 transition-colors"
+                      style={{ '--tw-ring-color': settings.primaryColor } as React.CSSProperties}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Respons�vel *</label>
+                    <input
+                      type="text"
+                      value={form.contactName}
+                      onChange={(e) => handleFieldChange('contactName', e.target.value)}
+                      placeholder="Seu nome"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm focus:bg-white focus:outline-none focus:ring-2 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">E-mail *</label>
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => handleFieldChange('email', e.target.value)}
+                      placeholder="voce@empresa.com"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm focus:bg-white focus:outline-none focus:ring-2 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">WhatsApp / Telefone</label>
+                    <input
+                      type="text"
+                      value={form.phone}
+                      onChange={(e) => handleFieldChange('phone', e.target.value)}
+                      placeholder="(00) 00000-0000"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm focus:bg-white focus:outline-none focus:ring-2 transition-colors"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Segmento / Nicho *</label>
+                    <input
+                      type="text"
+                      value={form.segment}
+                      onChange={(e) => handleFieldChange('segment', e.target.value)}
+                      placeholder="Ex.: M�quinas, insumos, gen�tica, servi�os, tecnologia agr�cola"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm focus:bg-white focus:outline-none focus:ring-2 transition-colors"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Mensagem (opcional)</label>
+                    <textarea
+                      value={form.message}
+                      onChange={(e) => handleFieldChange('message', e.target.value)}
+                      placeholder="Conta um pouco sobre o objetivo da campanha ou qualquer d�vida que tiver."
+                      className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm focus:bg-white focus:outline-none focus:ring-2 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { void handleWhatsAppCta(); }}
+                    disabled={isSubmittingLead}
+                    className="inline-flex items-center gap-2 rounded-2xl px-6 py-4 text-sm font-black text-white transition-all hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_12px_30px_-12px_rgba(22,163,74,0.6)]"
+                    style={{ backgroundColor: settings.primaryColor }}
+                  >
+                    {isSubmittingLead ? 'Registrando...' : 'Falar no WhatsApp'}
+                    <MessageCircle className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void handleEmailCta(); }}
+                    disabled={isSubmittingLead}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm font-black text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isSubmittingLead ? 'Registrando...' : 'Enviar por e-mail'}
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <p className="mt-5 text-xs text-slate-400">
+                  Ao enviar, voc� concorda em receber retorno da equipe {brandName} sobre disponibilidade de patroc�nio.{' '}
+                  <Link to="/" className="font-semibold text-slate-600 hover:text-slate-800">Voltar para a plataforma</Link>
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* -- CTA FINAL ------------------------------------------------------- */}
+      <section
+        className="relative overflow-hidden py-24"
+        style={{
+          background: `linear-gradient(135deg, ${settings.secondaryColor} 0%, #12213e 50%, #10361f 100%)`,
+        }}
+      >
+        <div className="pointer-events-none absolute top-0 right-0 h-full w-1/2">
+          <img
+            src={agro_images.field}
+            alt=""
+            className="w-full h-full object-cover opacity-15"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 to-transparent" />
+        </div>
+        <div className="relative mx-auto max-w-5xl px-4 sm:px-6 text-center">
+          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-400 mb-5">�ltima chamada</p>
+          <h2 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">
+            {vagasRestantes} vagas. Sua marca pode ocupar uma delas.
+          </h2>
+          <p className="text-lg text-slate-300 max-w-2xl mx-auto mb-10 leading-8">
+            Cada vaga representa um nicho exclusivo. Quando esgotarem, o pr�ximo interessado do mesmo segmento vai para a lista de espera.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('reservar');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl px-10 py-5 text-lg font-black text-white shadow-[0_24px_50px_-20px_rgba(22,163,74,0.8)] transition-all hover:-translate-y-1 active:scale-95"
+              style={{ backgroundColor: settings.primaryColor }}
+            >
+              Reservar minha vaga
+              <ArrowRight className="h-5 w-5" />
+            </button>
+            <Link
+              to="/anuncios"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/8 px-10 py-5 text-lg font-black text-white backdrop-blur transition-colors hover:bg-white/15"
+            >
+              Explorar a plataforma
+            </Link>
+          </div>
+        </div>
+      </section>
+
     </main>
   );
 };

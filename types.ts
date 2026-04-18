@@ -590,6 +590,12 @@ export interface LayoutSettings {
   logoDarkUrl?: string | null;
   faviconUrl?: string | null;
   defaultAdImageUrl?: string | null;
+  pricingHeroImageUrl?: string | null;
+  pricingStoreImageUrl?: string | null;
+  pricingFieldImageUrl?: string | null;
+  sponsorHeroImageUrl?: string | null;
+  sponsorHarvestImageUrl?: string | null;
+  sponsorFieldImageUrl?: string | null;
   facebookUrl?: string | null;
   instagramUrl?: string | null;
   youtubeUrl?: string | null;
