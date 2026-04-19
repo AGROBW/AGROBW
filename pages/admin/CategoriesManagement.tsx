@@ -1,11 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FolderTree,
+  ImagePlus,
+  Loader2,
   Pencil,
   Plus,
   RefreshCw,
   Search,
   Tag,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CATEGORY_HIERARCHY, getCategoryGroupBySlug, getCategoryGroupForCategorySlug } from '../../src/lib/categoryHierarchy';
@@ -75,6 +78,9 @@ const CategoriesManagement: React.FC = () => {
   const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [subcategoryForm, setSubcategoryForm] = useState(emptySubcategoryForm);
+  const [groupImages, setGroupImages] = useState<Record<string, string>>({});
+  const [uploadingGroupSlug, setUploadingGroupSlug] = useState<string | null>(null);
+  const uploadInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const groupedCategories = useMemo(
     () =>
@@ -153,8 +159,46 @@ const CategoriesManagement: React.FC = () => {
     }
   };
 
+  const loadGroupImages = async () => {
+    const { data } = await supabase.from('category_group_images').select('slug, image_url');
+    if (data) {
+      const map: Record<string, string> = {};
+      data.forEach((row) => { if (row.image_url) map[row.slug] = row.image_url; });
+      setGroupImages(map);
+    }
+  };
+
+  const handleGroupImageUpload = async (slug: string, file: File) => {
+    setUploadingGroupSlug(slug);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const path = `category-covers/${slug}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('layout_assets')
+        .upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = supabase.storage.from('layout_assets').getPublicUrl(path);
+      await supabase.from('category_group_images').upsert({ slug, image_url: publicUrl });
+      setGroupImages((prev) => ({ ...prev, [slug]: publicUrl }));
+      toast.success(`Imagem de ${slug} atualizada.`);
+    } catch (err) {
+      console.error('[CategoriesManagement] Erro ao enviar imagem do grupo:', err);
+      toast.error('Nao foi possivel enviar a imagem.');
+    } finally {
+      setUploadingGroupSlug(null);
+      if (uploadInputRefs.current[slug]) uploadInputRefs.current[slug]!.value = '';
+    }
+  };
+
+  const handleRemoveGroupImage = async (slug: string) => {
+    await supabase.from('category_group_images').upsert({ slug, image_url: '' });
+    setGroupImages((prev) => { const next = { ...prev }; delete next[slug]; return next; });
+    toast.success('Imagem removida.');
+  };
+
   useEffect(() => {
     void loadCategories();
+    void loadGroupImages();
   }, []);
 
   useEffect(() => {
@@ -348,35 +392,98 @@ const CategoriesManagement: React.FC = () => {
           {groupedCategories.map((group) => {
             const Icon = getCategoryIconComponent(undefined, group.slug);
             const isSelected = group.slug === selectedGroup?.slug;
+            const coverUrl = groupImages[group.slug];
+            const isUploading = uploadingGroupSlug === group.slug;
 
             return (
-              <button
+              <div
                 key={group.slug}
-                type="button"
-                onClick={() => {
-                  setSelectedGroupSlug(group.slug);
-                  resetCategoryForm();
-                  resetSubcategoryForm();
-                }}
-                className={`rounded-2xl border px-5 py-5 text-left transition-all ${
+                className={`rounded-2xl border text-left transition-all overflow-hidden ${
                   isSelected
                     ? 'border-green-500 bg-green-50 shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-green-200 hover:bg-slate-50'
+                    : 'border-slate-200 bg-white hover:border-green-200'
                 }`}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isSelected ? 'bg-white text-green-700' : 'bg-slate-50 text-slate-600'}`}>
-                    <Icon className="h-6 w-6" strokeWidth={1.8} />
+                {/* Área clicável para selecionar o grupo */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedGroupSlug(group.slug);
+                    resetCategoryForm();
+                    resetSubcategoryForm();
+                  }}
+                  className="w-full px-5 pt-5 pb-3 text-left"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isSelected ? 'bg-white text-green-700' : 'bg-slate-50 text-slate-600'}`}>
+                      <Icon className="h-6 w-6" strokeWidth={1.8} />
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-600">
+                      {group.categories.length} categoria{group.categories.length !== 1 ? 's' : ''}
+                    </span>
                   </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-600">
-                    {group.categories.length} categoria{group.categories.length !== 1 ? 's' : ''}
-                  </span>
+                  <h3 className="mt-4 text-lg font-black text-slate-900">{group.name}</h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Selecione para editar as categorias internas e subcategorias.
+                  </p>
+                </button>
+
+                {/* Imagem de capa do card público */}
+                <div className="px-5 pb-5 pt-3 border-t border-slate-100">
+                  <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">Imagem do card</p>
+                  {coverUrl ? (
+                    <div className="relative h-28 w-full overflow-hidden rounded-xl">
+                      <img src={coverUrl} alt={group.name} className="h-full w-full object-cover" />
+                      {/* overlay hover para trocar */}
+                      <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1 bg-black/50 opacity-0 transition-opacity hover:opacity-100">
+                        <ImagePlus className="h-5 w-5 text-white" />
+                        <span className="text-xs font-semibold text-white">Trocar</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="sr-only"
+                          ref={(el) => { uploadInputRefs.current[group.slug] = el; }}
+                          onChange={(e) => { if (e.target.files?.[0]) void handleGroupImageUpload(group.slug, e.target.files[0]); }}
+                          disabled={isUploading}
+                        />
+                      </label>
+                      {/* botão remover */}
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveGroupImage(group.slug)}
+                        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-red-600"
+                        title="Remover imagem"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                      {/* overlay de upload */}
+                      {isUploading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                          <Loader2 className="h-6 w-6 animate-spin text-white" />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <label className={`flex h-20 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed transition-colors ${
+                      isUploading ? 'border-green-400 text-green-600' : 'border-slate-300 text-slate-400 hover:border-green-400 hover:text-green-600'
+                    }`}>
+                      {isUploading ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm font-medium">Enviando...</span></>
+                      ) : (
+                        <><ImagePlus className="h-4 w-4" /><span className="text-sm font-medium">Adicionar imagem</span></>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        ref={(el) => { uploadInputRefs.current[group.slug] = el; }}
+                        onChange={(e) => { if (e.target.files?.[0]) void handleGroupImageUpload(group.slug, e.target.files[0]); }}
+                        disabled={isUploading}
+                      />
+                    </label>
+                  )}
                 </div>
-                <h3 className="mt-4 text-lg font-black text-slate-900">{group.name}</h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Selecione para editar as categorias internas e subcategorias.
-                </p>
-              </button>
+              </div>
             );
           })}
         </div>
