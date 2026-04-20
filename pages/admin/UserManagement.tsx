@@ -22,7 +22,6 @@ import {
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { toast } from 'sonner';
-import { getEffectivePlanValidityDays } from '../../src/utils/subscriptionUsageWindow';
 
 interface User {
   id: string;
@@ -39,8 +38,16 @@ interface User {
   created_at: string;
   last_login: string | null; // Sincronizado via trigger do auth.users.last_sign_in_at
   plan_name?: string; // Nome do plano ativo (extraído de user_subscriptions)
+  active_subscription_id?: string | null;
+  active_plan_id?: string | null;
+  active_period_start?: string | null;
+  active_period_end?: string | null;
   user_subscriptions?: Array<{
+    id: string;
+    plan_id: string;
     status: string;
+    current_period_start: string | null;
+    current_period_end: string | null;
     plans: {
       name: string;
     };
@@ -113,6 +120,34 @@ const getSubscriptionTypeMeta = (monthlyPrice: number) => {
   };
 };
 
+const formatDateInputValue = (value: Date | string | null | undefined) => {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+};
+
+const addDurationToDate = (startDateValue: string, amount: number, unit: 'days' | 'months' | 'years') => {
+  const startDate = new Date(`${startDateValue}T12:00:00`);
+  if (Number.isNaN(startDate.getTime())) return '';
+
+  const safeAmount = Math.max(1, Number.isFinite(amount) ? amount : 1);
+  const endDate = new Date(startDate);
+
+  if (unit === 'days') {
+    endDate.setDate(endDate.getDate() + safeAmount);
+  } else if (unit === 'months') {
+    endDate.setMonth(endDate.getMonth() + safeAmount);
+  } else {
+    endDate.setFullYear(endDate.getFullYear() + safeAmount);
+  }
+
+  return formatDateInputValue(endDate);
+};
+
+const toPeriodStartIso = (dateValue: string) => new Date(`${dateValue}T00:00:00`).toISOString();
+const toPeriodEndIso = (dateValue: string) => new Date(`${dateValue}T23:59:59.999`).toISOString();
+
 const UserManagement: React.FC = () => {
   const { logAction } = useAdminAudit();
   const location = useLocation();
@@ -146,6 +181,11 @@ const UserManagement: React.FC = () => {
   const [suspensionReason, setSuspensionReason] = useState('');
   const [newPlan, setNewPlan] = useState<string>('');
   const [newRole, setNewRole] = useState<string>('');
+  const [planPeriodStart, setPlanPeriodStart] = useState(formatDateInputValue(new Date()));
+  const [planDurationAmount, setPlanDurationAmount] = useState(1);
+  const [planDurationUnit, setPlanDurationUnit] = useState<'days' | 'months' | 'years'>('months');
+  const [planPeriodEnd, setPlanPeriodEnd] = useState(addDurationToDate(formatDateInputValue(new Date()), 1, 'months'));
+  const [isSavingUserEdit, setIsSavingUserEdit] = useState(false);
   const [availablePlans, setAvailablePlans] = useState<Array<{
     id: string;
     name: string;
@@ -230,7 +270,11 @@ const UserManagement: React.FC = () => {
         .select(`
           *,
           user_subscriptions(
+            id,
+            plan_id,
             status,
+            current_period_start,
+            current_period_end,
             plans(
               name
             )
@@ -294,9 +338,10 @@ const UserManagement: React.FC = () => {
           // Extrair plano ativo da subscription (flattening relacional)
           // Supabase retorna user_subscriptions como array, mesmo com 1 resultado
           let planName: string | null = null;
+          let activeSubscription: any = null;
           
           if (user.user_subscriptions && Array.isArray(user.user_subscriptions)) {
-            const activeSubscription = user.user_subscriptions.find(
+            activeSubscription = user.user_subscriptions.find(
               (sub: any) => sub && sub.status === 'active'
             );
             
@@ -313,6 +358,10 @@ const UserManagement: React.FC = () => {
           return {
             ...user,
             plan_name: planName,
+            active_subscription_id: activeSubscription?.id || null,
+            active_plan_id: activeSubscription?.plan_id || null,
+            active_period_start: activeSubscription?.current_period_start || null,
+            active_period_end: activeSubscription?.current_period_end || null,
             _count: { announcements: announcementCount || 0 }
           };
         })
@@ -503,83 +552,71 @@ const UserManagement: React.FC = () => {
   };
 
   const handleUpdatePlan = async () => {
-    if (!selectedUser || !newPlan) return;
+    if (!selectedUser || !newPlan) {
+      toast.error('Selecione um plano para continuar');
+      return false;
+    }
 
     try {
-      const oldValue = {
-        plan: selectedUser.plan_name
-      };
-
       const selectedPlan = availablePlans.find((plan) => plan.id === newPlan);
       if (!selectedPlan) {
-        toast.error('Plano selecionado não encontrado');
-        return;
+        toast.error('Plano selecionado n\u00e3o encontrado');
+        return false;
       }
 
-      const { data: activeSubscription, error: activeSubscriptionError } = await supabase
-        .from('user_subscriptions')
-        .select('id, current_period_start, current_period_end, cancel_at_period_end, trial_end_date')
-        .eq('user_id', selectedUser.id)
-        .eq('status', 'active')
-        .order('current_period_end', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (activeSubscriptionError) throw activeSubscriptionError;
-
-      if (activeSubscription) {
-        const { error } = await supabase
-          .from('user_subscriptions')
-          .update({ plan_id: selectedPlan.id })
-          .eq('id', activeSubscription.id);
-
-        if (error) throw error;
-      } else {
-        const currentPeriodStart = new Date().toISOString();
-        const validityDays = getEffectivePlanValidityDays(selectedPlan, 'monthly');
-        const currentPeriodEnd = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000).toISOString();
-        const trialEndDate = selectedPlan.monthly_price > 0 ? null : currentPeriodEnd;
-
-        const { error } = await supabase
-          .from('user_subscriptions')
-          .insert({
-            user_id: selectedUser.id,
-            plan_id: selectedPlan.id,
-            status: 'active',
-            billing_cycle: 'monthly',
-            amount_paid: selectedPlan.monthly_price,
-            currency: 'BRL',
-            starts_at: currentPeriodStart,
-            expires_at: currentPeriodEnd,
-            current_period_start: currentPeriodStart,
-            current_period_end: currentPeriodEnd,
-            cancel_at_period_end: false,
-            trial_end_date: trialEndDate
-          });
-
-        if (error) throw error;
+      if (!planPeriodStart || !planPeriodEnd || new Date(`${planPeriodEnd}T23:59:59.999`) <= new Date(`${planPeriodStart}T00:00:00`)) {
+        toast.error('Informe um per\u00edodo v\u00e1lido para o plano');
+        return false;
       }
+
+      const periodStartIso = toPeriodStartIso(planPeriodStart);
+      const periodEndIso = toPeriodEndIso(planPeriodEnd);
+
+      const { data, error } = await supabase.rpc('admin_update_user_plan_period', {
+        p_user_id: selectedUser.id,
+        p_plan_id: selectedPlan.id,
+        p_period_start: periodStartIso,
+        p_period_end: periodEndIso,
+        p_billing_cycle: planDurationUnit === 'years' ? 'yearly' : 'monthly',
+      });
+
+      if (error) throw error;
 
       await logAction({
         action: ADMIN_ACTIONS.UPDATE_PLAN,
         resourceType: RESOURCE_TYPES.SUBSCRIPTION,
         resourceId: selectedUser.id,
-        oldValue,
-        newValue: { plan: selectedPlan.name },
-        reason: `Plano de ${selectedUser.name} alterado de ${selectedUser.plan_name || 'sem plano ativo'} para ${selectedPlan.name} por decisão administrativa`
+        oldValue: {
+          plan: selectedUser.plan_name,
+          subscription_id: selectedUser.active_subscription_id,
+          period_start: selectedUser.active_period_start,
+          period_end: selectedUser.active_period_end,
+        },
+        newValue: {
+          plan: selectedPlan.name,
+          period_start: periodStartIso,
+          period_end: periodEndIso,
+          duration_amount: planDurationAmount,
+          duration_unit: planDurationUnit,
+          rpc_result: data,
+        },
+        reason: `Plano de ${selectedUser.name} alterado de ${selectedUser.plan_name || 'sem plano ativo'} para ${selectedPlan.name} com vig\u00eancia administrativa de ${formatDateCell(periodStartIso)} at\u00e9 ${formatDateCell(periodEndIso)}`
       });
 
       toast.success(`Plano alterado para ${selectedPlan.name}`);
-      setShowEditModal(false);
-      loadUsers();
+      return true;
     } catch (error) {
       console.error('[UserManagement] Erro ao atualizar plano:', error);
       toast.error('Erro ao atualizar plano');
+      return false;
     }
   };
 
   const handleUpdateRole = async () => {
-    if (!selectedUser || !newRole) return;
+    if (!selectedUser || !newRole) return false;
+    if (selectedUser.role === newRole && selectedUser.is_admin === (newRole === 'admin')) {
+      return true;
+    }
 
     try {
       const oldValue = {
@@ -605,15 +642,36 @@ const UserManagement: React.FC = () => {
         resourceId: selectedUser.id,
         oldValue,
         newValue: { role: newRole, is_admin: isAdmin },
-        reason: `Permissões de ${selectedUser.name} alteradas para ${newRole}`
+        reason: `Permiss\u00f5es de ${selectedUser.name} alteradas para ${newRole}`
       });
 
       toast.success(`Role alterado para ${newRole}`);
-      setShowEditModal(false);
-      loadUsers();
+      return true;
     } catch (error) {
       console.error('[UserManagement] Erro ao atualizar role:', error);
-      toast.error('Erro ao atualizar permissões');
+      toast.error('Erro ao atualizar permiss\u00f5es');
+      return false;
+    }
+  };
+
+  const handleSaveUserChanges = async () => {
+    if (!selectedUser || isSavingUserEdit) return;
+
+    setIsSavingUserEdit(true);
+    try {
+      const planUpdated = await handleUpdatePlan();
+      if (!planUpdated) return;
+
+      const roleUpdated = await handleUpdateRole();
+      if (!roleUpdated) return;
+
+      setShowEditModal(false);
+      await loadUsers();
+      if (activeTab === 'subscriptions') {
+        await loadSubscriptions();
+      }
+    } finally {
+      setIsSavingUserEdit(false);
     }
   };
 
@@ -871,9 +929,17 @@ const UserManagement: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => {
+                            const currentPlan = availablePlans.find((plan) => plan.id === user.active_plan_id || plan.name === user.plan_name);
+                            const periodStart = formatDateInputValue(user.active_period_start || new Date());
+                            const periodEnd = formatDateInputValue(user.active_period_end) || addDurationToDate(periodStart, 1, 'months');
+
                             setSelectedUser(user);
-                            setNewPlan(availablePlans.find((plan) => plan.name === user.plan_name)?.id || '');
+                            setNewPlan(currentPlan?.id || '');
                             setNewRole(user.role);
+                            setPlanPeriodStart(periodStart);
+                            setPlanDurationAmount(1);
+                            setPlanDurationUnit('months');
+                            setPlanPeriodEnd(periodEnd);
                             setShowEditModal(true);
                           }}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -1155,8 +1221,8 @@ const UserManagement: React.FC = () => {
       {/* Edit Modal */}
       {showEditModal && selectedUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Editar Usuário: {selectedUser.name}</h3>
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6">
+            <h3 className="text-xl font-bold text-slate-900 mb-4">Editar usu&aacute;rio: {selectedUser.name}</h3>
             
             <div className="space-y-4">
               <div>
@@ -1169,20 +1235,87 @@ const UserManagement: React.FC = () => {
                   <option value="">Selecione um plano</option>
                   {availablePlans.map(plan => (
                     <option key={plan.id} value={plan.id}>
-                      {plan.name} - R$ {plan.monthly_price.toFixed(2)}/mês
+                      {plan.name} - R$ {plan.monthly_price.toFixed(2)}/m&ecirc;s
                     </option>
                   ))}
                 </select>
               </div>
 
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-4">
+                  <p className="text-sm font-bold text-slate-900">Per&iacute;odo do plano</p>
+                  <p className="text-xs text-slate-500">
+                    Os benef&iacute;cios do plano escolhido passam a respeitar este in&iacute;cio e vencimento.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">In&iacute;cio</label>
+                    <input
+                      type="date"
+                      value={planPeriodStart}
+                      onChange={(e) => {
+                        const nextStart = e.target.value;
+                        setPlanPeriodStart(nextStart);
+                        setPlanPeriodEnd(addDurationToDate(nextStart, planDurationAmount, planDurationUnit));
+                      }}
+                      className="w-full border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Fim</label>
+                    <input
+                      type="date"
+                      value={planPeriodEnd}
+                      onChange={(e) => setPlanPeriodEnd(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Dura&ccedil;&atilde;o</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={planDurationAmount}
+                      onChange={(e) => {
+                        const nextAmount = Math.max(1, Number(e.target.value) || 1);
+                        setPlanDurationAmount(nextAmount);
+                        setPlanPeriodEnd(addDurationToDate(planPeriodStart, nextAmount, planDurationUnit));
+                      }}
+                      className="w-full border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Unidade</label>
+                    <select
+                      value={planDurationUnit}
+                      onChange={(e) => {
+                        const nextUnit = e.target.value as 'days' | 'months' | 'years';
+                        setPlanDurationUnit(nextUnit);
+                        setPlanPeriodEnd(addDurationToDate(planPeriodStart, planDurationAmount, nextUnit));
+                      }}
+                      className="w-full border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="days">Dia(s)</option>
+                      <option value="months">M&ecirc;s(es)</option>
+                      <option value="years">Ano(s)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Role/Permissões</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Role/Permiss&otilde;es</label>
                 <select
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
-                  <option value="user">User (padrão)</option>
+                  <option value="user">User (padr&atilde;o)</option>
                   <option value="editor">Editor (moderador)</option>
                   <option value="admin">Admin (acesso total)</option>
                 </select>
@@ -1192,18 +1325,17 @@ const UserManagement: React.FC = () => {
             <div className="flex items-center gap-3 mt-6">
               <button
                 onClick={() => setShowEditModal(false)}
+                disabled={isSavingUserEdit}
                 className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg font-semibold hover:bg-slate-50 transition-colors"
               >
                 Cancelar
               </button>
               <button
-                onClick={() => {
-                  handleUpdatePlan();
-                  handleUpdateRole();
-                }}
-                className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors"
+                onClick={handleSaveUserChanges}
+                disabled={isSavingUserEdit}
+                className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Salvar Alterações
+                {isSavingUserEdit ? 'Salvando...' : 'Salvar altera\u00e7\u00f5es'}
               </button>
             </div>
           </div>

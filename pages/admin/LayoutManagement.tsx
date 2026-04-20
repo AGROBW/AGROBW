@@ -241,7 +241,20 @@ const LayoutManagement: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr,0.9fr]">
         <div className="space-y-6">
-          <LayoutBrandSection formData={formData} onChange={handleChange} onUpload={handleAssetUpload} uploadingField={uploadingField} />
+          <LayoutBrandSection
+            formData={formData}
+            onChange={handleChange}
+            onUpload={handleAssetUpload}
+            uploadingField={
+              uploadingField === 'logoUrl' ||
+              uploadingField === 'logoLightUrl' ||
+              uploadingField === 'logoDarkUrl' ||
+              uploadingField === 'faviconUrl' ||
+              uploadingField === 'defaultAdImageUrl'
+                ? uploadingField
+                : null
+            }
+          />
           <LayoutPageImagesSection
             formData={{
               pricingHeroImageUrl: formData.pricingHeroImageUrl,

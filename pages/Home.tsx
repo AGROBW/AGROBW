@@ -7,6 +7,7 @@ import AdCard from '../components/AdCard';
 import QuotationTicker from '../components/QuotationTicker';
 import NewsGrid from '../components/NewsGrid';
 import HomeAdsCarousel from '../components/HomeAdsCarousel';
+import HomeStoresCarousel from '../components/HomeStoresCarousel';
 import { CATEGORIES } from '../constants';
 import { usePublicAds } from '../src/hooks/useAds';
 import { useCategoryCounts } from '../src/hooks/useCategoryCounts';
@@ -252,6 +253,8 @@ const Home: React.FC = () => {
           </div>
         </div>
       </section>
+
+      <HomeStoresCarousel />
 
       <div className="h-px w-full" style={{ backgroundColor: settings.accentColor }} />
     </div>

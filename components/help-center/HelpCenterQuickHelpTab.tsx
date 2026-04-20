@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { ArrowRight, BookOpen, ChevronDown, CreditCard, LifeBuoy, MessageSquare, Search, Sparkles, Ticket } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { usePersistentState } from '../../src/hooks/usePersistentState';
+import { useSupportSettings } from '../../src/hooks/useSupportSettings';
 
 type HelpAction = {
   label: string;
@@ -130,6 +131,7 @@ const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({
   onOpenNewTicket,
   onOpenMyTickets,
 }) => {
+  const { settings: supportSettings } = useSupportSettings();
   const [search, setSearch] = usePersistentState('help-center:quick-search', '');
   const [openTitle, setOpenTitle] = usePersistentState<string | null>('help-center:quick-open-title', helpItems[0]?.title ?? null);
 
@@ -174,31 +176,20 @@ const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-2xl p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Ajuda rapida</h2>
-            <p className="text-sm text-slate-500 mt-2">
-              Pesquise um tema, abra o passo a passo e siga direto para a area certa da AGRO BW.
-            </p>
-          </div>
-
-          <div className="w-full max-w-xl">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Como podemos te ajudar?"
-                className="w-full h-12 rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-green-600/20"
-              />
-            </div>
-          </div>
-        </div>
+      {/* Barra de busca */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Pesquise um tema ou dúvida..."
+          className="w-full h-12 rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-700 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-600/20"
+        />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_288px] gap-6">
+        {/* Lista de temas */}
         <div className="space-y-6">
           {groupedItems.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-6">
@@ -216,68 +207,76 @@ const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({
             </div>
           ) : (
             groupedItems.map((section) => (
-              <section key={section.group} className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">
+              <section key={section.group} className="space-y-2">
+                <div className="flex items-center gap-3 pb-1">
+                  <h3 className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
                     {section.group}
                   </h3>
+                  <div className="flex-1 h-px bg-slate-100" />
                   <span className="text-xs text-slate-400">{section.items.length} tema(s)</span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+                <div className="space-y-2">
                   {section.items.map((item) => {
                     const isOpen = openTitle === item.title;
 
                     return (
                       <article
                         key={item.title}
-                        className={`group self-start overflow-hidden rounded-[30px] border p-6 transition-all duration-300 ${
+                        className={`overflow-hidden rounded-2xl border transition-all duration-300 ${
                           item.highlight
-                            ? 'border-emerald-200 bg-[linear-gradient(180deg,#ffffff_0%,#f7fef9_100%)] shadow-[0_20px_50px_-40px_rgba(22,163,74,0.35)] hover:-translate-y-1 hover:shadow-[0_26px_62px_-40px_rgba(22,163,74,0.42)]'
-                            : 'border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-[0_18px_45px_-42px_rgba(15,23,42,0.32)] hover:-translate-y-1 hover:border-slate-300 hover:shadow-[0_24px_60px_-40px_rgba(15,23,42,0.4)]'
+                            ? 'border-emerald-200 bg-white shadow-[0_4px_20px_-8px_rgba(22,163,74,0.2)]'
+                            : 'border-slate-200 bg-white'
+                        } ${
+                          isOpen ? 'shadow-md' : 'hover:border-slate-300 hover:shadow-sm'
                         }`}
                       >
                         <button
                           type="button"
                           onClick={() => setOpenTitle(isOpen ? null : item.title)}
-                          className="w-full text-left"
+                          className="w-full text-left px-5 py-4"
                         >
-                          <div className="relative">
-                            <ChevronDown
-                              className={`absolute right-0 top-0 h-4 w-4 shrink-0 text-slate-300 transition-transform duration-300 ${isOpen ? 'rotate-180 text-emerald-700' : 'group-hover:text-slate-500'}`}
-                            />
-
-                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] border border-emerald-100 bg-[radial-gradient(circle_at_top,#ffffff_0%,#f4fdf7_55%,#ecfdf3_100%)] text-emerald-700 shadow-[0_18px_36px_-26px_rgba(22,163,74,0.38)]">
-                              <item.icon className="h-7 w-7" strokeWidth={1.6} />
+                          <div className="flex items-center gap-4">
+                            {/* Ícone */}
+                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                              item.highlight
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                : 'bg-slate-50 text-slate-600 border border-slate-200'
+                            }`}>
+                              <item.icon className="h-5 w-5" strokeWidth={1.7} />
                             </div>
 
-                            <div className="mt-5 text-center">
-                              <h4 className="mx-auto max-w-[220px] text-[19px] font-black leading-[1.25] text-slate-900">
-                                {item.title}
-                              </h4>
-                              <p className="mx-auto mt-3 max-w-[250px] text-sm leading-6 text-slate-500">
-                                {item.description}
-                              </p>
+                            {/* Texto */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="text-sm font-bold text-slate-900">{item.title}</h4>
+                                {item.highlight && (
+                                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                                    Destaque
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-0.5 text-sm text-slate-500 line-clamp-1">{item.description}</p>
                             </div>
 
-                            <div className="mt-5 flex items-center justify-center gap-2 text-xs font-semibold text-slate-400">
-                              <span>{item.details.length} passo(s)</span>
-                              {item.highlight ? (
-                                <>
-                                  <span className="h-1 w-1 rounded-full bg-slate-300" />
-                                  <span className="text-emerald-700">Em destaque</span>
-                                </>
-                              ) : null}
+                            {/* Chevron + count */}
+                            <div className="flex shrink-0 items-center gap-3">
+                              <span className="hidden sm:inline text-xs text-slate-400">{item.details.length} passo(s)</span>
+                              <ChevronDown
+                                className={`h-4 w-4 text-slate-400 transition-transform duration-300 ${
+                                  isOpen ? 'rotate-180 text-emerald-600' : ''
+                                }`}
+                              />
                             </div>
                           </div>
                         </button>
 
                         {isOpen && (
-                          <div className="mt-6 space-y-4 border-t border-slate-100/90 pt-5">
-                            <ul className="space-y-2.5">
+                          <div className="px-5 pb-5 space-y-4 border-t border-slate-100">
+                            <ul className="mt-4 space-y-2.5">
                               {item.details.map((detail) => (
-                                <li key={detail} className="flex gap-2.5 text-sm leading-6 text-slate-600">
-                                  <span className="mt-[9px] h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                <li key={detail} className="flex gap-3 text-sm leading-6 text-slate-600">
+                                  <span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
                                   <span>{detail}</span>
                                 </li>
                               ))}
@@ -286,7 +285,7 @@ const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({
                             {item.action.to ? (
                               <Link
                                 to={item.action.to}
-                                className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800"
+                                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
                               >
                                 {item.action.label}
                                 <ArrowRight className="h-4 w-4" />
@@ -295,7 +294,7 @@ const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({
                               <button
                                 type="button"
                                 onClick={item.action.onClick}
-                                className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800"
+                                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
                               >
                                 {item.action.label}
                                 <ArrowRight className="h-4 w-4" />
@@ -312,36 +311,74 @@ const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({
           )}
         </div>
 
+        {/* Aside */}
         <aside className="space-y-4">
+          {/* Atalhos */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Atalhos</p>
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-2.5">
               <button
                 type="button"
                 onClick={onOpenMyTickets}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
               >
                 Ver meus tickets
               </button>
               <button
                 type="button"
                 onClick={onOpenNewTicket}
-                className="w-full rounded-xl bg-green-700 px-4 py-3 text-left text-sm font-semibold text-white hover:bg-green-800"
+                className="w-full rounded-xl bg-slate-900 px-4 py-3 text-left text-sm font-semibold text-white hover:bg-slate-800 transition-colors"
               >
                 Abrir novo ticket
               </button>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-green-200 bg-green-50/70 p-5">
+          {/* Tempo de resposta */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{supportSettings.cardTitle}</p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600">{supportSettings.averageResponseLabel}</span>
+                <span className="text-sm font-bold text-slate-900">{supportSettings.averageResponseValue}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600">{supportSettings.scheduleLabel}</span>
+                <span className="text-sm font-bold text-slate-900">{supportSettings.scheduleDays}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600">{supportSettings.scheduleTimeLabel}</span>
+                <span className="text-sm font-bold text-slate-900">{supportSettings.scheduleTime}</span>
+              </div>
+            </div>
+            <div
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 ${
+                supportSettings.isOnline
+                  ? 'border-emerald-100 bg-emerald-50'
+                  : 'border-slate-200 bg-slate-50'
+              }`}
+            >
+              <span
+                className={`h-2 w-2 shrink-0 rounded-full ${
+                  supportSettings.isOnline ? 'animate-pulse bg-emerald-500' : 'bg-slate-400'
+                }`}
+              />
+              <span className={`text-xs font-semibold ${supportSettings.isOnline ? 'text-emerald-700' : 'text-slate-600'}`}>
+                {supportSettings.isOnline ? supportSettings.onlineStatusText : supportSettings.offlineStatusText}
+              </span>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5">
             <p className="text-sm font-bold text-slate-900">Ainda precisa de ajuda?</p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Se nao encontrou a resposta na ajuda rapida, abra um ticket com o maximo de contexto possivel.
+              Se nao encontrou a resposta, abra um ticket com o maximo de contexto possivel.
             </p>
             <button
               type="button"
               onClick={onOpenNewTicket}
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition-colors"
             >
               Falar com o suporte
               <ArrowRight className="h-4 w-4" />

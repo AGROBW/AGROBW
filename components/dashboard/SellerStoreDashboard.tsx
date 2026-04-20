@@ -4,7 +4,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities';
 import { AlertTriangle, ExternalLink, Globe, Image, Link as LinkIcon, MapPin, Save, ShieldCheck, ShoppingBag, Store, UploadCloud, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { slugifyStoreValue, useMySellerStore } from '../../src/hooks/useSellerStore';
 import type { Ad } from '../../types';

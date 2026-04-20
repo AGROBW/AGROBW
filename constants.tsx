@@ -276,7 +276,7 @@ export const PRICING_FEATURES: PricingFeatureDetail[] = [
 export const PRICING_FAQ = [
   {
     question: 'Como funcionam os pagamentos?',
-    answer: 'Aceitamos cartões de crédito, boleto bancário e PIX. No plano anual, você garante um desconto exclusivo de 20%.'
+    answer: 'Aceitamos cartões de crédito, débito e PIX. No plano anual, você garante descontos exclusivos.'
   },
   {
     question: 'Posso cancelar minha assinatura a qualquer momento?',
@@ -284,7 +284,7 @@ export const PRICING_FAQ = [
   },
   {
     question: 'O que acontece quando meu anúncio expira?',
-    answer: 'Seu anúncio ficará pausado. Você poderá renová-lo manualmente ou fazer um upgrade de plano para reativá-lo.'
+    answer: 'Após o vencimento do plano, sua conta passa automaticamente para o plano básico, que possui limitações de anúncios e restrições no acesso às mensagens de interessados. Seus anúncios, porém, continuam ativos por até 120 dias a partir da data de publicação.'
   },
   {
     question: 'Existe limite de anúncios por conta?',

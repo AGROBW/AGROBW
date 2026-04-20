@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { emitCountsRefresh } from '../lib/countSync'
 import { useAuth } from '../contexts/AuthContext'
+import { isSupabaseUnauthorizedError } from '../lib/supabaseAuthGuard'
 import { Chat, Message, LeadStatus } from '../../types'
 import { LEAD_STATUS } from '../../constants/status'
 import { toast } from 'sonner'
@@ -93,6 +94,14 @@ export const useChats = (announcementId?: string | null) => {
       const { data, error } = await query
 
       if (error) {
+        if (isSupabaseUnauthorizedError(error)) {
+          clearRetry()
+          setError('Sessão expirada')
+          setChats([])
+          console.warn('[useChats] Sessão expirada ao buscar conversas.')
+          return
+        }
+
         setError(error.message)
         console.error('Erro ao buscar chats:', error)
         if (typeof window !== 'undefined' && retryTimeoutRef.current === null) {
@@ -344,6 +353,17 @@ export const useMessages = (chatId: string | null) => {
         .order('created_at', { ascending: true })
 
       if (error) {
+        if (isSupabaseUnauthorizedError(error)) {
+          clearRetry()
+          setError('Sessão expirada')
+          console.warn('[useMessages] Sessão expirada ao buscar mensagens.')
+          setIsLoading(false)
+          if (silent) {
+            endAppSync()
+          }
+          return
+        }
+
         setError(error.message)
         console.error('Erro ao buscar mensagens:', error)
         if (typeof window !== 'undefined' && retryTimeoutRef.current === null) {
@@ -492,6 +512,14 @@ export const useMessages = (chatId: string | null) => {
         .order('created_at', { ascending: true })
         .then(async ({ data, error }) => {
           if (error) {
+            if (isSupabaseUnauthorizedError(error)) {
+              clearRetry()
+              setError('Sessão expirada')
+              setIsLoading(false)
+              endAppSync()
+              return
+            }
+
             setError(error.message)
             setIsLoading(false)
             endAppSync()

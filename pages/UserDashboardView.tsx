@@ -6,7 +6,6 @@ import { AdStatus, Message, Ad, AdMetrics, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
 import { deleteAnnouncementWithRelations, useUserAds } from '../src/hooks/useAds';
-import { useChats } from '../src/hooks/useMessages';
 import { useNotificationsCount } from '../src/hooks/useNotificationsCount';
 import { useSubscription } from '../src/hooks/useSubscription';
 import { supabase } from '../src/lib/supabaseClient';
@@ -779,7 +778,6 @@ const UserDashboardView: React.FC = () => {
   const HomeDashboard = () => {
     const [selectedAdId, setSelectedAdId] = React.useState<string | null>(null);
     const { stats: dashboardStats, loading: dashboardLoading } = useDashboardStats(selectedAdId);
-    const { chats: filteredChats, isLoading: chatsLoading } = useChats(selectedAdId);
 
     if (!userAds) return null;
 
@@ -787,11 +785,6 @@ const UserDashboardView: React.FC = () => {
     const activeAdsWithPrice = userAds.filter(
       ad => ad.status === AdStatus.ACTIVE && ad.price > 0
     );
-
-    // Encontrar tÃ­tulo do anÃºncio selecionado
-    const selectedAd = selectedAdId 
-      ? activeAdsWithPrice.find(ad => ad.id === selectedAdId)
-      : null;
 
     return (
       <div className="space-y-6 animate-in fade-in duration-500 pb-20">
@@ -849,64 +842,6 @@ const UserDashboardView: React.FC = () => {
           />
         </div>
 
-        {/* Mensagens Recentes */}
-        <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
-          <div className="flex items-center justify-between mb-6">
-            <h4 className="text-lg font-bold text-slate-900">
-              {selectedAd 
-                ? `Mensagens: ${selectedAd.title}`
-                : 'Mensagens Recentes'
-              }
-            </h4>
-            {selectedAd && (
-              <button
-                onClick={() => setSelectedAdId(null)}
-                className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 transition-colors hover:text-emerald-800"
-              >
-                Ver todas
-              </button>
-            )}
-          </div>
-          
-          <div className="divide-y divide-slate-100">
-            {chatsLoading ? (
-              <div className="py-6 text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-slate-200 border-t-blue-600"></div>
-                <p className="text-sm text-slate-500 mt-2">Carregando mensagens...</p>
-              </div>
-            ) : (filteredChats?.length ?? 0) === 0 ? (
-              <div className="py-8 text-center">
-                <Inbox className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                <p className="text-sm text-slate-500">
-                  {selectedAd 
-                    ? 'Nenhuma conversa iniciada para este anÃºncio ainda'
-                    : 'Nenhuma mensagem encontrada'
-                  }
-                </p>
-              </div>
-            ) : (
-              filteredChats?.slice(0, 3).map(chat => {
-                const otherPartyName = chat?.sellerId === user?.id ? chat?.buyerName : chat?.sellerName
-                return (
-                  <div key={chat?.id} className="flex items-center justify-between gap-4 py-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#dcfce7_0%,#dbeafe_100%)] shadow-sm">
-                        <User className="w-5 h-5 text-green-700" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-900">{otherPartyName || 'Usuário'}</p>
-                        <p className="text-xs text-slate-500 line-clamp-1">{chat?.lastMessage || 'Sem mensagens'}</p>
-                      </div>
-                    </div>
-                    <Link to="/minha-conta/mensagens" className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700 transition-colors hover:text-emerald-800">
-                      Responder
-                    </Link>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
       </div>
     );
   };
@@ -3175,15 +3110,6 @@ const UserDashboardView: React.FC = () => {
                   onChange={(event) => handlePasswordFieldChange('confirmPassword', event.target.value)}
                 />
               </div>
-            </div>
-            <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">Autenticação em Duas Etapas</p>
-                <p className="text-xs text-slate-500">Aumente a proteção da sua conta.</p>
-              </div>
-              <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-slate-200 shadow-inner">
-                <span className="inline-block h-5 w-5 transform rounded-full bg-white translate-x-1" />
-              </button>
             </div>
           </div>
 

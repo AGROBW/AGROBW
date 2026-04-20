@@ -125,33 +125,22 @@ export const useAdminSiteAnalytics = (period: AnalyticsPeriod) => {
         supabase.rpc('get_site_analytics_geo_breakdown', { p_period_days: period, p_limit: 10 }),
       ]);
 
-    const firstError =
-      summaryResult.error ||
-      seriesResult.error ||
-      pagesResult.error ||
-      announcementsResult.error ||
-      storesResult.error ||
-      liveResult.error ||
-      deviceResult.error ||
-      sourceResult.error ||
-      searchesResult.error ||
-      geoResult.error;
+    const errors = [
+      summaryResult.error,
+      seriesResult.error,
+      pagesResult.error,
+      announcementsResult.error,
+      storesResult.error,
+      liveResult.error,
+      deviceResult.error,
+      sourceResult.error,
+      searchesResult.error,
+      geoResult.error,
+    ].filter(Boolean);
 
-    if (firstError) {
-      console.error('[useAdminSiteAnalytics] erro ao carregar analytics:', firstError);
-      setError(firstError.message);
-      setSummary(defaultSummary);
-      setSeries([]);
-      setTopPages([]);
-      setTopAnnouncements([]);
-      setTopStores([]);
-      setLivePresence([]);
-      setDeviceBreakdown([]);
-      setSourceBreakdown([]);
-      setTopSearches([]);
-      setGeoBreakdown([]);
-      setIsLoading(false);
-      return;
+    if (errors.length > 0) {
+      console.error('[useAdminSiteAnalytics] erro parcial ao carregar analytics:', errors);
+      setError('Algumas metricas nao foram carregadas. Rode o SQL de analytics consolidado e atualize a pagina.');
     }
 
     const summaryRow = summaryResult.data?.[0];

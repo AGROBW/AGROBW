@@ -16,10 +16,14 @@ export const logPopularSearch = async (term: string, source = 'hero_search') => 
   }
 
   try {
-    await supabase.rpc('log_public_search', {
+    const { error } = await supabase.rpc('log_public_search', {
       p_term: cleanedTerm,
       p_source: source,
     });
+
+    if (error) {
+      throw error;
+    }
   } catch (error) {
     console.warn('[usePopularSearches] Nao foi possivel registrar busca:', error);
   }

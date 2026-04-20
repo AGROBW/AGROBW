@@ -29,27 +29,43 @@ const HelpCenterView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-slate-200 rounded-2xl p-6">
-        <h1 className="text-xl font-bold text-slate-900">Central de Ajuda</h1>
-        <p className="text-sm text-slate-500 mt-2">
-          Encontre respostas rapidas, acompanhe atendimentos e abra um novo ticket quando precisar falar com o suporte.
-        </p>
-      </div>
+      {/* ── Hero + Tabs unificados ───────────────────────────── */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-8">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-xl font-black text-white">Central de Ajuda</h1>
+              <p className="mt-1.5 max-w-xl text-sm leading-6 text-slate-400">
+                Encontre respostas rapidas, acompanhe atendimentos e abra um novo ticket quando precisar falar com o suporte.
+              </p>
+            </div>
+            <div className="mt-3 flex shrink-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm sm:mt-0">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+              <span className="text-xs font-semibold text-slate-300">Suporte ativo</span>
+            </div>
+          </div>
+        </div>
 
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`h-10 px-4 rounded-xl text-sm font-semibold border transition-colors ${
-              activeTab === tab.id
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        <div className="flex border-t border-slate-200">
+          {tabs.map((tab, i) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative flex-1 py-3.5 text-sm font-semibold transition-colors ${
+                i > 0 ? 'border-l border-slate-200' : ''
+              } ${
+                activeTab === tab.id
+                  ? 'bg-slate-50 text-slate-900'
+                  : 'bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+              }`}
+            >
+              {activeTab === tab.id && (
+                <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-emerald-500" />
+              )}
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {activeTab === 'quick' && (

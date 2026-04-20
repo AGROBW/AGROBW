@@ -1,4 +1,4 @@
-
+﻿
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -51,26 +51,26 @@ const benefitCards = [
   {
     icon: Eye,
     title: 'Visibilidade imediata',
-    description: 'Sua marca aparece no topo da plataforma no primeiro clique do comprador, antes de qualquer an�ncio org�nico.',
-    stat: '+24 mil impress�es/m�s',
+    description: 'Sua marca aparece no topo da plataforma no primeiro clique do comprador, antes de qualquer anúncio orgânico.',
+    stat: '+24 mil impressões/mês',
   },
   {
     icon: MousePointerClick,
     title: 'Cliques qualificados',
-    description: 'O banner disputa aten��o no exact momento em que o usu�rio est� explorando oportunidades reais de neg�cio.',
-    stat: 'CTR m�dio de 5,7%',
+    description: 'O banner disputa atenção no exato momento em que o usuário está explorando oportunidades reais de negócio.',
+    stat: 'CTR médio de 5,7%',
   },
   {
     icon: Target,
-    title: 'Leads com inten��o',
-    description: 'Voc� recebe interesse de quem j� est� pesquisando solu��es dentro do seu nicho de atua��o no agroneg�cio.',
-    stat: 'P�blico com alta inten��o',
+    title: 'Leads com intenção',
+    description: 'Você recebe interesse de quem já está pesquisando soluções dentro do seu nicho de atuação no agronegócio.',
+    stat: 'Público com alta intenção',
   },
   {
     icon: TrendingUp,
-    title: 'Convers�o direta',
-    description: 'A jornada encurta ao m�ximo: o comprador sai do banner direto para seu site ou WhatsApp comercial.',
-    stat: 'Zero intermedi�rios',
+    title: 'Conversão direta',
+    description: 'A jornada encurta ao máximo: o comprador sai do banner direto para seu site ou WhatsApp comercial.',
+    stat: 'Zero intermediários',
   },
 ];
 
@@ -82,84 +82,84 @@ const exclusiveFeatures = [
   },
   {
     icon: Users,
-    title: 'P�blico com inten��o de compra',
-    description: 'Voc� n�o compra tr�fego vazio. Se posiciona diante de usu�rios ativamente buscando solu��es.',
+    title: 'Público com intenção de compra',
+    description: 'Você não compra tráfego vazio. Se posiciona diante de usuários ativamente buscando soluções.',
   },
   {
     icon: MessageCircle,
     title: 'Redirecionamento direto',
-    description: 'Leve o usu�rio para o seu site institucional ou WhatsApp e acelere o in�cio da conversa comercial.',
+    description: 'Leve o usuário para o seu site institucional ou WhatsApp e acelere o início da conversa comercial.',
   },
   {
     icon: BadgeCheck,
     title: 'Exclusividade por nicho',
-    description: 'Cada patrocinador ocupa um segmento distinto, reduzindo concorr�ncia direta e aumentando a aten��o sobre sua marca.',
+    description: 'Cada patrocinador ocupa um segmento distinto, reduzindo concorrência direta e aumentando a atenção sobre sua marca.',
   },
 ];
 
 const metrics = [
-  { icon: Eye, title: 'Impress�es', description: 'Quantas vezes o banner foi exibido para compradores.' },
-  { icon: MousePointerClick, title: 'Cliques', description: 'Intera��es que demonstram interesse real no seu patroc�nio.' },
-  { icon: BarChart3, title: 'CTR', description: 'Taxa de cliques para medir a efici�ncia do criativo.' },
+  { icon: Eye, title: 'Impressões', description: 'Quantas vezes o banner foi exibido para compradores.' },
+  { icon: MousePointerClick, title: 'Cliques', description: 'Interações que demonstram interesse real no seu patrocínio.' },
+  { icon: BarChart3, title: 'CTR', description: 'Taxa de cliques para medir a eficiência do criativo.' },
   { icon: MessageCircle, title: 'Contatos no WhatsApp', description: 'Quantidade de redirecionamentos iniciados diretamente.' },
-  { icon: MapPin, title: 'Regi�o principal', description: 'Localiza��o dominante do p�blico com maior interesse.' },
+  { icon: MapPin, title: 'Região principal', description: 'Localização dominante do público com maior interesse.' },
 ];
 
 const steps = [
-  { label: 'Reserva', text: 'Sua empresa reserva um dos espa�os dispon�veis via formul�rio ou WhatsApp.' },
-  { label: 'Publica��o', text: 'Seu banner entra no carrossel premium do topo da plataforma em at� 48h.' },
+  { label: 'Reserva', text: 'Sua empresa reserva um dos espaços disponíveis via formulário ou WhatsApp.' },
+  { label: 'Publicação', text: 'Seu banner entra no carrossel premium do topo da plataforma em até 48h.' },
   { label: 'Engajamento', text: 'Compradores visualizam, clicam e chegam direto ao seu canal de contato.' },
-  { label: 'Resultados', text: 'Voc� acompanha m�tricas reais e converte o interesse em oportunidades.' },
+  { label: 'Resultados', text: 'Você acompanha métricas reais e converte o interesse em oportunidades.' },
 ];
 
 const testimonials = [
   {
-    name: 'Carlos Mendon�a',
-    role: 'Diretor Comercial � Agro M�quinas Sul',
+    name: 'Carlos Mendonça',
+    role: 'Diretor Comercial - Agro Máquinas Sul',
     avatar: 'https://i.pravatar.cc/80?u=carlos_agro',
-    text: 'Em 30 dias como patrocinador, recebemos mais de 40 contatos qualificados direto pelo WhatsApp. O ROI superou qualquer outra m�dia digital que testamos no setor.',
+    text: 'Em 30 dias como patrocinador, recebemos mais de 40 contatos qualificados direto pelo WhatsApp. O ROI superou qualquer outra mídia digital que testamos no setor.',
     stars: 5,
   },
   {
     name: 'Fernanda Oliveira',
-    role: 'Gerente de Marketing � InsumosPro',
+    role: 'Gerente de Marketing - InsumosPro',
     avatar: 'https://i.pravatar.cc/80?u=fernanda_insumos',
-    text: 'A exclusividade por nicho fez toda a diferen�a. Nosso banner n�o compete com concorrente direto, e isso se reflete no CTR muito acima da m�dia que t�nhamos em outras plataformas.',
+    text: 'A exclusividade por nicho fez toda a diferença. Nosso banner não compete com concorrente direto, e isso se reflete no CTR muito acima da mídia que tínhamos em outras plataformas.',
     stars: 5,
   },
   {
     name: 'Roberto Faria',
-    role: 'CEO � AgroTech Solu��es',
+    role: 'CEO - AgroTech Soluções',
     avatar: 'https://i.pravatar.cc/80?u=roberto_agrotech',
-    text: 'Estamos no segundo ciclo de patroc�nio. A visibilidade no topo do marketplace trouxe leads que j� se tornaram clientes recorrentes. Vale muito o investimento.',
+    text: 'Estamos no segundo ciclo de patrocínio. A visibilidade no topo do marketplace trouxe leads que já se tornaram clientes recorrentes. Vale muito o investimento.',
     stars: 5,
   },
 ];
 
 const faqs = [
   {
-    question: 'Como funciona o processo de aprova��o do banner?',
-    answer: 'Ap�s a reserva, voc� envia o material criativo (imagem + link de destino). Nossa equipe revisa em at� 24h para garantir qualidade e adequa��o. Ap�s aprova��o, o banner vai ao ar em at� 48h.',
+    question: 'Como funciona o processo de aprovação do banner?',
+    answer: 'Após a reserva, você envia o material criativo (imagem + link de destino). Nossa equipe revisa em até 24h para garantir qualidade e adequação. Após aprovação, o banner vai ao ar em até 48h.',
   },
   {
     question: 'Quem cria o banner? Preciso ter um designer?',
-    answer: 'Voc� pode enviar seu pr�prio material. Se precisar de apoio, nossa equipe pode indicar parceiros de cria��o. O formato solicitado � simples: imagem JPG/PNG em alta resolu��o + URL de destino.',
+    answer: 'Você pode enviar seu próprio material. Se precisar de apoio, nossa equipe pode indicar parceiros de criação. O formato solicitado é simples: imagem JPG/PNG em alta resolução + URL de destino.',
   },
   {
-    question: 'Qual � o prazo m�nimo de patroc�nio?',
-    answer: 'O contrato m�nimo � de 30 dias. Ap�s o per�odo inicial, voc� pode renovar mensalmente com prioridade sobre novos interessados no mesmo nicho.',
+    question: 'Qual é o prazo mínimo de patrocínio?',
+    answer: 'O contrato mínimo é de 30 dias. Após o período inicial, você pode renovar mensalmente com prioridade sobre novos interessados no mesmo nicho.',
   },
   {
-    question: 'Como acompanho as m�tricas da campanha?',
-    answer: 'Voc� recebe um relat�rio semanal por e-mail com impress�es, cliques, CTR e origens do p�blico. Em breve teremos um painel de acesso em tempo real.',
+    question: 'Como acompanho as métricas da campanha?',
+    answer: 'Você recebe um relatório semanal por e-mail com impressões, cliques, CTR e origens do público. Em breve teremos um painel de acesso em tempo real.',
   },
   {
-    question: 'O que acontece se meu nicho j� estiver ocupado?',
-    answer: 'Voc� entra em uma lista de espera priorit�ria. Quando a vaga do seu segmento ficar dispon�vel, voc� ser� o primeiro notificado com prazo de 48h para confirmar.',
+    question: 'O que acontece se meu nicho já estiver ocupado?',
+    answer: 'Você entra em uma lista de espera prioritária. Quando a vaga do seu segmento ficar disponível, você será o primeiro notificado com prazo de 48h para confirmar.',
   },
   {
     question: 'Posso redirecionar para WhatsApp e site ao mesmo tempo?',
-    answer: 'Cada banner possui um �nico destino de clique. Recomendamos priorizar o canal que sua equipe responde mais r�pido � normalmente o WhatsApp gera respostas mais �geis e maiores taxas de convers�o.',
+    answer: 'Cada banner possui um único destino de clique. Recomendamos priorizar o canal que sua equipe responde mais rápido. Normalmente o WhatsApp gera respostas mais ágeis e maiores taxas de conversão.',
   },
 ];
 
@@ -217,11 +217,11 @@ const SponsorLandingView: React.FC = () => {
 
   const contactMessage = useMemo(() => {
     return [
-      `Ol�, equipe ${brandName}.`,
-      'Tenho interesse em reservar um espa�o de patrocinador.',
+      `Olá, equipe ${brandName}.`,
+      'Tenho interesse em reservar um espaço de patrocinador.',
       '',
       `Empresa: ${form.companyName || '-'}`,
-      `Respons�vel: ${form.contactName || '-'}`,
+      `Responsável: ${form.contactName || '-'}`,
       `E-mail: ${form.email || '-'}`,
       `Telefone: ${form.phone || '-'}`,
       `Segmento: ${form.segment || '-'}`,
@@ -235,12 +235,12 @@ const SponsorLandingView: React.FC = () => {
 
   const validateForm = () => {
     if (!form.companyName.trim() || !form.contactName.trim() || !form.email.trim() || !form.segment.trim()) {
-      toast.error('Preencha empresa, respons�vel, e-mail e segmento antes de continuar.');
+      toast.error('Preencha empresa, responsável, e-mail e segmento antes de continuar.');
       return false;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(form.email.trim())) {
-      toast.error('Digite um e-mail v�lido para receber o retorno da equipe.');
+      toast.error('Digite um e-mail válido para receber o retorno da equipe.');
       return false;
     }
     return true;
@@ -263,7 +263,7 @@ const SponsorLandingView: React.FC = () => {
       return true;
     } catch (error) {
       console.error('[SponsorLandingView] Erro ao registrar interesse de patrocinador:', error);
-      toast.error('N�o foi poss�vel registrar seu interesse agora. Tente novamente em instantes.');
+      toast.error('Não foi possível registrar seu interesse agora. Tente novamente em instantes.');
       return false;
     } finally {
       setIsSubmittingLead(false);
@@ -277,7 +277,7 @@ const SponsorLandingView: React.FC = () => {
     setFormSent(true);
     const link = buildWhatsAppUrl(whatsappUrl, contactMessage);
     if (!link) {
-      toast.error('O WhatsApp comercial ainda n�o est� configurado no layout da plataforma.');
+      toast.error('O WhatsApp comercial ainda não está configurado no layout da plataforma.');
       return;
     }
     window.open(link, '_blank', 'noopener,noreferrer');
@@ -288,7 +288,7 @@ const SponsorLandingView: React.FC = () => {
     const saved = await submitSponsorInterestLead('email');
     if (!saved) return;
     setFormSent(true);
-    const subject = encodeURIComponent(`Interesse em patroc�nio - ${form.companyName.trim()}`);
+    const subject = encodeURIComponent(`Interesse em patrocínio - ${form.companyName.trim()}`);
     const body = encodeURIComponent(contactMessage);
     window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
   };
@@ -318,7 +318,7 @@ const SponsorLandingView: React.FC = () => {
             {/* badge */}
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300 backdrop-blur mb-6">
               <Sparkles className="h-3.5 w-3.5" />
-              Patroc�nio premium � Marketplace agro
+              Patrocínio premium - Marketplace agro
             </div>
 
             <h1 className="text-5xl md:text-7xl font-black leading-[0.95] text-white mb-6">
@@ -326,11 +326,11 @@ const SponsorLandingView: React.FC = () => {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-amber-300">
                 no topo
               </span>{' '}
-              da decis�o de compra no agro
+              da decisão de compra no agro
             </h1>
 
             <p className="text-lg md:text-xl text-slate-300 leading-8 max-w-2xl mb-10">
-              Destaque sua empresa no carrossel premium do maior marketplace agro da regi�o. Apare�a para compradores com alta inten��o de compra e gere leads qualificados diretamente para seu canal de vendas.
+              Destaque sua empresa no carrossel premium do maior marketplace agro da região. Apareça para compradores com alta intenção de compra e gere leads qualificados diretamente para seu canal de vendas.
             </p>
 
             {/* CTA buttons */}
@@ -362,9 +362,9 @@ const SponsorLandingView: React.FC = () => {
             {/* stat cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { value: '24 mil+', label: 'Impress�es/m�s' },
-                { value: `${vagasRestantes} vagas`, label: 'Dispon�veis agora' },
-                { value: '5,7%', label: 'CTR m�dio' },
+                { value: '24 mil+', label: 'Impressões/mês' },
+                { value: `${vagasRestantes} vagas`, label: 'Disponíveis agora' },
+                { value: '5,7%', label: 'CTR médio' },
                 { value: 'Lead direto', label: 'Site ou WhatsApp' },
               ].map((s) => (
                 <div
@@ -380,7 +380,7 @@ const SponsorLandingView: React.FC = () => {
         </div>
       </section>
 
-      {/* -- BARRA DE CONFIAN�A ---------------------------------------------- */}
+      {/* -- BARRA DE CONFIANÇA ---------------------------------------------- */}
       <section className="border-y border-slate-100 bg-slate-50 py-5">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-14">
@@ -388,7 +388,7 @@ const SponsorLandingView: React.FC = () => {
               { icon: BadgeCheck, label: 'Plataforma verificada' },
               { icon: Users, label: '+10.000 produtores ativos' },
               { icon: Zap, label: 'Banner publicado em 48h' },
-              { icon: BarChart3, label: 'Relat�rios semanais' },
+              { icon: BarChart3, label: 'Relatórios semanais' },
               { icon: Crown, label: 'Exclusividade por nicho' },
             ].map(({ icon: Icon, label }) => (
               <div key={label} className="flex items-center gap-2 text-sm font-semibold text-slate-500">
@@ -400,7 +400,7 @@ const SponsorLandingView: React.FC = () => {
         </div>
       </section>
 
-      {/* -- VAGAS DISPON�VEIS ----------------------------------------------- */}
+      {/* -- VAGAS DISPONÍVEIS ----------------------------------------------- */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
         <div
           className="rounded-[2rem] p-8 md:p-12 flex flex-col md:flex-row items-center gap-8"
@@ -412,10 +412,10 @@ const SponsorLandingView: React.FC = () => {
           <div className="flex-1">
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Disponibilidade em tempo real</p>
             <h2 className="text-3xl md:text-4xl font-black text-slate-950 mb-4">
-              {vagasRestantes} de {VAGAS_TOTAL} vagas dispon�veis
+              {vagasRestantes} de {VAGAS_TOTAL} vagas disponíveis
             </h2>
             <p className="text-slate-500 text-sm leading-7 max-w-xl">
-              O carrossel comporta apenas {VAGAS_TOTAL} patrocinadores simult�neos, cada um de um nicho diferente. Exclusividade real para a sua marca.
+              O carrossel comporta apenas {VAGAS_TOTAL} patrocinadores simultâneos, cada um de um nicho diferente. Exclusividade real para a sua marca.
             </p>
           </div>
           <div className="flex-shrink-0 flex flex-col items-center gap-4">
@@ -435,7 +435,7 @@ const SponsorLandingView: React.FC = () => {
             </div>
             <div className="flex gap-4 text-xs text-slate-400">
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-slate-300 inline-block" />Ocupada</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block" />Dispon�vel</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block" />Disponível</span>
             </div>
             <button
               type="button"
@@ -446,18 +446,18 @@ const SponsorLandingView: React.FC = () => {
               className="rounded-2xl px-6 py-3 text-sm font-black text-white transition-all hover:-translate-y-0.5"
               style={{ backgroundColor: settings.primaryColor }}
             >
-              Garantir minha vaga ?
+              Garantir minha vaga
             </button>
           </div>
         </div>
       </section>
 
-      {/* -- BENEF�CIOS ------------------------------------------------------ */}
+      {/* -- BENEFÍCIOS ------------------------------------------------------ */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-16">
         <div className="text-center mb-12">
           <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Por que patrocinar</p>
           <h2 className="text-3xl md:text-5xl font-black text-slate-950 max-w-3xl mx-auto">
-            Visibilidade no momento exato em que o comprador est� pronto para agir
+            Visibilidade no momento exato em que o comprador está pronto para agir
           </h2>
         </div>
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -529,7 +529,7 @@ const SponsorLandingView: React.FC = () => {
               className="inline-flex items-center gap-2 rounded-2xl px-8 py-4 text-base font-black text-white transition-all hover:-translate-y-1"
               style={{ backgroundColor: settings.primaryColor }}
             >
-              Quero come�ar agora
+              Quero começar agora
               <ArrowRight className="h-5 w-5" />
             </button>
           </div>
@@ -544,7 +544,7 @@ const SponsorLandingView: React.FC = () => {
             <div className="absolute -inset-4 rounded-[3rem] bg-emerald-50 -rotate-2" />
             <img
               src={agro_images.harvest}
-              alt="Agroneg�cio em a��o"
+              alt="Agronegócio em ação"
               className="relative z-10 w-full h-[500px] object-cover rounded-[2.5rem] shadow-2xl"
             />
             {/* floating badge */}
@@ -558,7 +558,7 @@ const SponsorLandingView: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-2xl font-black text-slate-950">+40</p>
-                  <p className="text-xs text-slate-400">leads/m�s em m�dia</p>
+                  <p className="text-xs text-slate-400">leads/mês em média</p>
                 </div>
               </div>
             </div>
@@ -566,16 +566,16 @@ const SponsorLandingView: React.FC = () => {
 
           {/* content */}
           <div className="order-1 lg:order-2">
-            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-4">Benef�cios exclusivos</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-4">Benefícios exclusivos</p>
             <h2 className="text-3xl md:text-5xl font-black text-slate-950 mb-6 leading-tight">
-              Menos ru�do,{' '}
+              Menos ruído,{' '}
               <span className="text-transparent bg-clip-text" style={{ backgroundImage: `linear-gradient(120deg, ${settings.primaryColor}, #a3e635)` }}>
-                mais aten��o
+                mais atenção
               </span>{' '}
               para a sua marca
             </h2>
             <p className="text-base leading-8 text-slate-500 mb-10">
-              Um espa�o valorizado com exclusividade por segmento. Sua campanha n�o compete com concorrente direto � cada uma das 6 vagas representa um nicho diferente do agroneg�cio.
+              Um espaço valorizado com exclusividade por segmento. Sua campanha não compete com concorrente direto; cada uma das 6 vagas representa um nicho diferente do agronegócio.
             </p>
             <div className="space-y-4">
               {exclusiveFeatures.map((feature) => {
@@ -597,16 +597,16 @@ const SponsorLandingView: React.FC = () => {
         </div>
       </section>
 
-      {/* -- M�TRICAS -------------------------------------------------------- */}
+      {/* -- MÉTRICAS -------------------------------------------------------- */}
       <section className="bg-slate-50 py-20 border-y border-slate-200">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mb-12">
-            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Transpar�ncia total</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Transparência total</p>
             <h2 className="text-3xl md:text-4xl font-black text-slate-950">
               Acompanhe resultados reais semanalmente
             </h2>
             <p className="mt-4 text-base leading-8 text-slate-500">
-              Voc� recebe um relat�rio com os indicadores que importam para medir o retorno do patroc�nio e ajustar a estrat�gia.
+              Você recebe um relatório com os indicadores que importam para medir o retorno do patrocínio e ajustar a estratégia.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
@@ -632,7 +632,7 @@ const SponsorLandingView: React.FC = () => {
       {/* -- DEPOIMENTOS ----------------------------------------------------- */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
         <div className="text-center mb-14">
-          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Quem j� patrocinou</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Quem já patrocinou</p>
           <h2 className="text-3xl md:text-5xl font-black text-slate-950">O que dizem nossos patrocinadores</h2>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
@@ -668,7 +668,7 @@ const SponsorLandingView: React.FC = () => {
       <section className="bg-slate-50 border-y border-slate-200 py-20">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <div className="text-center mb-12">
-            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">D�vidas frequentes</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Dúvidas frequentes</p>
             <h2 className="text-3xl md:text-4xl font-black text-slate-950">Perguntas dos patrocinadores</h2>
           </div>
           <div className="rounded-[2rem] border border-slate-200 bg-white px-8 shadow-[0_8px_30px_-10px_rgba(15,23,42,0.1)]">
@@ -679,11 +679,11 @@ const SponsorLandingView: React.FC = () => {
         </div>
       </section>
 
-      {/* -- FORMUL�RIO DE RESERVA ------------------------------------------- */}
+      {/* -- FORMULÁRIO DE RESERVA ------------------------------------------- */}
       <section id="reservar" className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
         <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
 
-          {/* left � pitch */}
+          {/* left - pitch */}
           <div
             className="rounded-[2.2rem] p-9 text-white relative overflow-hidden"
             style={{
@@ -695,18 +695,18 @@ const SponsorLandingView: React.FC = () => {
             <div className="relative z-10">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-300 mb-8">
                 <Layers3 className="h-4 w-4" />
-                Espa�o limitado
+                Espaço limitado
               </div>
               <h2 className="text-3xl font-black leading-tight mb-5">
-                Garanta sua posi��o antes que as vagas se esgotem
+                Garanta sua posição antes que as vagas se esgotem
               </h2>
               <p className="text-sm leading-8 text-slate-300 mb-10">
-                Com apenas {vagasRestantes} vagas restantes, estar no topo significa estar � frente da concorr�ncia no momento mais importante: quando o comprador est� pronto para agir.
+                Com apenas {vagasRestantes} vagas restantes, estar no topo significa estar à frente da concorrência no momento mais importante: quando o comprador está pronto para agir.
               </p>
 
               {/* vaga indicator */}
               <div className="rounded-2xl border border-white/10 bg-white/8 p-5 mb-8">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-4">Vagas dispon�veis</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-4">Vagas disponíveis</p>
                 <div className="flex gap-2.5 mb-3">
                   {Array.from({ length: VAGAS_TOTAL }).map((_, i) => (
                     <div
@@ -721,16 +721,16 @@ const SponsorLandingView: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                <p className="text-emerald-300 text-sm font-bold">{vagasRestantes} vagas de {VAGAS_TOTAL} dispon�veis</p>
+                <p className="text-emerald-300 text-sm font-bold">{vagasRestantes} vagas de {VAGAS_TOTAL} disponíveis</p>
               </div>
 
               {/* checkpoints */}
               <div className="space-y-3">
                 {[
-                  'Carrossel premium com destaque m�ximo na home.',
-                  'Exclusividade por nicho � sem concorrente direto.',
+                  'Carrossel premium com destaque máximo na home.',
+                  'Exclusividade por nicho, sem concorrente direto.',
                   'Lead direto para site ou WhatsApp comercial.',
-                  'Relat�rio de m�tricas enviado toda semana.',
+                  'Relatório de métricas enviado toda semana.',
                 ].map((item) => (
                   <div key={item} className="flex items-start gap-3 text-sm text-slate-200">
                     <BadgeCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-400" />
@@ -750,7 +750,7 @@ const SponsorLandingView: React.FC = () => {
             </div>
           </div>
 
-          {/* right � form */}
+          {/* right - form */}
           <div className="rounded-[2.2rem] border border-slate-200 bg-white p-8 md:p-10 shadow-[0_16px_50px_-24px_rgba(15,23,42,0.3)]">
             {formSent ? (
               <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center gap-6">
@@ -776,9 +776,9 @@ const SponsorLandingView: React.FC = () => {
                 <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-2">Fale com a equipe</p>
-                    <h2 className="text-3xl font-black text-slate-950">Reserve seu espa�o</h2>
+                    <h2 className="text-3xl font-black text-slate-950">Reserve seu espaço</h2>
                     <p className="mt-3 text-sm leading-7 text-slate-500 max-w-md">
-                      Preencha os dados e escolha como prefere ser contactado � WhatsApp para resposta imediata, ou e-mail para proposta formal.
+                      Preencha os dados e escolha como prefere ser contactado: WhatsApp para resposta imediata, ou e-mail para proposta formal.
                     </p>
                   </div>
                   <span className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 flex-shrink-0">
@@ -799,7 +799,7 @@ const SponsorLandingView: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Respons�vel *</label>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Responsável *</label>
                     <input
                       type="text"
                       value={form.contactName}
@@ -834,7 +834,7 @@ const SponsorLandingView: React.FC = () => {
                       type="text"
                       value={form.segment}
                       onChange={(e) => handleFieldChange('segment', e.target.value)}
-                      placeholder="Ex.: M�quinas, insumos, gen�tica, servi�os, tecnologia agr�cola"
+                      placeholder="Ex.: Máquinas, insumos, genética, serviços, tecnologia agrícola"
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm focus:bg-white focus:outline-none focus:ring-2 transition-colors"
                     />
                   </div>
@@ -843,7 +843,7 @@ const SponsorLandingView: React.FC = () => {
                     <textarea
                       value={form.message}
                       onChange={(e) => handleFieldChange('message', e.target.value)}
-                      placeholder="Conta um pouco sobre o objetivo da campanha ou qualquer d�vida que tiver."
+                      placeholder="Conta um pouco sobre o objetivo da campanha ou qualquer dúvida que tiver."
                       className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm focus:bg-white focus:outline-none focus:ring-2 transition-colors"
                     />
                   </div>
@@ -872,7 +872,7 @@ const SponsorLandingView: React.FC = () => {
                 </div>
 
                 <p className="mt-5 text-xs text-slate-400">
-                  Ao enviar, voc� concorda em receber retorno da equipe {brandName} sobre disponibilidade de patroc�nio.{' '}
+                  Ao enviar, você concorda em receber retorno da equipe {brandName} sobre disponibilidade de patrocínio.{' '}
                   <Link to="/" className="font-semibold text-slate-600 hover:text-slate-800">Voltar para a plataforma</Link>
                 </p>
               </>
@@ -897,12 +897,12 @@ const SponsorLandingView: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950 to-transparent" />
         </div>
         <div className="relative mx-auto max-w-5xl px-4 sm:px-6 text-center">
-          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-400 mb-5">�ltima chamada</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-400 mb-5">Última chamada</p>
           <h2 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">
             {vagasRestantes} vagas. Sua marca pode ocupar uma delas.
           </h2>
           <p className="text-lg text-slate-300 max-w-2xl mx-auto mb-10 leading-8">
-            Cada vaga representa um nicho exclusivo. Quando esgotarem, o pr�ximo interessado do mesmo segmento vai para a lista de espera.
+            Cada vaga representa um nicho exclusivo. Quando esgotarem, o próximo interessado do mesmo segmento vai para a lista de espera.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -932,3 +932,6 @@ const SponsorLandingView: React.FC = () => {
 };
 
 export default SponsorLandingView;
+
+
+

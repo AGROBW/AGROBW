@@ -35,12 +35,29 @@ const StorefrontView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [conditionFilter, setConditionFilter] = useState<'all' | 'novo' | 'seminovo' | 'usado'>('all');
   const [availabilityFilter, setAvailabilityFilter] = useState<
     'all' | 'pronta_entrega' | 'sob_encomenda' | 'consultar_estoque'
   >('all');
   const [sortBy, setSortBy] = useState<'store_order' | 'recent' | 'price_asc' | 'price_desc' | 'views'>('store_order');
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+
+  const categoryOptions = useMemo(() => {
+    const options = new Map<string, string>();
+
+    announcements.forEach((announcement) => {
+      const slug = announcement.categorySlug?.trim() || announcement.categoryId?.trim();
+      if (!slug) return;
+
+      const label = announcement.subCategoryLabel?.trim() || slug.replace(/[-_]+/g, ' ');
+      options.set(slug, label);
+    });
+
+    return Array.from(options.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label, 'pt-BR'));
+  }, [announcements]);
 
   const filteredAnnouncements = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -50,16 +67,18 @@ const StorefrontView: React.FC = () => {
     const filtered = announcements.filter((announcement) => {
       const matchesSearch =
         !normalizedSearch ||
-        [announcement.title, announcement.description, announcement.subCategoryLabel]
+        [announcement.title, announcement.description, announcement.subCategoryLabel, announcement.categorySlug]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(normalizedSearch));
 
+      const announcementCategory = announcement.categorySlug || announcement.categoryId;
+      const matchesCategory = categoryFilter === 'all' || announcementCategory === categoryFilter;
       const matchesMinPrice = !minPrice || (!Number.isNaN(minPriceValue) && announcement.price >= minPriceValue);
       const matchesMaxPrice = !maxPrice || (!Number.isNaN(maxPriceValue) && announcement.price <= maxPriceValue);
       const matchesCondition = conditionFilter === 'all' || announcement.productCondition === conditionFilter;
       const matchesAvailability = availabilityFilter === 'all' || announcement.availability === availabilityFilter;
 
-      return matchesSearch && matchesMinPrice && matchesMaxPrice && matchesCondition && matchesAvailability;
+      return matchesSearch && matchesCategory && matchesMinPrice && matchesMaxPrice && matchesCondition && matchesAvailability;
     });
 
     return filtered.sort((left, right) => {
@@ -73,12 +92,13 @@ const StorefrontView: React.FC = () => {
       if (sortBy === 'views') return (right.views || 0) - (left.views || 0);
       return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
     });
-  }, [announcements, availabilityFilter, conditionFilter, maxPrice, minPrice, searchTerm, sortBy]);
+  }, [announcements, availabilityFilter, categoryFilter, conditionFilter, maxPrice, minPrice, searchTerm, sortBy]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setMinPrice('');
     setMaxPrice('');
+    setCategoryFilter('all');
     setConditionFilter('all');
     setAvailabilityFilter('all');
     setSortBy('store_order');
@@ -88,6 +108,7 @@ const StorefrontView: React.FC = () => {
     searchTerm.trim().length > 0 ||
     minPrice.trim().length > 0 ||
     maxPrice.trim().length > 0 ||
+    categoryFilter !== 'all' ||
     conditionFilter !== 'all' ||
     availabilityFilter !== 'all' ||
     sortBy !== 'store_order';
@@ -159,6 +180,24 @@ const StorefrontView: React.FC = () => {
               className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">
+            Categoria
+          </label>
+          <select
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+            className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
+          >
+            <option value="all">Todas</option>
+            {categoryOptions.map((category) => (
+              <option key={category.value} value={category.value}>
+                {category.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
@@ -313,8 +352,8 @@ const StorefrontView: React.FC = () => {
               <h2 className="text-2xl font-black text-white md:text-3xl">{store.storeName}</h2>
             </div>
             <div className="mt-1 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full border border-[#16a34a]/35 bg-[#16a34a]/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-[#bbf7d0]">
-                <Store className="h-3.5 w-3.5" strokeWidth={1.5} />
+              <span className="inline-flex whitespace-nowrap items-center gap-1.5 rounded-full border border-[#16a34a]/35 bg-[#16a34a]/20 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-[#bbf7d0]">
+                <Store className="h-3 w-3" strokeWidth={1.5} />
                 Loja Parceira
               </span>
             </div>

@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { endAppSync, startAppSync } from '../lib/appSyncStatus';
 import { useAuth } from '../contexts/AuthContext';
+import { isSupabaseUnauthorizedError } from '../lib/supabaseAuthGuard';
 import { getEffectiveLeadContactLimitDays, getSubscriptionUsageWindow } from '../utils/subscriptionUsageWindow';
 
 export type UserSubscription = {
@@ -130,6 +131,14 @@ export const useSubscription = () => {
       setSubscription(data as UserSubscription | null);
       clearRetry();
     } catch (err: any) {
+      if (isSupabaseUnauthorizedError(err)) {
+        console.warn('[useSubscription] Sessão expirada ao buscar assinatura.');
+        clearRetry();
+        setError(null);
+        setSubscription(null);
+        return;
+      }
+
       console.error('[useSubscription] Erro ao buscar assinatura:', err);
       setError(err.message);
       setSubscription(null);
@@ -213,6 +222,12 @@ export const useSubscription = () => {
       });
       clearRetry();
     } catch (err: any) {
+      if (isSupabaseUnauthorizedError(err)) {
+        console.warn('[useSubscription] Sessão expirada ao buscar uso.');
+        clearRetry();
+        return;
+      }
+
       console.error('[useSubscription] Erro ao buscar uso:', err);
       scheduleRetry(fetchUsage);
     }

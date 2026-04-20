@@ -3,6 +3,12 @@ import { supabase } from '../lib/supabaseClient';
 
 const SESSION_STORAGE_KEY = 'bwagro:analytics-session-id';
 const HEARTBEAT_INTERVAL_MS = 60_000;
+const isDevelopment = import.meta.env.DEV;
+
+const logTrackingError = (scope: string, error: unknown) => {
+  if (!isDevelopment) return;
+  console.warn(`[SiteAnalytics] ${scope}`, error);
+};
 
 const ensureSessionId = () => {
   if (typeof window === 'undefined') return '';
@@ -141,13 +147,21 @@ export const useSiteAnalyticsTracking = ({
         p_is_admin_area: false,
         p_user_city: userCity ?? null,
         p_user_state: userState ?? null,
+      }).then(({ error }) => {
+        if (error) {
+          logTrackingError('Falha ao registrar visualizacao de pagina', error);
+        }
       });
     }
 
-    void touchPresence();
+    void touchPresence().catch((error) => {
+      logTrackingError('Falha ao atualizar presenca', error);
+    });
 
     const interval = window.setInterval(() => {
-      void touchPresence();
+      void touchPresence().catch((error) => {
+        logTrackingError('Falha ao atualizar presenca no intervalo', error);
+      });
     }, HEARTBEAT_INTERVAL_MS);
 
     return () => window.clearInterval(interval);

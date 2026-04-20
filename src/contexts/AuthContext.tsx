@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, ReactNod
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { setRememberDevicePreference, supabase } from '../lib/supabaseClient'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
+import { isSupabaseUnauthorizedError, refreshSupabaseSession } from '../lib/supabaseAuthGuard'
 import { User, UserRole } from '../../types'
 import { toast } from 'sonner'
 
@@ -82,6 +83,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true)
   const fetchingRef = useRef(false)
   const retryTimeoutRef = useRef<number | null>(null)
+  const sessionExpiredToastShownRef = useRef(false)
 
   const clearRetryTimeout = () => {
     if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
@@ -90,10 +92,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }
 
+  const handleExpiredSession = async (canSetState?: () => boolean) => {
+    clearRetryTimeout()
+    await supabase.auth.signOut()
+
+    if (!sessionExpiredToastShownRef.current) {
+      sessionExpiredToastShownRef.current = true
+      toast.error('Sessão expirada', {
+        description: 'Entre novamente para continuar usando sua conta.'
+      })
+    }
+
+    if (!canSetState || canSetState()) {
+      setUser(null)
+      setSupabaseUser(null)
+      setStats(null)
+      setIsLoading(false)
+    }
+  }
+
   const fetchUserStatus = async (
     userId: string,
     canSetState?: () => boolean,
-    options?: { silent?: boolean }
+    options?: { silent?: boolean; allowSessionRefresh?: boolean }
   ) => {
     try {
       const { data: userData, error: userError } = await supabase
@@ -103,6 +124,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .single()
 
       if (userError) {
+        if (options?.allowSessionRefresh !== false && isSupabaseUnauthorizedError(userError)) {
+          const refreshed = await refreshSupabaseSession()
+
+          if (refreshed) {
+            return fetchUserStatus(userId, canSetState, { ...options, allowSessionRefresh: false })
+          }
+
+          await handleExpiredSession(canSetState)
+          return null
+        }
         console.groupCollapsed('[Auth] Erro ao buscar usuário')
         console.error('userId:', userId)
         console.error('erro:', userError)
@@ -150,6 +181,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.debug('[Auth] fetchUserStatus completou com sucesso')
       return userData
     } catch (err: any) {
+      if (options?.allowSessionRefresh !== false && isSupabaseUnauthorizedError(err)) {
+        const refreshed = await refreshSupabaseSession()
+
+        if (refreshed) {
+          return fetchUserStatus(userId, canSetState, { ...options, allowSessionRefresh: false })
+        }
+
+        await handleExpiredSession(canSetState)
+        return null
+      }
       console.groupCollapsed('[Auth] Erro inesperado ao buscar usuário')
       console.error('userId:', userId)
       console.error('erro:', err?.message || err)
@@ -165,7 +206,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchStats = async (
     userId: string,
     canSetState?: () => boolean,
-    options?: { silent?: boolean }
+    options?: { silent?: boolean; allowSessionRefresh?: boolean }
   ) => {
     try {
       const { data, error } = await supabase.rpc('get_user_stats', {
@@ -173,6 +214,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       })
 
       if (error) {
+        if (options?.allowSessionRefresh !== false && isSupabaseUnauthorizedError(error)) {
+          const refreshed = await refreshSupabaseSession()
+
+          if (refreshed) {
+            return fetchStats(userId, canSetState, { ...options, allowSessionRefresh: false })
+          }
+
+          await handleExpiredSession(canSetState)
+          return false
+        }
         console.groupCollapsed('[Auth] Erro ao buscar estatísticas')
         console.error('userId:', userId)
         console.error('erro:', error)
@@ -194,6 +245,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.debug('[Auth] fetchStats completou com sucesso')
       return true
     } catch (err: any) {
+      if (options?.allowSessionRefresh !== false && isSupabaseUnauthorizedError(err)) {
+        const refreshed = await refreshSupabaseSession()
+
+        if (refreshed) {
+          return fetchStats(userId, canSetState, { ...options, allowSessionRefresh: false })
+        }
+
+        await handleExpiredSession(canSetState)
+        return false
+      }
       console.groupCollapsed('[Auth] Erro inesperado ao buscar estatísticas')
       console.error('userId:', userId)
       console.error('erro:', err?.message || err)
@@ -237,6 +298,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ])
 
       if (!userData || !statsLoaded) {
+        const { data: currentSession } = await supabase.auth.getSession()
+        if (!currentSession.session) return
+
         scheduleRetry(userId, options?.canSetState)
       }
     } catch (err: any) {
@@ -273,6 +337,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (isMounted) {
         setSupabaseUser(session?.user ?? null)
         if (session?.user) {
+          sessionExpiredToastShownRef.current = false
           setUser(prev => prev ?? {
             id: session.user.id,
             email: session.user.email || '',

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { subscribeToCountsRefresh } from '../lib/countSync'
 import { useAuth } from '../contexts/AuthContext'
+import { isSupabaseUnauthorizedError } from '../lib/supabaseAuthGuard'
 
 interface NotificationCounts {
   messagesCount: number
@@ -64,6 +65,13 @@ export const useNotificationsCount = (): NotificationCounts => {
       setMessagesCount(totalUnread)
       clearRetry()
     } catch (error) {
+      if (isSupabaseUnauthorizedError(error)) {
+        console.warn('[useNotificationsCount] Sessão expirada ao buscar contador de mensagens.')
+        clearRetry()
+        setMessagesCount(0)
+        return
+      }
+
       console.error('Erro ao buscar contador de mensagens:', error)
       setMessagesCount(0)
       scheduleRetry()
@@ -88,6 +96,13 @@ export const useNotificationsCount = (): NotificationCounts => {
       setNotificationsCount(count || 0)
       clearRetry()
     } catch (error) {
+      if (isSupabaseUnauthorizedError(error)) {
+        console.warn('[useNotificationsCount] Sessão expirada ao buscar contador de notificações.')
+        clearRetry()
+        setNotificationsCount(0)
+        return
+      }
+
       console.error('Erro ao buscar contador de notificações:', error)
       setNotificationsCount(0)
       scheduleRetry()

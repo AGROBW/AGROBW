@@ -68,10 +68,10 @@ const PartnerStoresView: React.FC = () => {
               Lojas Parceiras
             </span>
             <h1 className="mt-5 text-4xl font-black tracking-tight text-white md:text-5xl">
-              Vitrines oficiais do agro dentro da AGRO BW
+              Presença Profissional no Agro
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
-              Descubra empresas com presença institucional, catálogo organizado e identidade própria para apresentar melhor seus produtos no marketplace.
+              Explore lojas com presença institucional, catálogo organizado e identidade própria — tudo para apresentar produtos com mais credibilidade e profissionalismo.
             </p>
           </div>
         </div>
