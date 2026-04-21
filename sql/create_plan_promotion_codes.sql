@@ -221,6 +221,9 @@ begin
   then
     v_subscription_id := v_current_subscription.id;
     v_period_start := coalesce(v_current_subscription.current_period_end, now());
+  elsif v_current_subscription.id is not null then
+    v_subscription_id := v_current_subscription.id;
+    v_period_start := now();
   else
     update public.user_subscriptions
     set
@@ -272,8 +275,16 @@ begin
   else
     update public.user_subscriptions
     set
+      plan_id = v_code_record.plan_id,
+      status = 'active',
+      billing_cycle = case when v_code_record.duration_unit = 'years' then 'yearly' else 'monthly' end,
+      amount_paid = 0,
+      currency = 'BRL',
+      current_period_start = v_period_start,
       current_period_end = v_period_end,
-      source = coalesce(source, 'promotion'),
+      cancel_at_period_end = false,
+      trial_end_date = v_period_end,
+      source = 'promotion',
       promotion_code_id = v_code_record.id,
       updated_at = now()
     where id = v_subscription_id;
@@ -315,6 +326,13 @@ begin
     'period_start', v_period_start,
     'period_end', v_period_end
   );
+exception
+  when others then
+    return jsonb_build_object(
+      'success', false,
+      'error', sqlerrm,
+      'code', sqlstate
+    );
 end;
 $$;
 

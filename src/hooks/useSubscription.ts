@@ -89,7 +89,7 @@ export const useSubscription = () => {
     if (!user?.id) {
       setSubscription(null);
       setIsLoading(false);
-      return;
+      return null;
     }
 
     try {
@@ -128,36 +128,42 @@ export const useSubscription = () => {
 
       if (subscriptionError) throw subscriptionError;
 
-      setSubscription(data as UserSubscription | null);
+      const nextSubscription = data as UserSubscription | null;
+      setSubscription(nextSubscription);
       clearRetry();
+      return nextSubscription;
     } catch (err: any) {
       if (isSupabaseUnauthorizedError(err)) {
         console.warn('[useSubscription] Sessão expirada ao buscar assinatura.');
         clearRetry();
         setError(null);
         setSubscription(null);
-        return;
+        return null;
       }
 
       console.error('[useSubscription] Erro ao buscar assinatura:', err);
       setError(err.message);
       setSubscription(null);
-      scheduleRetry(fetchSubscription);
+      scheduleRetry(async () => {
+        await fetchSubscription();
+      });
+      return null;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const fetchUsage = async () => {
+  const fetchUsage = async (subscriptionOverride?: UserSubscription | null) => {
     if (!user?.id) {
       return;
     }
 
     try {
-      const periodStart = subscription ? new Date(subscription.current_period_start) : null;
-      const periodEnd = subscription ? new Date(subscription.current_period_end) : null;
-      const usageWindow = subscription
-        ? getSubscriptionUsageWindow(subscription.current_period_start, subscription.current_period_end)
+      const activeSubscription = subscriptionOverride !== undefined ? subscriptionOverride : subscription;
+      const periodStart = activeSubscription ? new Date(activeSubscription.current_period_start) : null;
+      const periodEnd = activeSubscription ? new Date(activeSubscription.current_period_end) : null;
+      const usageWindow = activeSubscription
+        ? getSubscriptionUsageWindow(activeSubscription.current_period_start, activeSubscription.current_period_end)
         : null;
       const now = new Date();
       const isWithinPeriod = periodStart && periodEnd ? now >= periodStart && now <= periodEnd : false;
@@ -166,14 +172,14 @@ export const useSubscription = () => {
       let categoryHighlightsCount = 0;
       let homeHighlightsCount = 0;
 
-      if (subscription) {
+      if (activeSubscription) {
         const { count: adsCountData, error: adsError } = await supabase
           .from('announcements')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .in('status', ['active', 'ACTIVE'])
-          .gte('created_at', usageWindow?.usageStart.toISOString() || subscription.current_period_start)
-          .lte('created_at', usageWindow?.usageEnd.toISOString() || subscription.current_period_end);
+          .gte('created_at', usageWindow?.usageStart.toISOString() || activeSubscription.current_period_start)
+          .lte('created_at', usageWindow?.usageEnd.toISOString() || activeSubscription.current_period_end);
 
         if (adsError) throw adsError;
         adsCount = adsCountData || 0;
@@ -184,8 +190,8 @@ export const useSubscription = () => {
           .eq('user_id', user.id)
           .eq('highlight_type', 'category')
           .eq('credit_source', 'plan')
-          .gte('applied_at', usageWindow?.usageStart.toISOString() || subscription.current_period_start)
-          .lte('applied_at', usageWindow?.usageEnd.toISOString() || subscription.current_period_end);
+          .gte('applied_at', usageWindow?.usageStart.toISOString() || activeSubscription.current_period_start)
+          .lte('applied_at', usageWindow?.usageEnd.toISOString() || activeSubscription.current_period_end);
 
         if (categoryError) throw categoryError;
         categoryHighlightsCount = categoryHighlightsCountData || 0;
@@ -196,8 +202,8 @@ export const useSubscription = () => {
           .eq('user_id', user.id)
           .eq('highlight_type', 'home')
           .eq('credit_source', 'plan')
-          .gte('applied_at', usageWindow?.usageStart.toISOString() || subscription.current_period_start)
-          .lte('applied_at', usageWindow?.usageEnd.toISOString() || subscription.current_period_end);
+          .gte('applied_at', usageWindow?.usageStart.toISOString() || activeSubscription.current_period_start)
+          .lte('applied_at', usageWindow?.usageEnd.toISOString() || activeSubscription.current_period_end);
 
         if (homeError) throw homeError;
         homeHighlightsCount = homeHighlightsCountData || 0;
@@ -209,11 +215,11 @@ export const useSubscription = () => {
 
       setUsage({
         adsUsed: adsCount,
-        adsLimit: subscription?.plans?.max_ads ?? null,
+        adsLimit: activeSubscription?.plans?.max_ads ?? null,
         categoryHighlightsUsed: categoryHighlightsCount,
-        categoryHighlightsLimit: subscription?.plans?.category_highlights_count || 0,
+        categoryHighlightsLimit: activeSubscription?.plans?.category_highlights_count || 0,
         homeHighlightsUsed: homeHighlightsCount,
-        homeHighlightsLimit: subscription?.plans?.home_highlight_count || 0,
+        homeHighlightsLimit: activeSubscription?.plans?.home_highlight_count || 0,
         categoryHighlightsBoosterRemaining: Number(boosterSummary?.category_remaining ?? 0),
         homeHighlightsBoosterRemaining: Number(boosterSummary?.home_remaining ?? 0),
         isWithinPeriod: !!isWithinPeriod,
@@ -247,7 +253,9 @@ export const useSubscription = () => {
 
     const handleOnline = () => {
       startAppSync();
-      const tasks: Promise<void>[] = [fetchSubscription()];
+      const tasks: Promise<void>[] = [
+        fetchSubscription().then(() => undefined),
+      ];
       if (subscription) {
         tasks.push(fetchUsage());
       }
@@ -297,6 +305,12 @@ export const useSubscription = () => {
     await fetchUsage();
   };
 
+  const refreshSubscriptionAndUsage = async () => {
+    const nextSubscription = await fetchSubscription();
+    await fetchUsage(nextSubscription);
+    return nextSubscription;
+  };
+
   return {
     subscription,
     usage,
@@ -308,6 +322,6 @@ export const useSubscription = () => {
     effectiveLeadContactLimitDays,
     adLimitMessage,
     refreshUsage,
-    refetch: fetchSubscription
+    refetch: refreshSubscriptionAndUsage
   };
 };

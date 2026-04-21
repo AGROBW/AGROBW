@@ -1783,6 +1783,9 @@ const UserDashboardView: React.FC = () => {
         });
 
         if (error) throw error;
+        if (data?.success === false) {
+          throw new Error(data.error || 'N\u00e3o foi poss\u00edvel resgatar o c\u00f3digo promocional.');
+        }
 
         const planName = data?.plan_name ? ` Plano ${data.plan_name} liberado.` : '';
         sonnerToast.success(`C\u00f3digo resgatado com sucesso.${planName}`);
@@ -1790,8 +1793,15 @@ const UserDashboardView: React.FC = () => {
         await refetchSubscription();
         await refreshUsage();
       } catch (error: any) {
-        console.error('[MyPlanDashboard] Erro ao resgatar codigo promocional:', error);
-        sonnerToast.error(error?.message || 'N\u00e3o foi poss\u00edvel resgatar o c\u00f3digo promocional.');
+        const errorMessage = error?.message || error?.details || error?.hint || 'N\u00e3o foi poss\u00edvel resgatar o c\u00f3digo promocional.';
+        console.error('[MyPlanDashboard] Erro ao resgatar codigo promocional:', {
+          message: errorMessage,
+          code: error?.code,
+          details: error?.details,
+          hint: error?.hint,
+          raw: error,
+        });
+        sonnerToast.error(errorMessage);
       } finally {
         setIsRedeemingPromotion(false);
       }
