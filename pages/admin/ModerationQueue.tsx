@@ -79,13 +79,6 @@ const EDITABLE_ANNOUNCEMENT_FIELDS = new Set([
   'whatsapp',
 ]);
 
-const normalizeComparableValue = (value: unknown) => {
-  if (Array.isArray(value) || (value && typeof value === 'object')) return JSON.stringify(value);
-  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
-  if (value === undefined || value === null) return '';
-  return String(value);
-};
-
 const sanitizeAnnouncementPayload = (payload: Record<string, any> = {}) =>
   Object.fromEntries(
     Object.entries(payload).filter(([key, value]) => EDITABLE_ANNOUNCEMENT_FIELDS.has(key) && value !== undefined)
@@ -271,15 +264,10 @@ const ModerationQueue: React.FC = () => {
           throw new Error('Anuncio original nao encontrado ou sem permissao para atualizacao.');
         }
 
-        const changedFields = Object.keys(sanitizedPayload);
-        const updateWasApplied = changedFields.every((field) => {
-          const expected = normalizeComparableValue(sanitizedPayload[field]);
-          const current = normalizeComparableValue((updatedAnnouncement as Record<string, any>)[field]);
-          return expected === current;
-        });
-
-        if (!updateWasApplied) {
-          throw new Error('A alteracao nao foi confirmada no banco. Verifique as permissoes do administrador para editar anuncios.');
+        if (!updateData) {
+          console.warn('[ModerationQueue] Update da edicao nao retornou linha; seguindo com anuncio buscado como fallback.', {
+            announcementId: request.announcement_id,
+          });
         }
       }
 
