@@ -53,21 +53,21 @@ const SettingsView: React.FC = () => {
 
   const tabs = [
     { id: 'banners' as SettingsTab, label: 'Banners Home', icon: Image },
-    { id: 'pages' as SettingsTab, label: 'Paginas', icon: FileText },
+    { id: 'pages' as SettingsTab, label: 'Páginas', icon: FileText },
     { id: 'about' as SettingsTab, label: 'Quem Somos', icon: Globe },
     { id: 'terms' as SettingsTab, label: 'Termos de Uso', icon: Scale },
     { id: 'privacy' as SettingsTab, label: 'Privacidade', icon: Shield },
     { id: 'contact' as SettingsTab, label: 'Fale Conosco', icon: MessageCircle },
-    { id: 'integrations' as SettingsTab, label: 'Integracoes', icon: Plug },
+    { id: 'integrations' as SettingsTab, label: 'Integrações', icon: Plug },
     { id: 'plans' as SettingsTab, label: 'Planos', icon: CreditCard },
-    { id: 'market' as SettingsTab, label: 'Cotacoes', icon: TrendingUp },
+    { id: 'market' as SettingsTab, label: 'Cotações', icon: TrendingUp },
     { id: 'fiscal' as SettingsTab, label: 'Fiscal NFS-e', icon: FileText },
     { id: 'email' as SettingsTab, label: 'Config. E-mail', icon: Mail },
     { id: 'contactEmail' as SettingsTab, label: 'Mensagens por E-mail', icon: MessageCircle },
     { id: 'radarEmail' as SettingsTab, label: 'Radar por E-mail', icon: Mail },
     { id: 'planAlertEmail' as SettingsTab, label: 'Alertas por E-mail', icon: Mail },
-    { id: 'conversion' as SettingsTab, label: 'Conversao', icon: BellRing },
-    { id: 'renewal' as SettingsTab, label: 'Renovacao', icon: CreditCard },
+    { id: 'conversion' as SettingsTab, label: 'Conversão', icon: BellRing },
+    { id: 'renewal' as SettingsTab, label: 'Renovação', icon: CreditCard },
   ];
 
   return (
@@ -77,12 +77,12 @@ const SettingsView: React.FC = () => {
           <Settings className="h-5 w-5 text-white" strokeWidth={2.5} />
         </div>
         <div>
-          <h1 className="text-2xl font-black text-slate-900">Configuracoes do Sistema</h1>
-          <p className="text-sm text-slate-500">Gerencie todas as configuracoes da plataforma</p>
+          <h1 className="text-2xl font-black text-slate-900">Configurações do Sistema</h1>
+          <p className="text-sm text-slate-500">Gerencie todas as configurações da plataforma</p>
         </div>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1.5">
+      <div className="flex max-w-full flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -91,7 +91,7 @@ const SettingsView: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-semibold transition-all ${
+              className={`flex min-w-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all sm:text-sm ${
                 isActive
                   ? 'bg-green-500 text-white shadow-md'
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'

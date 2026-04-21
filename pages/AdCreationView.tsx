@@ -80,6 +80,13 @@ const STORE_AVAILABILITY_OPTIONS = [
   { value: 'consultar_estoque', label: 'Consultar estoque' },
 ] as const;
 
+const slugify = (value: string) => value
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '');
+
 const SortableImageItem: React.FC<{
   item: ImageItem;
   index: number;
@@ -863,13 +870,6 @@ const AdCreationView: React.FC = () => {
     const cleanCep = (formData.location?.cep || '').replace(/\D/g, '');
     if (cleanCep.length === 8) handleCepLookup(cleanCep);
   };
-
-  const slugify = (value: string) => value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 
   const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
