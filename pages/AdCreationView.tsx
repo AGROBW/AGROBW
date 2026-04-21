@@ -31,6 +31,7 @@ import {
 import { censorContactData } from '../src/utils/censorContact';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
+import { evaluatePublicationModeration, formatPublicationModerationReasons } from '../src/utils/publicationModeration';
 import { updateAnnouncementCoordinates } from '../services/geoService';
 import imageCompression from 'browser-image-compression';
 import { compressAnnouncementVideo, formatVideoSize, VideoCompressionError } from '../src/utils/videoCompression';
@@ -1565,6 +1566,19 @@ const AdCreationView: React.FC = () => {
       };
 
       const technicalDetailsPayload = buildTechnicalDetailsPayload();
+      const moderationResult = await evaluatePublicationModeration({
+        title: editablePayload.title,
+        description: editablePayload.description,
+        categorySlug: editablePayload.category_slug,
+        images: editablePayload.images,
+      });
+
+      if (moderationResult?.blocked) {
+        toast.error('Anúncio bloqueado pelas regras de publicação.', {
+          description: formatPublicationModerationReasons(moderationResult.reasons),
+        });
+        return;
+      }
 
       if (isEditingExistingAd && editAdId) {
         const { data: existingRequest } = await supabase
@@ -1619,7 +1633,7 @@ const AdCreationView: React.FC = () => {
       const payload = {
         ...editablePayload,
         user_id: userId,
-        status: AdStatus.ACTIVE,
+        status: moderationResult?.reviewRequired ? AdStatus.PENDING : AdStatus.ACTIVE,
         expires_at: buildAnnouncementExpiresAt(),
       };
 
@@ -1628,11 +1642,11 @@ const AdCreationView: React.FC = () => {
 
       // Se existe rascunho, SEMPRE usar update
       if (draftAdId) {
-        console.log('[Publish] Atualizando rascunho para ACTIVE:', draftAdId);
+        console.log('[Publish] Atualizando rascunho:', draftAdId);
         
         const updateResult = await supabase
           .from('announcements')
-          .update({ ...payload, status: AdStatus.ACTIVE })
+          .update(payload)
           .eq('id', draftAdId)
           .select('*')
           .maybeSingle();
@@ -1746,6 +1760,13 @@ const AdCreationView: React.FC = () => {
       localStorage.removeItem('bwagro_ad_draft_id');
       setDraftAdId(null);
       setCurrentStep('SUCCESS');
+      if (moderationResult?.reviewRequired || String(data.status).toUpperCase() === 'PENDING') {
+        toast.success('Anúncio enviado para análise da equipe.', {
+          description: formatPublicationModerationReasons(moderationResult?.reasons || []),
+        });
+      } else {
+        toast.success('Anúncio publicado com sucesso.');
+      }
       navigate('/minha-conta/anuncios');
     } catch (error: any) {
       console.error('[Publish] Erro inesperado ao publicar anÃºncio:', error);

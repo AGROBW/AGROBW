@@ -107,6 +107,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       icon: Gift,
     },
     {
+      label: 'Regras de Publica\u00e7\u00e3o',
+      path: '/admin/publication-rules',
+      icon: Shield,
+    },
+    {
       label: 'Layout',
       path: '/admin/layout',
       icon: MonitorSmartphone,

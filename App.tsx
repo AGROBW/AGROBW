@@ -49,6 +49,7 @@ const NewsManagement = lazy(() => import('./pages/admin/NewsManagement'));
 const NewsletterSubscriptionsManagement = lazy(() => import('./pages/admin/NewsletterSubscriptionsManagement'));
 const CampaignsManagement = lazy(() => import('./pages/admin/CampaignsManagement'));
 const PromotionsManagement = lazy(() => import('./pages/admin/PromotionsManagement'));
+const PublicationRulesManagement = lazy(() => import('./pages/admin/PublicationRulesManagement'));
 const LayoutManagement = lazy(() => import('./pages/admin/LayoutManagement'));
 const SupportTicketsManagement = lazy(() => import('./pages/admin/SupportTicketsManagement'));
 const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'));
@@ -246,6 +247,7 @@ const AppContent: React.FC = () => {
               <Route path="newsletter" element={<NewsletterSubscriptionsManagement />} />
               <Route path="campaigns" element={<CampaignsManagement />} />
               <Route path="promotions" element={<PromotionsManagement />} />
+              <Route path="publication-rules" element={<PublicationRulesManagement />} />
               <Route path="layout" element={<LayoutManagement />} />
               <Route path="support" element={<SupportTicketsManagement />} />
               <Route path="audit" element={<AuditLogs />} />
