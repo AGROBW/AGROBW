@@ -14,6 +14,9 @@ export type UserSubscription = {
   current_period_end: string;
   cancel_at_period_end: boolean;
   trial_end_date: string | null;
+  source?: string | null;
+  promotion_code_id?: string | null;
+  promotion_redemption_id?: string | null;
   created_at: string;
   updated_at: string;
   plans: {
@@ -281,7 +284,11 @@ export const useSubscription = () => {
       subscription.current_period_start,
       subscription.current_period_end
     );
-    return getEffectiveLeadContactLimitDays(subscription.plans, usageWindow.isAnnualContract);
+    return getEffectiveLeadContactLimitDays(subscription.plans, usageWindow.isAnnualContract, {
+      isPromotion: subscription.source === 'promotion' || Boolean(subscription.promotion_code_id),
+      periodStartIso: subscription.current_period_start,
+      periodEndIso: subscription.current_period_end,
+    });
   }, [subscription]);
 
   const canApplyCategoryHighlight = useMemo(() => {

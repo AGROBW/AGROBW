@@ -62,10 +62,30 @@ export const getSubscriptionUsageWindow = (
 
 export const getEffectiveLeadContactLimitDays = (
   plan: LeadContactPlanLike | null | undefined,
-  isAnnualContract: boolean
+  isAnnualContract: boolean,
+  options?: {
+    isPromotion?: boolean;
+    periodStartIso?: string | null;
+    periodEndIso?: string | null;
+  }
 ) => {
   if (!plan) {
     return null;
+  }
+
+  if (options?.isPromotion && options.periodStartIso && options.periodEndIso) {
+    const monthlyLimit = plan.lead_contact_limit_days_monthly ?? plan.lead_contact_limit_days ?? null;
+
+    if (monthlyLimit !== null && monthlyLimit !== undefined) {
+      const periodStart = new Date(options.periodStartIso);
+      const periodEnd = new Date(options.periodEndIso);
+      const periodDays = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (Number.isFinite(periodDays) && periodDays > 0) {
+        const proportionalLimit = Math.ceil(monthlyLimit * (periodDays / 30));
+        return Math.min(periodDays, Math.max(monthlyLimit, proportionalLimit));
+      }
+    }
   }
 
   const cycleSpecificLimit = isAnnualContract

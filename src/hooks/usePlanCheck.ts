@@ -12,6 +12,8 @@ type SubscriptionRow = {
   current_period_end: string
   cancel_at_period_end: boolean
   trial_end_date: string | null
+  source?: string | null
+  promotion_code_id?: string | null
   plans: Record<string, any> | null
 }
 
@@ -53,7 +55,7 @@ export const usePlanCheck = () => {
 
         const { data, error } = await supabase
           .from('user_subscriptions')
-          .select('id,status,current_period_start,current_period_end,cancel_at_period_end,trial_end_date, plans (id,name,max_ads,lead_contact_limit_days,lead_contact_limit_days_monthly,lead_contact_limit_days_yearly,has_verification_badge,has_seller_store,has_email_marketing)')
+          .select('id,status,current_period_start,current_period_end,cancel_at_period_end,trial_end_date,source,promotion_code_id, plans (id,name,max_ads,lead_contact_limit_days,lead_contact_limit_days_monthly,lead_contact_limit_days_yearly,has_verification_badge,has_seller_store,has_email_marketing)')
           .eq('user_id', user.id)
           .order('current_period_end', { ascending: false })
           .limit(1)
@@ -98,7 +100,11 @@ export const usePlanCheck = () => {
   }
 
   const canViewLead = (adCreatedAt: string) => {
-    const limit = getEffectiveLeadContactLimitDays(plan, !!usageWindow?.isAnnualContract)
+    const limit = getEffectiveLeadContactLimitDays(plan, !!usageWindow?.isAnnualContract, {
+      isPromotion: subscription?.source === 'promotion' || Boolean(subscription?.promotion_code_id),
+      periodStartIso: subscription?.current_period_start,
+      periodEndIso: subscription?.current_period_end,
+    })
     if (!limit) return true
     const created = new Date(adCreatedAt)
     const now = new Date()
