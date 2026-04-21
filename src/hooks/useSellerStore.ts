@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Ad, SellerStore } from '../../types';
 import { useAuth } from '../contexts/AuthContext';
+import { getCategoryGroupBySlug, getCategoryGroupForCategorySlug } from '../lib/categoryHierarchy';
 import { supabase } from '../lib/supabaseClient';
 
 type SellerStoreInput = {
@@ -86,6 +87,9 @@ type SellerStoreRow = {
 export type PublicSellerStoreCatalogItem = SellerStore & {
   activeAdsCount: number;
   highlightedAdsCount: number;
+  categoryGroups: Array<{ slug: string; name: string }>;
+  productConditions: string[];
+  availabilityOptions: string[];
 };
 
 const mapStoreRow = (row: SellerStoreRow): SellerStore => ({
@@ -487,7 +491,7 @@ export const usePublicSellerStoresCatalog = () => {
 
     const { data: announcementsRows, error: announcementsError } = await supabase
       .from('announcements')
-      .select('user_id, highlight_home, highlight_category')
+      .select('user_id, category_slug, product_condition, availability, highlight_home, highlight_category')
       .in('user_id', userIds)
       .eq('status', 'ACTIVE');
 
@@ -499,31 +503,76 @@ export const usePublicSellerStoresCatalog = () => {
           ...store,
           activeAdsCount: 0,
           highlightedAdsCount: 0,
+          categoryGroups: [],
+          productConditions: [],
+          availabilityOptions: [],
         }))
       );
       setIsLoading(false);
       return;
     }
 
-    const statsByUserId = new Map<string, { activeAdsCount: number; highlightedAdsCount: number }>();
+    const statsByUserId = new Map<
+      string,
+      {
+        activeAdsCount: number;
+        highlightedAdsCount: number;
+        categoryGroups: Map<string, string>;
+        productConditions: Set<string>;
+        availabilityOptions: Set<string>;
+      }
+    >();
 
     for (const row of announcementsRows || []) {
       const userId = String(row.user_id);
-      const current = statsByUserId.get(userId) || { activeAdsCount: 0, highlightedAdsCount: 0 };
+      const current =
+        statsByUserId.get(userId) || {
+          activeAdsCount: 0,
+          highlightedAdsCount: 0,
+          categoryGroups: new Map<string, string>(),
+          productConditions: new Set<string>(),
+          availabilityOptions: new Set<string>(),
+        };
       current.activeAdsCount += 1;
       if (row.highlight_home || row.highlight_category) {
         current.highlightedAdsCount += 1;
       }
+
+      const categoryGroup = getCategoryGroupForCategorySlug(row.category_slug) || getCategoryGroupBySlug(row.category_slug);
+      if (categoryGroup) {
+        current.categoryGroups.set(categoryGroup.slug, categoryGroup.name);
+      }
+
+      if (row.product_condition) {
+        current.productConditions.add(String(row.product_condition));
+      }
+
+      if (row.availability) {
+        current.availabilityOptions.add(String(row.availability));
+      }
+
       statsByUserId.set(userId, current);
     }
 
     setStores(
       mappedStores.map((store) => {
-        const stats = statsByUserId.get(store.userId) || { activeAdsCount: 0, highlightedAdsCount: 0 };
+        const stats =
+          statsByUserId.get(store.userId) || {
+            activeAdsCount: 0,
+            highlightedAdsCount: 0,
+            categoryGroups: new Map<string, string>(),
+            productConditions: new Set<string>(),
+            availabilityOptions: new Set<string>(),
+          };
         return {
           ...store,
           activeAdsCount: stats.activeAdsCount,
           highlightedAdsCount: stats.highlightedAdsCount,
+          categoryGroups: Array.from(stats.categoryGroups.entries())
+            .map(([slug, name]) => ({ slug, name }))
+            .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR')),
+          productConditions: Array.from(stats.productConditions).sort((left, right) => left.localeCompare(right, 'pt-BR')),
+          availabilityOptions: Array.from(stats.availabilityOptions).sort((left, right) => left.localeCompare(right, 'pt-BR')),
         };
       })
     );

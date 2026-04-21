@@ -1,30 +1,66 @@
 import React, { useMemo, useState } from 'react';
-import { Search, SlidersHorizontal, Store, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Search, SlidersHorizontal, Store, X } from 'lucide-react';
 import { usePublicSellerStoresCatalog } from '../src/hooks/useSellerStore';
 
 const sortOptions = {
   recent: 'Mais recentes',
   name: 'Nome da loja',
   ads_desc: 'Mais anúncios',
+  highlighted_desc: 'Mais destaques',
 } as const;
 
 type SortKey = keyof typeof sortOptions;
+
+const conditionLabels: Record<string, string> = {
+  novo: 'Novo',
+  seminovo: 'Seminovo',
+  usado: 'Usado',
+};
+
+const availabilityLabels: Record<string, string> = {
+  pronta_entrega: 'Pronta entrega',
+  sob_encomenda: 'Sob encomenda',
+  consultar_estoque: 'Consultar estoque',
+};
 
 const PartnerStoresView: React.FC = () => {
   const { stores, isLoading, error } = usePublicSellerStoresCatalog();
   const [searchTerm, setSearchTerm] = useState('');
   const [stateFilter, setStateFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [conditionFilter, setConditionFilter] = useState('all');
+  const [availabilityFilter, setAvailabilityFilter] = useState('all');
+  const [onlyWithAds, setOnlyWithAds] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('recent');
 
   const stateOptions = useMemo(() => {
     return Array.from(
-      new Set(
-        stores
-          .map((store) => store.state?.trim())
-          .filter((value): value is string => Boolean(value))
-      )
+      new Set(stores.map((store) => store.state?.trim()).filter((value): value is string => Boolean(value)))
     ).sort((left, right) => left.localeCompare(right, 'pt-BR'));
+  }, [stores]);
+
+  const categoryOptions = useMemo(() => {
+    const categories = new Map<string, string>();
+    stores.forEach((store) => {
+      store.categoryGroups.forEach((category) => categories.set(category.slug, category.name));
+    });
+
+    return Array.from(categories.entries())
+      .map(([slug, name]) => ({ slug, name }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+  }, [stores]);
+
+  const conditionOptions = useMemo(() => {
+    return Array.from(new Set(stores.flatMap((store) => store.productConditions))).sort((left, right) =>
+      (conditionLabels[left] || left).localeCompare(conditionLabels[right] || right, 'pt-BR')
+    );
+  }, [stores]);
+
+  const availabilityOptions = useMemo(() => {
+    return Array.from(new Set(stores.flatMap((store) => store.availabilityOptions))).sort((left, right) =>
+      (availabilityLabels[left] || left).localeCompare(availabilityLabels[right] || right, 'pt-BR')
+    );
   }, [stores]);
 
   const filteredStores = useMemo(() => {
@@ -38,24 +74,40 @@ const PartnerStoresView: React.FC = () => {
           .some((value) => String(value).toLowerCase().includes(normalizedSearch));
 
       const matchesState = stateFilter === 'all' || store.state === stateFilter;
+      const matchesCategory = categoryFilter === 'all' || store.categoryGroups.some((category) => category.slug === categoryFilter);
+      const matchesCondition = conditionFilter === 'all' || store.productConditions.includes(conditionFilter);
+      const matchesAvailability = availabilityFilter === 'all' || store.availabilityOptions.includes(availabilityFilter);
+      const matchesActiveAds = !onlyWithAds || store.activeAdsCount > 0;
 
-      return matchesSearch && matchesState;
+      return matchesSearch && matchesState && matchesCategory && matchesCondition && matchesAvailability && matchesActiveAds;
     });
 
     return filtered.sort((left, right) => {
       if (sortBy === 'name') return left.storeName.localeCompare(right.storeName, 'pt-BR');
       if (sortBy === 'ads_desc') return right.activeAdsCount - left.activeAdsCount;
+      if (sortBy === 'highlighted_desc') return right.highlightedAdsCount - left.highlightedAdsCount;
       return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
     });
-  }, [searchTerm, sortBy, stateFilter, stores]);
+  }, [availabilityFilter, categoryFilter, conditionFilter, onlyWithAds, searchTerm, sortBy, stateFilter, stores]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setStateFilter('all');
+    setCategoryFilter('all');
+    setConditionFilter('all');
+    setAvailabilityFilter('all');
+    setOnlyWithAds(false);
     setSortBy('recent');
   };
 
-  const hasActiveFilters = searchTerm.trim().length > 0 || stateFilter !== 'all' || sortBy !== 'recent';
+  const hasActiveFilters =
+    searchTerm.trim().length > 0 ||
+    stateFilter !== 'all' ||
+    categoryFilter !== 'all' ||
+    conditionFilter !== 'all' ||
+    availabilityFilter !== 'all' ||
+    onlyWithAds ||
+    sortBy !== 'recent';
 
   return (
     <div className="min-h-screen bg-[#f5f7fb]">
@@ -71,7 +123,7 @@ const PartnerStoresView: React.FC = () => {
               Presença Profissional no Agro
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
-              Explore lojas com presença institucional, catálogo organizado e identidade própria — tudo para apresentar produtos com mais credibilidade e profissionalismo.
+              Explore lojas com presença institucional, catálogo organizado e identidade própria, tudo para apresentar produtos com mais credibilidade e profissionalismo.
             </p>
           </div>
         </div>
@@ -89,7 +141,7 @@ const PartnerStoresView: React.FC = () => {
                   </span>
                   <h2 className="mt-3 text-xl font-black text-slate-900">Explore as lojas</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Busque por nome da empresa e refine por estado para encontrar parceiros mais próximos do seu negócio.
+                    Busque por empresa e refine por estado, categoria e perfil dos anúncios para encontrar parceiros mais próximos do seu negócio.
                   </p>
                 </div>
 
@@ -123,9 +175,7 @@ const PartnerStoresView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">
-                    Estado
-                  </label>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Estado</label>
                   <select
                     value={stateFilter}
                     onChange={(event) => setStateFilter(event.target.value)}
@@ -141,9 +191,65 @@ const PartnerStoresView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">
-                    Ordenação
-                  </label>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Categoria</label>
+                  <select
+                    value={categoryFilter}
+                    onChange={(event) => setCategoryFilter(event.target.value)}
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
+                  >
+                    <option value="all">Todas</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category.slug} value={category.slug}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Condição do item</label>
+                  <select
+                    value={conditionFilter}
+                    onChange={(event) => setConditionFilter(event.target.value)}
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
+                  >
+                    <option value="all">Todas</option>
+                    {conditionOptions.map((condition) => (
+                      <option key={condition} value={condition}>
+                        {conditionLabels[condition] || condition}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Disponibilidade</label>
+                  <select
+                    value={availabilityFilter}
+                    onChange={(event) => setAvailabilityFilter(event.target.value)}
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white"
+                  >
+                    <option value="all">Todas</option>
+                    {availabilityOptions.map((availability) => (
+                      <option key={availability} value={availability}>
+                        {availabilityLabels[availability] || availability}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <label className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                  <span>Somente lojas com anúncios ativos</span>
+                  <input
+                    type="checkbox"
+                    checked={onlyWithAds}
+                    onChange={(event) => setOnlyWithAds(event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                </label>
+
+                <div>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Ordenação</label>
                   <select
                     value={sortBy}
                     onChange={(event) => setSortBy(event.target.value as SortKey)}
@@ -218,6 +324,21 @@ const PartnerStoresView: React.FC = () => {
                       <h3 className="text-sm font-medium text-slate-500 transition group-hover:text-slate-700">
                         {store.storeName}
                       </h3>
+                      <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
+                        {store.activeAdsCount > 0 ? (
+                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">
+                            {store.activeAdsCount} anúncio{store.activeAdsCount > 1 ? 's' : ''}
+                          </span>
+                        ) : null}
+                        {store.categoryGroups.slice(0, 1).map((category) => (
+                          <span
+                            key={category.slug}
+                            className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500"
+                          >
+                            {category.name}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </Link>
                 ))}

@@ -8,6 +8,7 @@ import {
   ChevronDown,
   FileCheck,
   FolderTree,
+  Gift,
   LayoutDashboard,
   Megaphone,
   MonitorSmartphone,
@@ -99,6 +100,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'Campanhas',
       path: '/admin/campaigns',
       icon: Megaphone,
+    },
+    {
+      label: 'Promo\u00e7\u00f5es',
+      path: '/admin/promotions',
+      icon: Gift,
     },
     {
       label: 'Layout',

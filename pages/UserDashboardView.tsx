@@ -92,6 +92,7 @@ const UserDashboardView: React.FC = () => {
     usage,
     isLoading: subscriptionLoading,
     refreshUsage,
+    refetch: refetchSubscription,
     effectiveLeadContactLimitDays,
   } = useSubscription();
   const [userAds, setUserAds] = useState<Ad[]>([]);
@@ -1651,6 +1652,8 @@ const UserDashboardView: React.FC = () => {
     const { plansRaw } = usePlans();
     const { alerts } = useRadar();
     const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+    const [promotionCode, setPromotionCode] = useState('');
+    const [isRedeemingPromotion, setIsRedeemingPromotion] = useState(false);
 
     const activePlans = useMemo(
       () => plansRaw.filter((plan) => plan.is_active).sort((a, b) => a.position - b.position),
@@ -1759,6 +1762,41 @@ const UserDashboardView: React.FC = () => {
       return highlights.slice(0, 3);
     };
 
+    const handleRedeemPromotionCode = async () => {
+      const cleanCode = promotionCode.trim().toUpperCase();
+
+      if (!cleanCode) {
+        sonnerToast.error('Informe um c\u00f3digo promocional.');
+        return;
+      }
+
+      if (!user?.id) {
+        sonnerToast.error('Fa\u00e7a login para resgatar um c\u00f3digo promocional.');
+        return;
+      }
+
+      setIsRedeemingPromotion(true);
+
+      try {
+        const { data, error } = await supabase.rpc('redeem_promotion_plan_code', {
+          p_code: cleanCode,
+        });
+
+        if (error) throw error;
+
+        const planName = data?.plan_name ? ` Plano ${data.plan_name} liberado.` : '';
+        sonnerToast.success(`C\u00f3digo resgatado com sucesso.${planName}`);
+        setPromotionCode('');
+        await refetchSubscription();
+        await refreshUsage();
+      } catch (error: any) {
+        console.error('[MyPlanDashboard] Erro ao resgatar codigo promocional:', error);
+        sonnerToast.error(error?.message || 'N\u00e3o foi poss\u00edvel resgatar o c\u00f3digo promocional.');
+      } finally {
+        setIsRedeemingPromotion(false);
+      }
+    };
+
     return (
       <div className="space-y-6">
         <section className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#f8fafc_0%,#ffffff_38%,#ecfdf5_100%)] p-6 shadow-[0_30px_80px_-48px_rgba(15,23,42,0.35)]">
@@ -1788,6 +1826,40 @@ const UserDashboardView: React.FC = () => {
                   Aproveite até {effectiveLeadContactLimitDays ?? 0} dias para responder interessados e fechar negócios.
                 </p>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[24px] border border-emerald-100 bg-[linear-gradient(135deg,#ffffff_0%,#f0fdf4_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(22,163,74,0.3)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-green-700">C&oacute;digo promocional</p>
+              <h3 className="mt-2 text-lg font-bold text-slate-900">Resgate benef&iacute;cios de plano</h3>
+              <p className="mt-1 max-w-2xl text-sm text-slate-600">
+                Se voc&ecirc; recebeu um c&oacute;digo da equipe AGRO BW, informe abaixo para ativar o plano ou per&iacute;odo promocional.
+              </p>
+            </div>
+
+            <div className="flex w-full flex-col gap-2 sm:max-w-md sm:flex-row">
+              <input
+                value={promotionCode}
+                onChange={(event) => setPromotionCode(event.target.value.toUpperCase())}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void handleRedeemPromotionCode();
+                  }
+                }}
+                className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold uppercase text-slate-800 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
+                placeholder="AGRO-XXXX"
+              />
+              <button
+                type="button"
+                onClick={() => void handleRedeemPromotionCode()}
+                disabled={isRedeemingPromotion}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-green-700 px-4 text-sm font-semibold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isRedeemingPromotion ? 'Resgatando...' : 'Resgatar'}
+              </button>
             </div>
           </div>
         </section>

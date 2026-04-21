@@ -47,6 +47,49 @@ interface PendingEditRequest {
 
 type ModerationTab = 'announcements' | 'edits';
 const PAGE_SIZE = 20;
+const ANNOUNCEMENT_EDIT_SELECT =
+  'id,title,description,price,unit_price,quantity,unit,currency,category_id,category_slug,sub_category_id,sub_category_label,status,created_at,user_id,city,state,cep,product_condition,availability,accepts_trade,has_warranty,warranty_details,has_invoice,images,video_url,video_storage_path,video_duration_seconds,video_size_bytes,is_premium,whatsapp';
+const EDITABLE_ANNOUNCEMENT_FIELDS = new Set([
+  'title',
+  'description',
+  'price',
+  'unit_price',
+  'quantity',
+  'unit',
+  'currency',
+  'category_id',
+  'category_slug',
+  'sub_category_id',
+  'sub_category_label',
+  'city',
+  'state',
+  'cep',
+  'product_condition',
+  'availability',
+  'accepts_trade',
+  'has_warranty',
+  'warranty_details',
+  'has_invoice',
+  'images',
+  'video_url',
+  'video_storage_path',
+  'video_duration_seconds',
+  'video_size_bytes',
+  'is_premium',
+  'whatsapp',
+]);
+
+const normalizeComparableValue = (value: unknown) => {
+  if (Array.isArray(value) || (value && typeof value === 'object')) return JSON.stringify(value);
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+  if (value === undefined || value === null) return '';
+  return String(value);
+};
+
+const sanitizeAnnouncementPayload = (payload: Record<string, any> = {}) =>
+  Object.fromEntries(
+    Object.entries(payload).filter(([key, value]) => EDITABLE_ANNOUNCEMENT_FIELDS.has(key) && value !== undefined)
+  );
 
 const ModerationQueue: React.FC = () => {
   const { logAction } = useAdminAudit();
@@ -198,13 +241,48 @@ const ModerationQueue: React.FC = () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
       const reviewerId = authData.user?.id || null;
-      const { data: updatedAnnouncement, error: announcementError } = await supabase
-        .from('announcements')
-        .update(request.payload || {})
-        .eq('id', request.announcement_id)
-        .select('id,title,description,category_slug,price,status,created_at,user_id,images')
-        .single();
-      if (announcementError) throw announcementError;
+      const sanitizedPayload = sanitizeAnnouncementPayload(request.payload || {});
+      let updatedAnnouncement: PendingAnnouncement | null = request.announcement;
+
+      if (Object.keys(sanitizedPayload).length > 0) {
+        const { data: updateData, error: announcementError } = await supabase
+          .from('announcements')
+          .update(sanitizedPayload)
+          .eq('id', request.announcement_id)
+          .select(ANNOUNCEMENT_EDIT_SELECT)
+          .maybeSingle();
+
+        if (announcementError) throw announcementError;
+
+        updatedAnnouncement = (updateData as PendingAnnouncement | null) || null;
+
+        if (!updatedAnnouncement) {
+          const { data: fetchedAnnouncement, error: fetchError } = await supabase
+            .from('announcements')
+            .select(ANNOUNCEMENT_EDIT_SELECT)
+            .eq('id', request.announcement_id)
+            .maybeSingle();
+
+          if (fetchError) throw fetchError;
+          updatedAnnouncement = (fetchedAnnouncement as PendingAnnouncement | null) || null;
+        }
+
+        if (!updatedAnnouncement) {
+          throw new Error('Anuncio original nao encontrado ou sem permissao para atualizacao.');
+        }
+
+        const changedFields = Object.keys(sanitizedPayload);
+        const updateWasApplied = changedFields.every((field) => {
+          const expected = normalizeComparableValue(sanitizedPayload[field]);
+          const current = normalizeComparableValue((updatedAnnouncement as Record<string, any>)[field]);
+          return expected === current;
+        });
+
+        if (!updateWasApplied) {
+          throw new Error('A alteracao nao foi confirmada no banco. Verifique as permissoes do administrador para editar anuncios.');
+        }
+      }
+
       await supabase.from('announcement_technical_details').delete().eq('announcement_id', request.announcement_id);
       const details = (request.technical_details || []).map((detail) => ({ announcement_id: request.announcement_id, label: detail.label, value: detail.value, icon_name: detail.icon_name || 'Circle' }));
       if (details.length > 0) {
@@ -226,7 +304,7 @@ const ModerationQueue: React.FC = () => {
           technical_details: request.current_technical_details || [],
         },
         newValue: {
-          ...(updatedAnnouncement || request.payload),
+          ...(updatedAnnouncement || sanitizedPayload),
           technical_details: request.technical_details || [],
         },
         reason: `Edicao do anuncio "${request.announcement.title}" aprovada pela moderacao`,
