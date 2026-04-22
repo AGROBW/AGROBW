@@ -20,6 +20,9 @@ const isFreeMonthlyOnlyPlan = (plan: Plan) => (plan.monthly_price ?? 0) <= 0 && 
 const formatNumericValue = (value: number | null | undefined, suffix = '') => value === null || value === undefined ? 'Sob consulta' : `${value}${suffix}`;
 const formatComparisonValue = (value: unknown): string | boolean => typeof value === 'boolean' ? value : value === null || value === undefined || value === '' ? '-' : String(value);
 const humanizeComparisonKey = (key: string) => key.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, (char) => char.toUpperCase());
+const normalizePlanName = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+const isStartSignupPlan = (plan: Pick<Plan, 'name' | 'is_default_signup_plan'>) =>
+  plan.is_default_signup_plan || ['start', 'start agro'].includes(normalizePlanName(plan.name || ''));
 
 const PricingView: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
@@ -29,6 +32,19 @@ const PricingView: React.FC = () => {
   const { user } = useAuth();
   const { settings } = useLayout();
   const { boosters, summary: boosterSummary, isLoading: boostersLoading, refresh: refreshBoosters } = useHighlightBoosters();
+  const visiblePricingFaq = useMemo(
+    () => PRICING_FAQ
+      .filter((faq) => faq.question !== 'Posso cancelar minha assinatura a qualquer momento?')
+      .map((faq) => (
+        faq.question === 'Existe limite de anÃºncios por conta?'
+          ? {
+              ...faq,
+              answer: 'No plano gratuito, há limitação de anúncios ativos. Já nos planos pagos, é possível manter múltiplos anúncios simultaneamente.',
+            }
+          : faq
+      )),
+    []
+  );
 
   const scrollToSection = (sectionId: string) => {
     if (typeof document === 'undefined') return;
@@ -81,8 +97,18 @@ const PricingView: React.FC = () => {
     return summary;
   };
   const getComparisonValue = (plan: Plan, row: ComparisonRow) => formatComparisonValue(plan.comparison?.[row.id] ?? row.getValue(plan));
+  const hasConsumedStartPlan = Boolean(user?.startPlanConsumedAt);
+  const isStartPlanLockedForUser = (plan: Plan) => Boolean(user && hasConsumedStartPlan && isStartSignupPlan(plan));
 
   const handleSubscribe = async (planId: string, planName: string, monthlyPrice: number, yearlyPrice: number, description?: string | null) => {
+    const selectedPlan = plansRaw.find((plan) => plan.id === planId);
+    if (selectedPlan && isStartPlanLockedForUser(selectedPlan)) {
+      toast.error('O plano Start está disponível apenas no cadastro.', {
+        duration: 5000,
+      });
+      return;
+    }
+
     if (isCustomPlan(planName)) return void window.open(getCustomPlanContactLink(planName), '_blank');
     if (!user) {
       toast.error('Voce precisa estar logado para assinar um plano.');
@@ -278,6 +304,7 @@ const PricingView: React.FC = () => {
                   const yearlySavings = calculateYearlySavings(plan.monthly_price, plan.yearly_price);
                   const summary = getPlanSummary(plan);
                   const popular = plan.is_popular;
+                  const startPlanLocked = isStartPlanLockedForUser(plan);
                   return (
                     <div
                       key={plan.id}
@@ -333,6 +360,12 @@ const PricingView: React.FC = () => {
                         ))}
                       </ul>
 
+                      {startPlanLocked && (
+                        <div className="mx-7 mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                          Plano disponível apenas no cadastro. Sua conta já consumiu o benefício inicial.
+                        </div>
+                      )}
+
                       {/* footer caption */}
                       {plan.show_footer_card !== false && plan.footer_caption?.trim() && (
                         <div
@@ -347,15 +380,21 @@ const PricingView: React.FC = () => {
                       <div className="mt-auto px-7 pb-7 pt-6">
                         <button
                           onClick={() => handleSubscribe(plan.id, plan.name, plan.monthly_price, plan.yearly_price, plan.description)}
-                          disabled={loadingPlanId === plan.id}
+                          disabled={loadingPlanId === plan.id || startPlanLocked}
                           className={`flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-black transition-all disabled:cursor-not-allowed disabled:opacity-70 ${
-                            popular ? 'text-white' : 'bg-slate-900 text-white hover:bg-slate-700'
+                            startPlanLocked
+                              ? 'bg-slate-200 text-slate-500'
+                              : popular
+                                ? 'text-white'
+                                : 'bg-slate-900 text-white hover:bg-slate-700'
                           }`}
-                          style={popular ? { backgroundColor: settings.primaryColor } : undefined}
+                          style={popular && !startPlanLocked ? { backgroundColor: settings.primaryColor } : undefined}
                         >
                           {loadingPlanId === plan.id
                             ? <><Loader2 className="h-4 w-4 animate-spin" />Processando...</>
-                            : <>{plan.button_text || 'Assinar'} {getBillingCycleLabel(billingCycle)} <ArrowRight className="h-4 w-4" /></>}
+                            : startPlanLocked
+                              ? <>Disponível apenas no cadastro</>
+                              : <>{plan.button_text || 'Assinar'} {getBillingCycleLabel(billingCycle)} <ArrowRight className="h-4 w-4" /></>}
                         </button>
                       </div>
                     </div>
@@ -568,7 +607,7 @@ const PricingView: React.FC = () => {
             <p className="mt-3 text-sm text-slate-500">Tudo o que você precisa saber sobre os planos e assinaturas BWAGRO.</p>
           </div>
           <div className="space-y-3">
-            {PRICING_FAQ.map((faq, idx) => (
+              {visiblePricingFaq.map((faq, idx) => (
               <div key={idx} className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-shadow hover:shadow-md">
                 <button
                   onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}

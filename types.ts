@@ -179,6 +179,7 @@ export interface User {
   twoFactorEnabled?: boolean;
   isAdmin?: boolean;
   credits?: number;
+  startPlanConsumedAt?: string | null;
 }
 
 export type DocumentReviewStatus = 'not_submitted' | 'pending' | 'approved' | 'rejected';

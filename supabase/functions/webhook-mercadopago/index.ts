@@ -71,6 +71,12 @@ const resolvePlanValidityDays = (
   yearlyDays: number | null | undefined
 ) => (billingCycle === 'yearly' ? yearlyDays ?? 365 : monthlyDays ?? 30);
 
+const normalizePlanName = (value: string) =>
+  value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+const isStartSignupPlan = (plan?: { name?: string | null; is_default_signup_plan?: boolean | null }) =>
+  Boolean(plan?.is_default_signup_plan) || ['start', 'start agro'].includes(normalizePlanName(plan?.name || ''));
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return textResponse('ok');
@@ -282,7 +288,7 @@ serve(async (req) => {
       if (itemType === 'plan' && planId) {
         const { data: selectedPlan, error: selectedPlanError } = await supabaseAdmin
           .from('plans')
-          .select('plan_validity_days_monthly, plan_validity_days_yearly')
+          .select('name, is_default_signup_plan, plan_validity_days_monthly, plan_validity_days_yearly')
           .eq('id', planId)
           .maybeSingle();
 
@@ -298,6 +304,42 @@ serve(async (req) => {
             .eq('id', webhookLog?.id);
 
           return textResponse('Failed to load plan', 500);
+        }
+
+        if (isStartSignupPlan(selectedPlan)) {
+          const { data: profile, error: profileError } = await supabaseAdmin
+            .from('users')
+            .select('start_plan_consumed_at')
+            .eq('id', userId)
+            .maybeSingle();
+
+          if (profileError) {
+            console.error('Failed to validate Start plan eligibility:', profileError);
+
+            await supabaseAdmin
+              .from('webhook_logs')
+              .update({
+                processed: false,
+                error_message: profileError.message,
+              })
+              .eq('id', webhookLog?.id);
+
+            return textResponse('Failed to validate plan eligibility', 500);
+          }
+
+          if (profile?.start_plan_consumed_at) {
+            await supabaseAdmin
+              .from('webhook_logs')
+              .update({
+                processed: true,
+                processed_at: new Date().toISOString(),
+                status_code: 403,
+                error_message: 'Start plan already consumed by user',
+              })
+              .eq('id', webhookLog?.id);
+
+            return textResponse('Start plan already consumed', 403);
+          }
         }
 
         const { data: activeSubscription } = await supabaseAdmin

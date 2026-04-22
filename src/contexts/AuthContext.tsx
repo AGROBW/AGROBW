@@ -171,7 +171,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         avatar: userData.avatar,
         plan: userData.plan,
         isAdmin: userData.is_admin ?? false,
-        credits: userData.credits ?? 0
+        credits: userData.credits ?? 0,
+        startPlanConsumedAt: userData.start_plan_consumed_at ?? null
       }
 
       if (!canSetState || canSetState()) {

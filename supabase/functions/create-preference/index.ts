@@ -18,6 +18,7 @@ interface PlanRecord {
   yearly_price: number;
   is_active: boolean;
   button_text: string;
+  is_default_signup_plan?: boolean | null;
 }
 
 interface BoosterRecord {
@@ -49,6 +50,12 @@ const resolveAmount = (plan: PlanRecord, billingCycle: 'monthly' | 'yearly') => 
   const amount = billingCycle === 'yearly' ? plan.yearly_price : plan.monthly_price;
   return Number(amount || 0);
 };
+
+const normalizePlanName = (value: string) =>
+  value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+const isStartSignupPlan = (plan: PlanRecord) =>
+  Boolean(plan.is_default_signup_plan) || ['start', 'start agro'].includes(normalizePlanName(plan.name || ''));
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -187,7 +194,7 @@ serve(async (req) => {
     } else {
       const { data: plan, error: planError } = await supabaseAdmin
         .from('plans')
-        .select('id, name, description, monthly_price, yearly_price, is_active, button_text')
+        .select('id, name, description, monthly_price, yearly_price, is_active, button_text, is_default_signup_plan')
         .eq('id', planId)
         .maybeSingle();
 
@@ -210,6 +217,35 @@ serve(async (req) => {
           },
           400
         );
+      }
+
+      if (isStartSignupPlan(plan as PlanRecord)) {
+        const { data: profile, error: profileError } = await supabaseAdmin
+          .from('users')
+          .select('start_plan_consumed_at')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profileError) {
+          return jsonResponse(
+            {
+              success: false,
+              error: 'Nao foi possivel validar elegibilidade do plano.',
+              details: profileError.message,
+            },
+            500
+          );
+        }
+
+        if (profile?.start_plan_consumed_at) {
+          return jsonResponse(
+            {
+              success: false,
+              error: 'O plano Start esta disponivel apenas uma vez, no cadastro.',
+            },
+            403
+          );
+        }
       }
 
       amount = resolveAmount(plan as PlanRecord, billingCycle);

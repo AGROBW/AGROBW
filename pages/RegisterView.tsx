@@ -14,6 +14,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useLayout } from '../src/contexts/LayoutContext';
+import { supabase } from '../src/lib/supabaseClient';
 
 type ProfileType = 'individual' | 'company' | null;
 
@@ -159,6 +160,19 @@ const RegisterView: React.FC = () => {
     });
   };
 
+  const isDocumentAvailable = async (documentDigits: string) => {
+    const { data, error } = await supabase.rpc('is_document_available', {
+      p_document: documentDigits,
+    });
+
+    if (error) {
+      console.error('[Register] Erro ao validar duplicidade do documento:', error);
+      return true;
+    }
+
+    return data !== false;
+  };
+
   useEffect(() => {
     if (user) {
       navigate('/minha-conta', { replace: true });
@@ -241,6 +255,16 @@ const RegisterView: React.FC = () => {
       const documentLabel = getDocumentLabel();
       setErrors(prev => ({ ...prev, document: `${documentLabel} inválido` }));
       toast.error(`${documentLabel} inválido`);
+      return;
+    }
+
+    const documentAvailable = await isDocumentAvailable(documentDigits);
+    if (!documentAvailable) {
+      const documentLabel = getDocumentLabel();
+      const message = `${documentLabel} já cadastrado em outra conta.`;
+      setDocumentTouched(true);
+      setErrors(prev => ({ ...prev, document: message }));
+      toast.error(message);
       return;
     }
 
