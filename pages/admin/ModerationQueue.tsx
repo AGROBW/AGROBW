@@ -11,18 +11,33 @@ interface PendingAnnouncement {
   title: string;
   description: string;
   category?: string;
+  category_id?: string | null;
   category_slug?: string;
+  sub_category_id?: string | null;
+  sub_category_label?: string | null;
   price: number;
+  unit_price?: number | null;
+  quantity?: number | null;
+  unit?: string | null;
+  currency?: string | null;
   status: string;
   created_at: string;
   user_id: string;
   city?: string | null;
   state?: string | null;
+  cep?: string | null;
   product_condition?: string | null;
   availability?: string | null;
   accepts_trade?: boolean | null;
   has_warranty?: boolean | null;
+  warranty_details?: string | null;
   has_invoice?: boolean | null;
+  video_url?: string | null;
+  video_storage_path?: string | null;
+  video_duration_seconds?: number | null;
+  video_size_bytes?: number | null;
+  is_premium?: boolean | null;
+  whatsapp?: string | null;
   publication_review_reasons?: unknown;
   publication_review_severity?: string | null;
   owner?: { name: string; email: string; phone: string };
@@ -87,6 +102,34 @@ const sanitizeAnnouncementPayload = (payload: Record<string, any> = {}) =>
     Object.entries(payload).filter(([key, value]) => EDITABLE_ANNOUNCEMENT_FIELDS.has(key) && value !== undefined)
   );
 
+const conditionLabels: Record<string, string> = {
+  novo: 'Novo',
+  seminovo: 'Seminovo',
+  usado: 'Usado',
+};
+
+const availabilityLabels: Record<string, string> = {
+  pronta_entrega: 'Pronta entrega',
+  sob_encomenda: 'Sob encomenda',
+  consultar_estoque: 'Consultar estoque',
+};
+
+const getValueOrFallback = (value: unknown, fallback = 'Não informado') => {
+  if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+  const normalized = String(value ?? '').trim();
+  return normalized || fallback;
+};
+
+const formatCondition = (value: unknown) => {
+  const normalized = String(value ?? '').trim();
+  return conditionLabels[normalized] || getValueOrFallback(normalized);
+};
+
+const formatAvailability = (value: unknown) => {
+  const normalized = String(value ?? '').trim();
+  return availabilityLabels[normalized] || getValueOrFallback(normalized);
+};
+
 const ModerationQueue: React.FC = () => {
   const { logAction } = useAdminAudit();
   const [activeTab, setActiveTab] = useState<ModerationTab>('announcements');
@@ -120,7 +163,7 @@ const ModerationQueue: React.FC = () => {
     if (ids.length === 0) return new Map<string, PendingAnnouncement>();
     const { data, error } = await supabase
       .from('announcements')
-      .select('id,title,description,category_slug,price,status,created_at,user_id,city,state,product_condition,availability,accepts_trade,has_warranty,has_invoice,images')
+      .select(ANNOUNCEMENT_EDIT_SELECT)
       .in('id', ids);
     if (error) throw error;
     return new Map(((data || []) as PendingAnnouncement[]).map((item) => [item.id, item]));
@@ -375,15 +418,61 @@ const ModerationQueue: React.FC = () => {
   };
   const getEditRequestGroupLabel = (request: PendingEditRequest) => getCategoryGroupBySlug(String(request.payload?.category_slug || request.announcement?.category_slug || ''))?.name || request.announcement?.category || 'Categoria';
   const getEditHighlights = (request: PendingEditRequest) => {
-    const current = request.announcement; if (!current) return ['Anuncio indisponivel'];
+    const current = request.announcement; if (!current) return ['Anúncio indisponível'];
     const next = request.payload || {}; const changes: string[] = [];
-    if ((next.title || '') !== (current.title || '')) changes.push('Titulo');
-    if ((next.description || '') !== (current.description || '')) changes.push('Descricao');
-    if (Number(next.price ?? current.price) !== Number(current.price)) changes.push('Preco');
+    if ((next.title || '') !== (current.title || '')) changes.push('Título');
+    if ((next.description || '') !== (current.description || '')) changes.push('Descrição');
+    if (Number(next.price ?? current.price) !== Number(current.price)) changes.push('Preço');
     if ((next.category_slug || current.category_slug || '') !== (current.category_slug || '')) changes.push('Categoria');
-    if (JSON.stringify(next.images || current.images || []) !== JSON.stringify(current.images || [])) changes.push('Midia');
-    if ((request.technical_details || []).length > 0) changes.push('Ficha tecnica');
+    if ((next.sub_category_label || current.sub_category_label || '') !== (current.sub_category_label || '')) changes.push('Subcategoria');
+    if (
+      (next.product_condition ?? current.product_condition ?? '') !== (current.product_condition ?? '') ||
+      (next.availability ?? current.availability ?? '') !== (current.availability ?? '') ||
+      Boolean(next.accepts_trade ?? current.accepts_trade) !== Boolean(current.accepts_trade) ||
+      Boolean(next.has_warranty ?? current.has_warranty) !== Boolean(current.has_warranty) ||
+      (next.warranty_details ?? current.warranty_details ?? '') !== (current.warranty_details ?? '') ||
+      Boolean(next.has_invoice ?? current.has_invoice) !== Boolean(current.has_invoice)
+    ) changes.push('Informações comerciais');
+    if (JSON.stringify(next.images || current.images || []) !== JSON.stringify(current.images || [])) changes.push('Mídia');
+    if ((request.technical_details || []).length > 0) changes.push('Ficha técnica');
     return changes.length > 0 ? changes : ['Dados gerais'];
+  };
+
+  const getProposedValue = (request: PendingEditRequest, field: string) => {
+    if (Object.prototype.hasOwnProperty.call(request.payload || {}, field)) {
+      return request.payload?.[field];
+    }
+    return request.announcement?.[field as keyof PendingAnnouncement];
+  };
+
+  const formatCategory = (slug?: unknown) => {
+    const normalized = String(slug ?? '').trim();
+    if (!normalized) return 'Não informado';
+    return getCategoryGroupBySlug(normalized)?.name || normalized;
+  };
+
+  const buildCategoryRows = (request: PendingEditRequest, variant: 'current' | 'proposed') => {
+    const source = request.announcement;
+    const value = (field: string) => variant === 'current' ? source?.[field as keyof PendingAnnouncement] : getProposedValue(request, field);
+
+    return [
+      { label: 'Categoria', value: formatCategory(value('category_slug')) },
+      { label: 'Subcategoria', value: getValueOrFallback(value('sub_category_label')) },
+    ];
+  };
+
+  const buildCommercialRows = (request: PendingEditRequest, variant: 'current' | 'proposed') => {
+    const source = request.announcement;
+    const value = (field: string) => variant === 'current' ? source?.[field as keyof PendingAnnouncement] : getProposedValue(request, field);
+    return [
+      { label: 'Condição do item', value: formatCondition(value('product_condition')) },
+      { label: 'Disponibilidade', value: formatAvailability(value('availability')) },
+      { label: 'Aceita troca', value: getValueOrFallback(Boolean(value('accepts_trade'))) },
+      { label: 'Possui garantia', value: getValueOrFallback(Boolean(value('has_warranty'))) },
+      { label: 'Detalhes da garantia', value: getValueOrFallback(value('warranty_details')) },
+      { label: 'Emite nota fiscal', value: getValueOrFallback(Boolean(value('has_invoice'))) },
+      { label: 'WhatsApp comercial', value: getValueOrFallback(value('whatsapp')) },
+    ];
   };
 
   const buildEditComparisonRows = (request: PendingEditRequest) => {
@@ -399,33 +488,36 @@ const ModerationQueue: React.FC = () => {
       if (before !== after) {
         rows.push({
           label,
-          before: before || 'Nao informado',
-          after: after || 'Nao informado',
+          before: before || 'Não informado',
+          after: after || 'Não informado',
         });
       }
     };
 
-    pushRow('Titulo', current.title, next.title ?? current.title);
-    pushRow('Descricao', current.description, next.description ?? current.description);
-    pushRow('Preco', current.price, next.price ?? current.price);
-    pushRow('Categoria', current.category_slug, next.category_slug ?? current.category_slug);
+    pushRow('Título', current.title, next.title ?? current.title);
+    pushRow('Descrição', current.description, next.description ?? current.description);
+    pushRow('Preço', current.price, next.price ?? current.price);
+    pushRow('Categoria', formatCategory(current.category_slug), formatCategory(next.category_slug ?? current.category_slug));
+    pushRow('Subcategoria', current.sub_category_label ?? '', next.sub_category_label ?? current.sub_category_label ?? '');
     pushRow('Cidade', current.city ?? '', next.city ?? current.city ?? '');
     pushRow('Estado', current.state ?? '', next.state ?? current.state ?? '');
-    pushRow('Condicao', current.product_condition ?? '', next.product_condition ?? current.product_condition ?? '');
-    pushRow('Disponibilidade', current.availability ?? '', next.availability ?? current.availability ?? '');
-    pushRow('Aceita troca', current.accepts_trade ? 'Sim' : 'Nao', next.accepts_trade ? 'Sim' : 'Nao');
-    pushRow('Garantia', current.has_warranty ? 'Sim' : 'Nao', next.has_warranty ? 'Sim' : 'Nao');
-    pushRow('Nota fiscal', current.has_invoice ? 'Sim' : 'Nao', next.has_invoice ? 'Sim' : 'Nao');
+    pushRow('Condição do item', formatCondition(current.product_condition), formatCondition(next.product_condition ?? current.product_condition));
+    pushRow('Disponibilidade', formatAvailability(current.availability), formatAvailability(next.availability ?? current.availability));
+    pushRow('Aceita troca', current.accepts_trade ? 'Sim' : 'Não', (next.accepts_trade ?? current.accepts_trade) ? 'Sim' : 'Não');
+    pushRow('Garantia', current.has_warranty ? 'Sim' : 'Não', (next.has_warranty ?? current.has_warranty) ? 'Sim' : 'Não');
+    pushRow('Detalhes da garantia', current.warranty_details ?? '', next.warranty_details ?? current.warranty_details ?? '');
+    pushRow('Nota fiscal', current.has_invoice ? 'Sim' : 'Não', (next.has_invoice ?? current.has_invoice) ? 'Sim' : 'Não');
+    pushRow('WhatsApp comercial', current.whatsapp ?? '', next.whatsapp ?? current.whatsapp ?? '');
 
     const currentImages = Array.isArray(current.images) ? current.images.length : 0;
     const nextImages = Array.isArray(next.images) ? next.images.length : currentImages;
-    pushRow('Midia', `${currentImages} arquivo(s)`, `${nextImages} arquivo(s)`);
+    pushRow('Mídia', `${currentImages} arquivo(s)`, `${nextImages} arquivo(s)`);
 
     const currentTechnical = new Map((request.current_technical_details || []).map((item) => [item.label, item.value]));
     const nextTechnical = new Map((request.technical_details || []).map((item) => [item.label, item.value]));
     const labels = new Set([...currentTechnical.keys(), ...nextTechnical.keys()]);
     for (const label of labels) {
-      pushRow(`Ficha tecnica: ${label}`, currentTechnical.get(label) || '', nextTechnical.get(label) || '');
+      pushRow(`Ficha técnica: ${label}`, currentTechnical.get(label) || '', nextTechnical.get(label) || '');
     }
 
     return rows;
@@ -474,18 +566,18 @@ const ModerationQueue: React.FC = () => {
             <table className="w-full">
               <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Anuncio</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Alteracoes</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Anunciante</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Data</th><th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">Acoes</th></tr></thead>
               <tbody className="divide-y divide-slate-200">
-                {loading ? <tr><td colSpan={5} className="px-6 py-12 text-center"><div className="flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-green-600"></div></div></td></tr> : editRequests.length === 0 ? <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">Nenhuma edicao pendente de moderacao</td></tr> : editRequests.map((request) => {
-                  const currentTitle = request.announcement?.title || 'Anuncio indisponivel';
+                {loading ? <tr><td colSpan={5} className="px-6 py-12 text-center"><div className="flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-green-600"></div></div></td></tr> : editRequests.length === 0 ? <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">Nenhuma edição pendente de moderação</td></tr> : editRequests.map((request) => {
+                  const currentTitle = request.announcement?.title || 'Anúncio indisponível';
                   const proposedTitle = request.payload?.title || currentTitle;
                   const currentPrice = Number(request.announcement?.price || 0);
                   const proposedPrice = Number(request.payload?.price ?? currentPrice);
                   return (
                     <tr key={request.id} className="transition-colors hover:bg-slate-50">
-                      <td className="px-6 py-4"><div className="space-y-1"><div className="flex items-center gap-2"><span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-700"><PencilLine className="h-3.5 w-3.5" />Edicao</span><span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">{getEditRequestGroupLabel(request)}</span></div><p className="font-semibold text-slate-900">{currentTitle}</p>{proposedTitle !== currentTitle ? <p className="text-sm text-slate-500">Novo titulo: <span className="font-semibold text-slate-700">{proposedTitle}</span></p> : null}{proposedPrice !== currentPrice ? <p className="text-sm text-slate-500">Preco: <span className="font-semibold text-slate-700">R$ {currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span> para <span className="font-semibold text-green-700">R$ {proposedPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p> : null}</div></td>
+                      <td className="px-6 py-4"><div className="space-y-1"><div className="flex items-center gap-2"><span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-700"><PencilLine className="h-3.5 w-3.5" />Edição</span><span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">{getEditRequestGroupLabel(request)}</span></div><p className="font-semibold text-slate-900">{currentTitle}</p>{proposedTitle !== currentTitle ? <p className="text-sm text-slate-500">Novo título: <span className="font-semibold text-slate-700">{proposedTitle}</span></p> : null}{proposedPrice !== currentPrice ? <p className="text-sm text-slate-500">Preço: <span className="font-semibold text-slate-700">R$ {currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span> para <span className="font-semibold text-green-700">R$ {proposedPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p> : null}</div></td>
                       <td className="px-6 py-4"><div className="flex max-w-xs flex-wrap gap-2">{getEditHighlights(request).map((change) => <span key={change} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{change}</span>)}</div></td>
                       <td className="px-6 py-4"><div className="text-sm"><p className="font-semibold text-slate-900">{request.requester?.name}</p><p className="text-slate-500">{request.requester?.email}</p></div></td>
                       <td className="px-6 py-4 text-sm text-slate-500">{new Date(request.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-                      <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApproveEditRequest(request)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar edicao"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedAnnouncement(null); setSelectedEditRequest(request); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar edicao"><X className="h-5 w-5" /></button><button onClick={() => setSelectedEditRequest(request)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Ver antes e depois"><Eye className="h-5 w-5" /></button></div></td>
+                      <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApproveEditRequest(request)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar edição"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedAnnouncement(null); setSelectedEditRequest(request); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar edição"><X className="h-5 w-5" /></button><button onClick={() => setSelectedEditRequest(request)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Ver antes e depois"><Eye className="h-5 w-5" /></button></div></td>
                     </tr>
                   );
                 })}
@@ -501,13 +593,13 @@ const ModerationQueue: React.FC = () => {
 
       {selectedEditRequest && !showRejectModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-5xl rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Revisao de edicao</p>
-                <h3 className="mt-1 text-2xl font-black text-slate-900">{selectedEditRequest.announcement?.title || 'Anuncio indisponivel'}</h3>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Revisão de edição</p>
+                <h3 className="mt-1 text-2xl font-black text-slate-900">{selectedEditRequest.announcement?.title || 'Anúncio indisponível'}</h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Compare o anuncio atual com a versao enviada pelo anunciante antes de aprovar.
+                  Compare o anúncio atual com a versão enviada pelo anunciante antes de aprovar.
                 </p>
               </div>
               <button
@@ -522,18 +614,40 @@ const ModerationQueue: React.FC = () => {
 
             <div className="mt-6 grid gap-6 lg:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Versao atual</p>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Versão atual</p>
                 <div className="mt-4 space-y-3 text-sm text-slate-700">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Titulo</p>
-                    <p className="mt-1 font-semibold text-slate-900">{selectedEditRequest.announcement?.title || 'Nao informado'}</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Título</p>
+                    <p className="mt-1 font-semibold text-slate-900">{selectedEditRequest.announcement?.title || 'Não informado'}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Descricao</p>
-                    <p className="mt-1 whitespace-pre-wrap">{selectedEditRequest.announcement?.description || 'Nao informado'}</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Descrição</p>
+                    <p className="mt-1 whitespace-pre-wrap">{selectedEditRequest.announcement?.description || 'Não informado'}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Ficha tecnica</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Categoria e subcategoria</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {buildCategoryRows(selectedEditRequest, 'current').map((item) => (
+                        <div key={`current-category-${item.label}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                          <p className="text-xs font-semibold text-slate-400">{item.label}</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-700">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Informações comerciais da loja</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {buildCommercialRows(selectedEditRequest, 'current').map((item) => (
+                        <div key={`current-commercial-${item.label}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                          <p className="text-xs font-semibold text-slate-400">{item.label}</p>
+                          <p className="mt-1 text-sm text-slate-700">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Especificações técnicas</p>
                     <div className="mt-2 space-y-2">
                       {(selectedEditRequest.current_technical_details || []).length > 0 ? (
                         selectedEditRequest.current_technical_details?.map((detail) => (
@@ -543,7 +657,7 @@ const ModerationQueue: React.FC = () => {
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm text-slate-500">Sem ficha tecnica cadastrada.</p>
+                        <p className="text-sm text-slate-500">Sem especificações técnicas cadastradas.</p>
                       )}
                     </div>
                   </div>
@@ -551,18 +665,40 @@ const ModerationQueue: React.FC = () => {
               </div>
 
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Versao proposta</p>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Versão proposta</p>
                 <div className="mt-4 space-y-3 text-sm text-slate-700">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Titulo</p>
-                    <p className="mt-1 font-semibold text-slate-900">{selectedEditRequest.payload?.title || selectedEditRequest.announcement?.title || 'Nao informado'}</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Título</p>
+                    <p className="mt-1 font-semibold text-slate-900">{selectedEditRequest.payload?.title || selectedEditRequest.announcement?.title || 'Não informado'}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Descricao</p>
-                    <p className="mt-1 whitespace-pre-wrap">{selectedEditRequest.payload?.description || selectedEditRequest.announcement?.description || 'Nao informado'}</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Descrição</p>
+                    <p className="mt-1 whitespace-pre-wrap">{selectedEditRequest.payload?.description || selectedEditRequest.announcement?.description || 'Não informado'}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Ficha tecnica</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Categoria e subcategoria</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {buildCategoryRows(selectedEditRequest, 'proposed').map((item) => (
+                        <div key={`next-category-${item.label}`} className="rounded-xl border border-emerald-200 bg-white px-3 py-2">
+                          <p className="text-xs font-semibold text-slate-400">{item.label}</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-700">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Informações comerciais da loja</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {buildCommercialRows(selectedEditRequest, 'proposed').map((item) => (
+                        <div key={`next-commercial-${item.label}`} className="rounded-xl border border-emerald-200 bg-white px-3 py-2">
+                          <p className="text-xs font-semibold text-slate-400">{item.label}</p>
+                          <p className="mt-1 text-sm text-slate-700">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Especificações técnicas</p>
                     <div className="mt-2 space-y-2">
                       {(selectedEditRequest.technical_details || []).length > 0 ? (
                         selectedEditRequest.technical_details?.map((detail) => (
@@ -572,7 +708,7 @@ const ModerationQueue: React.FC = () => {
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm text-slate-500">Sem ficha tecnica proposta.</p>
+                        <p className="text-sm text-slate-500">Sem especificações técnicas propostas.</p>
                       )}
                     </div>
                   </div>
@@ -583,13 +719,17 @@ const ModerationQueue: React.FC = () => {
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Resumo do que muda</p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
-                {buildEditComparisonRows(selectedEditRequest).map((row) => (
+                {buildEditComparisonRows(selectedEditRequest).length > 0 ? buildEditComparisonRows(selectedEditRequest).map((row) => (
                   <div key={row.label} className="rounded-xl border border-slate-200 p-4">
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{row.label}</p>
                     <p className="mt-2 text-sm text-slate-500">Antes: <span className="font-semibold text-slate-700">{row.before}</span></p>
                     <p className="mt-1 text-sm text-slate-500">Depois: <span className="font-semibold text-emerald-700">{row.after}</span></p>
                   </div>
-                ))}
+                )) : (
+                  <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 md:col-span-2">
+                    Nenhuma diferença textual encontrada. Revise também imagens, vídeos e anexos antes de aprovar.
+                  </p>
+                )}
               </div>
             </div>
 

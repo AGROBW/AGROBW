@@ -910,7 +910,7 @@ const UserDashboardView: React.FC = () => {
       { id: 'active', label: 'Ativos', count: counts.active },
       { id: 'pending', label: 'Em Análise', count: counts.pending },
       { id: 'paused', label: 'Pausados', count: counts.paused },
-      { id: 'blocked', label: 'ExcluÃ­dos', count: counts.blocked }
+      { id: 'blocked', label: 'Excluídos', count: counts.blocked }
     ] as const;
 
     const statusLabel: Record<string, string> = {
@@ -922,7 +922,7 @@ const UserDashboardView: React.FC = () => {
       [AdStatus.SOLD]: 'Vendido'
     };
 
-    // Handlers para aÃ§Ãµes
+    // Handlers para ações
     const getAdDurationLabel = (ad: Ad) => {
       if (!ad.expiresAt) {
         return 'Expiração não informada';
@@ -1060,8 +1060,8 @@ const UserDashboardView: React.FC = () => {
       if (isBlocked) {
         toast.error(
           type === 'category'
-            ? 'Destaque bloqueado: este anuncio ja esta destacado na Home e nao pode receber destaque em Categoria ao mesmo tempo.'
-            : 'Destaque bloqueado: este anuncio ja esta destacado em Categoria e nao pode receber destaque na Home ao mesmo tempo.'
+        ? 'Destaque bloqueado: este anúncio já está destacado na Home e não pode receber destaque em Categoria ao mesmo tempo.'
+        : 'Destaque bloqueado: este anúncio já está destacado em Categoria e não pode receber destaque na Home ao mesmo tempo.'
         );
         return;
       }
@@ -1129,7 +1129,7 @@ const UserDashboardView: React.FC = () => {
             >
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">Booster avulso</p>
-                <h3 className="mt-1 text-base font-semibold text-slate-900">Compre mais creditos de destaque sem trocar de plano</h3>
+                <h3 className="mt-1 text-base font-semibold text-slate-900">Compre mais créditos de destaque sem trocar de plano</h3>
                 <p className="mt-1 text-sm text-slate-500">
                   Clique para {isBoosterExpanded ? 'ocultar' : 'ver'} detalhes e comprar o combo.
                 </p>
@@ -1239,7 +1239,7 @@ const UserDashboardView: React.FC = () => {
                       Código: {ad.id} | Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     <p className="text-xs text-slate-500 truncate">
-                      Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} as {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {ad.status === AdStatus.EXPIRED ? getExpiredRetentionLabel(ad) : `Anuncio ${getAdLifetimeLabel(ad).toLowerCase()}`}
+                            Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {ad.status === AdStatus.EXPIRED ? getExpiredRetentionLabel(ad) : `Anúncio ${getAdLifetimeLabel(ad).toLowerCase()}`}
                       {getHighlightLifetimeLabel(ad) ? ` | Destaque ${getHighlightLifetimeLabel(ad).replace('Categoria', 'categoria').replace('Home', 'home')}` : ''}
                     </p>
                     <p className="text-xs text-slate-500">
@@ -1280,7 +1280,7 @@ const UserDashboardView: React.FC = () => {
                               ? 'cursor-not-allowed text-slate-300'
                               : 'hover:bg-blue-50 hover:text-blue-700'
                           }`} 
-                          title={categoryBlocked ? 'Indisponivel: este anuncio ja esta destacado na Home' : 'Destaque na categoria'}
+                          title={categoryBlocked ? 'Indisponível: este anúncio já está destacado na Home' : 'Destaque na categoria'}
                         >
                           <TrendingUp className="w-4 h-4" strokeWidth={1.5} />
                         </button>
@@ -1296,7 +1296,7 @@ const UserDashboardView: React.FC = () => {
                               ? 'cursor-not-allowed text-slate-300'
                               : 'hover:bg-amber-50 hover:text-amber-700'
                           }`} 
-                          title={homeBlocked ? 'Indisponivel: este anuncio ja esta destacado em Categoria' : 'Destaque na home'}
+                          title={homeBlocked ? 'Indisponível: este anúncio já está destacado em Categoria' : 'Destaque na home'}
                         >
                           <Sparkles className="w-4 h-4" strokeWidth={1.5} />
                         </button>
@@ -1313,11 +1313,11 @@ const UserDashboardView: React.FC = () => {
                           navigate(`/anunciar?edit=${ad.id}`);
                         }}
                         className="p-2 rounded-lg hover:bg-slate-50 hover:text-green-700 transition-colors" 
-                        title="Editar anÃºncio"
+                        title="Editar anúncio"
                       >
                         <Edit3 className="w-4 h-4" strokeWidth={1.5} />
                       </button>
-                      {/* BotÃ£o Pausar/Reativar */}
+                      {/* Botão Pausar/Reativar */}
                       {ad.status === AdStatus.EXPIRED ? (
                         <button 
                           onClick={(e) => {
@@ -1326,7 +1326,7 @@ const UserDashboardView: React.FC = () => {
                             handleRepublishExpiredAd(ad);
                           }}
                           className="p-2 rounded-lg hover:bg-green-50 hover:text-green-700 transition-colors"
-                          title="Republicar com novo credito"
+                          title="Republicar com novo crédito"
                         >
                           <CreditCard className="w-4 h-4" strokeWidth={1.5} />
                         </button>
@@ -1347,7 +1347,7 @@ const UserDashboardView: React.FC = () => {
                         <PauseCircle className="w-4 h-4" strokeWidth={1.5} />
                       </button>
                       )}
-                      {/* BotÃ£o Excluir */}
+                      {/* Botão Excluir */}
                       <button 
                         onClick={(e) => {
                           e.preventDefault();
@@ -1355,7 +1355,7 @@ const UserDashboardView: React.FC = () => {
                           handleDeleteClick(ad);
                         }}
                         className="p-2 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors" 
-                        title="Excluir anÃºncio"
+                        title="Excluir anúncio"
                       >
                         <Trash2 className="w-4 h-4" strokeWidth={1.5} />
                       </button>
