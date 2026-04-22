@@ -383,6 +383,7 @@ const AdCreationView: React.FC = () => {
   const isEditingExistingAd = Boolean(editAdId);
   const hasStoreListingAccess = !!subscription?.plans?.has_seller_store;
   const normalizeTechnicalLabel = (value: string) => slugify(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const normalizeSubcategoryValue = (value: string) => slugify(value).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   const hasConservationStateField = technicalFieldsSchema.some((field: any) =>
     normalizeTechnicalLabel(field.label || field.key || '') === 'estado_de_conservacao'
   );
@@ -747,6 +748,42 @@ const AdCreationView: React.FC = () => {
     };
     loadSubcategories();
   }, [formData.categoryId]);
+
+  useEffect(() => {
+    if (!formData.categoryId || dbSubcategories.length === 0) return;
+
+    const currentId = String(formData.subCategoryId || '').trim();
+    const currentLabel = String(formData.subCategoryLabel || '').trim();
+    if (!currentId && !currentLabel) return;
+
+    const normalizedCurrentId = normalizeSubcategoryValue(currentId);
+    const normalizedCurrentLabel = normalizeSubcategoryValue(currentLabel);
+    const matchedSubcategory = dbSubcategories.find((subcategory) => (
+      subcategory.id === currentId ||
+      subcategory.slug === currentId ||
+      normalizeSubcategoryValue(subcategory.slug) === normalizedCurrentId ||
+      normalizeSubcategoryValue(subcategory.name) === normalizedCurrentLabel ||
+      normalizeSubcategoryValue(subcategory.name) === normalizedCurrentId
+    ));
+
+    if (!matchedSubcategory) {
+      if (!currentId && currentLabel) {
+        setFormData((prev: any) => ({
+          ...prev,
+          subCategoryId: normalizeSubcategoryValue(currentLabel),
+          subCategoryLabel: currentLabel,
+        }));
+      }
+      return;
+    }
+    if (formData.subCategoryId === matchedSubcategory.id && formData.subCategoryLabel === matchedSubcategory.name) return;
+
+    setFormData((prev: any) => ({
+      ...prev,
+      subCategoryId: matchedSubcategory.id,
+      subCategoryLabel: matchedSubcategory.name,
+    }));
+  }, [dbSubcategories, formData.categoryId, formData.subCategoryId, formData.subCategoryLabel]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -1856,6 +1893,11 @@ const AdCreationView: React.FC = () => {
                   className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-green-600 outline-none"
                 >
                   <option value="">Selecione uma subcategoria</option>
+                  {formData.subCategoryId && !dbSubcategories.some(sub => sub.id === formData.subCategoryId) && (
+                    <option value={formData.subCategoryId}>
+                      {formData.subCategoryLabel || 'Subcategoria atual'}
+                    </option>
+                  )}
                   {dbSubcategories.map(sub => (
                     <option key={sub.id} value={sub.id}>{sub.name}</option>
                   ))}
