@@ -130,6 +130,57 @@ serve(async (req) => {
 
     if (itemType === 'booster') {
       const effectiveBoosterId = boosterId || planId;
+      const { data: activeSubscription, error: activeSubscriptionError } = await supabaseAdmin
+        .from('user_subscriptions')
+        .select(`
+          status,
+          current_period_end,
+          plan:plans(
+            id,
+            name,
+            monthly_price,
+            yearly_price,
+            is_downgrade_plan
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('current_period_end', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (activeSubscriptionError) {
+        return jsonResponse(
+          {
+            success: false,
+            error: 'Nao foi possivel validar o plano ativo para compra do booster.',
+            details: activeSubscriptionError.message,
+          },
+          500
+        );
+      }
+
+      const activePlan = Array.isArray((activeSubscription as any)?.plan)
+        ? (activeSubscription as any)?.plan?.[0] ?? null
+        : (activeSubscription as any)?.plan ?? null;
+      const hasEligiblePaidPlan =
+        !!activePlan &&
+        !activePlan.is_downgrade_plan &&
+        (Number(activePlan.monthly_price ?? 0) > 0 || Number(activePlan.yearly_price ?? 0) > 0);
+
+      if (!hasEligiblePaidPlan) {
+        return jsonResponse(
+          {
+            success: false,
+            error: 'Booster disponivel apenas para assinantes com plano pago ativo.',
+            details: activePlan?.name
+              ? `Plano atual: ${activePlan.name}`
+              : 'Nenhum plano pago ativo elegivel encontrado.',
+          },
+          403
+        );
+      }
+
       const { data: booster, error: boosterError } = await supabaseAdmin
         .from('highlight_boosters')
         .select('id, name, description, monthly_price, is_active, button_text, max_purchases_per_30_days')

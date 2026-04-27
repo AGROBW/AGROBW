@@ -546,6 +546,10 @@ export interface HighlightBoosterSummary {
   homeRemaining: number;
   purchasesLast30Days: number;
   canPurchase: boolean;
+  requiresPaidPlan?: boolean;
+  hasEligiblePaidPlan?: boolean;
+  currentPlanName?: string | null;
+  blockedReason?: string | null;
 }
 
 export interface FiscalSettings {

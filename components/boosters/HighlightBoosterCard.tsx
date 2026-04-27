@@ -30,6 +30,8 @@ const HighlightBoosterCard: React.FC<HighlightBoosterCardProps> = ({
   const purchasesLeft = Math.max(0, booster.maxPurchasesPer30Days - (summary?.purchasesLast30Days || 0));
   const totalExtraCredits = booster.categoryCredits + booster.homeCredits;
   const shouldShowAccountSummary = showAccountSummary && !!summary;
+  const isBlockedByPlan = Boolean(summary?.requiresPaidPlan && summary?.hasEligiblePaidPlan === false);
+  const isBlockedByLimit = Boolean(summary && !isBlockedByPlan && !summary.canPurchase);
 
   if (compact) {
     return (
@@ -89,6 +91,16 @@ const HighlightBoosterCard: React.FC<HighlightBoosterCardProps> = ({
             >
               {loading ? 'Processando...' : booster.buttonText || 'Comprar booster'}
             </button>
+            {isBlockedByPlan ? (
+              <p className="text-xs font-medium text-amber-600">
+                {summary?.blockedReason || 'Booster disponivel apenas para assinantes com plano pago ativo.'}
+              </p>
+            ) : null}
+            {isBlockedByLimit ? (
+              <p className="text-xs font-medium text-amber-600">
+                Limite de compra do booster atingido nos ultimos 30 dias.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

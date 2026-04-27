@@ -663,6 +663,11 @@ const UserDashboardView: React.FC = () => {
       return;
     }
 
+    if (boosterSummary.requiresPaidPlan && boosterSummary.hasEligiblePaidPlan === false) {
+      toast.error(boosterSummary.blockedReason || 'Booster disponivel apenas para assinantes com plano pago ativo.');
+      return;
+    }
+
     if (!boosterSummary.canPurchase) {
       toast.error('Voce atingiu o limite de 2 boosters a cada 30 dias.');
       return;

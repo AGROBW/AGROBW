@@ -151,6 +151,9 @@ const PricingView: React.FC = () => {
       setTimeout(() => { window.location.href = '/#/login?redirect=/pricing'; }, 1500);
       return;
     }
+    if (boosterSummary.requiresPaidPlan && boosterSummary.hasEligiblePaidPlan === false) {
+      return void toast.error(boosterSummary.blockedReason || 'Booster disponivel apenas para assinantes com plano pago ativo.');
+    }
     if (!boosterSummary.canPurchase) return void toast.error('Voce atingiu o limite de 2 boosters a cada 30 dias.');
     setLoadingPlanId(`booster-${booster.id}`);
     toast.loading('Preparando checkout do booster...', { id: 'booster-checkout-loading' });

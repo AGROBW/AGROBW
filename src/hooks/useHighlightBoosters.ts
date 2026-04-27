@@ -59,6 +59,10 @@ export const useHighlightBoosters = () => {
     homeRemaining: 0,
     purchasesLast30Days: 0,
     canPurchase: true,
+    requiresPaidPlan: true,
+    hasEligiblePaidPlan: false,
+    currentPlanName: null,
+    blockedReason: null,
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -86,11 +90,19 @@ export const useHighlightBoosters = () => {
         homeRemaining: 0,
         purchasesLast30Days: 0,
         canPurchase: true,
+        requiresPaidPlan: true,
+        hasEligiblePaidPlan: false,
+        currentPlanName: null,
+        blockedReason: null,
       });
       return;
     }
 
-    const [{ data: purchasesData, error: purchasesError }, { data: summaryData, error: summaryError }] =
+    const [
+      { data: purchasesData, error: purchasesError },
+      { data: summaryData, error: summaryError },
+      { data: activeSubscriptionData, error: activeSubscriptionError },
+    ] =
       await Promise.all([
         supabase
           .from('user_highlight_booster_purchases')
@@ -98,6 +110,24 @@ export const useHighlightBoosters = () => {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
         supabase.rpc('get_my_highlight_booster_summary'),
+        supabase
+          .from('user_subscriptions')
+          .select(`
+            status,
+            current_period_end,
+            plan:plans(
+              id,
+              name,
+              monthly_price,
+              yearly_price,
+              is_downgrade_plan
+            )
+          `)
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .order('current_period_end', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
 
     if (purchasesError) {
@@ -114,9 +144,28 @@ export const useHighlightBoosters = () => {
         homeRemaining: 0,
         purchasesLast30Days: 0,
         canPurchase: true,
+        requiresPaidPlan: true,
+        hasEligiblePaidPlan: false,
+        currentPlanName: null,
+        blockedReason: null,
       });
       return;
     }
+
+    if (activeSubscriptionError) {
+      console.error('[useHighlightBoosters] Erro ao carregar plano ativo para booster:', activeSubscriptionError);
+    }
+
+    const activePlan = Array.isArray((activeSubscriptionData as any)?.plan)
+      ? (activeSubscriptionData as any)?.plan?.[0] ?? null
+      : (activeSubscriptionData as any)?.plan ?? null;
+    const hasEligiblePaidPlan =
+      !!activePlan &&
+      !activePlan.is_downgrade_plan &&
+      (Number(activePlan.monthly_price ?? 0) > 0 || Number(activePlan.yearly_price ?? 0) > 0);
+    const blockedReason = hasEligiblePaidPlan
+      ? null
+      : 'Booster disponivel apenas para assinantes com plano pago ativo.';
 
     const activeBooster = (boosters[0] || null);
     const limit = activeBooster?.maxPurchasesPer30Days ?? 2;
@@ -126,7 +175,11 @@ export const useHighlightBoosters = () => {
       categoryRemaining: Number(summaryData.category_remaining ?? 0),
       homeRemaining: Number(summaryData.home_remaining ?? 0),
       purchasesLast30Days: recentPurchasesCount,
-      canPurchase: recentPurchasesCount < limit,
+      canPurchase: hasEligiblePaidPlan && recentPurchasesCount < limit,
+      requiresPaidPlan: true,
+      hasEligiblePaidPlan,
+      currentPlanName: activePlan?.name ?? null,
+      blockedReason,
     });
   };
 
