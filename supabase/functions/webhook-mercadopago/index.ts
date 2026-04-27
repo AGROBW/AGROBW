@@ -75,7 +75,7 @@ const normalizePlanName = (value: string) =>
   value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
 const isStartSignupPlan = (plan?: { name?: string | null; is_default_signup_plan?: boolean | null }) =>
-  Boolean(plan?.is_default_signup_plan) || ['start', 'start agro'].includes(normalizePlanName(plan?.name || ''));
+  Boolean(plan?.is_default_signup_plan) || ['start', 'start agro', 'safra'].includes(normalizePlanName(plan?.name || ''));
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {

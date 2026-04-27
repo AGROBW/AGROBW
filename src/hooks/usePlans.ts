@@ -134,6 +134,14 @@ export const usePlans = () => {
     try {
       // Encontrar maior position atual
       const maxPosition = plansRaw.length > 0 ? Math.max(...plansRaw.map(p => p.position)) : 0;
+      const hasDefaultSignupPlan = plansRaw.some((plan) => plan.is_default_signup_plan);
+
+      if (!planData.is_default_signup_plan && !hasDefaultSignupPlan) {
+        return {
+          error: 'Defina um plano padrao no cadastro antes de salvar.',
+          data: null,
+        };
+      }
 
       if (planData.is_default_signup_plan) {
         const { error: resetDefaultError } = await supabase
@@ -187,6 +195,20 @@ export const usePlans = () => {
 
   const updatePlan = async (id: string, updates: UpdatePlanData): Promise<{ error: string | null; data: Plan | null }> => {
     try {
+      const currentPlan = plansRaw.find((plan) => plan.id === id);
+      const otherDefaultSignupPlans = plansRaw.filter((plan) => plan.id !== id && plan.is_default_signup_plan);
+
+      if (
+        currentPlan?.is_default_signup_plan &&
+        updates.is_default_signup_plan === false &&
+        otherDefaultSignupPlans.length === 0
+      ) {
+        return {
+          error: 'Precisa existir ao menos um plano padrao no cadastro.',
+          data: null,
+        };
+      }
+
       if (updates.is_default_signup_plan) {
         const { error: resetDefaultError } = await supabase
           .from('plans')
@@ -241,6 +263,13 @@ export const usePlans = () => {
 
   const deletePlan = async (id: string): Promise<{ error: string | null }> => {
     try {
+      const currentPlan = plansRaw.find((plan) => plan.id === id);
+      const otherDefaultSignupPlans = plansRaw.filter((plan) => plan.id !== id && plan.is_default_signup_plan);
+
+      if (currentPlan?.is_default_signup_plan && otherDefaultSignupPlans.length === 0) {
+        return { error: 'Nao e possivel excluir o unico plano padrao do cadastro.' };
+      }
+
       const { error: deleteError } = await supabase
         .from('plans')
         .delete()

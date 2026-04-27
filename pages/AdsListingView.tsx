@@ -19,7 +19,40 @@ type ShowcaseStatsRow = {
   last_seen_at: string | null;
 };
 
+type CategoryRankingSettings = {
+  novelty_boost_48h: number;
+  novelty_boost_7d: number;
+  freshness_multiplier: number;
+  quality_multiplier: number;
+  engagement_multiplier: number;
+  verification_weight: number;
+  home_highlight_weight: number;
+  active_plan_base_weight: number;
+  active_plan_price_multiplier: number;
+  active_plan_price_cap: number;
+  stale_penalty_7d: number;
+  stale_penalty_14d: number;
+  stale_penalty_30d: number;
+  seller_rotation_limit: number;
+};
+
 const CATEGORY_SHOWCASE_BATCH_SIZE = 12;
+const DEFAULT_CATEGORY_RANKING_SETTINGS: CategoryRankingSettings = {
+  novelty_boost_48h: 10,
+  novelty_boost_7d: 5,
+  freshness_multiplier: 1,
+  quality_multiplier: 1,
+  engagement_multiplier: 1,
+  verification_weight: 16,
+  home_highlight_weight: 220,
+  active_plan_base_weight: 300,
+  active_plan_price_multiplier: 100,
+  active_plan_price_cap: 120,
+  stale_penalty_7d: 4,
+  stale_penalty_14d: 10,
+  stale_penalty_30d: 18,
+  seller_rotation_limit: 2,
+};
 
 const normalize = (value?: string | null) =>
   String(value || '')
@@ -31,6 +64,113 @@ const normalize = (value?: string | null) =>
 
 const isHighlightActive = (value?: boolean, until?: string | null) =>
   Boolean(value) && (!until || new Date(until).getTime() > Date.now());
+
+const getHoursAgo = (dateValue?: string | null) => {
+  if (!dateValue) return Number.POSITIVE_INFINITY;
+  const timestamp = new Date(dateValue).getTime();
+  if (Number.isNaN(timestamp)) return Number.POSITIVE_INFINITY;
+  return (Date.now() - timestamp) / (1000 * 60 * 60);
+};
+
+const getAnnouncementQualityBaseScore = (ad: Ad) => {
+  let score = 0;
+
+  const imageCount = ad.images?.filter(Boolean).length || 0;
+  if (imageCount >= 5) score += 22;
+  else if (imageCount >= 3) score += 18;
+  else if (imageCount >= 1) score += 8;
+  else score -= 18;
+
+  const descriptionLength = (ad.description || '').trim().length;
+  if (descriptionLength >= 220) score += 18;
+  else if (descriptionLength >= 120) score += 12;
+  else if (descriptionLength >= 60) score += 6;
+  else score -= 10;
+
+  if (Number.isFinite(ad.price) && ad.price > 0) score += 10;
+  else score -= 6;
+
+  if (ad.categoryId || ad.categorySlug) score += 6;
+  if (ad.subCategoryId || ad.subCategoryLabel) score += 4;
+
+  return score;
+};
+
+const getAnnouncementFreshnessBaseScore = (ad: Ad) => {
+  let score = 0;
+  const updatedHoursAgo = getHoursAgo(ad.updatedAt || ad.createdAt);
+  const createdHoursAgo = getHoursAgo(ad.createdAt);
+
+  if (updatedHoursAgo <= 48) score += 12;
+  else if (updatedHoursAgo <= 24 * 7) score += 8;
+  else if (updatedHoursAgo <= 24 * 30) score += 4;
+
+  if (createdHoursAgo <= 48) score += 6;
+  else if (createdHoursAgo <= 24 * 7) score += 3;
+
+  return score;
+};
+
+const getAnnouncementNoveltyBoostScore = (ad: Ad, settings: CategoryRankingSettings) => {
+  const createdHoursAgo = getHoursAgo(ad.createdAt);
+
+  if (createdHoursAgo <= 48) return settings.novelty_boost_48h;
+  if (createdHoursAgo <= 24 * 7) return settings.novelty_boost_7d;
+  return 0;
+};
+
+const getAnnouncementRecentEngagementScore = (ad: Ad, settings: CategoryRankingSettings) => {
+  const recentViews = Number(ad.recentViews || 0);
+  const recentUniqueVisitors = Number(ad.recentUniqueVisitors || 0);
+  const recentLeads = Number(ad.recentLeads || 0);
+  let score = 0;
+
+  score += Math.min(recentViews * 2, 28);
+  score += Math.min(recentUniqueVisitors * 3, 36);
+  score += Math.min(recentLeads * 18, 72);
+
+  const lastEngagementHoursAgo = getHoursAgo(ad.lastEngagementAt);
+  if (lastEngagementHoursAgo <= 48) score += 10;
+  else if (lastEngagementHoursAgo <= 24 * 7) score += 6;
+  else if (lastEngagementHoursAgo <= 24 * 14) score += 3;
+
+  const updatedHoursAgo = getHoursAgo(ad.updatedAt || ad.createdAt);
+  const hasRecentEngagement = recentViews > 0 || recentUniqueVisitors > 0 || recentLeads > 0;
+
+  if (!hasRecentEngagement) {
+    if (updatedHoursAgo > 24 * 30) score -= settings.stale_penalty_30d;
+    else if (updatedHoursAgo > 24 * 14) score -= settings.stale_penalty_14d;
+    else if (updatedHoursAgo > 24 * 7) score -= settings.stale_penalty_7d;
+  }
+
+  return score * settings.engagement_multiplier;
+};
+
+const getAnnouncementCommercialScore = (ad: Ad, settings: CategoryRankingSettings) => {
+  let score = 0;
+
+  const planMonthlyPrice = Number(ad.sellerPlanMonthlyPrice || 0);
+  if (planMonthlyPrice > 0) {
+    score += settings.active_plan_base_weight;
+    score += Math.min(planMonthlyPrice * settings.active_plan_price_multiplier, settings.active_plan_price_cap);
+  }
+
+  if (isHighlightActive(ad.highlightHome, ad.highlightHomeUntil)) {
+    score += settings.home_highlight_weight;
+  }
+
+  score += getAnnouncementQualityBaseScore(ad) * settings.quality_multiplier;
+  score += getAnnouncementRecentEngagementScore(ad, settings);
+
+  if (ad.seller?.document_verified) {
+    score += settings.verification_weight;
+  }
+
+  score += getAnnouncementFreshnessBaseScore(ad) * settings.freshness_multiplier;
+  score += getAnnouncementNoveltyBoostScore(ad, settings);
+
+  return score;
+};
 
 const getDailyRotationSeed = (categorySeed: string) => {
   const now = new Date();
@@ -46,6 +186,56 @@ const getDeterministicRotationScore = (ad: Ad, seed: string) => {
   }
 
   return hash;
+};
+
+const rebalanceAdsBySellerRotation = (ads: Ad[], seed: string, maxConsecutivePerSeller = 2) => {
+  if (ads.length <= 2) return ads;
+
+  const remaining = [...ads];
+  const result: Ad[] = [];
+
+  while (remaining.length > 0) {
+    const recentSellerIds = result
+      .slice(-maxConsecutivePerSeller)
+      .map((ad) => ad.userId)
+      .filter(Boolean);
+
+    const blockedSellerId =
+      recentSellerIds.length === maxConsecutivePerSeller &&
+      recentSellerIds.every((sellerId) => sellerId === recentSellerIds[0])
+        ? recentSellerIds[0]
+        : null;
+
+    let nextIndex = remaining.findIndex((ad) => ad.userId !== blockedSellerId);
+
+    if (nextIndex === -1) {
+      nextIndex = 0;
+    } else if (blockedSellerId) {
+      const candidateSellerId = remaining[nextIndex]?.userId;
+      if (candidateSellerId) {
+        const sameSellerCandidates = remaining
+          .map((ad, index) => ({ ad, index }))
+          .filter((entry) => entry.ad.userId === candidateSellerId);
+
+        if (sameSellerCandidates.length > 1) {
+          sameSellerCandidates.sort((left, right) => {
+            const leftScore = getDeterministicRotationScore(left.ad, seed);
+            const rightScore = getDeterministicRotationScore(right.ad, seed);
+            if (leftScore !== rightScore) return leftScore - rightScore;
+            return left.index - right.index;
+          });
+
+          nextIndex = sameSellerCandidates[0].index;
+        }
+      }
+    }
+
+    const [nextAd] = remaining.splice(nextIndex, 1);
+    if (!nextAd) break;
+    result.push(nextAd);
+  }
+
+  return result;
 };
 
 const AdsListingView: React.FC = () => {
@@ -90,6 +280,7 @@ const AdsListingView: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [categoryShowcaseStats, setCategoryShowcaseStats] = useState<Record<string, ShowcaseStatsRow>>({});
+  const [rankingSettings, setRankingSettings] = useState<CategoryRankingSettings>(DEFAULT_CATEGORY_RANKING_SETTINGS);
   const impressionSignatureRef = useRef<string>('');
   const [requestRotationSeed] = useState(() => `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
@@ -97,6 +288,45 @@ const AdsListingView: React.FC = () => {
     category: catSlug || undefined,
     search: queryTerm || undefined,
   });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRankingSettings = async () => {
+      const { data, error: settingsError } = await supabase.rpc('get_public_category_ranking_settings');
+
+      if (settingsError) {
+        console.warn('[AdsListingView] Erro ao carregar configuracoes publicas do ranking de categoria:', settingsError);
+        return;
+      }
+
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row || cancelled) return;
+
+      setRankingSettings({
+        novelty_boost_48h: Number(row.novelty_boost_48h ?? DEFAULT_CATEGORY_RANKING_SETTINGS.novelty_boost_48h),
+        novelty_boost_7d: Number(row.novelty_boost_7d ?? DEFAULT_CATEGORY_RANKING_SETTINGS.novelty_boost_7d),
+        freshness_multiplier: Number(row.freshness_multiplier ?? DEFAULT_CATEGORY_RANKING_SETTINGS.freshness_multiplier),
+        quality_multiplier: Number(row.quality_multiplier ?? DEFAULT_CATEGORY_RANKING_SETTINGS.quality_multiplier),
+        engagement_multiplier: Number(row.engagement_multiplier ?? DEFAULT_CATEGORY_RANKING_SETTINGS.engagement_multiplier),
+        verification_weight: Number(row.verification_weight ?? DEFAULT_CATEGORY_RANKING_SETTINGS.verification_weight),
+        home_highlight_weight: Number(row.home_highlight_weight ?? DEFAULT_CATEGORY_RANKING_SETTINGS.home_highlight_weight),
+        active_plan_base_weight: Number(row.active_plan_base_weight ?? DEFAULT_CATEGORY_RANKING_SETTINGS.active_plan_base_weight),
+        active_plan_price_multiplier: Number(row.active_plan_price_multiplier ?? DEFAULT_CATEGORY_RANKING_SETTINGS.active_plan_price_multiplier),
+        active_plan_price_cap: Number(row.active_plan_price_cap ?? DEFAULT_CATEGORY_RANKING_SETTINGS.active_plan_price_cap),
+        stale_penalty_7d: Number(row.stale_penalty_7d ?? DEFAULT_CATEGORY_RANKING_SETTINGS.stale_penalty_7d),
+        stale_penalty_14d: Number(row.stale_penalty_14d ?? DEFAULT_CATEGORY_RANKING_SETTINGS.stale_penalty_14d),
+        stale_penalty_30d: Number(row.stale_penalty_30d ?? DEFAULT_CATEGORY_RANKING_SETTINGS.stale_penalty_30d),
+        seller_rotation_limit: Number(row.seller_rotation_limit ?? DEFAULT_CATEGORY_RANKING_SETTINGS.seller_rotation_limit),
+      });
+    };
+
+    void loadRankingSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredAds = useMemo(() => {
     return ads.filter((ad) => {
@@ -261,6 +491,7 @@ const AdsListingView: React.FC = () => {
 
   const regularAds = useMemo(() => {
     const nextAds = [...regularAdsBase];
+    const shouldApplyCommercialRanking = sortBy === 'recent' && Boolean(catSlug);
 
     nextAds.sort((a, b) => {
       const aHome = isHighlightActive(a.highlightHome, a.highlightHomeUntil) ? 1 : 0;
@@ -279,11 +510,55 @@ const AdsListingView: React.FC = () => {
         return b.views - a.views;
       }
 
+      if (shouldApplyCommercialRanking) {
+        const scoreA = getAnnouncementCommercialScore(a, rankingSettings);
+        const scoreB = getAnnouncementCommercialScore(b, rankingSettings);
+
+        if (scoreA !== scoreB) {
+          return scoreB - scoreA;
+        }
+
+        const imageDelta = (b.images?.filter(Boolean).length || 0) - (a.images?.filter(Boolean).length || 0);
+        if (imageDelta !== 0) return imageDelta;
+
+        const descriptionDelta = (b.description?.trim().length || 0) - (a.description?.trim().length || 0);
+        if (descriptionDelta !== 0) return descriptionDelta;
+
+        const leadsDelta = Number(b.recentLeads || 0) - Number(a.recentLeads || 0);
+        if (leadsDelta !== 0) return leadsDelta;
+
+        const uniqueVisitorsDelta = Number(b.recentUniqueVisitors || 0) - Number(a.recentUniqueVisitors || 0);
+        if (uniqueVisitorsDelta !== 0) return uniqueVisitorsDelta;
+
+        const recentViewsDelta = Number(b.recentViews || 0) - Number(a.recentViews || 0);
+        if (recentViewsDelta !== 0) return recentViewsDelta;
+
+        if (Boolean(b.seller?.document_verified) !== Boolean(a.seller?.document_verified)) {
+          return Number(Boolean(b.seller?.document_verified)) - Number(Boolean(a.seller?.document_verified));
+        }
+
+        const lastEngagementDelta =
+          new Date(b.lastEngagementAt || 0).getTime() - new Date(a.lastEngagementAt || 0).getTime();
+        if (lastEngagementDelta !== 0) return lastEngagementDelta;
+
+        const updatedDelta =
+          new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
+        if (updatedDelta !== 0) return updatedDelta;
+      }
+
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
+    if (shouldApplyCommercialRanking) {
+      return rebalanceAdsBySellerRotation(
+        nextAds,
+        `${dailyRotationSeed}:${requestRotationSeed}:seller-rotation`,
+        Math.max(1, rankingSettings.seller_rotation_limit)
+      );
+    }
+
     return nextAds;
-  }, [regularAdsBase, sortBy]);
+  }, [regularAdsBase, sortBy, catSlug, dailyRotationSeed, requestRotationSeed, rankingSettings]);
 
   const stateOptions = useMemo(
     () =>

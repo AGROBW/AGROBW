@@ -94,7 +94,7 @@ const sponsorLeadStatusLabelMap: Record<SponsorLeadStatus, string> = {
 
 const CampaignsManagement: React.FC = () => {
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
-  const [sponsorLeads, setSponsorLeads] = useState<SponsorInterestLeadRecord[]>([]);
+  const [sponsorLeads] = useState<SponsorInterestLeadRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isQueueing, setIsQueueing] = useState(false);
@@ -137,7 +137,6 @@ const CampaignsManagement: React.FC = () => {
         campaignsResult,
         newsletterCountResult,
         platformCountResult,
-        sponsorLeadsResult,
       ] = await Promise.all([
         supabase
           .from('newsletter_campaigns')
@@ -154,20 +153,12 @@ const CampaignsManagement: React.FC = () => {
           .select('id', { count: 'exact', head: true })
           .not('email', 'is', null)
           .eq('is_suspended', false),
-        supabase
-          .from('sponsor_interest_leads')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(12),
       ]);
 
       if (campaignsResult.error) throw campaignsResult.error;
       if (newsletterCountResult.error) throw newsletterCountResult.error;
       if (platformCountResult.error) throw platformCountResult.error;
-      if (sponsorLeadsResult.error) throw sponsorLeadsResult.error;
-
       setCampaigns((campaignsResult.data || []) as CampaignRecord[]);
-      setSponsorLeads((sponsorLeadsResult.data || []) as SponsorInterestLeadRecord[]);
       const newsletterRows = (newsletterCountResult.data || []) as Array<{ total_count?: number }>;
       setNewsletterAudienceCount(newsletterRows[0]?.total_count || 0);
       setPlatformAudienceCount(platformCountResult.count || 0);
@@ -524,6 +515,7 @@ const CampaignsManagement: React.FC = () => {
         </div>
       </div>
 
+      {false && (
       <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_-48px_rgba(15,23,42,0.45)]">
         <div className="mb-6 flex items-center justify-between gap-3">
           <div>
@@ -607,6 +599,7 @@ const CampaignsManagement: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
 
       <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_-48px_rgba(15,23,42,0.45)]">
         <div className="mb-6 flex items-center justify-between gap-3">

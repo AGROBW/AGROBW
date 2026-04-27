@@ -132,19 +132,35 @@ function HomeAdsCarousel<T>({
                   type="button"
                   onClick={() => scrollToPage(activePage - 1)}
                   disabled={activePage === 0}
-                  className="rounded-lg border border-slate-200 p-2 transition-all disabled:cursor-not-allowed disabled:opacity-40"
-                  style={{ color: settings.textColor }}
+                  className="rounded-xl border p-2.5 shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-100"
+                  style={{
+                    color: activePage === 0 ? '#94a3b8' : settings.primaryColor,
+                    backgroundColor: activePage === 0 ? '#f8fafc' : 'white',
+                    borderColor: activePage === 0 ? '#e2e8f0' : settings.primaryColor,
+                    boxShadow:
+                      activePage === 0
+                        ? '0 1px 2px rgba(15, 23, 42, 0.04)'
+                        : `0 10px 24px -16px ${settings.primaryColor}66`,
+                  }}
                 >
-                  <ChevronLeft className="w-4 h-4" strokeWidth={1.5} />
+                  <ChevronLeft className="w-4 h-4" strokeWidth={2.4} />
                 </button>
                 <button
                   type="button"
                   onClick={() => scrollToPage(activePage + 1)}
                   disabled={activePage >= maxPage}
-                  className="rounded-lg border border-slate-200 p-2 transition-all disabled:cursor-not-allowed disabled:opacity-40"
-                  style={{ color: settings.textColor }}
+                  className="rounded-xl border p-2.5 shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-100"
+                  style={{
+                    color: activePage >= maxPage ? '#94a3b8' : settings.primaryColor,
+                    backgroundColor: activePage >= maxPage ? '#f8fafc' : 'white',
+                    borderColor: activePage >= maxPage ? '#e2e8f0' : settings.primaryColor,
+                    boxShadow:
+                      activePage >= maxPage
+                        ? '0 1px 2px rgba(15, 23, 42, 0.04)'
+                        : `0 10px 24px -16px ${settings.primaryColor}66`,
+                  }}
                 >
-                  <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
+                  <ChevronRight className="w-4 h-4" strokeWidth={2.4} />
                 </button>
               </div>
             ) : null}

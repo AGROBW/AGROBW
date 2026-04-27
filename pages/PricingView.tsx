@@ -22,7 +22,7 @@ const formatComparisonValue = (value: unknown): string | boolean => typeof value
 const humanizeComparisonKey = (key: string) => key.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, (char) => char.toUpperCase());
 const normalizePlanName = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 const isStartSignupPlan = (plan: Pick<Plan, 'name' | 'is_default_signup_plan'>) =>
-  plan.is_default_signup_plan || ['start', 'start agro'].includes(normalizePlanName(plan.name || ''));
+  plan.is_default_signup_plan || ['start', 'start agro', 'safra'].includes(normalizePlanName(plan.name || ''));
 
 const PricingView: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
@@ -42,7 +42,11 @@ const PricingView: React.FC = () => {
               answer: 'No plano gratuito, há limitação de anúncios ativos. Já nos planos pagos, é possível manter múltiplos anúncios simultaneamente.',
             }
           : faq
-      )),
+      ))
+      .concat({
+        question: 'Os benefícios dos planos anuais são acumulativos?',
+        answer: 'Os benefícios dos planos não são acumulativos. Eles são disponibilizados e renovados mensalmente ao longo do período contratado, mantendo a mesma estrutura de vantagens durante toda a vigência do plano.',
+      }),
     []
   );
 

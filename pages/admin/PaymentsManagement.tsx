@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Receipt, Settings2, Sparkles } from 'lucide-react';
+import { BarChart3, Receipt, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import PaymentsOverviewTab from '../../components/admin/payments/PaymentsOverviewTab';
 import PaymentsInvoicesTab from '../../components/admin/payments/PaymentsInvoicesTab';
 import PaymentsActionsTab from '../../components/admin/payments/PaymentsActionsTab';
-import PaymentsBoostersTab from '../../components/admin/payments/PaymentsBoostersTab';
 import {
   AdminPaymentRecord,
   InvoiceStatus,
@@ -21,7 +20,7 @@ const normalizeRelation = <T,>(value: T | T[] | null | undefined): T | null => {
   return Array.isArray(value) ? value[0] || null : value;
 };
 
-type FinanceTab = 'overview' | 'invoices' | 'actions' | 'boosters';
+type FinanceTab = 'overview' | 'invoices' | 'actions';
 
 const PaymentsManagement: React.FC = () => {
   const { logAction } = useAdminAudit();
@@ -393,7 +392,6 @@ const PaymentsManagement: React.FC = () => {
     { id: 'overview', label: 'Resumo', icon: <BarChart3 className="w-4 h-4" strokeWidth={1.8} /> },
     { id: 'invoices', label: 'Notas Emitidas', icon: <Receipt className="w-4 h-4" strokeWidth={1.8} /> },
     { id: 'actions', label: 'Ações Fiscais', icon: <Settings2 className="w-4 h-4" strokeWidth={1.8} /> },
-    { id: 'boosters', label: 'Boosters', icon: <Sparkles className="w-4 h-4" strokeWidth={1.8} /> },
   ];
 
   return (
@@ -474,8 +472,6 @@ const PaymentsManagement: React.FC = () => {
           formatDateTime={formatDateTime}
         />
       )}
-
-      {activeTab === 'boosters' && <PaymentsBoostersTab />}
     </div>
   );
 };

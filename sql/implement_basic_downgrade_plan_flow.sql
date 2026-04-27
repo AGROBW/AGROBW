@@ -52,7 +52,7 @@ begin
   where is_active = true
     and (
       is_default_signup_plan = true
-      or name in ('Start', 'Start Agro')
+      or lower(trim(coalesce(name, ''))) in ('start', 'start agro', 'safra')
     )
   order by is_default_signup_plan desc, position asc
   limit 1;

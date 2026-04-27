@@ -19,6 +19,38 @@ const normalizeOptionalUrl = (value: string | null | undefined) => {
   return `https://${trimmed}`;
 };
 
+const normalizeCommercialWhatsappNumber = (value: string | null | undefined) => {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, '');
+  return digits || null;
+};
+
+const isValidWhatsAppDestination = (value: string | null | undefined) => {
+  if (!value) return true;
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  if (digitsOnly.length >= 10 && digitsOnly.length <= 15 && !/[a-z]/i.test(trimmed)) {
+    return true;
+  }
+
+  try {
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(normalized);
+    const host = parsed.hostname.toLowerCase();
+    return (
+      host === 'wa.me' ||
+      host.endsWith('.wa.me') ||
+      host === 'api.whatsapp.com' ||
+      host.endsWith('.whatsapp.com') ||
+      host === 'whatsapp.com'
+    );
+  } catch {
+    return false;
+  }
+};
+
 const LayoutManagement: React.FC = () => {
   const { settings, isLoading, saveSettings, defaultSettings } = useLayoutSettings();
   const { logAction } = useAdminAudit();
@@ -49,6 +81,7 @@ const LayoutManagement: React.FC = () => {
     youtubeUrl: defaultSettings.youtubeUrl || '',
     linkedinUrl: defaultSettings.linkedinUrl || '',
     whatsappUrl: defaultSettings.whatsappUrl || '',
+    commercialWhatsappNumber: defaultSettings.commercialWhatsappNumber || '',
     tiktokUrl: defaultSettings.tiktokUrl || '',
     primaryColor: defaultSettings.primaryColor,
     secondaryColor: defaultSettings.secondaryColor,
@@ -90,6 +123,7 @@ const LayoutManagement: React.FC = () => {
       youtubeUrl: settings.youtubeUrl || '',
       linkedinUrl: settings.linkedinUrl || '',
       whatsappUrl: settings.whatsappUrl || '',
+      commercialWhatsappNumber: settings.commercialWhatsappNumber || '',
       tiktokUrl: settings.tiktokUrl || '',
       primaryColor: settings.primaryColor,
       secondaryColor: settings.secondaryColor,
@@ -155,6 +189,17 @@ const LayoutManagement: React.FC = () => {
       return;
     }
 
+    if (!isValidWhatsAppDestination(formData.whatsappUrl)) {
+      toast.error('O campo WhatsApp deve conter um numero valido ou um link do WhatsApp, como wa.me ou api.whatsapp.com.');
+      return;
+    }
+
+    const normalizedCommercialWhatsappNumber = normalizeCommercialWhatsappNumber(formData.commercialWhatsappNumber);
+    if (formData.commercialWhatsappNumber.trim() && !normalizedCommercialWhatsappNumber) {
+      toast.error('Informe um numero comercial valido para o WhatsApp.');
+      return;
+    }
+
     setSaving(true);
     const previousValue = settings;
 
@@ -183,6 +228,7 @@ const LayoutManagement: React.FC = () => {
       youtubeUrl: normalizeOptionalUrl(formData.youtubeUrl),
       linkedinUrl: normalizeOptionalUrl(formData.linkedinUrl),
       whatsappUrl: normalizeOptionalUrl(formData.whatsappUrl),
+      commercialWhatsappNumber: normalizedCommercialWhatsappNumber,
       tiktokUrl: normalizeOptionalUrl(formData.tiktokUrl),
     };
 
@@ -310,6 +356,7 @@ const LayoutManagement: React.FC = () => {
               youtubeUrl: formData.youtubeUrl,
               linkedinUrl: formData.linkedinUrl,
               whatsappUrl: formData.whatsappUrl,
+              commercialWhatsappNumber: formData.commercialWhatsappNumber,
               tiktokUrl: formData.tiktokUrl,
             }}
             onChange={handleChange}

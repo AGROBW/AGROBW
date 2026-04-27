@@ -1,5 +1,5 @@
 ﻿
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -35,17 +35,80 @@ const normalizeExternalUrl = (url?: string | null) => {
   return `https://${trimmed}`;
 };
 
-const buildWhatsAppUrl = (baseUrl: string | null, message: string) => {
-  if (!baseUrl) return null;
+const buildWhatsAppUrl = (rawValue: string | null | undefined, message: string) => {
+  if (!rawValue) return null;
+
+  const trimmed = rawValue.trim();
+  if (!trimmed) return null;
+
   const encodedMessage = encodeURIComponent(message);
-  if (baseUrl.includes('wa.me/') || baseUrl.includes('api.whatsapp.com')) {
-    return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}text=${encodedMessage}`;
+  const digitsOnly = trimmed.replace(/\D/g, '');
+
+  if (digitsOnly.length >= 10 && digitsOnly.length <= 15 && !/[a-z]/i.test(trimmed)) {
+    return `https://wa.me/${digitsOnly}?text=${encodedMessage}`;
   }
-  return baseUrl;
+
+  const normalizedUrl = normalizeExternalUrl(trimmed);
+  if (!normalizedUrl) return null;
+
+  try {
+    const parsed = new URL(normalizedUrl);
+    const host = parsed.hostname.toLowerCase();
+    const isWhatsAppHost =
+      host === 'wa.me' ||
+      host.endsWith('.wa.me') ||
+      host === 'api.whatsapp.com' ||
+      host.endsWith('.whatsapp.com') ||
+      host === 'whatsapp.com';
+
+    if (!isWhatsAppHost) {
+      return null;
+    }
+
+    if (host === 'wa.me' || host.endsWith('.wa.me')) {
+      parsed.searchParams.set('text', message);
+      return parsed.toString();
+    }
+
+    parsed.searchParams.set('text', message);
+    if (!parsed.pathname || parsed.pathname === '/') {
+      parsed.pathname = '/send';
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
 };
 
 const VAGAS_TOTAL = 6;
-const VAGAS_OCUPADAS = 2;
+
+interface SponsorLandingStats {
+  total_slots: number;
+  occupied_slots: number;
+  available_slots: number;
+  active_sponsors: number;
+  registered_users: number;
+  active_announcements: number;
+  active_stores: number;
+  generated_leads: number;
+}
+
+const defaultSponsorStats: SponsorLandingStats = {
+  total_slots: VAGAS_TOTAL,
+  occupied_slots: 0,
+  available_slots: VAGAS_TOTAL,
+  active_sponsors: 0,
+  registered_users: 0,
+  active_announcements: 0,
+  active_stores: 0,
+  generated_leads: 0,
+};
+
+const formatCompactNumber = (value: number) =>
+  new Intl.NumberFormat('pt-BR', {
+    notation: value >= 1000 ? 'compact' : 'standard',
+    maximumFractionDigits: 1,
+  }).format(value);
 
 const benefitCards = [
   {
@@ -203,6 +266,7 @@ const SponsorLandingView: React.FC = () => {
   };
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
   const [formSent, setFormSent] = useState(false);
+  const [sponsorStats, setSponsorStats] = useState<SponsorLandingStats>(defaultSponsorStats);
   const [form, setForm] = useState({
     companyName: '',
     contactName: '',
@@ -212,8 +276,11 @@ const SponsorLandingView: React.FC = () => {
     message: '',
   });
 
-  const whatsappUrl = normalizeExternalUrl(settings.whatsappUrl);
+  const whatsappDestination = settings.commercialWhatsappNumber || settings.whatsappUrl;
   const brandName = settings.siteName || 'AGRO BW';
+  const totalSponsorSlots = sponsorStats.total_slots || VAGAS_TOTAL;
+  const occupiedSponsorSlots = Math.min(sponsorStats.occupied_slots || 0, totalSponsorSlots);
+  const vagasRestantes = Math.max(sponsorStats.available_slots ?? totalSponsorSlots - occupiedSponsorSlots, 0);
 
   const contactMessage = useMemo(() => {
     return [
@@ -232,6 +299,39 @@ const SponsorLandingView: React.FC = () => {
   const handleFieldChange = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSponsorStats = async () => {
+      const { data, error } = await supabase.rpc('get_public_sponsor_landing_stats');
+
+      if (error) {
+        console.error('[SponsorLandingView] Erro ao carregar dados reais de patrocinador:', error);
+        return;
+      }
+
+      const row = Array.isArray(data) ? data[0] : data;
+      if (isMounted && row) {
+        setSponsorStats({
+          total_slots: Number(row.total_slots ?? VAGAS_TOTAL),
+          occupied_slots: Number(row.occupied_slots ?? 0),
+          available_slots: Number(row.available_slots ?? VAGAS_TOTAL),
+          active_sponsors: Number(row.active_sponsors ?? 0),
+          registered_users: Number(row.registered_users ?? 0),
+          active_announcements: Number(row.active_announcements ?? 0),
+          active_stores: Number(row.active_stores ?? 0),
+          generated_leads: Number(row.generated_leads ?? 0),
+        });
+      }
+    };
+
+    void loadSponsorStats();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const validateForm = () => {
     if (!form.companyName.trim() || !form.contactName.trim() || !form.email.trim() || !form.segment.trim()) {
@@ -275,9 +375,9 @@ const SponsorLandingView: React.FC = () => {
     const saved = await submitSponsorInterestLead('whatsapp');
     if (!saved) return;
     setFormSent(true);
-    const link = buildWhatsAppUrl(whatsappUrl, contactMessage);
+    const link = buildWhatsAppUrl(whatsappDestination, contactMessage);
     if (!link) {
-      toast.error('O WhatsApp comercial ainda não está configurado no layout da plataforma.');
+      toast.error('O WhatsApp comercial do layout está vazio ou inválido. Configure um telefone, link wa.me ou api.whatsapp.com.');
       return;
     }
     window.open(link, '_blank', 'noopener,noreferrer');
@@ -292,8 +392,6 @@ const SponsorLandingView: React.FC = () => {
     const body = encodeURIComponent(contactMessage);
     window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
   };
-
-  const vagasRestantes = VAGAS_TOTAL - VAGAS_OCUPADAS;
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-white">
@@ -360,11 +458,9 @@ const SponsorLandingView: React.FC = () => {
             </div>
 
             {/* stat cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
               {[
-                { value: '24 mil+', label: 'Impressões/mês' },
                 { value: `${vagasRestantes} vagas`, label: 'Disponíveis agora' },
-                { value: '5,7%', label: 'CTR médio' },
                 { value: 'Lead direto', label: 'Site ou WhatsApp' },
               ].map((s) => (
                 <div
@@ -386,9 +482,10 @@ const SponsorLandingView: React.FC = () => {
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-14">
             {[
               { icon: BadgeCheck, label: 'Plataforma verificada' },
-              { icon: Users, label: '+10.000 produtores ativos' },
+              { icon: Users, label: `${formatCompactNumber(sponsorStats.registered_users)} usuários cadastrados` },
+              { icon: Layers3, label: `${formatCompactNumber(sponsorStats.active_stores)} lojas ativas` },
+              { icon: Target, label: `${formatCompactNumber(sponsorStats.generated_leads)} leads gerados` },
               { icon: Zap, label: 'Banner publicado em 48h' },
-              { icon: BarChart3, label: 'Relatórios semanais' },
               { icon: Crown, label: 'Exclusividade por nicho' },
             ].map(({ icon: Icon, label }) => (
               <div key={label} className="flex items-center gap-2 text-sm font-semibold text-slate-500">
@@ -412,24 +509,24 @@ const SponsorLandingView: React.FC = () => {
           <div className="flex-1">
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Disponibilidade em tempo real</p>
             <h2 className="text-3xl md:text-4xl font-black text-slate-950 mb-4">
-              {vagasRestantes} de {VAGAS_TOTAL} vagas disponíveis
+              {vagasRestantes} de {totalSponsorSlots} vagas disponíveis
             </h2>
             <p className="text-slate-500 text-sm leading-7 max-w-xl">
-              O carrossel comporta apenas {VAGAS_TOTAL} patrocinadores simultâneos, cada um de um nicho diferente. Exclusividade real para a sua marca.
+              O carrossel comporta apenas {totalSponsorSlots} patrocinadores simultâneos, cada um de um nicho diferente. Exclusividade real para a sua marca.
             </p>
           </div>
           <div className="flex-shrink-0 flex flex-col items-center gap-4">
             <div className="flex gap-3">
-              {Array.from({ length: VAGAS_TOTAL }).map((_, i) => (
+              {Array.from({ length: totalSponsorSlots }).map((_, i) => (
                 <div
                   key={i}
                   className={`h-10 w-10 rounded-full border-2 flex items-center justify-center text-xs font-black transition-all ${
-                    i < VAGAS_OCUPADAS
+                    i < occupiedSponsorSlots
                       ? 'border-slate-300 bg-slate-200 text-slate-400'
                       : 'border-emerald-400 bg-emerald-500 text-white shadow-[0_4px_12px_-4px_rgba(16,185,129,0.5)]'
                   }`}
                 >
-                  {i < VAGAS_OCUPADAS ? '?' : i + 1}
+                  {i < occupiedSponsorSlots ? 'OK' : i + 1}
                 </div>
               ))}
             </div>
@@ -557,8 +654,8 @@ const SponsorLandingView: React.FC = () => {
                   <TrendingUp className="h-6 w-6" style={{ color: settings.primaryColor }} />
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-slate-950">+40</p>
-                  <p className="text-xs text-slate-400">leads/mês em média</p>
+                  <p className="text-2xl font-black text-slate-950">{formatCompactNumber(sponsorStats.generated_leads)}</p>
+                  <p className="text-xs text-slate-400">leads gerados</p>
                 </div>
               </div>
             </div>
@@ -575,7 +672,7 @@ const SponsorLandingView: React.FC = () => {
               para a sua marca
             </h2>
             <p className="text-base leading-8 text-slate-500 mb-10">
-              Um espaço valorizado com exclusividade por segmento. Sua campanha não compete com concorrente direto; cada uma das 6 vagas representa um nicho diferente do agronegócio.
+              Um espaço valorizado com exclusividade por segmento. Sua campanha não compete com concorrente direto; cada uma das {totalSponsorSlots} vagas representa um nicho diferente do agronegócio.
             </p>
             <div className="space-y-4">
               {exclusiveFeatures.map((feature) => {
@@ -701,27 +798,27 @@ const SponsorLandingView: React.FC = () => {
                 Garanta sua posição antes que as vagas se esgotem
               </h2>
               <p className="text-sm leading-8 text-slate-300 mb-10">
-                Com apenas {vagasRestantes} vagas restantes, estar no topo significa estar à frente da concorrência no momento mais importante: quando o comprador está pronto para agir.
+                Com apenas {vagasRestantes} vagas disponíveis, estar no topo significa estar à frente da concorrência no momento mais importante: quando o comprador está pronto para agir.
               </p>
 
               {/* vaga indicator */}
               <div className="rounded-2xl border border-white/10 bg-white/8 p-5 mb-8">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-4">Vagas disponíveis</p>
                 <div className="flex gap-2.5 mb-3">
-                  {Array.from({ length: VAGAS_TOTAL }).map((_, i) => (
+                  {Array.from({ length: totalSponsorSlots }).map((_, i) => (
                     <div
                       key={i}
                       className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-black ${
-                        i < VAGAS_OCUPADAS
+                        i < occupiedSponsorSlots
                           ? 'bg-slate-600 text-slate-400'
                           : 'bg-emerald-500 text-white shadow-[0_4px_12px_-4px_rgba(16,185,129,0.5)]'
                       }`}
                     >
-                      {i < VAGAS_OCUPADAS ? '?' : '?'}
+                      {i < occupiedSponsorSlots ? 'OK' : i + 1}
                     </div>
                   ))}
                 </div>
-                <p className="text-emerald-300 text-sm font-bold">{vagasRestantes} vagas de {VAGAS_TOTAL} disponíveis</p>
+                <p className="text-emerald-300 text-sm font-bold">{vagasRestantes} vagas de {totalSponsorSlots} disponíveis</p>
               </div>
 
               {/* checkpoints */}
@@ -782,7 +879,7 @@ const SponsorLandingView: React.FC = () => {
                     </p>
                   </div>
                   <span className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-amber-700 flex-shrink-0">
-                    {vagasRestantes} vagas restantes
+                    {vagasRestantes} vagas disponíveis
                   </span>
                 </div>
 

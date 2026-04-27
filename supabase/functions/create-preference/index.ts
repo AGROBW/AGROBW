@@ -55,7 +55,7 @@ const normalizePlanName = (value: string) =>
   value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
 const isStartSignupPlan = (plan: PlanRecord) =>
-  Boolean(plan.is_default_signup_plan) || ['start', 'start agro'].includes(normalizePlanName(plan.name || ''));
+  Boolean(plan.is_default_signup_plan) || ['start', 'start agro', 'safra'].includes(normalizePlanName(plan.name || ''));
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -257,8 +257,14 @@ serve(async (req) => {
       return jsonResponse(
         {
           success: false,
-          error: 'Item sem valor valido para checkout',
-          details: `billingCycle=${billingCycle}`,
+          error:
+            itemType === 'plan'
+              ? 'Este plano gratuito nao pode ser contratado manualmente pelo checkout.'
+              : 'Item sem valor valido para checkout.',
+          details:
+            itemType === 'plan'
+              ? 'Planos gratuitos ou de cadastro devem ser atribuídos internamente, sem checkout.'
+              : `billingCycle=${billingCycle}`,
         },
         400
       );

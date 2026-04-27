@@ -7,6 +7,7 @@ type LayoutSocialLinksFormData = {
   youtubeUrl: string;
   linkedinUrl: string;
   whatsappUrl: string;
+  commercialWhatsappNumber: string;
   tiktokUrl: string;
 };
 
@@ -29,9 +30,45 @@ const socials = [
 const LayoutSocialLinksSection: React.FC<LayoutSocialLinksSectionProps> = ({ formData, onChange }) => {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6">
-      <div className="mb-5">
+      <div className="mb-6">
         <h3 className="text-lg font-bold text-slate-900">Redes sociais</h3>
-        <p className="text-sm text-slate-500">Controle os ícones exibidos no rodapé. Campos vazios não serão mostrados.</p>
+        <p className="text-sm text-slate-500">
+          Separe o contato comercial usado na landing de Patrocinador das redes exibidas no rodapé.
+        </p>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5">
+        <div className="mb-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700">Contato comercial</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            Este bloco é usado para abrir a conversa da landing de Patrocinador e em outros fluxos comerciais diretos.
+          </p>
+        </div>
+
+        <label className="block">
+          <span className="mb-3 inline-flex items-center gap-3 text-sm font-medium text-slate-700">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
+              <MessageCircle className="h-4 w-4" strokeWidth={1.8} />
+            </span>
+            WhatsApp comercial
+          </span>
+          <input
+            className={inputClassName}
+            value={formData.commercialWhatsappNumber}
+            onChange={(e) => onChange('commercialWhatsappNumber', e.target.value)}
+            placeholder="5562999999999"
+          />
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            Informe com DDI e DDD. Exemplo: 5562999999999.
+          </p>
+        </label>
+      </div>
+
+      <div className="mb-4">
+        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Redes exibidas no rodapé</p>
+        <p className="mt-1 text-sm leading-6 text-slate-500">
+          Esses links controlam os ícones públicos do site. Campos vazios não serão mostrados.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -49,6 +86,11 @@ const LayoutSocialLinksSection: React.FC<LayoutSocialLinksSectionProps> = ({ for
               onChange={(e) => onChange(field, e.target.value)}
               placeholder={placeholder}
             />
+            {field === 'whatsappUrl' ? (
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Use apenas um número válido ou link oficial do WhatsApp. Este campo serve como apoio e compatibilidade.
+              </p>
+            ) : null}
           </label>
         ))}
       </div>

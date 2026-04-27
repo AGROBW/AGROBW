@@ -220,17 +220,53 @@ export const usePublicAds = (filters?: {
         setError(error.message)
         console.error('Erro ao buscar anuncios:', error)
       } else {
+        const announcementIds = Array.from(new Set((data || []).map((ad: any) => ad.id).filter(Boolean)))
         const sellerIds = Array.from(new Set((data || []).map((ad: any) => ad.user_id).filter(Boolean)))
         const storeMap = new Map<string, { slug: string; storeName: string; logoUrl?: string; isVerified?: boolean }>()
+        const planMap = new Map<string, { monthlyPrice: number; position: number | null; planName: string | null }>()
+        const engagementMap = new Map<string, {
+          recentViews: number
+          recentUniqueVisitors: number
+          recentLeads: number
+          lastEngagementAt: string | null
+        }>()
+
+        const requests: Array<any> = []
 
         if (sellerIds.length > 0) {
-          const { data: storesData, error: storesError } = await supabase
-            .from('seller_stores')
-            .select('user_id, slug, store_name, logo_url, is_verified')
-            .eq('is_active', true)
-            .eq('is_store_feature_enabled', true)
-            .eq('is_paused_due_to_plan', false)
-            .in('user_id', sellerIds)
+          requests.push(
+            supabase
+              .from('seller_stores')
+              .select('user_id, slug, store_name, logo_url, is_verified')
+              .eq('is_active', true)
+              .eq('is_store_feature_enabled', true)
+              .eq('is_paused_due_to_plan', false)
+              .in('user_id', sellerIds),
+            supabase.rpc('get_public_active_plan_signals', {
+              p_user_ids: sellerIds,
+            })
+          )
+        } else {
+          requests.push(Promise.resolve({ data: [], error: null }), Promise.resolve({ data: [], error: null }))
+        }
+
+        if (announcementIds.length > 0) {
+          requests.push(
+            supabase.rpc('get_public_announcement_engagement_signals', {
+              p_announcement_ids: announcementIds,
+              p_period_days: 14,
+            })
+          )
+        } else {
+          requests.push(Promise.resolve({ data: [], error: null }))
+        }
+
+        if (requests.length > 0) {
+          const [
+            { data: storesData, error: storesError },
+            { data: planSignalsData, error: planSignalsError },
+            { data: engagementSignalsData, error: engagementSignalsError },
+          ] = await Promise.all(requests)
 
           if (storesError) {
             console.warn('[usePublicAds] Erro ao buscar lojas oficiais para listagem:', storesError)
@@ -241,6 +277,40 @@ export const usePublicAds = (filters?: {
                 storeName: store.store_name,
                 logoUrl: store.logo_url || undefined,
                 isVerified: !!store.is_verified,
+              })
+            }
+          }
+
+          if (planSignalsError) {
+            console.warn('[usePublicAds] Erro ao buscar sinais publicos de plano para ranking:', planSignalsError)
+          } else {
+            for (const signal of (planSignalsData as Array<any>) || []) {
+              if (!signal?.user_id) continue
+              planMap.set(signal.user_id, {
+                monthlyPrice: Number(signal.monthly_price || 0),
+                position: signal.plan_position ?? null,
+                planName: signal.plan_name || null,
+              })
+            }
+          }
+
+          if (engagementSignalsError) {
+            console.warn('[usePublicAds] Erro ao buscar sinais publicos de engajamento recente para ranking:', engagementSignalsError)
+          } else {
+            for (const signal of (engagementSignalsData as Array<any>) || []) {
+              if (!signal?.announcement_id) continue
+
+              const lastViewedAt = signal.last_viewed_at || null
+              const lastLeadAt = signal.last_lead_at || null
+              const lastEngagementAt = [lastViewedAt, lastLeadAt]
+                .filter(Boolean)
+                .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] || null
+
+              engagementMap.set(signal.announcement_id, {
+                recentViews: Number(signal.views_last_period || 0),
+                recentUniqueVisitors: Number(signal.unique_visitors_last_period || 0),
+                recentLeads: Number(signal.leads_last_period || 0),
+                lastEngagementAt,
               })
             }
           }
@@ -277,6 +347,7 @@ export const usePublicAds = (filters?: {
           views: ad.views || 0,
           isPremium: ad.is_premium || false,
           createdAt: ad.created_at,
+          updatedAt: ad.updated_at || ad.created_at,
           expiresAt: ad.expires_at,
           expiredAt: ad.expired_at,
           deletionScheduledAt: ad.deletion_scheduled_at,
@@ -285,6 +356,13 @@ export const usePublicAds = (filters?: {
           highlightCategoryUntil: ad.highlight_category_until,
           highlightHome: ad.highlight_home || false,
           highlightHomeUntil: ad.highlight_home_until,
+          sellerPlanMonthlyPrice: planMap.get(ad.user_id)?.monthlyPrice || 0,
+          sellerPlanPosition: planMap.get(ad.user_id)?.position ?? null,
+          sellerPlanName: planMap.get(ad.user_id)?.planName || null,
+          recentViews: engagementMap.get(ad.id)?.recentViews || 0,
+          recentUniqueVisitors: engagementMap.get(ad.id)?.recentUniqueVisitors || 0,
+          recentLeads: engagementMap.get(ad.id)?.recentLeads || 0,
+          lastEngagementAt: engagementMap.get(ad.id)?.lastEngagementAt || null,
           seller: ad.seller
             ? {
                 ...(Array.isArray(ad.seller) ? ad.seller[0] : ad.seller),

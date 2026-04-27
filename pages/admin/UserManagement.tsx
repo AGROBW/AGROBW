@@ -5,6 +5,7 @@ import {
   ChevronLeft, 
   ChevronRight,
   Edit,
+  BadgeCheck,
   Ban,
   CheckCircle,
   Eye,
@@ -33,6 +34,11 @@ interface User {
   plan?: string;
   is_admin: boolean;
   is_suspended: boolean;
+  document_verified?: boolean;
+  document_review_status?: 'not_submitted' | 'pending' | 'approved' | 'rejected' | null;
+  document_review_notes?: string | null;
+  document_reviewed_at?: string | null;
+  document_reviewed_by?: string | null;
   suspension_reason: string | null;
   suspended_at: string | null;
   created_at: string;
@@ -158,6 +164,7 @@ const UserManagement: React.FC = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterVerification, setFilterVerification] = useState<string>('all');
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
   const [subscriptionsPage, setSubscriptionsPage] = useState(0);
@@ -204,7 +211,7 @@ const UserManagement: React.FC = () => {
     if (activeTab === 'users') {
       loadUsers();
     }
-  }, [activeTab, page, searchTerm, filterStatus]);
+  }, [activeTab, page, searchTerm, filterStatus, filterVerification]);
 
   useEffect(() => {
     if (activeTab === 'subscriptions') {
@@ -294,6 +301,12 @@ const UserManagement: React.FC = () => {
         query = query.eq('is_suspended', true);
       } else if (filterStatus === 'active') {
         query = query.eq('is_suspended', false);
+      }
+
+      if (filterVerification === 'verified') {
+        query = query.eq('document_verified', true);
+      } else if (filterVerification === 'not_verified') {
+        query = query.or('document_verified.is.null,document_verified.eq.false');
       }
 
       const { data, error, count } = await query;
@@ -757,6 +770,97 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const notifyVerificationStatusChange = async (user: User, verified: boolean) => {
+    const title = verified ? 'Seu selo verificado foi liberado' : 'Seu selo verificado foi removido';
+    const content = verified
+      ? 'A equipe administrativa liberou manualmente o selo verificado para sua conta.'
+      : 'A equipe administrativa removeu o selo verificado da sua conta. Se precisar, envie novamente sua documentacao para analise.';
+
+    const { error } = await supabase.from('notifications').insert({
+      user_id: user.id,
+      type: 'SYSTEM',
+      title,
+      content,
+      link: '/minha-conta/perfil',
+      is_read: false,
+    });
+
+    if (error) {
+      console.error('[UserManagement] Erro ao criar notificacao de selo verificado:', error);
+    }
+  };
+
+  const handleToggleVerifiedBadge = async (user: User) => {
+    const shouldVerify = !Boolean(user.document_verified);
+    const nextReviewStatus = shouldVerify ? 'approved' : 'rejected';
+    const nextReviewNotes = shouldVerify
+      ? 'Selo concedido manualmente pela administracao.'
+      : 'Selo removido manualmente pela administracao.';
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const reviewerId = authData.user?.id || null;
+      const nowIso = new Date().toISOString();
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          document_verified: shouldVerify,
+          document_review_status: nextReviewStatus,
+          document_review_notes: nextReviewNotes,
+          document_reviewed_at: nowIso,
+          document_reviewed_by: reviewerId,
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      await notifyVerificationStatusChange(user, shouldVerify);
+      await logAction({
+        action: ADMIN_ACTIONS.VERIFY_USER,
+        resourceType: RESOURCE_TYPES.USER,
+        resourceId: user.id,
+        oldValue: {
+          document_verified: user.document_verified ?? false,
+          document_review_status: user.document_review_status ?? null,
+          document_review_notes: user.document_review_notes ?? null,
+        },
+        newValue: {
+          document_verified: shouldVerify,
+          document_review_status: nextReviewStatus,
+          document_review_notes: nextReviewNotes,
+        },
+        reason: shouldVerify
+          ? `Selo verificado concedido manualmente para ${user.name}`
+          : `Selo verificado removido manualmente de ${user.name}`,
+      });
+
+      toast.success(
+        shouldVerify ? 'Selo verificado concedido com sucesso.' : 'Selo verificado removido com sucesso.'
+      );
+
+      if (selectedUser?.id === user.id) {
+        setSelectedUser((current) =>
+          current
+            ? {
+                ...current,
+                document_verified: shouldVerify,
+                document_review_status: nextReviewStatus,
+                document_review_notes: nextReviewNotes,
+                document_reviewed_at: nowIso,
+                document_reviewed_by: reviewerId,
+              }
+            : current
+        );
+      }
+
+      await loadUsers();
+    } catch (error) {
+      console.error('[UserManagement] Erro ao alterar selo verificado:', error);
+      toast.error('Erro ao alterar selo verificado do usuario.');
+    }
+  };
+
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
   const subscriptionsTotalPages = Math.ceil(subscriptionsTotalCount / PAGE_SIZE);
 
@@ -829,12 +933,28 @@ const UserManagement: React.FC = () => {
           {/* Status Filter */}
           <select
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
+            onChange={(e) => {
+              setPage(0);
+              setFilterStatus(e.target.value);
+            }}
             className="px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             <option value="all">Todos os Status</option>
             <option value="active">Ativos</option>
             <option value="suspended">Suspensos</option>
+          </select>
+
+          <select
+            value={filterVerification}
+            onChange={(e) => {
+              setPage(0);
+              setFilterVerification(e.target.value);
+            }}
+            className="px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="all">Todos os selos</option>
+            <option value="verified">Com selo verificado</option>
+            <option value="not_verified">Sem selo verificado</option>
           </select>
         </div>
       </div>
@@ -889,6 +1009,7 @@ const UserManagement: React.FC = () => {
                           <p className="font-semibold text-slate-900 flex items-center gap-2">
                             {user.name}
                             {user.is_admin && <Crown className="w-4 h-4 text-yellow-500" />}
+                            {user.document_verified ? <BadgeCheck className="w-4 h-4 text-emerald-600" /> : null}
                           </p>
                           <p className="text-sm text-slate-500">{user.email}</p>
                           <p className="text-xs text-slate-400">{user.phone}</p>
@@ -967,6 +1088,17 @@ const UserManagement: React.FC = () => {
                             <Ban className="w-4 h-4" />
                           </button>
                         )}
+                        <button
+                          onClick={() => void handleToggleVerifiedBadge(user)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            user.document_verified
+                              ? 'text-amber-600 hover:bg-amber-50'
+                              : 'text-emerald-600 hover:bg-emerald-50'
+                          }`}
+                          title={user.document_verified ? 'Remover selo verificado' : 'Conceder selo verificado'}
+                        >
+                          <BadgeCheck className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => {
                             setSelectedUser(user);
@@ -1305,6 +1437,15 @@ const UserManagement: React.FC = () => {
                       <option value="years">Ano(s)</option>
                     </select>
                   </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Selo Verificado</p>
+                    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold ${
+                      selectedUser.document_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      <BadgeCheck className="w-4 h-4" />
+                      {selectedUser.document_verified ? 'Ativo' : 'Nao concedido'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1476,6 +1617,16 @@ const UserManagement: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-3 mt-6">
+              <button
+                onClick={() => void handleToggleVerifiedBadge(selectedUser)}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                  selectedUser.document_verified
+                    ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                    : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                }`}
+              >
+                {selectedUser.document_verified ? 'Remover selo' : 'Conceder selo'}
+              </button>
               <button
                 onClick={() => setShowDetailsModal(false)}
                 className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg font-semibold hover:bg-slate-50 transition-colors"

@@ -64,6 +64,7 @@ export interface Ad {
   views: number;
   isPremium: boolean;
   createdAt: string;
+  updatedAt?: string;
   storeDisplayOrder?: number | null;
   expiresAt?: string;
   expiredAt?: string;
@@ -77,6 +78,13 @@ export interface Ad {
   highlightHomeUntil?: string;
   latestEditRequestStatus?: 'pending' | 'approved' | 'rejected' | null;
   latestEditRejectionReason?: string | null;
+  sellerPlanMonthlyPrice?: number;
+  sellerPlanPosition?: number | null;
+  sellerPlanName?: string | null;
+  recentViews?: number;
+  recentUniqueVisitors?: number;
+  recentLeads?: number;
+  lastEngagementAt?: string | null;
   seller?: {
     name: string;
     avatar?: string;
@@ -602,6 +610,7 @@ export interface LayoutSettings {
   youtubeUrl?: string | null;
   linkedinUrl?: string | null;
   whatsappUrl?: string | null;
+  commercialWhatsappNumber?: string | null;
   tiktokUrl?: string | null;
   primaryColor: string;
   secondaryColor: string;

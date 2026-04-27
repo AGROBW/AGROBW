@@ -172,6 +172,17 @@ const PlansManagement: React.FC = () => {
   }, [editingPlan, isCreating, plansRaw.length]);
 
   const displayFeatures = useMemo(() => formData.display_features || [], [formData.display_features]);
+  const defaultSignupPlanCount = useMemo(
+    () => plansRaw.filter((plan) => plan.is_default_signup_plan).length,
+    [plansRaw]
+  );
+  const isEditingDefaultSignupPlan = Boolean(editingPlan?.is_default_signup_plan || formData.is_default_signup_plan);
+  const isDefaultSignupPlanNameChanging = Boolean(
+    editingPlan?.is_default_signup_plan &&
+    typeof formData.name === 'string' &&
+    formData.name.trim() !== '' &&
+    formData.name.trim() !== editingPlan.name
+  );
 
   const handleChange = (field: keyof UpdatePlanData, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -331,6 +342,25 @@ const PlansManagement: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {isEditingDefaultSignupPlan ? (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <div className="flex items-start gap-3">
+                <Shield className="mt-0.5 h-5 w-5 text-blue-600" />
+                <div className="space-y-1 text-sm text-blue-900">
+                  <p className="font-semibold">Plano padrao do cadastro</p>
+                  <p>
+                    Este plano e usado no primeiro acesso do usuario e participa da regra que impede reutilizacao apos downgrade.
+                  </p>
+                  {isDefaultSignupPlanNameChanging ? (
+                    <p className="font-medium text-blue-800">
+                      Voce esta alterando o nome do plano inicial. A regra principal usa a flag de cadastro, mas renomeacoes merecem revisao antes de salvar.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-gray-900">
               <Package className="h-5 w-5 text-green-600" />
@@ -596,9 +626,24 @@ const PlansManagement: React.FC = () => {
         </div>
       </div>
 
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+        <div className="flex items-start gap-3">
+          <Shield className="mt-0.5 h-5 w-5 text-emerald-600" />
+          <div className="text-sm text-emerald-900">
+            <p className="font-semibold">Seguranca do plano inicial</p>
+            <p>
+              Deve existir exatamente um plano marcado como <strong>Plano padrao no cadastro</strong>. Hoje o painel encontrou <strong>{defaultSignupPlanCount}</strong>.
+            </p>
+            <p className="mt-1">
+              Renomear o plano e permitido, mas a flag de cadastro e a referencia oficial da regra de reutilizacao apos downgrade.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {plansRaw.map((plan) => (
-          <div key={plan.id} className={`rounded-xl border-2 bg-white p-6 shadow-sm ${plan.is_popular ? 'border-green-500' : 'border-gray-200'} ${!plan.is_active ? 'opacity-60' : ''}`}>
+          <div key={plan.id} className={`rounded-xl border-2 bg-white p-6 shadow-sm ${plan.is_default_signup_plan ? 'border-blue-500 shadow-blue-100' : plan.is_popular ? 'border-green-500' : 'border-gray-200'} ${!plan.is_active ? 'opacity-60' : ''}`}>
             <div className="mb-4 flex items-start justify-between">
               <div className="flex-1">
                 <p className="mb-2 text-[11px] font-black uppercase tracking-[0.25em] text-slate-400">{plan.card_eyebrow || 'Plano BWAGRO'}</p>
@@ -609,8 +654,8 @@ const PlansManagement: React.FC = () => {
                     Card {plan.show_footer_card !== false ? 'ativo' : 'oculto'}
                   </span>
                   {plan.is_default_signup_plan && (
-                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                      Cadastro
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
+                      Plano inicial do cadastro
                     </span>
                   )}
                   {plan.is_downgrade_plan && (
@@ -663,7 +708,12 @@ const PlansManagement: React.FC = () => {
                 <Edit2 className="h-4 w-4" />
                 Editar
               </button>
-              <button onClick={() => handleDelete(plan)} className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700" title="Deletar plano">
+              <button
+                onClick={() => handleDelete(plan)}
+                disabled={plan.is_default_signup_plan && defaultSignupPlanCount <= 1}
+                className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+                title={plan.is_default_signup_plan && defaultSignupPlanCount <= 1 ? 'Nao e possivel excluir o unico plano padrao do cadastro' : 'Deletar plano'}
+              >
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

@@ -17,7 +17,7 @@ as $$
     where p.id = p_plan_id
       and (
         p.is_default_signup_plan = true
-        or lower(trim(coalesce(p.name, ''))) in ('start', 'start agro')
+        or lower(trim(coalesce(p.name, ''))) in ('start', 'start agro', 'safra')
       )
   );
 $$;
@@ -95,7 +95,7 @@ from (
   from public.user_subscriptions us
   join public.plans p on p.id = us.plan_id
   where p.is_default_signup_plan = true
-     or lower(trim(coalesce(p.name, ''))) in ('start', 'start agro')
+     or lower(trim(coalesce(p.name, ''))) in ('start', 'start agro', 'safra')
   group by us.user_id
 ) first_start
 where first_start.user_id = u.id
