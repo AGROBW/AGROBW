@@ -132,8 +132,7 @@ export const usePlans = () => {
 
   const createPlan = async (planData: UpdatePlanData): Promise<{ error: string | null; data: Plan | null }> => {
     try {
-      // Encontrar maior position atual
-      const maxPosition = plansRaw.length > 0 ? Math.max(...plansRaw.map(p => p.position)) : 0;
+      const maxPosition = plansRaw.length > 0 ? Math.max(...plansRaw.map((p) => p.position)) : 0;
       const hasDefaultSignupPlan = plansRaw.some((plan) => plan.is_default_signup_plan);
 
       if (!planData.is_default_signup_plan && !hasDefaultSignupPlan) {
@@ -141,18 +140,6 @@ export const usePlans = () => {
           error: 'Defina um plano padrao no cadastro antes de salvar.',
           data: null,
         };
-      }
-
-      if (planData.is_default_signup_plan) {
-        const { error: resetDefaultError } = await supabase
-          .from('plans')
-          .update({ is_default_signup_plan: false })
-          .eq('is_default_signup_plan', true);
-
-        if (resetDefaultError) {
-          console.error('Erro ao limpar plano padrão anterior:', resetDefaultError);
-          return { error: resetDefaultError.message, data: null };
-        }
       }
 
       if (planData.is_downgrade_plan) {
@@ -171,6 +158,7 @@ export const usePlans = () => {
         .from('plans')
         .insert({
           ...planData,
+          is_default_signup_plan: planData.is_default_signup_plan ? false : planData.is_default_signup_plan,
           show_in_public_pricing:
             planData.is_downgrade_plan ? false : planData.show_in_public_pricing ?? true,
           position: planData.position ?? maxPosition + 1,
@@ -183,9 +171,21 @@ export const usePlans = () => {
         return { error: createError.message, data: null };
       }
 
-      // Atualizar lista
-      await fetchPlans();
+      if (planData.is_default_signup_plan && data?.id) {
+        const { data: switchedPlan, error: switchDefaultError } = await supabase
+          .rpc('set_default_signup_plan', { p_plan_id: data.id })
+          .single();
 
+        if (switchDefaultError) {
+          console.error('Erro ao definir plano padrao no cadastro:', switchDefaultError);
+          return { error: switchDefaultError.message, data: null };
+        }
+
+        await fetchPlans();
+        return { error: null, data: switchedPlan as Plan };
+      }
+
+      await fetchPlans();
       return { error: null, data };
     } catch (err) {
       console.error('Erro inesperado ao criar plano:', err);
@@ -209,19 +209,6 @@ export const usePlans = () => {
         };
       }
 
-      if (updates.is_default_signup_plan) {
-        const { error: resetDefaultError } = await supabase
-          .from('plans')
-          .update({ is_default_signup_plan: false })
-          .neq('id', id)
-          .eq('is_default_signup_plan', true);
-
-        if (resetDefaultError) {
-          console.error('Erro ao limpar plano padrão anterior:', resetDefaultError);
-          return { error: resetDefaultError.message, data: null };
-        }
-      }
-
       if (updates.is_downgrade_plan) {
         const { error: resetDowngradeError } = await supabase
           .from('plans')
@@ -239,6 +226,8 @@ export const usePlans = () => {
         .from('plans')
         .update({
           ...updates,
+          is_default_signup_plan:
+            updates.is_default_signup_plan ? undefined : updates.is_default_signup_plan,
           show_in_public_pricing:
             updates.is_downgrade_plan ? false : updates.show_in_public_pricing,
         })
@@ -251,9 +240,21 @@ export const usePlans = () => {
         return { error: updateError.message, data: null };
       }
 
-      // Atualizar lista
-      await fetchPlans();
+      if (updates.is_default_signup_plan) {
+        const { data: switchedPlan, error: switchDefaultError } = await supabase
+          .rpc('set_default_signup_plan', { p_plan_id: id })
+          .single();
 
+        if (switchDefaultError) {
+          console.error('Erro ao trocar plano padrao do cadastro:', switchDefaultError);
+          return { error: switchDefaultError.message, data: null };
+        }
+
+        await fetchPlans();
+        return { error: null, data: switchedPlan as Plan };
+      }
+
+      await fetchPlans();
       return { error: null, data };
     } catch (err) {
       console.error('Erro inesperado ao atualizar plano:', err);

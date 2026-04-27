@@ -1,38 +1,3 @@
-alter table public.plans
-  add column if not exists is_default_signup_plan boolean not null default false,
-  add column if not exists is_downgrade_plan boolean not null default false,
-  add column if not exists is_active boolean not null default true;
-
-with ranked_signup_candidates as (
-  select
-    p.id,
-    row_number() over (
-      order by
-        case
-          when lower(trim(coalesce(p.name, ''))) in ('start', 'start agro', 'safra') then 0
-          else 1
-        end,
-        case when coalesce(p.monthly_price, 0) <= 0 and coalesce(p.yearly_price, 0) <= 0 then 0 else 1 end,
-        coalesce(p.position, 999999),
-        p.created_at
-    ) as rn
-  from public.plans p
-  where coalesce(p.is_active, true) = true
-    and coalesce(p.is_downgrade_plan, false) = false
-)
-update public.plans p
-set is_default_signup_plan = case when c.rn = 1 then true else false end
-from ranked_signup_candidates c
-where p.id = c.id
-  and (
-    p.is_default_signup_plan = true
-    or c.rn = 1
-  );
-
-create unique index if not exists idx_plans_single_default_signup
-  on public.plans ((is_default_signup_plan))
-  where is_default_signup_plan = true;
-
 create or replace function public.enforce_default_signup_plan_integrity()
 returns trigger
 language plpgsql
@@ -140,9 +105,3 @@ end;
 $$;
 
 grant execute on function public.set_default_signup_plan(uuid) to authenticated;
-
-drop trigger if exists trg_enforce_default_signup_plan_integrity on public.plans;
-create trigger trg_enforce_default_signup_plan_integrity
-before insert or update or delete on public.plans
-for each row
-execute function public.enforce_default_signup_plan_integrity();
