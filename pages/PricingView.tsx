@@ -21,8 +21,8 @@ const formatNumericValue = (value: number | null | undefined, suffix = '') => va
 const formatComparisonValue = (value: unknown): string | boolean => typeof value === 'boolean' ? value : value === null || value === undefined || value === '' ? '-' : String(value);
 const humanizeComparisonKey = (key: string) => key.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, (char) => char.toUpperCase());
 const normalizePlanName = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-const isStartSignupPlan = (plan: Pick<Plan, 'name' | 'is_default_signup_plan'>) =>
-  plan.is_default_signup_plan || ['start', 'start agro', 'safra'].includes(normalizePlanName(plan.name || ''));
+const isLegacyStartSignupPlanName = (planName: string) =>
+  ['start', 'start agro', 'safra'].includes(normalizePlanName(planName || ''));
 
 const PricingView: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
@@ -102,7 +102,15 @@ const PricingView: React.FC = () => {
   };
   const getComparisonValue = (plan: Plan, row: ComparisonRow) => formatComparisonValue(plan.comparison?.[row.id] ?? row.getValue(plan));
   const hasConsumedStartPlan = Boolean(user?.startPlanConsumedAt);
-  const isStartPlanLockedForUser = (plan: Plan) => Boolean(user && hasConsumedStartPlan && isStartSignupPlan(plan));
+  const hasExplicitDefaultSignupPlan = useMemo(
+    () => plansRaw.some((plan) => plan.is_default_signup_plan),
+    [plansRaw]
+  );
+  const isCurrentSignupPlan = (plan: Plan) =>
+    hasExplicitDefaultSignupPlan
+      ? Boolean(plan.is_default_signup_plan)
+      : isLegacyStartSignupPlanName(plan.name || '');
+  const isStartPlanLockedForUser = (plan: Plan) => Boolean(user && hasConsumedStartPlan && isCurrentSignupPlan(plan));
 
   const handleSubscribe = async (planId: string, planName: string, monthlyPrice: number, yearlyPrice: number, description?: string | null) => {
     const selectedPlan = plansRaw.find((plan) => plan.id === planId);

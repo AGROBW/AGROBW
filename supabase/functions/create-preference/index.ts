@@ -54,8 +54,8 @@ const resolveAmount = (plan: PlanRecord, billingCycle: 'monthly' | 'yearly') => 
 const normalizePlanName = (value: string) =>
   value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
-const isStartSignupPlan = (plan: PlanRecord) =>
-  Boolean(plan.is_default_signup_plan) || ['start', 'start agro', 'safra'].includes(normalizePlanName(plan.name || ''));
+const isLegacyStartSignupPlanName = (planName: string) =>
+  ['start', 'start agro', 'safra'].includes(normalizePlanName(planName || ''));
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -219,7 +219,28 @@ serve(async (req) => {
         );
       }
 
-      if (isStartSignupPlan(plan as PlanRecord)) {
+      const { count: defaultSignupPlanCount, error: defaultSignupPlanCountError } = await supabaseAdmin
+        .from('plans')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_default_signup_plan', true);
+
+      if (defaultSignupPlanCountError) {
+        return jsonResponse(
+          {
+            success: false,
+            error: 'Nao foi possivel validar a configuracao do plano inicial.',
+            details: defaultSignupPlanCountError.message,
+          },
+          500
+        );
+      }
+
+      const isCurrentSignupPlan =
+        (defaultSignupPlanCount || 0) > 0
+          ? Boolean(plan.is_default_signup_plan)
+          : isLegacyStartSignupPlanName(plan.name || '');
+
+      if (isCurrentSignupPlan) {
         const { data: profile, error: profileError } = await supabaseAdmin
           .from('users')
           .select('start_plan_consumed_at')

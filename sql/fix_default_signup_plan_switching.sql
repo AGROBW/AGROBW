@@ -91,9 +91,13 @@ begin
   perform set_config('app.allow_default_signup_switch', 'on', true);
 
   update public.plans
-  set is_default_signup_plan = case when id = p_plan_id then true else false end
-  where id = p_plan_id
-     or is_default_signup_plan = true;
+  set is_default_signup_plan = false
+  where id <> p_plan_id
+    and is_default_signup_plan = true;
+
+  update public.plans
+  set is_default_signup_plan = true
+  where id = p_plan_id;
 
   select *
     into v_plan
