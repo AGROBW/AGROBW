@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, Eye, Filter, PencilLine, Search, Star, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Eye, Filter, PencilLine, Search, X } from 'lucide-react';
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { toast } from 'sonner';
@@ -293,27 +293,24 @@ const ModerationQueue: React.FC = () => {
 
   const handleApprove = async (announcement: PendingAnnouncement) => {
     try {
-      const { error } = await supabase.from('announcements').update({ status: 'ACTIVE' }).eq('id', announcement.id);
-      if (error) throw error;
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_set_announcement_status', {
+        p_announcement_id: announcement.id,
+        p_status: 'ACTIVE',
+        p_reason: 'Aprovado manualmente pela equipe de moderação.',
+      });
+      if (rpcError) throw rpcError;
+
+      const persistedAnnouncement = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+      if (!persistedAnnouncement || persistedAnnouncement.status !== 'ACTIVE') {
+        throw new Error('O anúncio não foi confirmado como ativo no banco após a aprovação.');
+      }
+
       await logAction({ action: ADMIN_ACTIONS.APPROVE_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: announcement.id, oldValue: { status: announcement.status }, newValue: { status: 'ACTIVE' }, reason: `Anuncio "${announcement.title}" aprovado apos revisao manual` });
       toast.success('Anuncio aprovado com sucesso');
       await loadPendingAnnouncements();
     } catch (error) {
       console.error('[ModerationQueue] Erro ao aprovar:', error);
       toast.error('Erro ao aprovar anuncio');
-    }
-  };
-
-  const handleFeature = async (announcement: PendingAnnouncement) => {
-    try {
-      const { error } = await supabase.from('announcements').update({ status: 'ACTIVE' }).eq('id', announcement.id);
-      if (error) throw error;
-      await logAction({ action: ADMIN_ACTIONS.FEATURE_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: announcement.id, oldValue: { status: announcement.status }, newValue: { status: 'ACTIVE' }, reason: `Anuncio "${announcement.title}" aprovado com prioridade manual` });
-      toast.success('Anuncio aprovado');
-      await loadPendingAnnouncements();
-    } catch (error) {
-      console.error('[ModerationQueue] Erro ao destacar:', error);
-      toast.error('Erro ao destacar anuncio');
     }
   };
 
@@ -599,7 +596,7 @@ const ModerationQueue: React.FC = () => {
                     <td className="px-6 py-4"><span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">{getAnnouncementGroupLabel(announcement)}</span></td>
                     <td className="px-6 py-4"><div className="text-sm"><p className="font-semibold text-slate-900">{announcement.owner?.name}</p><p className="text-slate-500">{announcement.owner?.email}</p></div></td>
                     <td className="px-6 py-4 text-sm text-slate-500">{new Date(announcement.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-                    <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApprove(announcement)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedEditRequest(null); setSelectedAnnouncement(announcement); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar"><X className="h-5 w-5" /></button><button onClick={() => void handleFeature(announcement)} className="rounded-lg p-2 text-yellow-600 hover:bg-yellow-50" title="Aprovar e destacar"><Star className="h-5 w-5" /></button><button onClick={() => window.open(`/#/anuncio/${announcement.id}`, '_blank')} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Visualizar"><Eye className="h-5 w-5" /></button></div></td>
+                    <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApprove(announcement)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedEditRequest(null); setSelectedAnnouncement(announcement); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar"><X className="h-5 w-5" /></button><button onClick={() => window.open(`/#/anuncio/${announcement.id}`, '_blank')} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Visualizar"><Eye className="h-5 w-5" /></button></div></td>
                   </tr>
                 ))}
               </tbody>

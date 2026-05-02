@@ -48,7 +48,12 @@ begin
   end if;
 
   update public.announcements
-  set status = p_status
+  set
+    status = p_status,
+    publication_review_admin_override = case when p_status = 'ACTIVE' then true else coalesce(publication_review_admin_override, false) end,
+    publication_review_severity = case when p_status = 'ACTIVE' then null else publication_review_severity end,
+    publication_review_reasons = case when p_status = 'ACTIVE' then '[]'::jsonb else publication_review_reasons end,
+    publication_review_checked_at = case when p_status = 'ACTIVE' then now() else publication_review_checked_at end
   where id = p_announcement_id
   returning announcements.id, announcements.title, announcements.status, announcements.user_id
   into v_announcement;

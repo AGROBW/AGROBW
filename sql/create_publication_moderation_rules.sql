@@ -42,7 +42,8 @@ with check (public.is_admin() = true);
 alter table public.announcements
   add column if not exists publication_review_reasons jsonb not null default '[]'::jsonb,
   add column if not exists publication_review_severity text,
-  add column if not exists publication_review_checked_at timestamptz;
+  add column if not exists publication_review_checked_at timestamptz,
+  add column if not exists publication_review_admin_override boolean not null default false;
 
 create or replace function public.touch_publication_moderation_rules_updated_at()
 returns trigger
@@ -162,7 +163,30 @@ as $$
 declare
   v_result jsonb;
   v_reason_text text;
+  v_content_changed boolean := false;
 begin
+  if tg_op = 'UPDATE' then
+    v_content_changed :=
+      coalesce(new.title, '') is distinct from coalesce(old.title, '')
+      or coalesce(new.description, '') is distinct from coalesce(old.description, '')
+      or coalesce(new.category_slug, '') is distinct from coalesce(old.category_slug, '')
+      or coalesce(new.images, array[]::text[]) is distinct from coalesce(old.images, array[]::text[]);
+  end if;
+
+  if tg_op = 'UPDATE'
+    and upper(coalesce(new.status, '')) = 'ACTIVE'
+    and coalesce(new.publication_review_admin_override, false) = true
+    and not v_content_changed then
+    new.publication_review_checked_at := now();
+    new.publication_review_severity := null;
+    new.publication_review_reasons := '[]'::jsonb;
+    return new;
+  end if;
+
+  if v_content_changed then
+    new.publication_review_admin_override := false;
+  end if;
+
   if upper(coalesce(new.status, '')) not in ('ACTIVE') then
     return new;
   end if;
@@ -188,6 +212,7 @@ begin
   if coalesce((v_result->>'review_required')::boolean, false) then
     new.status := 'PENDING';
     new.publication_review_severity := 'review';
+    new.publication_review_admin_override := false;
   else
     new.publication_review_severity := null;
     new.publication_review_reasons := '[]'::jsonb;
@@ -200,6 +225,7 @@ $$;
 drop trigger if exists trg_enforce_announcement_publication_rules on public.announcements;
 create trigger trg_enforce_announcement_publication_rules
 before insert or update of title, description, category_slug, images, status
+  , publication_review_admin_override
 on public.announcements
 for each row
 execute function public.enforce_announcement_publication_rules();

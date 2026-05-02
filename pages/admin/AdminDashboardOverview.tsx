@@ -393,7 +393,13 @@ const AdminDashboardOverview: React.FC = () => {
     try {
       const { error } = await supabase
         .from('announcements')
-        .update({ status: 'ACTIVE' })
+        .update({
+          status: 'ACTIVE',
+          publication_review_admin_override: true,
+          publication_review_severity: null,
+          publication_review_reasons: [],
+          publication_review_checked_at: new Date().toISOString(),
+        })
         .eq('id', adId);
 
       if (error) throw error;
