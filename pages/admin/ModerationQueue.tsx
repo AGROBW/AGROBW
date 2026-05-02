@@ -40,6 +40,9 @@ interface PendingAnnouncement {
   whatsapp?: string | null;
   publication_review_reasons?: unknown;
   publication_review_severity?: string | null;
+  community_reports_count?: number | null;
+  community_report_reasons?: unknown;
+  community_reported_to_review_at?: string | null;
   owner?: { name: string; email: string; phone: string };
   images?: string[];
 }
@@ -130,6 +133,32 @@ const formatAvailability = (value: unknown) => {
   return availabilityLabels[normalized] || getValueOrFallback(normalized);
 };
 
+const formatCommunityReportSummary = (value: unknown) => {
+  if (!Array.isArray(value)) return '';
+
+  const parts = value
+    .map((item) => {
+      const reason = String((item as any)?.reason || '').trim();
+      const count = Number((item as any)?.count || 0);
+      if (!reason || count <= 0) return '';
+
+      const labelMap: Record<string, string> = {
+        inappropriate_content: 'Conteúdo impróprio',
+        wrong_category: 'Categoria incorreta',
+        fraud_or_scam: 'Possível golpe',
+        false_information: 'Informação falsa',
+        prohibited_item: 'Item proibido',
+        duplicate_or_spam: 'Duplicado ou spam',
+        other: 'Outro motivo',
+      };
+
+      return `${labelMap[reason] || reason} (${count})`;
+    })
+    .filter(Boolean);
+
+  return parts.join(' | ');
+};
+
 const ModerationQueue: React.FC = () => {
   const { logAction } = useAdminAudit();
   const [activeTab, setActiveTab] = useState<ModerationTab>('announcements');
@@ -196,18 +225,31 @@ const ModerationQueue: React.FC = () => {
   const loadPendingAnnouncements = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('announcements').select('*', { count: 'exact' }).eq('status', 'PENDING').order('created_at', { ascending: false }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      const { data, error } = await supabase.rpc('admin_list_moderation_queue_announcements');
+      if (error) throw error;
+
+      let rows = (data || []) as PendingAnnouncement[];
+
       if (filterCategory !== 'all') {
         const groupedCategorySlugs = getGroupCategorySlugs(filterCategory);
-        if (groupedCategorySlugs.length > 0) query = query.in('category_slug', groupedCategorySlugs);
+        if (groupedCategorySlugs.length > 0) {
+          rows = rows.filter((item) => groupedCategorySlugs.includes(String(item.category_slug || '')));
+        }
       }
-      if (searchTerm) query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
-      const { data, error, count } = await query;
-      if (error) throw error;
-      const rows = (data || []) as PendingAnnouncement[];
-      const ownersMap = await fetchOwnersMap(Array.from(new Set(rows.map((item) => item.user_id).filter(Boolean))));
-      setAnnouncements(rows.map((item) => ({ ...item, owner: item.user_id ? ownersMap.get(item.user_id) : undefined })));
-      setTotalAnnouncementsCount(count || 0);
+
+      if (searchTerm.trim()) {
+        const normalizedSearch = searchTerm.trim().toLowerCase();
+        rows = rows.filter((item) =>
+          String(item.title || '').toLowerCase().includes(normalizedSearch) ||
+          String(item.description || '').toLowerCase().includes(normalizedSearch)
+        );
+      }
+
+      setTotalAnnouncementsCount(rows.length);
+
+      const paginatedRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+      const ownersMap = await fetchOwnersMap(Array.from(new Set(paginatedRows.map((item) => item.user_id).filter(Boolean))));
+      setAnnouncements(paginatedRows.map((item) => ({ ...item, owner: item.user_id ? ownersMap.get(item.user_id) : undefined })));
     } catch (error) {
       console.error('[ModerationQueue] Erro ao carregar anuncios:', error);
       toast.error('Erro ao carregar anuncios pendentes');
@@ -528,7 +570,7 @@ const ModerationQueue: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="mt-1 text-3xl font-black text-slate-900">Fila de Moderacao</h1>
-          <p className="mt-1 text-slate-500">{activeTab === 'announcements' ? `${totalAnnouncementsCount} anuncio${totalAnnouncementsCount !== 1 ? 's' : ''} aguardando aprovacao` : `${totalEditRequestsCount} edicao${totalEditRequestsCount !== 1 ? 'oes' : ''} aguardando aprovacao`}</p>
+          <p className="mt-1 text-slate-500">{activeTab === 'announcements' ? `${totalAnnouncementsCount} anuncio${totalAnnouncementsCount !== 1 ? 's' : ''} aguardando analise ou aprovacao` : `${totalEditRequestsCount} edicao${totalEditRequestsCount !== 1 ? 'oes' : ''} aguardando aprovacao`}</p>
         </div>
         <button onClick={() => void (activeTab === 'announcements' ? loadPendingAnnouncements() : loadPendingEditRequests())} className="rounded-lg bg-green-500 px-4 py-2 font-semibold text-white hover:bg-green-600">Atualizar</button>
       </div>
@@ -553,7 +595,7 @@ const ModerationQueue: React.FC = () => {
               <tbody className="divide-y divide-slate-200">
                 {loading ? <tr><td colSpan={5} className="px-6 py-12 text-center"><div className="flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-green-600"></div></div></td></tr> : announcements.length === 0 ? <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-500">Nenhum anuncio pendente de moderacao</td></tr> : announcements.map((announcement) => (
                   <tr key={announcement.id} className="transition-colors hover:bg-slate-50">
-                    <td className="px-6 py-4"><div className="flex items-start gap-3"><div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">{announcement.images?.[0] ? <img src={announcement.images[0]} alt={announcement.title} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><AlertTriangle className="h-6 w-6" /></div>}</div><div className="min-w-0 flex-1"><p className="truncate font-semibold text-slate-900">{announcement.title}</p><p className="line-clamp-2 text-sm text-slate-500">{announcement.description}</p><p className="mt-1 text-sm font-bold text-green-600">R$ {announcement.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>{getPublicationReviewLabel(announcement) ? <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">Regra: {getPublicationReviewLabel(announcement)}</p> : null}</div></div></td>
+                    <td className="px-6 py-4"><div className="flex items-start gap-3"><div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">{announcement.images?.[0] ? <img src={announcement.images[0]} alt={announcement.title} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><AlertTriangle className="h-6 w-6" /></div>}</div><div className="min-w-0 flex-1"><p className="truncate font-semibold text-slate-900">{announcement.title}</p><p className="line-clamp-2 text-sm text-slate-500">{announcement.description}</p><p className="mt-1 text-sm font-bold text-green-600">R$ {announcement.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>{getPublicationReviewLabel(announcement) ? <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">Regra: {getPublicationReviewLabel(announcement)}</p> : null}{(announcement.community_reports_count || 0) > 0 ? <div className="mt-2 space-y-1"><p className="inline-flex rounded-lg bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700">{announcement.community_reports_count} denúncia(s) da comunidade</p>{formatCommunityReportSummary(announcement.community_report_reasons) ? <p className="text-xs text-slate-500">{formatCommunityReportSummary(announcement.community_report_reasons)}</p> : null}</div> : null}</div></div></td>
                     <td className="px-6 py-4"><span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">{getAnnouncementGroupLabel(announcement)}</span></td>
                     <td className="px-6 py-4"><div className="text-sm"><p className="font-semibold text-slate-900">{announcement.owner?.name}</p><p className="text-slate-500">{announcement.owner?.email}</p></div></td>
                     <td className="px-6 py-4 text-sm text-slate-500">{new Date(announcement.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>

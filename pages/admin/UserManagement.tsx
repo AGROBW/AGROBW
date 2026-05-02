@@ -43,6 +43,7 @@ interface User {
   suspended_at: string | null;
   created_at: string;
   last_login: string | null; // Sincronizado via trigger do auth.users.last_sign_in_at
+  start_plan_consumed_at?: string | null;
   plan_name?: string; // Nome do plano ativo (extraído de user_subscriptions)
   active_subscription_id?: string | null;
   active_plan_id?: string | null;
@@ -199,6 +200,7 @@ const UserManagement: React.FC = () => {
     monthly_price: number;
     plan_validity_days_monthly: number | null;
     plan_validity_days_yearly: number | null;
+    is_default_signup_plan: boolean;
   }>>([]);
 
   const PAGE_SIZE = 20;
@@ -257,7 +259,7 @@ const UserManagement: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('plans')
-        .select('id, name, monthly_price, plan_validity_days_monthly, plan_validity_days_yearly')
+        .select('id, name, monthly_price, plan_validity_days_monthly, plan_validity_days_yearly, is_default_signup_plan')
         .eq('is_active', true)
         .order('position', { ascending: true });
 
@@ -574,6 +576,11 @@ const UserManagement: React.FC = () => {
       const selectedPlan = availablePlans.find((plan) => plan.id === newPlan);
       if (!selectedPlan) {
         toast.error('Plano selecionado n\u00e3o encontrado');
+        return false;
+      }
+
+      if (selectedPlan.is_default_signup_plan && selectedUser.start_plan_consumed_at) {
+        toast.error('Este usuario ja consumiu o plano inicial do cadastro. Escolha um plano pago diferente para a reativacao.');
         return false;
       }
 
@@ -1367,10 +1374,16 @@ const UserManagement: React.FC = () => {
                   <option value="">Selecione um plano</option>
                   {availablePlans.map(plan => (
                     <option key={plan.id} value={plan.id}>
-                      {plan.name} - R$ {plan.monthly_price.toFixed(2)}/m&ecirc;s
+                      {plan.name}
+                      {plan.is_default_signup_plan ? ' (plano inicial do cadastro)' : ''}
+                      {' - R$ '}
+                      {plan.monthly_price.toFixed(2)}/m&ecirc;s
                     </option>
                   ))}
                 </select>
+                <p className="mt-2 text-xs text-slate-500">
+                  Planos marcados como iniciais de cadastro sao reservados ao primeiro acesso do usuario e continuam bloqueados depois que esse beneficio ja foi consumido.
+                </p>
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">

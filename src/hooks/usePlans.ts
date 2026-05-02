@@ -33,6 +33,8 @@ export interface Plan {
   has_verification_badge: boolean;
   has_seller_store: boolean;
   has_email_marketing: boolean;
+  has_commercial_intelligence: boolean;
+  commercial_intelligence_requests_per_month: number;
   social_campaigns_per_month: number | null;
   radar_max_alerts: number;
   radar_has_radius: boolean;
@@ -77,6 +79,8 @@ export interface UpdatePlanData {
   has_verification_badge?: boolean;
   has_seller_store?: boolean;
   has_email_marketing?: boolean;
+  has_commercial_intelligence?: boolean;
+  commercial_intelligence_requests_per_month?: number;
   social_campaigns_per_month?: number | null;
   radar_max_alerts?: number;
   radar_has_radius?: boolean;
@@ -158,6 +162,9 @@ export const usePlans = () => {
         .from('plans')
         .insert({
           ...planData,
+          lead_contact_limit_days: planData.plan_validity_days_monthly ?? planData.lead_contact_limit_days ?? null,
+          lead_contact_limit_days_monthly: planData.plan_validity_days_monthly ?? planData.lead_contact_limit_days_monthly ?? planData.lead_contact_limit_days ?? null,
+          lead_contact_limit_days_yearly: planData.plan_validity_days_yearly ?? planData.lead_contact_limit_days_yearly ?? planData.lead_contact_limit_days ?? null,
           is_default_signup_plan: planData.is_default_signup_plan ? false : planData.is_default_signup_plan,
           show_in_public_pricing:
             planData.is_downgrade_plan ? false : planData.show_in_public_pricing ?? true,
@@ -226,6 +233,9 @@ export const usePlans = () => {
         .from('plans')
         .update({
           ...updates,
+          lead_contact_limit_days: updates.plan_validity_days_monthly ?? updates.lead_contact_limit_days ?? undefined,
+          lead_contact_limit_days_monthly: updates.plan_validity_days_monthly ?? updates.lead_contact_limit_days_monthly ?? updates.lead_contact_limit_days ?? undefined,
+          lead_contact_limit_days_yearly: updates.plan_validity_days_yearly ?? updates.lead_contact_limit_days_yearly ?? updates.lead_contact_limit_days ?? undefined,
           is_default_signup_plan:
             updates.is_default_signup_plan ? undefined : updates.is_default_signup_plan,
           show_in_public_pricing:

@@ -32,12 +32,16 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const isSelectedChatFrozen = !!selectedChat?.isFrozen && (
     selectedChat?.freezeReason !== 'lead_contact_expired' || shouldApplyLeadContactLock
   );
-  const frozenBadgeText = isLeadContactExpired ? 'Prazo de contato expirado' : 'Anuncio expirado';
-  const frozenTitle = isLeadContactExpired ? 'Prazo de contato expirado' : 'Anuncio expirado';
+  const frozenBadgeText = isLeadContactExpired ? 'Novo contato bloqueado' : 'Anuncio expirado';
+  const frozenTitle = isLeadContactExpired ? 'Novo contato bloqueado' : 'Anuncio expirado';
   const frozenDescription = isLeadContactExpired
     ? 'O periodo de acesso a este interessado terminou. Faça upgrade para voltar a visualizar os dados do lead e responder a conversa.'
     : 'Esta conversa foi congelada porque o anuncio venceu. Nenhuma nova mensagem pode ser enviada e os dados da negociacao ficaram bloqueados.';
   
+  const effectiveFrozenDescription = isLeadContactExpired
+    ? 'Este contato entrou depois do vencimento do seu plano pago. Renove ou faca upgrade para visualizar os dados do interessado e responder a conversa.'
+    : frozenDescription;
+
   // Debug: Log dos dados do chat selecionado
   useEffect(() => {
     if (selectedChat) {
@@ -191,6 +195,11 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                     : 'Conteúdo indisponível para esta conversa.'
                   : chat.lastMessage || 'Sem mensagens';
 
+                const effectivePreviewMessage =
+                  shouldShowFrozen && chat.freezeReason === 'lead_contact_expired'
+                    ? 'Conteudo protegido. Renove ou faca upgrade para liberar este novo contato.'
+                    : previewMessage;
+
                 return (
               <button
                 key={chat.id}
@@ -227,7 +236,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                     
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-slate-400 truncate flex-1">
-                        {previewMessage}
+                        {effectivePreviewMessage}
                       </p>
                       
                       {chat.unreadCount > 0 && (
@@ -239,7 +248,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                     {shouldShowFrozen && (
                       <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
                         <Lock className="w-3 h-3" />
-                        {chat.freezeReason === 'lead_contact_expired' ? 'Prazo de contato expirado' : 'Anuncio expirado'}
+                        {chat.freezeReason === 'lead_contact_expired' ? 'Novo contato bloqueado' : 'Anuncio expirado'}
                       </span>
                     )}
                   </div>
@@ -313,17 +322,20 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                         Acesso premium
                       </span>
                       <p className="mt-3 text-base font-semibold text-slate-900">
-                        Desbloqueie este contato para continuar a negociação
+                        Libere este novo contato para continuar a negociacao
                       </p>
                       <p className="mt-1 text-sm text-slate-600">
-                        O período gratuito terminou. Faça upgrade para visualizar novamente os dados do interessado e responder a conversa.
+                        Este interessado entrou depois do vencimento do seu plano pago. Assine novamente ou faca upgrade para voltar a acessar novos contatos recebidos.
+                      </p>
+                      <p className="mt-2 text-xs text-emerald-700">
+                        Este novo contato foi recebido fora da vigencia do seu plano pago e sera liberado quando voce renovar ou fizer upgrade.
                       </p>
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-                          Visualize os dados do lead
+                          Visualize os dados do contato
                         </span>
                         <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-                          Responda novos interessados
+                          Libere novos contatos recebidos
                         </span>
                       </div>
                       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -334,7 +346,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                           }}
                           className="inline-flex items-center rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700"
                         >
-                          Ver planos e fazer upgrade
+                          Ver planos e liberar contato
                         </button>
                       </div>
                     </>
@@ -342,7 +354,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                     <>
                       <p className="text-sm font-semibold text-amber-900">{frozenTitle}</p>
                       <p className="mt-1 text-xs text-amber-800">
-                        {frozenDescription}
+                        {effectiveFrozenDescription}
                       </p>
                     </>
                   )}

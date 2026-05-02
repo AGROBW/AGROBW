@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { ArrowRight, Award, BarChart3, Check, ChevronDown, Loader2, MapPin, Megaphone, PlayCircle, ShieldCheck, Sparkles, Star, Store, TrendingUp, Users, X, Zap } from 'lucide-react';
 import { PRICING_FAQ } from '../constants';
 import { usePlans } from '../src/hooks/usePlans';
@@ -9,7 +9,7 @@ import { useLayout } from '../src/contexts/LayoutContext';
 import { Plan } from '../src/hooks/usePlans';
 import { useHighlightBoosters } from '../src/hooks/useHighlightBoosters';
 import HighlightBoosterCard from '../components/boosters/HighlightBoosterCard';
-import { getEffectiveLeadContactLimitDays, getEffectivePlanValidityDays } from '../src/utils/subscriptionUsageWindow';
+import { getEffectivePlanValidityDays } from '../src/utils/subscriptionUsageWindow';
 
 type BillingCycle = 'monthly' | 'yearly';
 type ComparisonRow = { id: string; label: string; getValue: (plan: Plan) => string | boolean };
@@ -36,7 +36,7 @@ const PricingView: React.FC = () => {
     () => PRICING_FAQ
       .filter((faq) => faq.question !== 'Posso cancelar minha assinatura a qualquer momento?')
       .map((faq) => (
-        faq.question === 'Existe limite de anÃºncios por conta?'
+        faq.question === 'Existe limite de anúncios por conta?'
           ? {
               ...faq,
               answer: 'No plano gratuito, há limitação de anúncios ativos. Já nos planos pagos, é possível manter múltiplos anúncios simultaneamente.',
@@ -46,6 +46,10 @@ const PricingView: React.FC = () => {
       .concat({
         question: 'Os benefícios dos planos anuais são acumulativos?',
         answer: 'Os benefícios dos planos não são acumulativos. Eles são disponibilizados e renovados mensalmente ao longo do período contratado, mantendo a mesma estrutura de vantagens durante toda a vigência do plano.',
+      })
+      .concat({
+        question: 'O que é o período de cooldown dos Destaques?',
+        answer: 'O cooldown é o intervalo de 15 dias que começa depois do vencimento do destaque usado naquele mesmo tipo.\n\nExemplo: se um anúncio receber destaque em categoria no dia 01/05 e esse destaque vencer em 16/05, ele só poderá receber novo destaque em categoria a partir de 31/05.\n\nEssa regra vale separadamente para home e categoria, preservando a rotatividade dos espaços mais visíveis da plataforma.',
       }),
     []
   );
@@ -65,23 +69,22 @@ const PricingView: React.FC = () => {
 
   const comparisonRows = useMemo<ComparisonRow[]>(() => {
     const baseRows: ComparisonRow[] = [
-      { id: 'max_ads', label: 'Maximo de anuncios ativos', getValue: (plan) => (plan.max_ads === null ? 'Ilimitado' : String(plan.max_ads)) },
-      { id: 'ad_duration_days', label: 'Duracao do anuncio', getValue: (plan) => formatNumericValue(plan.ad_duration_days, ' dias') },
-      { id: 'expired_deletion_days', label: 'Exclusao apos vencimento', getValue: (plan) => formatNumericValue(plan.expired_deletion_days, ' dias') },
+      { id: 'max_ads', label: 'Máximo de anúncios ativos', getValue: (plan) => (plan.max_ads === null ? 'Ilimitado' : String(plan.max_ads)) },
+      { id: 'ad_duration_days', label: 'Duração do anúncio', getValue: (plan) => formatNumericValue(plan.ad_duration_days, ' dias') },
+      { id: 'expired_deletion_days', label: 'Exclusão após vencimento', getValue: (plan) => formatNumericValue(plan.expired_deletion_days, ' dias') },
       { id: 'plan_validity_days', label: billingCycle === 'monthly' ? 'Validade do plano no ciclo mensal' : 'Validade do plano no ciclo anual', getValue: (plan) => formatNumericValue(getEffectivePlanValidityDays(plan, billingCycle), ' dias') },
-      { id: 'lead_contact_limit_days', label: billingCycle === 'monthly' ? 'Contato com leads no plano mensal' : 'Contato com leads no plano anual', getValue: (plan) => formatNumericValue(getEffectiveLeadContactLimitDays(plan, billingCycle === 'yearly'), ' dias') },
       { id: 'category_highlights_count', label: 'Destaques por categoria', getValue: (plan) => String(plan.category_highlights_count || 0) },
-      { id: 'category_highlight_days', label: 'Duracao do destaque na categoria', getValue: (plan) => (plan.category_highlights_count || 0) > 0 ? formatNumericValue(plan.category_highlight_days, ' dias') : '-' },
+      { id: 'category_highlight_days', label: 'Duração do destaque na categoria', getValue: (plan) => (plan.category_highlights_count || 0) > 0 ? formatNumericValue(plan.category_highlight_days, ' dias') : '-' },
       { id: 'home_highlight_count', label: 'Destaques na home', getValue: (plan) => String(plan.home_highlight_count || 0) },
-      { id: 'home_highlight_days', label: 'Duracao do destaque na home', getValue: (plan) => (plan.home_highlight_count || 0) > 0 ? formatNumericValue(plan.home_highlight_days, ' dias') : '-' },
-      { id: 'has_verification_badge', label: 'Selo de verificacao', getValue: (plan) => plan.has_verification_badge },
+      { id: 'home_highlight_days', label: 'Duração do destaque na home', getValue: (plan) => (plan.home_highlight_count || 0) > 0 ? formatNumericValue(plan.home_highlight_days, ' dias') : '-' },
+      { id: 'has_verification_badge', label: 'Selo de verificação', getValue: (plan) => plan.has_verification_badge },
       { id: 'has_seller_store', label: 'Loja do vendedor', getValue: (plan) => plan.has_seller_store },
       { id: 'has_email_marketing', label: 'E-mail marketing', getValue: (plan) => plan.has_email_marketing },
-      { id: 'social_campaigns_per_month', label: 'Campanhas sociais por mes', getValue: (plan) => plan.social_campaigns_per_month && plan.social_campaigns_per_month > 0 ? String(plan.social_campaigns_per_month) : '-' },
+      { id: 'social_campaigns_per_month', label: 'Campanhas sociais por mês', getValue: (plan) => plan.social_campaigns_per_month && plan.social_campaigns_per_month > 0 ? String(plan.social_campaigns_per_month) : '-' },
       { id: 'radar_max_alerts', label: 'Alertas do radar', getValue: (plan) => String(plan.radar_max_alerts || 0) },
       { id: 'radar_has_radius', label: 'Filtro por raio no radar', getValue: (plan) => plan.radar_has_radius },
       { id: 'radar_has_keywords', label: 'Filtro por palavras-chave', getValue: (plan) => plan.radar_has_keywords },
-      { id: 'radar_has_price_filter', label: 'Filtro por faixa de preco', getValue: (plan) => plan.radar_has_price_filter },
+      { id: 'radar_has_price_filter', label: 'Filtro por faixa de preço', getValue: (plan) => plan.radar_has_price_filter },
     ];
     const extraKeys = Array.from(new Set(plansRaw.flatMap((plan) => Object.keys(plan.comparison || {}).filter((key) => !baseRows.some((row) => row.id === key)))));
     return [...baseRows, ...extraKeys.map((key) => ({ id: key, label: humanizeComparisonKey(key), getValue: (plan: Plan) => formatComparisonValue(plan.comparison?.[key] ?? '-') }))];
@@ -96,7 +99,7 @@ const PricingView: React.FC = () => {
         : monthlyPrice;
   const getPlanSummary = (plan: Plan) => {
     if (plan.display_features?.length) return plan.display_features.filter(Boolean);
-    const summary = [`Ate ${formatNumericValue(plan.max_ads)} anuncios ativos`, `${plan.category_highlights_count || 0} destaques por categoria`, `${formatNumericValue(getEffectiveLeadContactLimitDays(plan, billingCycle === 'yearly'), ' dias')} de contato com leads`];
+    const summary = [`Até ${formatNumericValue(plan.max_ads)} anúncios ativos`, `${plan.category_highlights_count || 0} destaques por categoria`, `${formatNumericValue(getEffectivePlanValidityDays(plan, billingCycle), ' dias')} de vigência no ciclo`];
     if ((plan.home_highlight_count || 0) > 0) summary[2] = `${plan.home_highlight_count} destaque${plan.home_highlight_count > 1 ? 's' : ''} na home`;
     return summary;
   };
@@ -145,14 +148,14 @@ const PricingView: React.FC = () => {
 
   const handleBoosterPurchase = async () => {
     const booster = boosters[0];
-    if (!booster) return void toast.error('Nenhum booster disponivel no momento.');
+    if (!booster) return void toast.error('Nenhum booster disponível no momento.');
     if (!user) {
       toast.error('Voce precisa estar logado para comprar um booster.');
       setTimeout(() => { window.location.href = '/#/login?redirect=/pricing'; }, 1500);
       return;
     }
     if (boosterSummary.requiresPaidPlan && boosterSummary.hasEligiblePaidPlan === false) {
-      return void toast.error(boosterSummary.blockedReason || 'Booster disponivel apenas para assinantes com plano pago ativo.');
+      return void toast.error(boosterSummary.blockedReason || 'Booster disponível apenas para assinantes com plano pago ativo.');
     }
     if (!boosterSummary.canPurchase) return void toast.error('Voce atingiu o limite de 2 boosters a cada 30 dias.');
     setLoadingPlanId(`booster-${booster.id}`);
@@ -190,7 +193,7 @@ const PricingView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* ── HERO ────────────────────────────────────────────── */}
+      {/* HERO */}
       <section className="relative min-h-[92vh] overflow-hidden flex flex-col justify-end pb-0">
         {/* foto de fundo */}
         <div className="absolute inset-0">
@@ -199,7 +202,7 @@ const PricingView: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
         </div>
 
-        {/* conteúdo */}
+        {/* conteudo */}
         <div className="relative mx-auto w-full max-w-7xl px-4 pt-32 pb-16">
           <div className="max-w-3xl">
             <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.3em] text-white backdrop-blur-sm">
@@ -211,7 +214,7 @@ const PricingView: React.FC = () => {
               <span style={{ color: settings.primaryColor }}>mais vendas no agro.</span>
             </h1>
             <p className="mt-5 max-w-2xl text-base font-medium leading-8 text-slate-200 md:text-lg">
-              Escolha o plano ideal para sua operação: vitrine premium, contato mais longo com leads, radar de demanda e Loja Parceira para fortalecer sua marca.
+              Escolha o plano ideal para sua operação: vitrine premium, novos contatos liberados durante a vigência, radar de demanda e Loja Parceira para fortalecer sua marca.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <button type="button" onClick={() => scrollToSection('cards-planos')} className="inline-flex items-center gap-2 rounded-2xl px-6 py-3.5 text-sm font-black text-white shadow-lg transition hover:opacity-90" style={{ backgroundColor: settings.primaryColor }}>
@@ -234,7 +237,7 @@ const PricingView: React.FC = () => {
           </div>
         </div>
 
-        {/* onda de transição */}
+        {/* onda de transicao */}
         <div className="relative h-16 w-full">
           <svg viewBox="0 0 1440 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="absolute bottom-0 w-full" preserveAspectRatio="none" style={{ height: 64 }}>
             <path d="M0 64L1440 64L1440 0C1440 0 1080 64 720 64C360 64 0 0 0 0L0 64Z" fill="white" />
@@ -242,7 +245,7 @@ const PricingView: React.FC = () => {
         </div>
       </section>
 
-      {/* ── VALOR / POR QUE SUBIR ───────────────────────────── */}
+      {/* VALOR / POR QUE SUBIR */}
       <section className="bg-white pb-4 pt-10">
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-10 text-center">
@@ -252,8 +255,8 @@ const PricingView: React.FC = () => {
           <div className="grid gap-5 md:grid-cols-3">
             {[
               { icon: Megaphone, eyebrow: 'Visibilidade', title: 'Apareça antes dos concorrentes', description: 'Destaques na home e nas categorias colocam seus produtos no topo da vitrine quando o comprador está pesquisando.', accent: settings.primaryColor },
-              { icon: Users, eyebrow: 'Contato', title: 'Mais tempo para fechar negócios', description: 'Planos superiores ampliam a janela de contato com leads para que nenhuma negociação fique no meio do caminho.', accent: settings.accentColor },
-              { icon: BarChart3, eyebrow: 'Inteligência', title: 'Radar, relatórios e Loja Parceira', description: 'Acompanhe demanda, organize sua operação e ganhe uma vitrine com identidade visual própria dentro da plataforma.', accent: settings.secondaryColor },
+              { icon: Users, eyebrow: 'Vigência', title: 'Mais tempo para receber novos contatos', description: 'Durante a vigência do plano, os novos interessados entram liberados para sua operação continuar negociando sem interrupções.', accent: settings.accentColor },
+              { icon: BarChart3, eyebrow: 'Inteligência', title: 'Radar, relatórios e Loja Parceira', description: 'Acompanhe a demanda, organize sua operação e ganhe uma vitrine com identidade visual própria dentro da plataforma.', accent: settings.secondaryColor },
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -271,7 +274,7 @@ const PricingView: React.FC = () => {
         </div>
       </section>
 
-      {/* ── PLANOS ──────────────────────────────────────────── */}
+      {/* PLANOS */}
       <section id="cards-planos" className="bg-slate-50 py-20">
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-12 text-center">
@@ -420,7 +423,7 @@ const PricingView: React.FC = () => {
         </div>
       </section>
 
-      {/* ── LOJA PARCEIRA ────────────────────────────────────── */}
+      {/* LOJA PARCEIRA */}
       <section className="overflow-hidden bg-white py-20">
         <div className="mx-auto max-w-7xl px-4">
           <div className="grid items-center gap-10 lg:grid-cols-2">
@@ -436,11 +439,11 @@ const PricingView: React.FC = () => {
                 <p className="text-xs font-semibold text-slate-500">Vitrine com identidade visual própria</p>
               </div>
             </div>
-            {/* conteúdo */}
+            {/* conteudo */}
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.28em]" style={{ color: settings.primaryColor }}>Diferencial exclusivo</p>
               <h2 className="mt-3 text-3xl font-black text-slate-950 md:text-4xl">Sua marca em uma vitrine própria dentro da plataforma</h2>
-              <p className="mt-4 text-sm leading-7 text-slate-500">Com a Loja Parceira você tem uma página exclusiva com capa, logo, catálogo, vídeos e banners — tudo com a cara da sua empresa, sem precisar de um site separado.</p>
+              <p className="mt-4 text-sm leading-7 text-slate-500">Com a Loja Parceira você tem uma página exclusiva com capa, logo, catálogo, vídeos e banners, tudo com a cara da sua empresa, sem precisar de um site separado.</p>
               <div className="mt-8 space-y-4">
                 {partnerStoreFeatures.map((item, i) => {
                   const Icon = item.icon;
@@ -466,7 +469,7 @@ const PricingView: React.FC = () => {
         </div>
       </section>
 
-      {/* ── BOOSTERS ─────────────────────────────────────────── */}
+      {/* BOOSTERS */}
       {(boostersLoading || boosters.length > 0) && (
         <section className="relative overflow-hidden py-20" style={{ backgroundColor: settings.secondaryColor }}>
           {/* glows decorativos */}
@@ -474,7 +477,7 @@ const PricingView: React.FC = () => {
           <div className="pointer-events-none absolute -right-32 bottom-0 h-96 w-96 rounded-full blur-3xl" style={{ backgroundColor: `color-mix(in srgb, ${settings.accentColor} 10%, transparent)` }} />
 
           <div className="relative mx-auto max-w-7xl px-4">
-            {/* header da seção */}
+            {/* header da secao */}
             <div className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
               <div>
                 <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 backdrop-blur-sm" style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 12%, transparent)`, borderColor: `color-mix(in srgb, ${settings.primaryColor} 25%, transparent)` }}>
@@ -486,7 +489,7 @@ const PricingView: React.FC = () => {
                   <span style={{ color: settings.primaryColor }}>quando a campanha pedir.</span>
                 </h2>
                 <p className="mt-3 max-w-xl text-sm leading-7 text-slate-400">
-                  Compra pontual para reforçar visibilidade sem alterar seu plano. Os créditos não expiram e o consumo começa pelo saldo do plano — o booster entra depois.
+                  Compra pontual para reforçar visibilidade sem alterar seu plano. Os créditos não expiram e o consumo começa pelo saldo do plano. O booster entra depois.
                 </p>
               </div>
 
@@ -531,25 +534,53 @@ const PricingView: React.FC = () => {
                   </div>
                   <ol className="space-y-5">
                     {[
-                      { n: '1', text: 'O combo adiciona 5 destaques em categoria + 5 na home.' },
-                      { n: '2', text: 'Créditos ficam no seu saldo e não expiram — nem se o plano for cancelado.' },
-                      { n: '3', text: 'Ao aplicar um destaque, o sistema usa primeiro o saldo do plano.' },
-                      { n: '4', text: 'Esgotado o plano, o booster entra automaticamente.' },
-                      { n: '5', text: 'Com qualquer uso registrado, a compra deixa de ser reembolsável.' },
-                    ].map(({ n, text }) => (
+                      {
+                        n: '1',
+                        title: 'Mais visibilidade imediata',
+                        text: 'Adquira um pacote com 5 destaques em categoria + 5 destaques na home para impulsionar seus anúncios.',
+                      },
+                      {
+                        n: '2',
+                        title: 'Créditos flexíveis',
+                        text: 'Seus créditos ficam disponíveis no seu saldo e não expiram, mesmo que seu plano seja cancelado.',
+                      },
+                      {
+                        n: '3',
+                        title: 'Ativação simples e rápida',
+                        text: 'Escolha o anúncio que deseja destacar em “Meus anúncios” e ative o destaque com apenas um clique.',
+                      },
+                      {
+                        n: '4',
+                        title: 'Uso sob medida',
+                        text: 'Ao aplicar um destaque, o sistema usa primeiro o saldo do plano. Esgotado o plano, o Destaque Premium entra automaticamente.',
+                      },
+                    ].map(({ n, title, text }) => (
                       <li key={n} className="flex items-start gap-4">
                         <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-black text-white" style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 22%, transparent)`, border: `1px solid color-mix(in srgb, ${settings.primaryColor} 35%, transparent)`, color: settings.primaryColor }}>
                           {n}
                         </span>
-                        <p className="pt-0.5 text-sm leading-6 text-slate-300">{text}</p>
+                        <div className="pt-0.5">
+                          <p className="text-sm font-bold text-white">{title}</p>
+                          <p className="mt-1 text-sm leading-6 text-slate-300">{text}</p>
+                        </div>
                       </li>
                     ))}
                   </ol>
 
-                  {/* limite de compra */}
-                  <div className="mt-7 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: settings.accentColor }}>Limite de compra</p>
-                    <p className="mt-1 text-sm font-bold text-white">Até 2 boosters a cada 30 dias</p>
+                  <div
+                    className="mt-7 rounded-2xl border px-4 py-4"
+                    style={{
+                      borderColor: `color-mix(in srgb, ${settings.accentColor} 35%, transparent)`,
+                      backgroundColor: `color-mix(in srgb, ${settings.accentColor} 8%, transparent)`,
+                    }}
+                  >
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: settings.accentColor }}>Importante</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-200">
+                      Após o primeiro uso de qualquer crédito, a compra não poderá ser reembolsada.
+                    </p>
+                    <p className="mt-2 text-sm font-bold leading-6 text-white">
+                      Limite de compra de Destaque Premium: até 2 pacotes a cada 30 dias.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -558,7 +589,7 @@ const PricingView: React.FC = () => {
         </section>
       )}
 
-      {/* ── COMPARATIVO TÉCNICO ──────────────────────────────── */}
+      {/* COMPARATIVO TECNICO */}
       <section id="comparativo-tecnico" className="bg-slate-50 py-24">
         <div className="mx-auto max-w-7xl overflow-hidden px-4">
           <div className="mb-12 text-center">
@@ -613,7 +644,7 @@ const PricingView: React.FC = () => {
         </div>
       </section>
 
-      {/* ── FAQ ──────────────────────────────────────────────── */}
+      {/* FAQ */}
       <section className="bg-white py-24">
         <div className="mx-auto max-w-3xl px-4">
           <div className="mb-12 text-center">
@@ -647,7 +678,7 @@ const PricingView: React.FC = () => {
         </div>
       </section>
 
-      {/* ── CTA FINAL ───────────────────────────────────────── */}
+      {/* CTA FINAL */}
       <section className="relative overflow-hidden py-28">
         <div className="absolute inset-0">
           <img src={agro.field} alt="Campo agro" className="h-full w-full object-cover" />
@@ -701,3 +732,5 @@ const PricingView: React.FC = () => {
 };
 
 export default PricingView;
+
+

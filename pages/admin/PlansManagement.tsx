@@ -89,9 +89,6 @@ const makeEmptyForm = (position: number): UpdatePlanData => ({
   max_ads: null,
   ad_duration_days: 30,
   expired_deletion_days: 90,
-  lead_contact_limit_days: 30,
-  lead_contact_limit_days_monthly: 30,
-  lead_contact_limit_days_yearly: 30,
   plan_validity_days_monthly: 30,
   plan_validity_days_yearly: 365,
   category_highlights_count: 0,
@@ -101,6 +98,8 @@ const makeEmptyForm = (position: number): UpdatePlanData => ({
   has_verification_badge: false,
   has_seller_store: false,
   has_email_marketing: false,
+  has_commercial_intelligence: false,
+  commercial_intelligence_requests_per_month: 0,
   social_campaigns_per_month: null,
   radar_max_alerts: 0,
   radar_has_radius: false,
@@ -129,9 +128,6 @@ const mapPlanToForm = (plan: Plan): UpdatePlanData => ({
   max_ads: plan.max_ads,
   ad_duration_days: plan.ad_duration_days,
   expired_deletion_days: plan.expired_deletion_days,
-  lead_contact_limit_days: plan.lead_contact_limit_days,
-  lead_contact_limit_days_monthly: plan.lead_contact_limit_days_monthly ?? plan.lead_contact_limit_days,
-  lead_contact_limit_days_yearly: plan.lead_contact_limit_days_yearly ?? plan.lead_contact_limit_days,
   plan_validity_days_monthly: plan.plan_validity_days_monthly ?? 30,
   plan_validity_days_yearly: plan.plan_validity_days_yearly ?? 365,
   category_highlights_count: plan.category_highlights_count,
@@ -141,6 +137,8 @@ const mapPlanToForm = (plan: Plan): UpdatePlanData => ({
   has_verification_badge: plan.has_verification_badge,
   has_seller_store: plan.has_seller_store,
   has_email_marketing: plan.has_email_marketing,
+  has_commercial_intelligence: plan.has_commercial_intelligence,
+  commercial_intelligence_requests_per_month: plan.commercial_intelligence_requests_per_month,
   social_campaigns_per_month: plan.social_campaigns_per_month,
   radar_max_alerts: plan.radar_max_alerts,
   radar_has_radius: plan.radar_has_radius,
@@ -240,12 +238,11 @@ const PlansManagement: React.FC = () => {
       return;
     }
 
-    const normalizedLeadLimit =
-      formData.lead_contact_limit_days_monthly ?? formData.lead_contact_limit_days ?? null;
-
     const payload: UpdatePlanData = {
       ...formData,
-      lead_contact_limit_days: normalizedLeadLimit,
+      lead_contact_limit_days: formData.plan_validity_days_monthly ?? null,
+      lead_contact_limit_days_monthly: formData.plan_validity_days_monthly ?? null,
+      lead_contact_limit_days_yearly: formData.plan_validity_days_yearly ?? null,
     };
 
     setSaving(true);
@@ -491,12 +488,12 @@ const PlansManagement: React.FC = () => {
               <FieldShell label="Validade do Plano - Anual (dias)" hint="Quantidade de dias da assinatura quando o plano for comprado no ciclo anual.">
                 <input type="number" value={formData.plan_validity_days_yearly ?? ''} onChange={(e) => handleChange('plan_validity_days_yearly', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 365" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
               </FieldShell>
-              <FieldShell label="Contato Lead - Mensal (dias)" hint="Janela de acesso aos contatos para assinaturas mensais.">
-                <input type="number" value={formData.lead_contact_limit_days_monthly ?? formData.lead_contact_limit_days ?? ''} onChange={(e) => handleChange('lead_contact_limit_days_monthly', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 30" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
-              </FieldShell>
-              <FieldShell label="Contato Lead - Anual (dias)" hint="Janela de acesso aos contatos para assinaturas anuais.">
-                <input type="number" value={formData.lead_contact_limit_days_yearly ?? formData.lead_contact_limit_days ?? ''} onChange={(e) => handleChange('lead_contact_limit_days_yearly', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Ex.: 60 ou 365" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
-              </FieldShell>
+            </div>
+            <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
+              <p className="text-sm font-medium text-emerald-900">Novos contatos recebidos seguem a vigencia do plano.</p>
+              <p className="mt-1 text-xs text-emerald-700">
+                A coluna de Contato Lead foi descontinuada neste fluxo. Agora, a liberacao de novos contatos recebidos segue exclusivamente a validade mensal ou anual configurada acima.
+              </p>
             </div>
           </div>
 
@@ -554,6 +551,13 @@ const PlansManagement: React.FC = () => {
                   E-mail Marketing
                 </div>
               </label>
+              <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50">
+                <input type="checkbox" checked={formData.has_commercial_intelligence ?? false} onChange={(e) => handleChange('has_commercial_intelligence', e.target.checked)} />
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <Search className="h-4 w-4 text-emerald-600" />
+                  Inteligencia Comercial
+                </div>
+              </label>
               <div className="rounded-lg border border-gray-200 p-3">
                 <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
                   <Share2 className="h-4 w-4 text-orange-600" />
@@ -561,6 +565,21 @@ const PlansManagement: React.FC = () => {
                 </label>
                 <input type="number" value={formData.social_campaigns_per_month ?? ''} onChange={(e) => handleChange('social_campaigns_per_month', e.target.value ? parseInt(e.target.value, 10) : null)} placeholder="Quantidade mensal" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
                 <p className="mt-2 text-xs text-gray-400">Informe quantas campanhas sociais mensais o plano inclui.</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <Search className="h-4 w-4 text-emerald-600" />
+                  Consultas de Inteligencia / Mes
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.commercial_intelligence_requests_per_month ?? 0}
+                  onChange={(e) => handleChange('commercial_intelligence_requests_per_month', parseInt(e.target.value, 10) || 0)}
+                  placeholder="Quantidade mensal"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2"
+                />
+                <p className="mt-2 text-xs text-gray-400">Use 0 para bloquear consultas, mesmo que o recurso esteja desmarcado por padrao.</p>
               </div>
             </div>
           </div>
@@ -698,9 +717,8 @@ const PlansManagement: React.FC = () => {
               <p>Exclusao apos vencimento: <strong className="text-gray-900">{plan.expired_deletion_days ?? 90} dias</strong></p>
               <p>Validade mensal: <strong className="text-gray-900">{plan.plan_validity_days_monthly ?? 30} dias</strong></p>
               <p>Validade anual: <strong className="text-gray-900">{plan.plan_validity_days_yearly ?? 365} dias</strong></p>
-              <p>Contato lead mensal: <strong className="text-gray-900">{plan.lead_contact_limit_days_monthly ?? plan.lead_contact_limit_days ?? 'Sob consulta'} dias</strong></p>
-              <p>Contato lead anual: <strong className="text-gray-900">{plan.lead_contact_limit_days_yearly ?? plan.lead_contact_limit_days ?? 'Sob consulta'} dias</strong></p>
               <p>Radar: <strong className="text-gray-900">{plan.radar_max_alerts}</strong></p>
+              <p>Inteligencia comercial: <strong className="text-gray-900">{plan.has_commercial_intelligence ? `${plan.commercial_intelligence_requests_per_month || 0} consulta(s)/mes` : 'Nao incluido'}</strong></p>
             </div>
 
             <div className="flex gap-2">

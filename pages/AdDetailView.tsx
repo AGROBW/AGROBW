@@ -5,11 +5,13 @@ import { AlertTriangle, ChevronRight, Clock, DollarSign, Eye, Heart, MessageCirc
 import { useAd } from '../src/hooks/useAds';
 import { useAuth } from '../src/contexts/AuthContext';
 import ContactSellerModal from '../components/ContactSellerModal';
+import ReportAnnouncementModal from '../components/ReportAnnouncementModal';
 import VerifiedBadge from '../components/VerifiedBadge';
 import toast from 'react-hot-toast';
 import { censorContactData } from '../src/utils/censorContact';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
+import { useAnnouncementReports } from '../src/hooks/useAnnouncementReports';
 
 // Mapa de ícones para renderizar dinamicamente
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -22,6 +24,8 @@ const AdDetailView: React.FC = () => {
   const { user } = useAuth();
   const { settings } = useLayout();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const { snapshot: reportSnapshot, isSubmitting: isSubmittingReport, submitReport } = useAnnouncementReports(ad?.id);
 
   const handleContactSeller = () => {
     if (!user) {
@@ -38,6 +42,47 @@ const AdDetailView: React.FC = () => {
     }
 
     setIsModalOpen(true);
+  };
+
+  const handleOpenReportModal = () => {
+    if (!user) {
+      toast.error('Para denunciar um anúncio, você precisa estar logado em sua conta.', {
+        duration: 4000,
+        icon: '🔒'
+      });
+      return;
+    }
+
+    if (user.id === ad?.userId) {
+      toast.error('Você não pode denunciar o seu próprio anúncio.');
+      return;
+    }
+
+    if (reportSnapshot.userHasReported) {
+      toast.error('Você já registrou uma denúncia para este anúncio.');
+      return;
+    }
+
+    setIsReportModalOpen(true);
+  };
+
+  const handleSubmitReport = async (
+    reason: 'inappropriate_content' | 'wrong_category' | 'fraud_or_scam' | 'false_information' | 'prohibited_item' | 'duplicate_or_spam' | 'other',
+    details?: string
+  ) => {
+    try {
+      const result = await submitReport(reason, details);
+      setIsReportModalOpen(false);
+
+      if (result.sentToReview) {
+        toast.success('Denúncia registrada. O anúncio atingiu o limite e foi enviado para análise.');
+      } else {
+        toast.success(`Denúncia registrada com sucesso. Restam ${Math.max(result.threshold - result.reportCount, 0)} denúncia(s) para análise automática.`);
+      }
+    } catch (error: any) {
+      const message = error?.message || error?.details || error?.hint || 'Não foi possível registrar a denúncia.';
+      toast.error(message);
+    }
   };
 
   if (isLoading) {
@@ -301,6 +346,25 @@ const AdDetailView: React.FC = () => {
                      <p className="text-sm font-black text-slate-700">{ad.views}</p>
                    </div>
                 </div>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={handleOpenReportModal}
+                    disabled={Boolean(user && reportSnapshot.userHasReported)}
+                    className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold transition ${
+                      user && reportSnapshot.userHasReported
+                        ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                        : 'border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100'
+                    }`}
+                  >
+                    {user && reportSnapshot.userHasReported ? 'Denúncia já registrada' : 'Denunciar anúncio'}
+                  </button>
+                  <p className="text-center text-xs leading-5 text-slate-500">
+                    {reportSnapshot.reportCount > 0
+                      ? `${reportSnapshot.reportCount} denúncia(s) registrada(s). Após ${reportSnapshot.threshold} denúncias de usuários únicos, o anúncio vai para análise.`
+                      : `Após ${reportSnapshot.threshold} denúncias de usuários únicos, o anúncio vai automaticamente para análise.`}
+                  </p>
+                </div>
               </div>
             </div>
             
@@ -334,6 +398,15 @@ const AdDetailView: React.FC = () => {
           announcementId={ad.id}
           announcementTitle={ad.title}
           sellerId={ad.userId}
+        />
+      )}
+      {ad && (
+        <ReportAnnouncementModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          onSubmit={handleSubmitReport}
+          isSubmitting={isSubmittingReport}
+          announcementTitle={ad.title}
         />
       )}
     </div>

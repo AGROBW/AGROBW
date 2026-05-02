@@ -41,6 +41,7 @@ import {
 } from '../components/DashboardModules';
 import { initiateBoosterCheckout } from '../services/mercadoPagoService';
 import SellerStoreDashboard from '../components/dashboard/SellerStoreDashboard';
+import CommercialIntelligenceDashboard from '../components/dashboard/CommercialIntelligenceDashboard';
 
 const Icons = {
   Dashboard: () => <LayoutGrid className="w-5 h-5" strokeWidth={1.5} />,
@@ -51,6 +52,7 @@ const Icons = {
   Favorites: () => <Heart className="w-5 h-5" strokeWidth={1.5} />,
   Radar: () => <Radar className="w-5 h-5" strokeWidth={1.5} />,
   Finance: () => <DollarSign className="w-5 h-5" strokeWidth={1.5} />,
+  Commercial: () => <TrendingUp className="w-5 h-5" strokeWidth={1.5} />,
   Help: () => <LifeBuoy className="w-5 h-5" strokeWidth={1.5} />,
   Profile: () => <User className="w-5 h-5" strokeWidth={1.5} />,
   Store: () => <Store className="w-5 h-5" strokeWidth={1.5} />,
@@ -93,7 +95,6 @@ const UserDashboardView: React.FC = () => {
     isLoading: subscriptionLoading,
     refreshUsage,
     refetch: refetchSubscription,
-    effectiveLeadContactLimitDays,
   } = useSubscription();
   const [userAds, setUserAds] = useState<Ad[]>([]);
   const [userAdsLoading, setUserAdsLoading] = useState(false);
@@ -639,6 +640,7 @@ const UserDashboardView: React.FC = () => {
     { label: 'Leads', path: '/minha-conta/leads', icon: <Icons.Leads />, badge: newLeadsCount },
     { label: 'Favoritos', path: '/minha-conta/favoritos', icon: <Icons.Favorites />, badge: 0 },
     { label: 'Radar de Oportunidades', path: '/minha-conta/radar', icon: <Icons.Radar />, badge: 0 },
+    { label: 'Inteligência Comercial', path: '/minha-conta/inteligencia-comercial', icon: <Icons.Commercial />, badge: 0 },
     { label: 'Financeiro', path: '/minha-conta/financeiro', icon: <Icons.Finance />, badge: 0 },
     ...(showSellerStoreMenu ? [{ label: 'Minha Loja', path: '/minha-conta/minha-loja', icon: <Icons.Store />, badge: 0 }] : []),
     { label: 'Central de Ajuda', path: '/minha-conta/ajuda', icon: <Icons.Help />, badge: 0 },
@@ -1707,8 +1709,8 @@ const UserDashboardView: React.FC = () => {
         value: `${usage.homeHighlightsUsed} de ${usage.homeHighlightsLimit}`,
       },
       {
-        label: 'Contato com lead',
-        value: effectiveLeadContactLimitDays ? `${effectiveLeadContactLimitDays} dias` : 'Nao incluso',
+        label: 'Plano ativo ate',
+        value: cycleEndLabel,
       },
       {
         label: 'Duracao do anuncio',
@@ -1724,6 +1726,7 @@ const UserDashboardView: React.FC = () => {
       currentPlanRecord?.has_verification_badge ? 'Selo de verificação' : null,
       currentPlanRecord?.has_seller_store ? 'Loja do vendedor' : null,
       currentPlanRecord?.has_email_marketing ? 'E-mail marketing' : null,
+      currentPlanRecord?.has_commercial_intelligence ? `Inteligência comercial com ${currentPlanRecord?.commercial_intelligence_requests_per_month || 0} consulta(s) por mês` : null,
       (currentPlanRecord?.social_campaigns_per_month || 0) > 0 ? `${currentPlanRecord?.social_campaigns_per_month} campanha(s) social por mes` : null,
       (currentPlanRecord?.radar_max_alerts || 0) > 0 ? `Radar com ${currentPlanRecord?.radar_max_alerts} alerta(s)` : null,
       currentPlanRecord?.radar_has_radius ? 'Filtro por raio no radar' : null,
@@ -1832,13 +1835,13 @@ const UserDashboardView: React.FC = () => {
             <div className="w-full max-w-sm">
               <div className="rounded-[22px] border border-white/80 bg-white/88 px-5 py-4 backdrop-blur shadow-[0_18px_45px_-34px_rgba(15,23,42,0.25)]">
                 <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Validade de acesso aos contatos
+                  Vigencia do plano atual
                 </span>
                 <span className="mt-2 block text-lg font-semibold text-slate-900">
-                  {effectiveLeadContactLimitDays ? `${effectiveLeadContactLimitDays} dias` : 'Nao incluso'}
+                  {cycleEndLabel}
                 </span>
                 <p className="mt-1 text-xs text-slate-500">
-                  Aproveite até {effectiveLeadContactLimitDays ?? 0} dias para responder interessados e fechar negócios.
+                  Novos contatos recebidos durante esta vigencia entram liberados. Depois do vencimento, apenas novos interessados passam a exigir renovacao ou upgrade.
                 </p>
               </div>
             </div>
@@ -3392,6 +3395,7 @@ const UserDashboardView: React.FC = () => {
           <Route path="/leads" element={<LeadsView />} />
           <Route path="/favoritos" element={<FavoritesView embedded />} />
           <Route path="/radar" element={<RadarView />} />
+          <Route path="/inteligencia-comercial" element={<CommercialIntelligenceDashboard />} />
           <Route path="/meu-plano" element={<MyPlanDashboard />} />
           <Route path="/financeiro" element={<FinanceDashboard />} />
           <Route

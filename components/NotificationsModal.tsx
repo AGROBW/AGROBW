@@ -80,7 +80,7 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
       relatedChat.sellerId === user?.id;
 
     if (shouldHidePreview) {
-      return 'Você recebeu uma nova mensagem. Faça upgrade para visualizar o conteúdo.';
+      return 'Voce recebeu um novo interessado. Renove ou faca upgrade para visualizar o conteudo.';
     }
 
     return notification.content;

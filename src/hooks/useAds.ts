@@ -363,6 +363,9 @@ export const usePublicAds = (filters?: {
           recentUniqueVisitors: engagementMap.get(ad.id)?.recentUniqueVisitors || 0,
           recentLeads: engagementMap.get(ad.id)?.recentLeads || 0,
           lastEngagementAt: engagementMap.get(ad.id)?.lastEngagementAt || null,
+          communityReportsCount: ad.community_reports_count || 0,
+          communityReportedToReviewAt: ad.community_reported_to_review_at || null,
+          communityReportReasons: Array.isArray(ad.community_report_reasons) ? ad.community_report_reasons : [],
           seller: ad.seller
             ? {
                 ...(Array.isArray(ad.seller) ? ad.seller[0] : ad.seller),
@@ -592,6 +595,9 @@ export const useAd = (adId: string | undefined) => {
         whatsapp: data.whatsapp,
         technicalDetails: technicalDetailsArray.length > 0 ? technicalDetailsArray : undefined,
         healthScore: data.health_score,
+        communityReportsCount: data.community_reports_count || 0,
+        communityReportedToReviewAt: data.community_reported_to_review_at || null,
+        communityReportReasons: Array.isArray(data.community_report_reasons) ? data.community_report_reasons : [],
         seller: data.seller
           ? {
               ...data.seller,

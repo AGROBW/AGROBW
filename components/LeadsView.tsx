@@ -360,11 +360,11 @@ const LeadsView: React.FC = () => {
               const config = getStatusConfig(lead.status);
               const StatusIcon = config.icon;
               const isLocked = !!lead.is_locked;
-              const buyerName = isLocked ? 'Lead bloqueado' : lead.buyer_name;
+              const buyerName = isLocked ? 'Contato bloqueado' : lead.buyer_name;
               const buyerEmail = isLocked ? 'Acesso bloqueado' : lead.buyer_email;
               const buyerPhone = isLocked ? null : lead.buyer_phone;
               const buyerCep = isLocked ? null : lead.buyer_cep;
-              const initialMessage = isLocked ? 'O prazo de contato deste lead expirou e os dados foram bloqueados.' : lead.initial_message;
+              const initialMessage = isLocked ? 'Este contato chegou fora da vigencia do plano pago e os dados foram bloqueados.' : lead.initial_message;
               
               return (
                 <motion.div

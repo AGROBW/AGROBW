@@ -1,0 +1,22 @@
+﻿<ol className="space-y-5">
+                    {[
+                      { n: '1', text: 'O combo adiciona 5 destaques em categoria + 5 na home.' },
+                      { n: '2', text: 'CrÃ©ditos ficam no seu saldo e nÃ£o expiram â€” nem se o plano for cancelado.' },
+                      { n: '3', text: 'Ao aplicar um destaque, o sistema usa primeiro o saldo do plano.' },
+                      { n: '4', text: 'Esgotado o plano, o booster entra automaticamente.' },
+                      { n: '5', text: 'Com qualquer uso registrado, a compra deixa de ser reembolsÃ¡vel.' },
+                    ].map(({ n, text }) => (
+                      <li key={n} className="flex items-start gap-4">
+                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-black text-white" style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 22%, transparent)`, border: `1px solid color-mix(in srgb, ${settings.primaryColor} 35%, transparent)`, color: settings.primaryColor }}>
+                          {n}
+                        </span>
+                        <p className="pt-0.5 text-sm leading-6 text-slate-300">{text}</p>
+                      </li>
+                    ))}
+                  </ol>
+
+                  {/* limite de compra */}
+                  <div className="mt-7 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: settings.accentColor }}>Limite de compra</p>
+                    <p className="mt-1 text-sm font-bold text-white">AtÃ© 2 boosters a cada 30 dias</p>
+                  </div>

@@ -112,9 +112,9 @@ const LogisticsSidebar: React.FC<LogisticsSidebarProps> = ({ chatId, adPrice, ad
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-amber-800">Prazo de contato expirado</p>
+                <p className="text-sm font-semibold text-amber-800">Novo contato bloqueado</p>
                 <p className="text-xs text-amber-700 mt-1">
-                  Os dados do lead e os recursos de contato foram bloqueados porque a janela de acesso definida no plano terminou.
+                  Os dados do lead e os recursos de contato foram bloqueados porque este interessado chegou fora da vigencia do seu plano pago.
                 </p>
                 {lead.contactExpiresAt && (
                   <p className="text-xs text-amber-700 mt-2">

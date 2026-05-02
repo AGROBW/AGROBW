@@ -32,6 +32,8 @@ export type UserSubscription = {
     has_verification_badge: boolean;
     has_seller_store: boolean;
     has_email_marketing: boolean;
+    has_commercial_intelligence: boolean;
+    commercial_intelligence_requests_per_month: number;
   } | null;
 };
 
@@ -119,7 +121,9 @@ export const useSubscription = () => {
             lead_contact_limit_days_yearly,
             has_verification_badge,
             has_seller_store,
-            has_email_marketing
+            has_email_marketing,
+            has_commercial_intelligence,
+            commercial_intelligence_requests_per_month
           )
         `)
         .eq('user_id', user.id)

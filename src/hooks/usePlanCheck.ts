@@ -36,7 +36,9 @@ export const usePlanCheck = () => {
     lead_contact_limit_days_yearly: 14,
     has_verification_badge: false,
     has_seller_store: false,
-    has_email_marketing: false
+    has_email_marketing: false,
+    has_commercial_intelligence: false,
+    commercial_intelligence_requests_per_month: 0,
   }), [])
 
   useEffect(() => {
@@ -55,7 +57,7 @@ export const usePlanCheck = () => {
 
         const { data, error } = await supabase
           .from('user_subscriptions')
-          .select('id,status,current_period_start,current_period_end,cancel_at_period_end,trial_end_date,source,promotion_code_id, plans (id,name,max_ads,lead_contact_limit_days,lead_contact_limit_days_monthly,lead_contact_limit_days_yearly,has_verification_badge,has_seller_store,has_email_marketing)')
+          .select('id,status,current_period_start,current_period_end,cancel_at_period_end,trial_end_date,source,promotion_code_id, plans (id,name,max_ads,lead_contact_limit_days,lead_contact_limit_days_monthly,lead_contact_limit_days_yearly,has_verification_badge,has_seller_store,has_email_marketing,has_commercial_intelligence,commercial_intelligence_requests_per_month)')
           .eq('user_id', user.id)
           .order('current_period_end', { ascending: false })
           .limit(1)

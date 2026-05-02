@@ -42,7 +42,7 @@ export const useLeadData = (chatId: string | null) => {
       } else if (data) {
         setLead({
           id: data.id,
-          buyerName: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? 'Lead bloqueado' : data.buyer_name,
+          buyerName: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? 'Contato bloqueado' : data.buyer_name,
           buyerEmail: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? null : data.buyer_email,
           buyerPhone: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? null : data.buyer_phone,
           buyerCep: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? null : data.buyer_cep,

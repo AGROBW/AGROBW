@@ -231,7 +231,8 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
                   <ul className="text-sm text-amber-800 space-y-1 list-disc list-inside">
                     <li>O sistema consome primeiro os creditos do seu plano.</li>
                     <li>Quando o ciclo acabar, o consumo continua pelos creditos extras do booster.</li>
-                    <li>Depois de aplicado, este anuncio so pode receber novo destaque em 15 dias.</li>
+                    <li>O novo cooldown de 15 dias comeca somente depois que este destaque vencer.</li>
+                    <li>Exemplo: se o destaque expirar em 16/05, o mesmo anuncio so podera receber novo destaque deste tipo a partir de 31/05.</li>
                     <li>O anuncio precisa estar sem destaque do tipo oposto para seguir com esta acao.</li>
                   </ul>
                 </div>

@@ -85,6 +85,9 @@ export interface Ad {
   recentUniqueVisitors?: number;
   recentLeads?: number;
   lastEngagementAt?: string | null;
+  communityReportsCount?: number;
+  communityReportedToReviewAt?: string | null;
+  communityReportReasons?: Array<{ reason: string; count: number }>;
   seller?: {
     name: string;
     avatar?: string;
@@ -550,6 +553,105 @@ export interface HighlightBoosterSummary {
   hasEligiblePaidPlan?: boolean;
   currentPlanName?: string | null;
   blockedReason?: string | null;
+}
+
+export interface CommercialLeadPreference {
+  userId: string;
+  allowCommercialContact: boolean;
+  allowedCategorySlugs: string[];
+  preferredChannels: string[];
+  consentTextVersion: string;
+  consentGrantedAt?: string | null;
+  consentRevokedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommercialIntelligenceReportRow {
+  state: string | null;
+  city: string | null;
+  scoreBand: 'high' | 'medium' | 'low';
+  interestedBuyers: number;
+  consentingBuyers: number;
+  announcementViews: number;
+  favoritesCount: number;
+  leadActions: number;
+  priceMin: number | null;
+  priceMax: number | null;
+  lastActivityAt: string | null;
+}
+
+export interface CommercialIntelligenceOutreachCampaign {
+  id: string;
+  categorySlug: string;
+  subcategorySlug?: string | null;
+  messageTemplate: string;
+  recipientsCount: number;
+  deliveredCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommercialIntelligenceOpportunityInboxItem {
+  deliveryId: string;
+  campaignId: string;
+  categorySlug: string;
+  subcategorySlug?: string | null;
+  sellerLabel: string;
+  messageTemplate: string;
+  receivedAt: string;
+  hasResponse: boolean;
+  respondedAt?: string | null;
+}
+
+export interface CommercialIntelligenceInterestResponse {
+  responseId: string;
+  campaignId: string;
+  categorySlug: string;
+  subcategorySlug?: string | null;
+  buyerName: string;
+  buyerCity?: string | null;
+  buyerState?: string | null;
+  buyerNote?: string | null;
+  respondedAt: string;
+}
+
+export interface CommercialIntelligenceConversation {
+  conversationId: string;
+  responseId: string;
+  campaignId: string;
+  categorySlug: string;
+  subcategorySlug?: string | null;
+  role: 'seller' | 'buyer';
+  counterpartName: string;
+  counterpartCity?: string | null;
+  counterpartState?: string | null;
+  status: 'open' | 'closed';
+  createdAt: string;
+  updatedAt: string;
+  lastMessagePreview?: string | null;
+  lastMessageAt?: string | null;
+}
+
+export interface CommercialIntelligenceConversationMessage {
+  messageId: string;
+  senderUserId: string;
+  senderName: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface CommercialIntelligenceContactShare {
+  shareId: string;
+  conversationId: string;
+  sellerUserId: string;
+  buyerUserId: string;
+  shareEmail: boolean;
+  shareWhatsapp: boolean;
+  sharedEmail?: string | null;
+  sharedWhatsapp?: string | null;
+  buyerNote?: string | null;
+  grantedAt: string;
 }
 
 export interface FiscalSettings {
