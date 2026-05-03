@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { AlertTriangle, ChevronRight, Clock, DollarSign, Eye, Heart, MessageCircle, Share2, ShieldCheck, Calendar, Gauge, Ruler, Weight, Wrench, Hammer, Cog, Circle, MapPin, Package, Truck, Droplet, Zap, Thermometer, Wind } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Clock, DollarSign, Eye, Flag, Heart, MessageCircle, Share2, ShieldCheck, Calendar, Gauge, Ruler, Weight, Wrench, Hammer, Cog, Circle, MapPin, Package, Truck, Droplet, Zap, Thermometer, Wind } from 'lucide-react';
 import { useAd } from '../src/hooks/useAds';
 import { useAuth } from '../src/contexts/AuthContext';
 import ContactSellerModal from '../components/ContactSellerModal';
@@ -351,27 +351,40 @@ const AdDetailView: React.FC = () => {
                     type="button"
                     onClick={handleOpenReportModal}
                     disabled={Boolean(user && reportSnapshot.userHasReported)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold transition ${
+                    className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
                       user && reportSnapshot.userHasReported
                         ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                        : 'border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-rose-200 hover:bg-rose-50/70 hover:text-rose-700'
                     }`}
                   >
-                    {user && reportSnapshot.userHasReported ? 'Denúncia já registrada' : 'Denunciar anúncio'}
+                    <span className="flex items-center gap-3">
+                      <span
+                        className={`flex h-9 w-9 items-center justify-center rounded-full ${
+                          user && reportSnapshot.userHasReported
+                            ? 'bg-slate-200 text-slate-400'
+                            : 'bg-rose-50 text-rose-600'
+                        }`}
+                      >
+                        <Flag className="h-4 w-4" strokeWidth={1.8} />
+                      </span>
+                      <span className="flex flex-col">
+                        <span className="text-sm font-black leading-5">
+                          {user && reportSnapshot.userHasReported ? 'Denúncia já registrada' : 'Denunciar anúncio'}
+                        </span>
+                        <span className="text-xs font-medium leading-5 text-slate-500">
+                          {user && reportSnapshot.userHasReported
+                            ? 'Sua sinalização já foi enviada para a equipe.'
+                            : 'Informe algo suspeito ou fora das regras da plataforma.'}
+                        </span>
+                      </span>
+                    </span>
+                    <ChevronRight className={`h-4 w-4 ${user && reportSnapshot.userHasReported ? 'text-slate-300' : 'text-slate-400'}`} strokeWidth={1.8} />
                   </button>
-                  <p className="text-center text-xs leading-5 text-slate-500">
-                    {reportSnapshot.reportCount > 0
-                      ? `${reportSnapshot.reportCount} denúncia(s) registrada(s). Após ${reportSnapshot.threshold} denúncias de usuários únicos, o anúncio vai para análise.`
-                      : `Após ${reportSnapshot.threshold} denúncias de usuários únicos, o anúncio vai automaticamente para análise.`}
-                  </p>
                 </div>
               </div>
             </div>
-            
-            <div className="bg-slate-900 p-6 flex items-center justify-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-green-500" strokeWidth={1.5} />
-              <span className="text-white text-[11px] font-bold uppercase tracking-widest">Negócio 100% Protegido</span>
-            </div>
+
+            <div className="bg-slate-900 px-6 py-6"></div>
           </div>
 
           {/* Safety Card */}

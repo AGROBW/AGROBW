@@ -1,17 +1,21 @@
 -- ============================================================================
--- AGRO BW - Refatoracao do bloqueio de mensagens recebidas
--- - Contatos recebidos durante a vigencia de qualquer plano ativo nao-downgrade
---   permanecem acessiveis
--- - Novos contatos recebidos fora da vigencia, ou ja no plano basico de
---   downgrade, ficam bloqueados na aba Recebidas
--- - O comprador continua podendo enviar mensagens normalmente
--- - O vendedor so fica bloqueado para responder contatos recebidos sem acesso
---   vigente
+-- AGRO BW - Ajuste do bloqueio de mensagens para o plano inicial "Semente"
+-- - Usa a vigencia de qualquer plano ativo nao-downgrade como criterio
+-- - Mantem o plano basico de downgrade bloqueando novos contatos
+-- - Libera automaticamente contatos antes bloqueados quando o usuario volta a
+--   ter um plano elegivel ativo
 -- ============================================================================
 
-alter table public.leads
-  add column if not exists contact_expires_at timestamptz,
-  add column if not exists received_with_active_access boolean not null default false;
+drop trigger if exists trg_refresh_lead_windows_after_subscription_change on public.user_subscriptions;
+drop trigger if exists trg_sync_lead_contact_expires_at on public.leads;
+drop trigger if exists trg_block_messages_for_expired_announcements on public.messages;
+
+drop function if exists public.sync_lead_windows_after_subscription_change();
+drop function if exists public.sync_lead_contact_expires_at();
+drop function if exists public.refresh_seller_lead_contact_windows(uuid);
+drop function if exists public.seller_has_active_paid_contact_access(uuid, timestamptz);
+drop function if exists public.seller_has_active_plan_contact_access(uuid, timestamptz);
+drop function if exists public.block_messages_for_expired_announcements();
 
 create or replace function public.seller_has_active_plan_contact_access(
   p_seller_id uuid,
@@ -67,8 +71,6 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_sync_lead_contact_expires_at on public.leads;
-
 create trigger trg_sync_lead_contact_expires_at
 before insert or update of seller_id, created_at
 on public.leads
@@ -120,8 +122,6 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_refresh_lead_windows_after_subscription_change on public.user_subscriptions;
-
 create trigger trg_refresh_lead_windows_after_subscription_change
 after insert or update of plan_id, status, current_period_start, current_period_end
 on public.user_subscriptions
@@ -162,14 +162,12 @@ begin
   if target_contact_expires_at is not null
      and target_contact_expires_at <= now()
      and new.sender_id = target_seller_id then
-    raise exception 'Novo contato bloqueado por plano inativo';
+    raise exception 'Novo contato bloqueado por vigencia inativa';
   end if;
 
   return new;
 end;
 $$;
-
-drop trigger if exists trg_block_messages_for_expired_announcements on public.messages;
 
 create trigger trg_block_messages_for_expired_announcements
 before insert on public.messages

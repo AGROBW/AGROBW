@@ -114,7 +114,7 @@ const LogisticsSidebar: React.FC<LogisticsSidebarProps> = ({ chatId, adPrice, ad
               <div>
                 <p className="text-sm font-semibold text-amber-800">Novo contato bloqueado</p>
                 <p className="text-xs text-amber-700 mt-1">
-                  Os dados do lead e os recursos de contato foram bloqueados porque este interessado chegou fora da vigencia do seu plano pago.
+                Os dados do lead e os recursos de contato foram bloqueados porque este interessado chegou quando a conta ja nao estava em um plano elegivel para novos contatos.
                 </p>
                 {lead.contactExpiresAt && (
                   <p className="text-xs text-amber-700 mt-2">

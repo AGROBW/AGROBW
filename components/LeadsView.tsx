@@ -364,7 +364,7 @@ const LeadsView: React.FC = () => {
               const buyerEmail = isLocked ? 'Acesso bloqueado' : lead.buyer_email;
               const buyerPhone = isLocked ? null : lead.buyer_phone;
               const buyerCep = isLocked ? null : lead.buyer_cep;
-              const initialMessage = isLocked ? 'Este contato chegou fora da vigencia do plano pago e os dados foram bloqueados.' : lead.initial_message;
+              const initialMessage = isLocked ? 'Este contato chegou quando a conta ja nao estava em um plano elegivel para novos contatos e os dados foram bloqueados.' : lead.initial_message;
               
               return (
                 <motion.div

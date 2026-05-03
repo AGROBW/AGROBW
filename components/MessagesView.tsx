@@ -39,7 +39,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
     : 'Esta conversa foi congelada porque o anuncio venceu. Nenhuma nova mensagem pode ser enviada e os dados da negociacao ficaram bloqueados.';
   
   const effectiveFrozenDescription = isLeadContactExpired
-    ? 'Este contato entrou depois do vencimento do seu plano pago. Renove ou faca upgrade para visualizar os dados do interessado e responder a conversa.'
+    ? 'Este contato entrou quando sua conta ja nao estava em um plano elegivel para novos contatos. Renove ou faca upgrade para visualizar os dados do interessado e responder a conversa.'
     : frozenDescription;
 
   // Debug: Log dos dados do chat selecionado
@@ -325,10 +325,10 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                         Libere este novo contato para continuar a negociacao
                       </p>
                       <p className="mt-1 text-sm text-slate-600">
-                        Este interessado entrou depois do vencimento do seu plano pago. Assine novamente ou faca upgrade para voltar a acessar novos contatos recebidos.
+                        Este interessado entrou quando sua conta ja nao estava em um plano elegivel para novos contatos. Assine novamente ou faca upgrade para voltar a acessar novos contatos recebidos.
                       </p>
                       <p className="mt-2 text-xs text-emerald-700">
-                        Este novo contato foi recebido fora da vigencia do seu plano pago e sera liberado quando voce renovar ou fizer upgrade.
+                        Este novo contato foi recebido fora da janela elegivel de novos contatos e sera liberado quando voce renovar ou fizer upgrade.
                       </p>
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         <span className="rounded-full border border-slate-200 bg-white px-3 py-1">

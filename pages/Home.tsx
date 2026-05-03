@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import AdSlider from '../components/AdSlider';
@@ -12,6 +12,8 @@ import { CATEGORIES } from '../constants';
 import { usePublicAds } from '../src/hooks/useAds';
 import { useCategoryCounts } from '../src/hooks/useCategoryCounts';
 import { useLayout } from '../src/contexts/LayoutContext';
+import { supabase } from '../src/lib/supabaseClient';
+import { Ad } from '../types';
 
 class AdCardErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode }) {
@@ -72,22 +74,96 @@ const getDeterministicRotationScore = (ad: any, seed: string) => {
   return hash;
 };
 
+type ShowcaseStatsRow = {
+  announcement_id: string;
+  impressions_last_7_days: number;
+  last_seen_at: string | null;
+};
+
 const Home: React.FC = () => {
   const { ads, isLoading: adsLoading } = usePublicAds();
   const { getCountForCategory } = useCategoryCounts();
   const { settings } = useLayout();
   const dailyRotationSeed = getDailyRotationSeed();
+  const [homeShowcaseStats, setHomeShowcaseStats] = useState<Record<string, ShowcaseStatsRow>>({});
+  const [requestRotationSeed] = useState(() => `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const impressionSignatureRef = useRef<string>('');
 
   const hasActiveHomeHighlight = (ad: any) =>
     Boolean(ad.highlightHome && (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date()));
   const hasActiveCategoryHighlight = (ad: any) =>
     Boolean(ad.highlightCategory && (!ad.highlightCategoryUntil || new Date(ad.highlightCategoryUntil) > new Date()));
 
-  const highlightedAds = ads
-    .filter((ad) => hasActiveHomeHighlight(ad))
-    .sort((a, b) => {
-      const scoreA = getDeterministicRotationScore(a, dailyRotationSeed);
-      const scoreB = getDeterministicRotationScore(b, dailyRotationSeed);
+  const highlightedAdsBase = useMemo(
+    () => ads.filter((ad) => hasActiveHomeHighlight(ad)),
+    [ads]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadHomeShowcaseStats = async () => {
+      if (highlightedAdsBase.length === 0) {
+        setHomeShowcaseStats({});
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('get_home_showcase_impression_stats', {
+        p_announcement_ids: highlightedAdsBase.map((ad) => ad.id),
+      });
+
+      if (error) {
+        console.error('[Home] Erro ao carregar estatisticas da vitrine home:', error);
+        if (!cancelled) {
+          setHomeShowcaseStats({});
+        }
+        return;
+      }
+
+      if (cancelled) return;
+
+      const statsMap = ((data as ShowcaseStatsRow[] | null) || []).reduce<Record<string, ShowcaseStatsRow>>(
+        (accumulator, row) => {
+          accumulator[row.announcement_id] = {
+            announcement_id: row.announcement_id,
+            impressions_last_7_days: Number(row.impressions_last_7_days ?? 0),
+            last_seen_at: row.last_seen_at ?? null,
+          };
+          return accumulator;
+        },
+        {}
+      );
+
+      setHomeShowcaseStats(statsMap);
+    };
+
+    void loadHomeShowcaseStats();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [highlightedAdsBase]);
+
+  const highlightedAds = useMemo(() => {
+    return [...highlightedAdsBase].sort((a: Ad, b: Ad) => {
+      const aStats = homeShowcaseStats[a.id];
+      const bStats = homeShowcaseStats[b.id];
+      const aImpressions = aStats?.impressions_last_7_days ?? 0;
+      const bImpressions = bStats?.impressions_last_7_days ?? 0;
+
+      if (aImpressions !== bImpressions) {
+        return aImpressions - bImpressions;
+      }
+
+      const aLastSeen = aStats?.last_seen_at ? new Date(aStats.last_seen_at).getTime() : 0;
+      const bLastSeen = bStats?.last_seen_at ? new Date(bStats.last_seen_at).getTime() : 0;
+
+      if (aLastSeen !== bLastSeen) {
+        return aLastSeen - bLastSeen;
+      }
+
+      const scoreA = getDeterministicRotationScore(a, `${dailyRotationSeed}:${requestRotationSeed}`);
+      const scoreB = getDeterministicRotationScore(b, `${dailyRotationSeed}:${requestRotationSeed}`);
 
       if (scoreA !== scoreB) {
         return scoreA - scoreB;
@@ -97,6 +173,24 @@ const Home: React.FC = () => {
       const dateB = new Date(b.createdAt || 0).getTime();
       return dateB - dateA;
     });
+  }, [highlightedAdsBase, homeShowcaseStats, dailyRotationSeed, requestRotationSeed]);
+
+  useEffect(() => {
+    const visibleIds = highlightedAds.map((ad) => ad.id);
+    const signature = `home:${visibleIds.join('|')}`;
+
+    if (visibleIds.length === 0 || impressionSignatureRef.current === signature) {
+      return;
+    }
+
+    impressionSignatureRef.current = signature;
+
+    void supabase.from('home_showcase_impressions').insert(
+      highlightedAds.map((ad) => ({
+        announcement_id: ad.id,
+      }))
+    );
+  }, [highlightedAds]);
 
   const recentAds = ads
     .filter((ad) => !hasActiveHomeHighlight(ad) && !hasActiveCategoryHighlight(ad))

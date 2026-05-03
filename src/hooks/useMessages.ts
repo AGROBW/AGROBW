@@ -574,12 +574,13 @@ export const useMessages = (chatId: string | null) => {
     if (error) {
       setMessages(prev => prev.filter(message => message.id !== optimisticMessageId))
       console.error('Erro ao enviar mensagem:', error)
-      if (
+        if (
         error.message?.includes('Novo contato bloqueado por plano inativo') ||
+        error.message?.includes('Novo contato bloqueado por vigencia inativa') ||
         error.message?.includes('Prazo de contato do lead expirado')
       ) {
         toast.error('Novo contato bloqueado', {
-          description: 'Este interessado chegou fora da vigencia do seu plano pago. Renove ou faca upgrade para liberar a resposta.'
+          description: 'Este interessado chegou quando a conta ja nao estava em um plano elegivel para novos contatos. Renove ou faca upgrade para liberar a resposta.'
         })
       } else if (error.message?.includes('Anuncio expirado')) {
         toast.error('Anuncio expirado', {
