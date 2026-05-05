@@ -64,7 +64,7 @@ begin
 
   new.contact_expires_at := case
     when new.received_with_active_access then null
-    else new.created_at
+    else new.created_at - interval '1 second'
   end;
 
   return new;
@@ -98,7 +98,7 @@ begin
   set contact_expires_at = case
     when coalesce(l.received_with_active_access, false) then null
     when public.seller_has_active_plan_contact_access(l.seller_id, now()) then null
-    else coalesce(l.created_at, now())
+    else coalesce(l.created_at, now()) - interval '1 second'
   end
   where l.seller_id = p_seller_id;
 
@@ -132,7 +132,7 @@ update public.leads l
 set contact_expires_at = case
   when coalesce(l.received_with_active_access, false) then null
   when public.seller_has_active_plan_contact_access(l.seller_id, now()) then null
-  else coalesce(l.created_at, now())
+  else coalesce(l.created_at, now()) - interval '1 second'
 end;
 
 create or replace function public.block_messages_for_expired_announcements()

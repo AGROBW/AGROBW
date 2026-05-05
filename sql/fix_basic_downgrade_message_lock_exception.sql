@@ -56,5 +56,5 @@ update public.leads l
 set contact_expires_at = case
   when coalesce(l.received_with_active_access, false) then null
   when public.seller_has_active_plan_contact_access(l.seller_id, now()) then null
-  else coalesce(l.created_at, now())
+  else coalesce(l.created_at, now()) - interval '1 second'
 end;
