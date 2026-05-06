@@ -323,6 +323,22 @@ const AdCreationView: React.FC = () => {
   const { settings } = useLayout();
   const { handleAction } = usePlanCheck();
   const { subscription, usage, canCreateAd, adLimitMessage, refreshUsage } = useSubscription();
+
+  const getAdCapacityBlockedMessage = () =>
+    adLimitMessage ||
+    'Voce atingiu o limite de anuncios ativos do seu plano. Desative um anuncio ativo ou faca upgrade para liberar mais vagas.';
+
+  const isAdCapacityError = (value: unknown) => {
+    const normalized = String(value || '').toLowerCase();
+    return (
+      normalized.includes('limite') ||
+      normalized.includes('vaga') ||
+      normalized.includes('espaco') ||
+      normalized.includes('maximo') ||
+      normalized.includes('active announcements') ||
+      normalized.includes('simultaneous active ad')
+    );
+  };
   
   // A rota jÃ¡ Ã© protegida pelo RequireAuth no App.tsx.
   if (!user) return null;
@@ -1714,7 +1730,13 @@ const AdCreationView: React.FC = () => {
       console.log('[Publish] Resultado final:', { data, error });
 
       if (error) {
-        toast.error('Erro ao publicar anÃºncio.', { description: error.message });
+        if (isAdCapacityError(`${error.message || ''} ${error.details || ''} ${error.hint || ''}`)) {
+          toast.error('Limite de anúncios atingido', {
+            description: getAdCapacityBlockedMessage(),
+          });
+        } else {
+          toast.error('Erro ao publicar anÃºncio.', { description: error.message });
+        }
         return;
       }
 
@@ -1807,9 +1829,15 @@ const AdCreationView: React.FC = () => {
       navigate('/minha-conta/anuncios');
     } catch (error: any) {
       console.error('[Publish] Erro inesperado ao publicar anÃºncio:', error);
-      toast.error('Erro ao publicar anÃºncio', {
-        description: error.message || 'Tente novamente mais tarde.'
-      });
+      if (isAdCapacityError(`${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`)) {
+        toast.error('Limite de anúncios atingido', {
+          description: getAdCapacityBlockedMessage(),
+        });
+      } else {
+        toast.error('Erro ao publicar anÃºncio', {
+          description: error.message || 'Tente novamente mais tarde.'
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -2347,7 +2375,7 @@ const AdCreationView: React.FC = () => {
                       <h4 className="text-lg font-bold text-red-900 mb-2">Limite de anúncios atingido</h4>
                       <p className="text-sm text-red-800 mb-3">{adLimitMessage}</p>
                       <p className="text-xs text-red-700 mb-3">
-                        <strong>Anúncios usados neste ciclo:</strong> {usage.adsUsed} de {usage.adsLimit}
+                        <strong>Anuncios ativos agora:</strong> {usage.adsUsed} de {usage.adsLimit}
                       </p>
                       <button
                         onClick={() => navigate('/planos')}

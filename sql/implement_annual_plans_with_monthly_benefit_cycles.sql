@@ -356,7 +356,7 @@ begin
   limit 1;
 
   if not found then
-    return jsonb_build_object('success', false, 'error', 'Nao existe assinatura ativa para republicar este anuncio');
+    return jsonb_build_object('success', false, 'error', 'Nao existe assinatura ativa para reativar este anuncio');
   end if;
 
   select *
@@ -371,15 +371,13 @@ begin
     into current_active_ads
   from public.announcements a
   where a.user_id = current_user_id
-    and a.status = 'ACTIVE'
-    and a.created_at >= usage_window.usage_period_start
-    and a.created_at <= usage_window.usage_period_end;
+    and a.status in ('ACTIVE', 'active');
 
   if active_subscription.max_ads is not null and current_active_ads >= active_subscription.max_ads then
     return jsonb_build_object(
       'success', false,
       'error', format(
-        'Voce atingiu o limite de anuncios do plano %s neste ciclo. Republicar consome um novo credito.',
+        'Nao ha espaco disponivel no plano %s para reativar este anuncio. Desative outro anuncio ativo ou faca upgrade para liberar mais vagas.',
         coalesce(active_subscription.plan_name, 'atual')
       )
     );
@@ -388,7 +386,6 @@ begin
   update public.announcements
   set
     status = 'ACTIVE',
-    created_at = now(),
     updated_at = now(),
     expires_at = public.calculate_announcement_expires_at(current_user_id, now()),
     expired_at = null,
@@ -405,12 +402,12 @@ begin
   values (
     current_user_id,
     'SYSTEM',
-    'Anuncio republicado',
-    'Seu anuncio foi republicado com sucesso e consumiu um novo credito do ciclo atual.',
+    'Anuncio reativado',
+    'Seu anuncio voltou a ficar ativo com sucesso e agora ocupa uma vaga do seu plano atual.',
     '/#/minha-conta/anuncios'
   );
 
-  return jsonb_build_object('success', true, 'message', 'Anuncio republicado com sucesso');
+  return jsonb_build_object('success', true, 'message', 'Anuncio reativado com sucesso');
 end;
 $$;
 

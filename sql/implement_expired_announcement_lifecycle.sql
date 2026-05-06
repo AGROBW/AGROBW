@@ -3,7 +3,7 @@
 -- - Notifica com 5 dias de antecedencia
 -- - Expira anuncio e agenda exclusao em 90 dias
 -- - Bloqueia novas mensagens em anuncios expirados
--- - Permite republicacao consumindo novo credito
+-- - Permite reativacao quando houver vaga no plano atual
 -- - Exclui automaticamente anuncios expirados apos 90 dias
 -- ============================================================================
 
@@ -108,7 +108,7 @@ begin
   end if;
 
   if target_announcement.status <> 'EXPIRED' then
-    return jsonb_build_object('success', false, 'error', 'Apenas anuncios vencidos podem ser republicados');
+    return jsonb_build_object('success', false, 'error', 'Apenas anuncios vencidos podem ser reativados');
   end if;
 
   select
@@ -125,21 +125,20 @@ begin
   limit 1;
 
   if not found then
-    return jsonb_build_object('success', false, 'error', 'Nao existe assinatura ativa para republicar este anuncio');
+    return jsonb_build_object('success', false, 'error', 'Nao existe assinatura ativa para reativar este anuncio');
   end if;
 
   select count(*)
     into current_active_ads
   from public.announcements a
   where a.user_id = current_user_id
-    and a.status = 'ACTIVE'
-    and a.created_at >= active_subscription.current_period_start;
+    and a.status in ('ACTIVE', 'active');
 
   if active_subscription.max_ads is not null and current_active_ads >= active_subscription.max_ads then
     return jsonb_build_object(
       'success', false,
       'error', format(
-        'Voce atingiu o limite de anuncios do plano %s neste ciclo. Republicar consome um novo credito.',
+        'Nao ha espaco disponivel no plano %s para reativar este anuncio. Desative outro anuncio ativo ou faca upgrade para liberar mais vagas.',
         coalesce(active_subscription.plan_name, 'atual')
       )
     );
@@ -148,7 +147,6 @@ begin
   update public.announcements
   set
     status = 'ACTIVE',
-    created_at = now(),
     updated_at = now(),
     expires_at = public.calculate_announcement_expires_at(current_user_id, now()),
     expired_at = null,
@@ -165,12 +163,12 @@ begin
   values (
     current_user_id,
     'SYSTEM',
-    'Anuncio republicado',
-    'Seu anuncio foi republicado com sucesso e consumiu um novo credito do ciclo atual.',
+    'Anuncio reativado',
+    'Seu anuncio voltou a ficar ativo com sucesso e agora ocupa uma vaga do seu plano atual.',
     '/#/minha-conta/anuncios'
   );
 
-  return jsonb_build_object('success', true, 'message', 'Anuncio republicado com sucesso');
+  return jsonb_build_object('success', true, 'message', 'Anuncio reativado com sucesso');
 end;
 $$;
 
@@ -211,7 +209,7 @@ begin
       'SYSTEM',
       'Seu anuncio expira em 5 dias',
       format(
-        'O anuncio "%s" expira em %s. Ajuste sua estrategia e prepare um novo credito se quiser republica-lo.',
+        'O anuncio "%s" expira em %s. Se quiser mantelo na vitrine depois do vencimento, sera necessario ter vaga disponivel no plano atual para reativa-lo.',
         c.title,
         to_char(c.expires_at at time zone 'America/Sao_Paulo', 'DD/MM/YYYY')
       ),
@@ -259,7 +257,7 @@ begin
       'SYSTEM',
       'Seu anuncio expirou',
       format(
-        'O anuncio "%s" expirou. Ele foi movido para a aba Vencidos e sera excluido em 90 dias se nao for republicado com um novo credito.',
+        'O anuncio "%s" expirou. Ele foi movido para a aba Vencidos e podera ser reativado apenas se houver vaga disponivel no plano atual. Caso contrario, seguira para exclusao automatica em 90 dias.',
         e.title
       ),
       '/#/minha-conta/anuncios'

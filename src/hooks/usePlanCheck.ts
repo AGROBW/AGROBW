@@ -87,14 +87,9 @@ export const usePlanCheck = () => {
   const canAddAd = useMemo(() => {
     const maxAds = plan?.max_ads
     if (maxAds === null || maxAds === undefined) return true
-    const adsInWindow = (ads || []).filter((ad) => {
-      if (!usageWindow) return true
-      const createdAt = ad?.createdAt ? new Date(ad.createdAt) : null
-      if (!createdAt || Number.isNaN(createdAt.getTime())) return false
-      return createdAt >= usageWindow.usageStart && createdAt <= usageWindow.usageEnd
-    })
-    return adsInWindow.length < maxAds
-  }, [ads, plan?.max_ads, usageWindow?.usageStart, usageWindow?.usageEnd])
+    const activeAdsCount = (ads || []).filter((ad) => ['ACTIVE', 'active'].includes(String(ad?.status || ''))).length
+    return activeAdsCount < maxAds
+  }, [ads, plan?.max_ads])
 
   const hasFeature = (featureName: string) => {
     if (!plan) return false
@@ -121,22 +116,22 @@ export const usePlanCheck = () => {
       allowed = canAddAd
       if (!allowed) {
         const maxAds = plan?.max_ads ?? 0
-        toast.error(`Seu plano ${planName} permite apenas ${maxAds} anúncios.`, {
-          description: 'Faça upgrade para postar mais!'
+        toast.error(`Seu plano ${planName} permite apenas ${maxAds} anuncios ativos.`, {
+          description: 'Desative um anuncio ativo ou faca upgrade para liberar mais vagas.'
         })
       }
     } else if (feature === 'view_lead') {
       allowed = !!options?.adCreatedAt && canViewLead(options.adCreatedAt)
       if (!allowed) {
         toast.error('Acesso ao lead expirado.', {
-          description: 'Faça upgrade para ampliar o prazo de contato.'
+          description: 'Faca upgrade para ampliar o prazo de contato.'
         })
       }
     } else {
       allowed = hasFeature(feature)
       if (!allowed) {
-        toast.error(`Recurso indisponível no plano ${planName}.`, {
-          description: 'Faça upgrade para desbloquear.'
+        toast.error(`Recurso indisponivel no plano ${planName}.`, {
+          description: 'Faca upgrade para desbloquear.'
         })
       }
     }

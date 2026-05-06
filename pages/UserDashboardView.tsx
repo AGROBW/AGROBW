@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store } from 'lucide-react';
+import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, Lock, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store } from 'lucide-react';
 import { AdStatus, Message, Ad, AdMetrics, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -35,6 +35,8 @@ import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { 
   DashboardStatsCard, 
+  PerformanceAttentionModule,
+  PerformanceRankingModule,
   ReachModule, 
   PriceIntelligenceModule, 
   PlanModule 
@@ -58,6 +60,8 @@ const Icons = {
   Store: () => <Store className="w-5 h-5" strokeWidth={1.5} />,
   Logout: () => <LogOut className="w-5 h-5" strokeWidth={1.5} />,
 };
+
+const PERFORMANCE_PANEL_ALLOWED_PLANS = new Set(['safra', 'produtor', 'loja parceira']);
 
 const AdsSkeletonList = ({ count = 3 }: { count?: number }) => (
   <div className="space-y-2">
@@ -93,6 +97,7 @@ const UserDashboardView: React.FC = () => {
     subscription,
     usage,
     isLoading: subscriptionLoading,
+    adLimitMessage,
     refreshUsage,
     refetch: refetchSubscription,
   } = useSubscription();
@@ -117,6 +122,9 @@ const UserDashboardView: React.FC = () => {
   const lastRenewalNotificationIdRef = useRef<string | null>(null);
   const sidebarNavRef = useRef<HTMLDivElement | null>(null);
   const [showSidebarScrollHint, setShowSidebarScrollHint] = useState(false);
+  const normalizedPlanName = (subscription?.plans?.name || '').trim().toLowerCase();
+  const hasPerformancePanelAccess = PERFORMANCE_PANEL_ALLOWED_PLANS.has(normalizedPlanName);
+  const isDowngradedBasicPlan = normalizedPlanName === 'básico' || normalizedPlanName === 'basico';
   
   // Estados para upload
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -633,7 +641,7 @@ const UserDashboardView: React.FC = () => {
   };
 
   const menuItems = [
-    { label: 'Visão Geral', path: '/minha-conta', icon: <Icons.Dashboard />, badge: 0 },
+    { label: 'Painel de Performance', path: '/minha-conta', icon: <Icons.Dashboard />, badge: 0 },
     { label: 'Meu Plano', path: '/minha-conta/meu-plano', icon: <Icons.Plan />, badge: 0 },
     { label: 'Meus Anúncios', path: '/minha-conta/anuncios', icon: <Icons.Ads />, badge: 0 },
     { label: 'Mensagens', path: '/minha-conta/mensagens', icon: <Icons.Messages />, badge: messagesCount },
@@ -807,12 +815,12 @@ const UserDashboardView: React.FC = () => {
             loading={dashboardLoading}
           />
           <DashboardStatsCard
-            icon={<MessageSquare className="w-6 h-6" strokeWidth={1.5} />}
-            label="Novas Mensagens"
-            value={messagesCount}
-            bgColor="bg-green-50"
-            iconColor="text-green-600"
-            loading={countsLoading}
+            icon={<Heart className="w-6 h-6" strokeWidth={1.5} />}
+            label="Taxa de Conversão"
+            value={`${Number(dashboardStats?.conversion_rate || 0).toFixed(1)}%`}
+            bgColor="bg-rose-50"
+            iconColor="text-rose-600"
+            loading={dashboardLoading}
           />
           <DashboardStatsCard
             icon={<Eye className="w-6 h-6" strokeWidth={1.5} />}
@@ -839,6 +847,22 @@ const UserDashboardView: React.FC = () => {
           />
         </div>
 
+        <div className="grid grid-cols-1 gap-6">
+          <PerformanceRankingModule
+            topAdsByViews={dashboardStats?.top_ads_by_views || []}
+            topAdsByLeads={dashboardStats?.top_ads_by_leads || []}
+            totalFavorites={dashboardStats?.total_favorites || 0}
+            loading={dashboardLoading}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-6">
+          <PerformanceAttentionModule
+            attentionAds={dashboardStats?.attention_ads || []}
+            loading={dashboardLoading}
+          />
+        </div>
+
         {/* MÃ³dulo de InteligÃªncia de PreÃ§o (Full Width) */}
         <div className="grid grid-cols-1">
           <PriceIntelligenceModule
@@ -850,6 +874,50 @@ const UserDashboardView: React.FC = () => {
           />
         </div>
 
+      </div>
+    );
+  };
+
+  const PerformancePanelLocked = () => {
+    const title = isDowngradedBasicPlan
+      ? 'Seu plano atual não inclui o Painel de Performance'
+      : 'O Painel de Performance está disponível nos planos pagos Safra, Produtor e Loja Parceira.';
+
+    const description = isDowngradedBasicPlan
+      ? 'Faça upgrade para voltar a acompanhar seus resultados'
+      : 'Faça upgrade para acompanhar seus resultados com métricas e insights exclusivos.';
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+        <div className="rounded-[28px] border border-emerald-100 bg-[linear-gradient(135deg,#ffffff_0%,#f0fdf4_55%,#ecfeff_100%)] p-6 shadow-[0_26px_70px_-44px_rgba(16,185,129,0.35)] sm:p-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-700 shadow-sm">
+                <Lock className="h-3.5 w-3.5" strokeWidth={1.8} />
+                Painel premium
+              </div>
+              <h1 className="mt-4 text-2xl font-black text-slate-900 sm:text-3xl">{title}</h1>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
+                {description}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Link
+                to="/planos"
+                className="inline-flex items-center justify-center rounded-2xl bg-green-700 px-5 py-3 text-sm font-bold text-white shadow-[0_20px_40px_-24px_rgba(22,163,74,0.8)] transition-all hover:bg-green-800"
+              >
+                Fazer upgrade
+              </Link>
+              <Link
+                to="/minha-conta/meu-plano"
+                className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50"
+              >
+                Ver meu plano
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     );
   };
@@ -1000,36 +1068,113 @@ const UserDashboardView: React.FC = () => {
 
     const handleTogglePause = async (ad: Ad) => {
       const newStatus = ad.status === AdStatus.ACTIVE ? AdStatus.PAUSED : AdStatus.ACTIVE;
-      const { error } = await supabase
-        .from('announcements')
-        .update({ status: newStatus })
-        .eq('id', ad.id);
+      const pausedAdReactivationMessage =
+        adLimitMessage ||
+        'Nao ha espaco disponivel no seu plano atual para reativar este anuncio. Desative outro anuncio ativo ou faca upgrade para liberar mais vagas.';
 
-      if (error) {
-        toast.error('Erro ao alterar status do anúncio');
-      } else {
-        toast.success(newStatus === AdStatus.PAUSED ? 'Anúncio pausado' : 'Anúncio reativado');
-        // Atualizar lista
+      try {
+        if (ad.status === AdStatus.PAUSED) {
+          const { data: capacityStatus, error: capacityError } = await supabase.rpc('get_my_active_ad_capacity_status');
+
+          if (!capacityError) {
+            const canReactivatePausedAd = Boolean(capacityStatus?.can_publish_new);
+
+            if (!canReactivatePausedAd) {
+              sonnerToast.error(pausedAdReactivationMessage);
+              return;
+            }
+          } else if (
+            usage.adsLimit !== null &&
+            usage.adsLimit !== undefined &&
+            usage.adsUsed >= usage.adsLimit
+          ) {
+            sonnerToast.error(pausedAdReactivationMessage);
+            return;
+          }
+        }
+
+        const { error } = await supabase
+          .from('announcements')
+          .update({ status: newStatus })
+          .eq('id', ad.id);
+
+        if (error) {
+          const normalizedError = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase();
+          const limitReached =
+            newStatus === AdStatus.ACTIVE &&
+            (
+              normalizedError.includes('limite') ||
+              normalizedError.includes('maximo') ||
+              normalizedError.includes('active announcements') ||
+              normalizedError.includes('simultaneous active ad')
+            );
+
+          sonnerToast.error(
+            limitReached
+              ? pausedAdReactivationMessage
+              : 'Erro ao alterar status do anúncio'
+          );
+          return;
+        }
+
+        sonnerToast.success(newStatus === AdStatus.PAUSED ? 'Anúncio pausado' : 'Anúncio reativado');
+        await refreshUsage();
         window.location.reload();
+      } catch (error: any) {
+        const normalizedError = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
+        const limitReached =
+          newStatus === AdStatus.ACTIVE &&
+          (
+            normalizedError.includes('limite') ||
+            normalizedError.includes('maximo') ||
+            normalizedError.includes('active announcements') ||
+            normalizedError.includes('simultaneous active ad')
+          );
+
+        sonnerToast.error(
+          limitReached
+            ? pausedAdReactivationMessage
+            : 'Erro ao alterar status do anúncio'
+        );
       }
     };
 
     const handleRepublishExpiredAd = async (ad: Ad) => {
+      const expiredAdReactivationMessage =
+        adLimitMessage ||
+        'Nao ha espaco disponivel no seu plano atual para reativar este anuncio. Desative outro anuncio ativo ou faca upgrade para liberar mais vagas.';
+
       const { data, error } = await supabase.rpc('reactivate_expired_announcement', {
         p_announcement_id: ad.id
       });
 
       if (error) {
-        toast.error('Erro ao republicar anúncio');
+        const normalizedError = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase();
+        const limitReached =
+          normalizedError.includes('limite') ||
+          normalizedError.includes('vaga') ||
+          normalizedError.includes('espaco') ||
+          normalizedError.includes('maximo') ||
+          normalizedError.includes('active announcements') ||
+          normalizedError.includes('simultaneous active ad');
+
+        sonnerToast.error(limitReached ? expiredAdReactivationMessage : 'Erro ao reativar anuncio');
         return;
       }
 
       if (!data?.success) {
-        toast.error(data?.error || 'Não foi possível republicar o anúncio');
+        const normalizedError = `${data?.error || ''}`.toLowerCase();
+        const limitReached =
+          normalizedError.includes('limite') ||
+          normalizedError.includes('vaga') ||
+          normalizedError.includes('espaco') ||
+          normalizedError.includes('maximo');
+
+        sonnerToast.error(limitReached ? expiredAdReactivationMessage : (data?.error || 'Nao foi possivel reativar o anuncio'));
         return;
       }
 
-      toast.success(data?.message || 'Anúncio republicado com sucesso');
+      sonnerToast.success(data?.message || 'Anuncio reativado com sucesso');
       await refreshUsage();
       window.location.reload();
     };
@@ -1333,7 +1478,7 @@ const UserDashboardView: React.FC = () => {
                             handleRepublishExpiredAd(ad);
                           }}
                           className="p-2 rounded-lg hover:bg-green-50 hover:text-green-700 transition-colors"
-                          title="Republicar com novo crédito"
+                          title="Reativar anuncio"
                         >
                           <CreditCard className="w-4 h-4" strokeWidth={1.5} />
                         </button>
@@ -1695,6 +1840,15 @@ const UserDashboardView: React.FC = () => {
         currency,
       }).format(value || 0);
 
+    const adsOverLimit =
+      usage.adsLimit !== null &&
+      usage.adsLimit !== undefined &&
+      usage.adsUsed > usage.adsLimit;
+    const availableAdSlots =
+      usage.adsLimit === null || usage.adsLimit === undefined
+        ? null
+        : Math.max(usage.adsLimit - usage.adsUsed, 0);
+
     const planBenefits = [
       {
         label: 'Anuncios ativos',
@@ -1828,7 +1982,7 @@ const UserDashboardView: React.FC = () => {
                 {currentPlanRecord?.name || subscription?.plans?.name || 'Meu Plano'}
               </h2>
               <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">
-                Acompanhe o consumo do ciclo, os recursos ativos do seu plano e os creditos extras usados nas campanhas de destaque.
+                Acompanhe seus anuncios ativos, os recursos do plano atual e as vagas disponiveis para novas publicacoes e reativacoes.
               </p>
             </div>
 
@@ -1847,6 +2001,45 @@ const UserDashboardView: React.FC = () => {
             </div>
           </div>
         </section>
+
+        {subscription?.plans && usage.adsLimit !== null && (
+          <section className={`rounded-[24px] border p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.3)] ${
+            adsOverLimit
+              ? 'border-amber-200 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_100%)]'
+              : 'border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_100%)]'
+          }`}>
+            <div className="flex flex-col gap-2">
+              <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${adsOverLimit ? 'text-amber-700' : 'text-slate-500'}`}>
+                Capacidade do plano
+              </p>
+              {adsOverLimit ? (
+                <>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    Voce esta acima do limite do plano atual
+                  </h3>
+                  <p className="text-sm text-slate-600">
+                    Seus anuncios ativos continuam publicados ate o vencimento normal, mas novas publicacoes e reativacoes ficam bloqueadas ate abrir vaga ou voce fazer upgrade.
+                  </p>
+                  <p className="text-sm font-medium text-amber-700">
+                    Anuncios ativos: {usage.adsUsed} | Limite do plano atual: {usage.adsLimit}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    Vagas disponiveis para novos anuncios
+                  </h3>
+                  <p className="text-sm text-slate-600">
+                    Seus anuncios ativos ocupam vagas do plano atual. Excluir, expirar ou desativar um anuncio libera espaco imediatamente.
+                  </p>
+                  <p className="text-sm font-medium text-emerald-700">
+                    {availableAdSlots} vaga(s) disponivel(is) agora.
+                  </p>
+                </>
+              )}
+            </div>
+          </section>
+        )}
 
         <section className="rounded-[24px] border border-emerald-100 bg-[linear-gradient(135deg,#ffffff_0%,#f0fdf4_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(22,163,74,0.3)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1889,6 +2082,7 @@ const UserDashboardView: React.FC = () => {
                 planName={subscription?.plans?.name || 'Sem plano ativo'}
                 adsUsed={usage.adsUsed}
                 adsLimit={usage.adsLimit ?? 0}
+                adsOverLimit={adsOverLimit}
                 categoryHighlightsUsed={usage.categoryHighlightsUsed}
                 categoryHighlightsLimit={usage.categoryHighlightsLimit}
                 homeHighlightsUsed={usage.homeHighlightsUsed}
@@ -3344,7 +3538,18 @@ const UserDashboardView: React.FC = () => {
                   >
                     {item.icon}
                   </span>
-                  {item.label}
+                  <span className="flex items-center gap-2">
+                    <span>{item.label}</span>
+                    {item.path === '/minha-conta' && !hasPerformancePanelAccess ? (
+                      <span
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-300/25 bg-amber-400/15 text-amber-200"
+                        title="Disponível nos planos pagos"
+                        aria-label="Disponível nos planos pagos"
+                      >
+                        <Lock className="h-3 w-3" strokeWidth={1.8} />
+                      </span>
+                    ) : null}
+                  </span>
                 </div>
                 {item.badge > 0 && (
                   <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#f59e0b] px-2 text-xs font-bold text-slate-950 shadow-[0_10px_20px_-12px_rgba(245,158,11,0.9)]">
@@ -3389,7 +3594,7 @@ const UserDashboardView: React.FC = () => {
         </header>
 
         <Routes>
-          <Route path="/" element={<HomeDashboard />} />
+          <Route path="/" element={hasPerformancePanelAccess ? <HomeDashboard /> : <PerformancePanelLocked />} />
           <Route path="/anuncios" element={<AdsDashboard />} />
           <Route path="/mensagens" element={<MessagesView />} />
           <Route path="/leads" element={<LeadsView />} />

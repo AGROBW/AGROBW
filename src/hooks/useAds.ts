@@ -25,6 +25,26 @@ export const deleteAnnouncementWithRelations = async (announcementId: string) =>
   });
 
   if (error) {
+    const isFunctionMissing =
+      error.message?.includes('404') ||
+      error.name === 'FunctionsHttpError';
+
+    if (isFunctionMissing) {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('delete_announcement_with_relations', {
+        p_announcement_id: announcementId,
+      });
+
+      if (rpcError) {
+        throw rpcError;
+      }
+
+      if (!rpcData?.success) {
+        throw new Error(rpcData?.details || rpcData?.error || 'Falha ao excluir anuncio');
+      }
+
+      return;
+    }
+
     try {
       const errorBody = await error.context?.json?.();
       throw new Error(errorBody?.details || errorBody?.error || error.message);

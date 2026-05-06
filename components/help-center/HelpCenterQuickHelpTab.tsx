@@ -58,11 +58,11 @@ const helpItems: HelpItem[] = [
   },
   {
     title: 'Anuncio vencido e republicacao',
-    description: 'Saiba como funciona a aba Vencidos, congelamento e o novo credito para republicar.',
+    description: 'Saiba como funciona a aba Vencidos, o congelamento e a reativacao conforme o limite atual do plano.',
     details: [
       'Quando o anuncio expira, ele vai para a aba Vencidos e sai das vitrines.',
       'Conversas, leads e favoritos ficam congelados para novas interacoes.',
-      'Para republicar, e necessario consumir um novo credito do ciclo atual.',
+      'Para reativar, e necessario ter vaga disponivel no limite atual de anuncios ativos do plano.',
     ],
     icon: Ticket,
     group: 'Anuncios e visibilidade',

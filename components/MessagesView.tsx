@@ -378,7 +378,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                     </div>
                     <p className="text-slate-700 text-sm font-semibold">{frozenTitle}</p>
                     <p className="mt-2 text-xs text-slate-500">
-                      O historico deste anuncio expirado foi congelado. Republicar o anuncio exige um novo credito e nao reabre esta conversa automaticamente.
+                      O historico deste anuncio expirado foi congelado. Reativar o anuncio depende de vaga disponivel no plano atual e nao reabre esta conversa automaticamente.
                     </p>
                   </div>
                 )}

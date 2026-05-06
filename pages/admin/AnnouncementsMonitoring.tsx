@@ -85,6 +85,36 @@ const statusClass: Record<string, string> = {
   UNDER_REVIEW: 'bg-indigo-100 text-indigo-700',
 };
 
+const getSupabaseErrorText = (error: unknown) => {
+  if (!error || typeof error !== 'object') return '';
+
+  const candidate = error as {
+    message?: string | null;
+    details?: string | null;
+    hint?: string | null;
+  };
+
+  return [candidate.message, candidate.details, candidate.hint]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+};
+
+const isAnnouncementCapacityBlockedError = (error: unknown) => {
+  const normalized = getSupabaseErrorText(error);
+  return (
+    normalized.includes('limite') ||
+    normalized.includes('vaga') ||
+    normalized.includes('espaco') ||
+    normalized.includes('maximo') ||
+    normalized.includes('active announcements') ||
+    normalized.includes('simultaneous active ad')
+  );
+};
+
+const getAnnouncementCapacityBlockedAdminMessage = () =>
+  'Não foi possível reativar este anúncio porque o anunciante já atingiu o limite de anúncios ativos do plano atual. Oriente o usuário a liberar uma vaga ou fazer upgrade.';
+
 const AnnouncementsMonitoring: React.FC = () => {
   const { logAction } = useAdminAudit();
   const [announcements, setAnnouncements] = useState<MonitoringAnnouncement[]>([]);
@@ -373,7 +403,13 @@ const AnnouncementsMonitoring: React.FC = () => {
       await loadAnnouncements();
     } catch (error) {
       console.error('[AnnouncementsMonitoring] Erro ao alterar status:', error);
-      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o status do anúncio');
+      toast.error(
+        isAnnouncementCapacityBlockedError(error)
+          ? getAnnouncementCapacityBlockedAdminMessage()
+          : error instanceof Error
+            ? error.message
+            : 'Não foi possível atualizar o status do anúncio'
+      );
     } finally {
       setIsSubmittingPause(false);
     }

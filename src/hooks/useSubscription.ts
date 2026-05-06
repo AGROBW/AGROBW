@@ -51,6 +51,16 @@ export type UsageStats = {
   periodStartDate: Date | null;
 };
 
+type ActiveAdCapacityStatus = {
+  plan_name: string | null;
+  active_ads_count: number;
+  max_ads: number | null;
+  available_slots: number;
+  is_over_limit: boolean;
+  can_publish_new: boolean;
+  can_reactivate: boolean;
+};
+
 export const useSubscription = () => {
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
@@ -141,7 +151,7 @@ export const useSubscription = () => {
       return nextSubscription;
     } catch (err: any) {
       if (isSupabaseUnauthorizedError(err)) {
-        console.warn('[useSubscription] Sessão expirada ao buscar assinatura.');
+        console.warn('[useSubscription] Sessao expirada ao buscar assinatura.');
         clearRetry();
         setError(null);
         setSubscription(null);
@@ -176,20 +186,22 @@ export const useSubscription = () => {
       const isWithinPeriod = periodStart && periodEnd ? now >= periodStart && now <= periodEnd : false;
 
       let adsCount = 0;
+      let adsLimit = activeSubscription?.plans?.max_ads ?? null;
       let categoryHighlightsCount = 0;
       let homeHighlightsCount = 0;
 
       if (activeSubscription) {
-        const { count: adsCountData, error: adsError } = await supabase
-          .from('announcements')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .in('status', ['active', 'ACTIVE'])
-          .gte('created_at', usageWindow?.usageStart.toISOString() || activeSubscription.current_period_start)
-          .lte('created_at', usageWindow?.usageEnd.toISOString() || activeSubscription.current_period_end);
+        const { data: capacityRows, error: capacityError } = await supabase.rpc('get_my_active_ad_capacity_status');
 
-        if (adsError) throw adsError;
-        adsCount = adsCountData || 0;
+        if (capacityError) {
+          throw capacityError;
+        }
+
+        const capacityStatus = (capacityRows as ActiveAdCapacityStatus[] | null)?.[0];
+        if (capacityStatus) {
+          adsCount = Number(capacityStatus.active_ads_count ?? 0);
+          adsLimit = capacityStatus.max_ads ?? adsLimit;
+        }
 
         const { count: categoryHighlightsCountData, error: categoryError } = await supabase
           .from('announcement_highlights_history')
@@ -222,7 +234,7 @@ export const useSubscription = () => {
 
       setUsage({
         adsUsed: adsCount,
-        adsLimit: activeSubscription?.plans?.max_ads ?? null,
+        adsLimit,
         categoryHighlightsUsed: categoryHighlightsCount,
         categoryHighlightsLimit: activeSubscription?.plans?.category_highlights_count || 0,
         homeHighlightsUsed: homeHighlightsCount,
@@ -236,7 +248,7 @@ export const useSubscription = () => {
       clearRetry();
     } catch (err: any) {
       if (isSupabaseUnauthorizedError(err)) {
-        console.warn('[useSubscription] Sessão expirada ao buscar uso.');
+        console.warn('[useSubscription] Sessao expirada ao buscar uso.');
         clearRetry();
         return;
       }
@@ -309,7 +321,7 @@ export const useSubscription = () => {
     if (!subscription?.plans) return '';
     const planName = subscription.plans.name;
     const maxAds = subscription.plans.max_ads;
-    return `Você atingiu o limite de anúncios do seu plano ${planName} (${maxAds} anúncios). Faça um upgrade para publicar mais.`;
+    return `Voce atingiu o limite de anuncios ativos do seu plano ${planName} (${maxAds} anuncios). Desative um anuncio ativo ou faca upgrade para liberar mais vagas.`;
   }, [subscription]);
 
   const refreshUsage = async () => {

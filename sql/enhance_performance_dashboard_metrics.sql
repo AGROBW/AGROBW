@@ -1,7 +1,5 @@
--- =====================================================
--- Dashboard Stats RPC Function
--- Retorna estatisticas agregadas para o Painel de Performance
--- =====================================================
+-- Atualiza a RPC get_dashboard_stats com metricas de conversao,
+-- favoritos, ranking de anuncios e alertas de atencao.
 
 CREATE OR REPLACE FUNCTION get_dashboard_stats(p_announcement_id UUID DEFAULT NULL)
 RETURNS JSONB

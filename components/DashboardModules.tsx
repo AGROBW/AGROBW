@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, MessageSquare, Eye, Inbox, TrendingUp, TrendingDown, AlertCircle, Sparkles, Package, Radar } from 'lucide-react';
-import { DashboardStats, StateClicks, PriceAnalysis } from '../src/hooks/useDashboardStats';
+import { FileText, MessageSquare, Eye, Inbox, TrendingUp, TrendingDown, AlertCircle, Sparkles, Package, Radar, Heart } from 'lucide-react';
+import { AttentionAnnouncement, DashboardStats, PriceAnalysis, StateClicks, TopPerformanceAnnouncement } from '../src/hooks/useDashboardStats';
 import { Ad } from '../types';
 import { useLayout } from '../src/contexts/LayoutContext';
 
@@ -760,6 +760,210 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
   );
 };
 
+interface PerformanceRankingModuleProps {
+  topAdsByViews: TopPerformanceAnnouncement[];
+  topAdsByLeads: TopPerformanceAnnouncement[];
+  totalFavorites?: number;
+  loading?: boolean;
+}
+
+export const PerformanceRankingModule: React.FC<PerformanceRankingModuleProps> = ({
+  topAdsByViews,
+  topAdsByLeads,
+  totalFavorites = 0,
+  loading = false,
+}) => {
+  const renderRow = (
+    item: TopPerformanceAnnouncement,
+    index: number,
+    accent: 'views' | 'leads'
+  ) => {
+    const accentValue = accent === 'views' ? item.views : item.leads;
+    const accentLabel = accent === 'views' ? 'views' : 'leads';
+
+    return (
+      <div
+        key={`${accent}-${item.announcement_id}`}
+        className="rounded-[20px] border border-slate-200 bg-white/90 p-4 shadow-sm"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+              #{index + 1}
+            </p>
+            <h4 className="mt-1 truncate text-sm font-bold text-slate-900">{item.title}</h4>
+            <p className="mt-1 text-xs text-slate-500">
+              {item.conversion_rate.toFixed(1)}% de conversão
+            </p>
+          </div>
+          <div className="rounded-2xl bg-slate-900 px-3 py-2 text-right text-white shadow-sm">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-300">{accentLabel}</p>
+            <p className="text-lg font-black">{accentValue}</p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-slate-600">
+          <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Views</p>
+            <p className="mt-1 font-bold text-slate-900">{item.views}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Leads</p>
+            <p className="mt-1 font-bold text-slate-900">{item.leads}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Favoritos</p>
+            <p className="mt-1 font-bold text-slate-900">{item.favorites_count}</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="h-6 w-48 rounded bg-slate-100" />
+          <div className="h-8 w-24 rounded bg-slate-100" />
+        </div>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {[1, 2].map((column) => (
+            <div key={column} className="space-y-3">
+              <div className="h-5 w-32 rounded bg-slate-100" />
+              {[1, 2, 3].map((row) => (
+                <div key={`${column}-${row}`} className="rounded-[20px] border border-slate-200 bg-white/90 p-4">
+                  <div className="h-4 w-3/4 rounded bg-slate-100" />
+                  <div className="mt-3 h-3 w-1/2 rounded bg-slate-100" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900">Ranking dos anúncios</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Veja quais anúncios estão puxando sua exposição e seus contatos.
+          </p>
+        </div>
+        <div className="inline-flex items-center gap-2 rounded-full border border-rose-100 bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-700">
+          <Heart className="h-4 w-4" strokeWidth={1.8} />
+          {totalFavorites} favorito(s)
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Eye className="h-4 w-4 text-blue-600" strokeWidth={1.8} />
+            <h4 className="text-sm font-bold text-slate-900">Mais vistos</h4>
+          </div>
+          {topAdsByViews.length === 0 ? (
+            <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+              Ainda não há anúncios com visualizações suficientes para ranking.
+            </div>
+          ) : (
+            topAdsByViews.slice(0, 3).map((item, index) => renderRow(item, index, 'views'))
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Inbox className="h-4 w-4 text-amber-600" strokeWidth={1.8} />
+            <h4 className="text-sm font-bold text-slate-900">Mais geradores de leads</h4>
+          </div>
+          {topAdsByLeads.length === 0 ? (
+            <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+              Ainda não há anúncios com leads suficientes para ranking.
+            </div>
+          ) : (
+            topAdsByLeads.slice(0, 3).map((item, index) => renderRow(item, index, 'leads'))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface PerformanceAttentionModuleProps {
+  attentionAds: AttentionAnnouncement[];
+  loading?: boolean;
+}
+
+export const PerformanceAttentionModule: React.FC<PerformanceAttentionModuleProps> = ({
+  attentionAds,
+  loading = false,
+}) => {
+  if (loading) {
+    return (
+      <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
+        <div className="h-6 w-40 rounded bg-slate-100 mb-4" />
+        <div className="space-y-3">
+          {[1, 2, 3].map((row) => (
+            <div key={row} className="rounded-[20px] border border-slate-200 bg-white/90 p-4">
+              <div className="h-4 w-2/3 rounded bg-slate-100" />
+              <div className="mt-3 h-3 w-full rounded bg-slate-100" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
+      <div className="mb-5">
+        <h3 className="text-lg font-bold text-slate-900">Anúncios que precisam de atenção</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Priorizamos os anúncios com sinais claros de oportunidade ou baixa eficiência.
+        </p>
+      </div>
+
+      {attentionAds.length === 0 ? (
+        <div className="rounded-[20px] border border-emerald-100 bg-emerald-50 px-4 py-6 text-sm text-emerald-800">
+          Seus anúncios não têm alertas de atenção no momento. Continue acompanhando a performance.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {attentionAds.slice(0, 4).map((item) => (
+            <div
+              key={item.announcement_id}
+              className="rounded-[20px] border border-amber-100 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_100%)] p-4 shadow-sm"
+            >
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <h4 className="truncate text-sm font-bold text-slate-900">{item.title}</h4>
+                  <p className="mt-1 text-sm text-amber-700">{item.reason}</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs text-slate-600 lg:min-w-[260px]">
+                  <div className="rounded-xl bg-white/80 px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Views</p>
+                    <p className="mt-1 font-bold text-slate-900">{item.views}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/80 px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Leads</p>
+                    <p className="mt-1 font-bold text-slate-900">{item.leads}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/80 px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Favoritos</p>
+                    <p className="mt-1 font-bold text-slate-900">{item.favorites_count}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ============================================
 // 4. PLAN MODULE (Design Original - Fundo Azul Escuro)
 // ============================================
@@ -768,6 +972,7 @@ interface PlanModuleProps {
   planName: string;
   adsUsed: number;
   adsLimit: number;
+  adsOverLimit?: boolean;
   categoryHighlightsUsed: number;
   categoryHighlightsLimit: number;
   homeHighlightsUsed: number;
@@ -793,6 +998,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
   planName,
   adsUsed,
   adsLimit,
+  adsOverLimit = false,
   categoryHighlightsUsed,
   categoryHighlightsLimit,
   homeHighlightsUsed,
@@ -844,6 +1050,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
 
   const adsPercentage = calculatePercentage(finalAdsUsed, adsLimit);
   const boosterWindowRemaining = Math.max(0, boosterMaxPurchasesPer30Days - boosterPurchasesLast30Days);
+  const availableAdSlots = adsLimit > 0 ? Math.max(adsLimit - finalAdsUsed, 0) : 0;
 
   return (
     <div 
@@ -872,6 +1079,13 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
             <span className="text-sm text-slate-500">de</span>
             <span className="text-2xl font-bold text-slate-600">{adsLimit || '∞'}</span>
           </div>
+          {adsLimit > 0 && (
+            <p className={`mb-3 text-[11px] ${adsOverLimit ? 'text-amber-700' : 'text-slate-500'}`}>
+              {adsOverLimit
+                ? 'Voce esta acima do limite do plano atual. Seus anuncios seguem ativos, mas novas publicacoes e reativacoes ficam bloqueadas ate abrir vaga ou haver upgrade.'
+                : `Vagas disponiveis agora: ${availableAdSlots}`}
+            </p>
+          )}
           {adsLimit && (
             <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
               <div

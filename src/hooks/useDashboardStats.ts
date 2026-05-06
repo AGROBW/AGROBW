@@ -15,13 +15,38 @@ export interface PriceAnalysis {
   has_market_data: boolean;
 }
 
+export interface TopPerformanceAnnouncement {
+  announcement_id: string;
+  title: string;
+  status: string;
+  views: number;
+  leads: number;
+  favorites_count: number;
+  conversion_rate: number;
+}
+
+export interface AttentionAnnouncement {
+  announcement_id: string;
+  title: string;
+  status: string;
+  views: number;
+  leads: number;
+  favorites_count: number;
+  reason: string;
+}
+
 export interface DashboardStats {
   total_ads: number;
   total_views: number;
   total_leads: number;
+  total_favorites: number;
+  conversion_rate: number;
   clicks_by_state: StateClicks[];
   price_analysis: PriceAnalysis | null;
   home_highlights: number;
+  top_ads_by_views: TopPerformanceAnnouncement[];
+  top_ads_by_leads: TopPerformanceAnnouncement[];
+  attention_ads: AttentionAnnouncement[];
 }
 
 interface UseDashboardStatsReturn {
@@ -69,9 +94,14 @@ export function useDashboardStats(announcementId?: string | null): UseDashboardS
         total_ads: 0,
         total_views: 0,
         total_leads: 0,
+        total_favorites: 0,
+        conversion_rate: 0,
         clicks_by_state: [],
         price_analysis: null,
-        home_highlights: 0
+        home_highlights: 0,
+        top_ads_by_views: [],
+        top_ads_by_leads: [],
+        attention_ads: []
       });
     } finally {
       setLoading(false);
