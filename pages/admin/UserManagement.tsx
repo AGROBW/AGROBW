@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { 
   Search, 
@@ -18,11 +18,14 @@ import {
   Target,
   Users,
   CreditCard,
-  Store
+  Store,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { toast } from 'sonner';
+import { deleteAnnouncementWithRelations } from '../../src/hooks/useAds';
 
 interface User {
   id: string;
@@ -44,7 +47,7 @@ interface User {
   created_at: string;
   last_login: string | null; // Sincronizado via trigger do auth.users.last_sign_in_at
   start_plan_consumed_at?: string | null;
-  plan_name?: string; // Nome do plano ativo (extraído de user_subscriptions)
+  plan_name?: string; // Nome do plano ativo (extraÃ­do de user_subscriptions)
   active_subscription_id?: string | null;
   active_plan_id?: string | null;
   active_period_start?: string | null;
@@ -76,6 +79,16 @@ interface SubscriptionRow {
   monthly_price: number;
   has_seller_store: boolean;
   is_store_paused: boolean;
+}
+
+interface ManagedAnnouncement {
+  id: string;
+  title: string;
+  status: string;
+  price: number | null;
+  created_at: string;
+  expires_at: string | null;
+  views: number | null;
 }
 
 const formatDateCell = (value: string | null) => {
@@ -186,7 +199,15 @@ const UserManagement: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [showUnsuspendModal, setShowUnsuspendModal] = useState(false);
+  const [showDeleteAnnouncementModal, setShowDeleteAnnouncementModal] = useState(false);
   const [suspensionReason, setSuspensionReason] = useState('');
+  const [unsuspensionReason, setUnsuspensionReason] = useState('');
+  const [announcementDeleteReason, setAnnouncementDeleteReason] = useState('');
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<ManagedAnnouncement | null>(null);
+  const [userAnnouncements, setUserAnnouncements] = useState<ManagedAnnouncement[]>([]);
+  const [userAnnouncementsLoading, setUserAnnouncementsLoading] = useState(false);
+  const [isDeletingAnnouncement, setIsDeletingAnnouncement] = useState(false);
   const [newPlan, setNewPlan] = useState<string>('');
   const [newRole, setNewRole] = useState<string>('');
   const [planPeriodStart, setPlanPeriodStart] = useState(formatDateInputValue(new Date()));
@@ -239,10 +260,10 @@ const UserManagement: React.FC = () => {
     }
   }, [location.search]);
 
-  // Debug: Log do usuário selecionado no modal de detalhes
+  // Debug: Log do usuÃ¡rio selecionado no modal de detalhes
   useEffect(() => {
     if (showDetailsModal && selectedUser) {
-      console.log('[UserManagement] 📋 Dados do usuário selecionado:', {
+      console.log('[UserManagement] ðŸ“‹ Dados do usuÃ¡rio selecionado:', {
         id: selectedUser.id,
         name: selectedUser.name,
         email: selectedUser.email,
@@ -254,6 +275,16 @@ const UserManagement: React.FC = () => {
       });
     }
   }, [showDetailsModal, selectedUser]);
+
+  useEffect(() => {
+    if (!showDetailsModal || !selectedUser?.id) {
+      setUserAnnouncements([]);
+      setUserAnnouncementsLoading(false);
+      return;
+    }
+
+    void loadUserAnnouncements(selectedUser.id);
+  }, [showDetailsModal, selectedUser?.id]);
 
   const loadPlans = async () => {
     try {
@@ -298,7 +329,7 @@ const UserManagement: React.FC = () => {
         );
       }
 
-      // Filtro de suspensão
+      // Filtro de suspensÃ£o
       if (filterStatus === 'suspended') {
         query = query.eq('is_suspended', true);
       } else if (filterStatus === 'active') {
@@ -318,8 +349,8 @@ const UserManagement: React.FC = () => {
         throw error;
       }
 
-      // 🔍 DEBUG: Log completo dos dados brutos de TODOS os usuários
-      console.log('[UserManagement] 🔍 DADOS BRUTOS DE TODOS OS USUÁRIOS:', 
+      // ðŸ” DEBUG: Log completo dos dados brutos de TODOS os usuÃ¡rios
+      console.log('[UserManagement] ðŸ” DADOS BRUTOS DE TODOS OS USUÃRIOS:', 
         data?.map(u => ({
           id: u.id,
           name: u.name,
@@ -334,17 +365,17 @@ const UserManagement: React.FC = () => {
         }))
       );
 
-      // 🔍 DEBUG: Log completo dos dados brutos
-      console.log('[UserManagement] Dados brutos da query (primeiro usuário):', {
+      // ðŸ” DEBUG: Log completo dos dados brutos
+      console.log('[UserManagement] Dados brutos da query (primeiro usuÃ¡rio):', {
         total: data?.length,
         firstUser: data?.[0],
         subscriptions: data?.[0]?.user_subscriptions
       });
 
-      // Flattening: Extrair plano ativo e buscar contagem de anúncios
+      // Flattening: Extrair plano ativo e buscar contagem de anÃºncios
       const usersWithCounts = await Promise.all(
         (data || []).map(async (user) => {
-          // Buscar contagem de anúncios (única sub-query necessária)
+          // Buscar contagem de anÃºncios (Ãºnica sub-query necessÃ¡ria)
           const { count: announcementCount } = await supabase
             .from('announcements')
             .select('*', { count: 'exact', head: true })
@@ -361,7 +392,7 @@ const UserManagement: React.FC = () => {
             );
             
             if (activeSubscription?.plans) {
-              // plans pode ser objeto único ou array dependendo da configuração
+              // plans pode ser objeto Ãºnico ou array dependendo da configuraÃ§Ã£o
               if (Array.isArray(activeSubscription.plans)) {
                 planName = activeSubscription.plans[0]?.name || null;
               } else if (typeof activeSubscription.plans === 'object') {
@@ -382,14 +413,14 @@ const UserManagement: React.FC = () => {
         })
       );
 
-      // Log resumido para validação
-      console.log('[UserManagement] ✅ Usuários carregados:', usersWithCounts.length);
+      // Log resumido para validaÃ§Ã£o
+      console.log('[UserManagement] âœ… UsuÃ¡rios carregados:', usersWithCounts.length);
 
       setUsers(usersWithCounts);
       setTotalCount(count || 0);
     } catch (error) {
-      console.error('[UserManagement] Erro ao carregar usuários:', error);
-      toast.error('Erro ao carregar usuários');
+      console.error('[UserManagement] Erro ao carregar usuÃ¡rios:', error);
+      toast.error('Erro ao carregar usuÃ¡rios');
     } finally {
       setLoading(false);
     }
@@ -535,7 +566,7 @@ const UserManagement: React.FC = () => {
       let mapped = rows.map((row) => ({
         id: row.id,
         user_id: row.user_id,
-        user_name: row.users?.name || 'Não informado',
+        user_name: row.users?.name || 'NÃ£o informado',
         user_email: row.users?.email || 'Sem e-mail',
         plan_name: row.plans?.name || 'Sem plano',
         status: row.status,
@@ -563,6 +594,144 @@ const UserManagement: React.FC = () => {
       toast.error('Erro ao carregar assinaturas');
     } finally {
       setSubscriptionsLoading(false);
+    }
+  };
+
+  const loadUserAnnouncements = async (userId: string) => {
+    setUserAnnouncementsLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('id,title,status,price,unit_price,created_at,expires_at,views')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const mappedAnnouncements: ManagedAnnouncement[] = (data || []).map((announcement: any) => ({
+        id: announcement.id,
+        title: announcement.title,
+        status: announcement.status,
+        price: announcement.price !== null && announcement.price !== undefined
+          ? Number(announcement.price)
+          : announcement.unit_price !== null && announcement.unit_price !== undefined
+            ? Number(announcement.unit_price)
+            : null,
+        created_at: announcement.created_at,
+        expires_at: announcement.expires_at || null,
+        views: announcement.views ?? 0,
+      }));
+
+      setUserAnnouncements(mappedAnnouncements);
+    } catch (error) {
+      console.error('[UserManagement] Erro ao carregar anÃºncios do usuÃ¡rio:', error);
+      toast.error('Erro ao carregar anÃºncios do usuÃ¡rio');
+      setUserAnnouncements([]);
+    } finally {
+      setUserAnnouncementsLoading(false);
+    }
+  };
+
+  const getAnnouncementStatusMeta = (status: string) => {
+    const normalizedStatus = (status || '').toUpperCase();
+
+    if (normalizedStatus === 'ACTIVE') {
+      return { label: 'Ativo', className: 'bg-emerald-100 text-emerald-700' };
+    }
+
+    if (normalizedStatus === 'PAUSED') {
+      return { label: 'Pausado', className: 'bg-slate-100 text-slate-700' };
+    }
+
+    if (normalizedStatus === 'PENDING') {
+      return { label: 'Pendente', className: 'bg-amber-100 text-amber-700' };
+    }
+
+    if (normalizedStatus === 'EXPIRED') {
+      return { label: 'Vencido', className: 'bg-rose-100 text-rose-700' };
+    }
+
+    if (normalizedStatus === 'BLOCKED') {
+      return { label: 'Bloqueado', className: 'bg-red-100 text-red-700' };
+    }
+
+    return { label: status || 'Sem status', className: 'bg-slate-100 text-slate-700' };
+  };
+
+  const openDeleteAnnouncementModal = (announcement: ManagedAnnouncement) => {
+    setSelectedAnnouncement(announcement);
+    setAnnouncementDeleteReason('');
+    setShowDeleteAnnouncementModal(true);
+  };
+
+  const closeDeleteAnnouncementModal = () => {
+    if (isDeletingAnnouncement) return;
+    setShowDeleteAnnouncementModal(false);
+    setSelectedAnnouncement(null);
+    setAnnouncementDeleteReason('');
+  };
+
+  const handleDeleteAnnouncement = async () => {
+    if (!selectedUser || !selectedAnnouncement || !announcementDeleteReason.trim()) {
+      toast.error('Informe o motivo da exclusÃ£o do anÃºncio');
+      return;
+    }
+
+    setIsDeletingAnnouncement(true);
+
+    try {
+      await deleteAnnouncementWithRelations(selectedAnnouncement.id);
+
+      await logAction({
+        action: ADMIN_ACTIONS.DELETE_AD,
+        resourceType: RESOURCE_TYPES.ANNOUNCEMENT,
+        resourceId: selectedAnnouncement.id,
+        oldValue: {
+          announcement: selectedAnnouncement,
+          owner_user_id: selectedUser.id,
+          owner_name: selectedUser.name,
+        },
+        newValue: {
+          deleted: true,
+        },
+        reason: `AnÃºncio "${selectedAnnouncement.title}" excluÃ­do na GestÃ£o de UsuÃ¡rios. Motivo: ${announcementDeleteReason.trim()}`,
+      });
+
+      toast.success('AnÃºncio excluÃ­do com sucesso');
+
+      setUserAnnouncements((current) =>
+        current.filter((announcement) => announcement.id !== selectedAnnouncement.id)
+      );
+      setUsers((current) =>
+        current.map((user) =>
+          user.id === selectedUser.id
+            ? {
+                ...user,
+                _count: {
+                  announcements: Math.max((user._count?.announcements || 0) - 1, 0),
+                },
+              }
+            : user
+        )
+      );
+      setSelectedUser((current) =>
+        current
+          ? {
+              ...current,
+              _count: {
+                announcements: Math.max((current._count?.announcements || 0) - 1, 0),
+              },
+            }
+          : current
+      );
+
+      closeDeleteAnnouncementModal();
+    } catch (error: any) {
+      console.error('[UserManagement] Erro ao excluir anÃºncio:', error);
+      toast.error(error?.message || 'Erro ao excluir anÃºncio');
+    } finally {
+      setIsDeletingAnnouncement(false);
     }
   };
 
@@ -697,7 +866,7 @@ const UserManagement: React.FC = () => {
 
   const handleSuspendUser = async () => {
     if (!selectedUser || !suspensionReason.trim()) {
-      toast.error('Informe o motivo da suspensão');
+      toast.error('Informe o motivo da suspensÃ£o');
       return;
     }
 
@@ -727,16 +896,16 @@ const UserManagement: React.FC = () => {
           is_suspended: true,
           suspension_reason: suspensionReason
         },
-        reason: `Usuário ${selectedUser.name} suspenso: ${suspensionReason}`
+        reason: `UsuÃ¡rio ${selectedUser.name} suspenso: ${suspensionReason}`
       });
 
-      toast.success('Usuário suspenso com sucesso');
+      toast.success('UsuÃ¡rio suspenso com sucesso');
       setShowSuspendModal(false);
       setSuspensionReason('');
       loadUsers();
     } catch (error) {
       console.error('[UserManagement] Erro ao suspender:', error);
-      toast.error('Erro ao suspender usuário');
+      toast.error('Erro ao suspender usuÃ¡rio');
     }
   };
 
@@ -766,14 +935,124 @@ const UserManagement: React.FC = () => {
           is_suspended: false,
           suspension_reason: null
         },
-        reason: `Suspensão de ${user.name} removida`
+        reason: `SuspensÃ£o de ${user.name} removida`
       });
 
-      toast.success('Suspensão removida');
+      toast.success('SuspensÃ£o removida');
       loadUsers();
     } catch (error) {
-      console.error('[UserManagement] Erro ao remover suspensão:', error);
-      toast.error('Erro ao remover suspensão');
+      console.error('[UserManagement] Erro ao remover suspensÃ£o:', error);
+      toast.error('Erro ao remover suspensÃ£o');
+    }
+  };
+
+  const handleBlockUser = async () => {
+    if (!selectedUser || !suspensionReason.trim()) {
+      toast.error('Informe o motivo do bloqueio');
+      return;
+    }
+
+    try {
+      const blockedAtIso = new Date().toISOString();
+      const oldValue = {
+        is_suspended: selectedUser.is_suspended,
+        suspension_reason: selectedUser.suspension_reason
+      };
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          is_suspended: true,
+          suspension_reason: suspensionReason,
+          suspended_at: blockedAtIso
+        })
+        .eq('id', selectedUser.id);
+
+      if (error) throw error;
+
+      await logAction({
+        action: ADMIN_ACTIONS.SUSPEND_USER,
+        resourceType: RESOURCE_TYPES.USER,
+        resourceId: selectedUser.id,
+        oldValue,
+        newValue: {
+          is_suspended: true,
+          suspension_reason: suspensionReason,
+          suspended_at: blockedAtIso
+        },
+        reason: `UsuÃ¡rio ${selectedUser.name} bloqueado: ${suspensionReason}`
+      });
+
+      toast.success('UsuÃ¡rio bloqueado com sucesso');
+      setShowSuspendModal(false);
+      setSuspensionReason('');
+      setSelectedUser((current) =>
+        current
+          ? {
+              ...current,
+              is_suspended: true,
+              suspension_reason: suspensionReason,
+              suspended_at: blockedAtIso
+            }
+          : current
+      );
+      loadUsers();
+    } catch (error) {
+      console.error('[UserManagement] Erro ao bloquear usuÃ¡rio:', error);
+      toast.error('Erro ao bloquear usuÃ¡rio');
+    }
+  };
+
+  const handleUnblockUser = async () => {
+    if (!selectedUser || !unsuspensionReason.trim()) {
+      toast.error('Informe o motivo do desbloqueio');
+      return;
+    }
+
+    try {
+      const oldValue = {
+        is_suspended: selectedUser.is_suspended,
+        suspension_reason: selectedUser.suspension_reason
+      };
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          is_suspended: false,
+          suspension_reason: null
+        })
+        .eq('id', selectedUser.id);
+
+      if (error) throw error;
+
+      await logAction({
+        action: ADMIN_ACTIONS.UNSUSPEND_USER,
+        resourceType: RESOURCE_TYPES.USER,
+        resourceId: selectedUser.id,
+        oldValue,
+        newValue: {
+          is_suspended: false,
+          suspension_reason: null
+        },
+        reason: `Bloqueio de ${selectedUser.name} removido. Motivo: ${unsuspensionReason}`
+      });
+
+      toast.success('UsuÃ¡rio desbloqueado com sucesso');
+      setShowUnsuspendModal(false);
+      setUnsuspensionReason('');
+      setSelectedUser((current) =>
+        current
+          ? {
+              ...current,
+              is_suspended: false,
+              suspension_reason: null
+            }
+          : current
+      );
+      loadUsers();
+    } catch (error) {
+      console.error('[UserManagement] Erro ao desbloquear usuÃ¡rio:', error);
+      toast.error('Erro ao desbloquear usuÃ¡rio');
     }
   };
 
@@ -876,10 +1155,10 @@ const UserManagement: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-slate-900">Gestão de Usuários</h1>
+          <h1 className="text-3xl font-black text-slate-900">GestÃ£o de UsuÃ¡rios</h1>
           <p className="text-slate-500 mt-1">
             {activeTab === 'users'
-              ? `${totalCount} usuário${totalCount !== 1 ? 's' : ''} cadastrado${totalCount !== 1 ? 's' : ''}`
+              ? `${totalCount} usuÃ¡rio${totalCount !== 1 ? 's' : ''} cadastrado${totalCount !== 1 ? 's' : ''}`
               : `${subscriptionsTotalCount} assinatura${subscriptionsTotalCount !== 1 ? 's' : ''} encontrada${subscriptionsTotalCount !== 1 ? 's' : ''}`}
           </p>
         </div>
@@ -893,7 +1172,7 @@ const UserManagement: React.FC = () => {
 
       <div className="flex gap-2 rounded-xl border border-slate-200 bg-white p-1.5">
         {[
-          { id: 'users', label: 'Usuários', icon: Users },
+          { id: 'users', label: 'UsuÃ¡rios', icon: Users },
           { id: 'subscriptions', label: 'Assinaturas', icon: CreditCard },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -973,19 +1252,19 @@ const UserManagement: React.FC = () => {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  Usuário
+                  UsuÃ¡rio
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  Anúncios
+                  AnÃºncios
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  Ações
+                  AÃ§Ãµes
                 </th>
               </tr>
             </thead>
@@ -1001,7 +1280,7 @@ const UserManagement: React.FC = () => {
               ) : users.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                    Nenhum usuário encontrado
+                    Nenhum usuÃ¡rio encontrado
                   </td>
                 </tr>
               ) : (
@@ -1034,17 +1313,20 @@ const UserManagement: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       <button
-                        onClick={() => window.location.href = `#/admin/users/${user.id}/announcements`}
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setShowDetailsModal(true);
+                        }}
                         className="text-green-600 hover:underline font-semibold"
                       >
-                        {user._count?.announcements || 0} anúncio{user._count?.announcements !== 1 ? 's' : ''}
+                        {user._count?.announcements || 0} anÃºncio{user._count?.announcements !== 1 ? 's' : ''}
                       </button>
                     </td>
                     <td className="px-6 py-4">
                       {user.is_suspended ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
                           <AlertTriangle className="w-3 h-3" />
-                          Suspenso
+                          Bloqueado
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
@@ -1077,9 +1359,13 @@ const UserManagement: React.FC = () => {
                         </button>
                         {user.is_suspended ? (
                           <button
-                            onClick={() => handleUnsuspendUser(user)}
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setUnsuspensionReason('');
+                              setShowUnsuspendModal(true);
+                            }}
                             className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                            title="Remover Suspensão"
+                            title="Desbloquear"
                           >
                             <CheckCircle className="w-4 h-4" />
                           </button>
@@ -1087,10 +1373,11 @@ const UserManagement: React.FC = () => {
                           <button
                             onClick={() => {
                               setSelectedUser(user);
+                              setSuspensionReason('');
                               setShowSuspendModal(true);
                             }}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Suspender"
+                            title="Bloquear"
                           >
                             <Ban className="w-4 h-4" />
                           </button>
@@ -1129,7 +1416,7 @@ const UserManagement: React.FC = () => {
         {totalPages > 1 && (
           <div className="border-t border-slate-200 px-6 py-4 flex items-center justify-between">
             <p className="text-sm text-slate-500">
-              Página {page + 1} de {totalPages}
+              PÃ¡gina {page + 1} de {totalPages}
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -1254,11 +1541,11 @@ const UserManagement: React.FC = () => {
               <table className="w-full min-w-[980px]">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Usuário</th>
+                    <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">UsuÃ¡rio</th>
                     <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Plano</th>
                     <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Tipo</th>
                     <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Início</th>
+                    <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">InÃ­cio</th>
                     <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Vencimento</th>
                     <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Loja</th>
                   </tr>
@@ -1294,7 +1581,7 @@ const UserManagement: React.FC = () => {
                           <td className="px-6 py-4">
                             <p className="font-semibold text-slate-900">{subscription.plan_name}</p>
                             <p className="text-xs text-slate-500">
-                              {subscription.monthly_price > 0 ? `R$ ${subscription.monthly_price.toFixed(2)}/mês` : 'Plano sem cobrança'}
+                              {subscription.monthly_price > 0 ? `R$ ${subscription.monthly_price.toFixed(2)}/mÃªs` : 'Plano sem cobranÃ§a'}
                             </p>
                           </td>
                           <td className="px-6 py-4">
@@ -1334,7 +1621,7 @@ const UserManagement: React.FC = () => {
 
             {subscriptionsTotalPages > 1 && (
               <div className="border-t border-slate-200 px-6 py-4 flex items-center justify-between">
-                <p className="text-sm text-slate-500">Página {subscriptionsPage + 1} de {subscriptionsTotalPages}</p>
+                <p className="text-sm text-slate-500">PÃ¡gina {subscriptionsPage + 1} de {subscriptionsTotalPages}</p>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setSubscriptionsPage(Math.max(0, subscriptionsPage - 1))}
@@ -1497,11 +1784,11 @@ const UserManagement: React.FC = () => {
       )}
 
       {/* Details Modal */}
-      {showDetailsModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        {showDetailsModal && selectedUser && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-900">Detalhes do Usuário</h3>
+              <h3 className="text-xl font-bold text-slate-900">Detalhes do UsuÃ¡rio</h3>
               <button
                 onClick={() => setShowDetailsModal(false)}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
@@ -1511,11 +1798,11 @@ const UserManagement: React.FC = () => {
             </div>
             
             <div className="space-y-6">
-              {/* Informações Pessoais */}
+              {/* InformaÃ§Ãµes Pessoais */}
               <div className="bg-slate-50 rounded-xl p-4">
                 <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                   <Users className="w-4 h-4 text-green-600" />
-                  Informações Pessoais
+                  InformaÃ§Ãµes Pessoais
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1528,20 +1815,20 @@ const UserManagement: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 mb-1">Telefone</p>
-                    <p className="font-semibold text-slate-900">{selectedUser.phone || 'Não informado'}</p>
+                    <p className="font-semibold text-slate-900">{selectedUser.phone || 'NÃ£o informado'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 mb-1">CPF/CNPJ</p>
-                    <p className="font-semibold text-slate-900">{selectedUser.document || 'Não informado'}</p>
+                    <p className="font-semibold text-slate-900">{selectedUser.document || 'NÃ£o informado'}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Plano e Permissões */}
+              {/* Plano e PermissÃµes */}
               <div className="bg-slate-50 rounded-xl p-4">
                 <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                   <Target className="w-4 h-4 text-blue-600" />
-                  Plano e Permissões
+                  Plano e PermissÃµes
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1558,21 +1845,21 @@ const UserManagement: React.FC = () => {
                       'bg-slate-100 text-slate-800'
                     }`}>
                       {selectedUser.role === 'admin' ? 'Administrador' :
-                       selectedUser.role === 'editor' ? 'Editor' : 'Usuário'}
+                       selectedUser.role === 'editor' ? 'Editor' : 'UsuÃ¡rio'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Estatísticas */}
+              {/* EstatÃ­sticas */}
               <div className="bg-slate-50 rounded-xl p-4">
                 <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                   <Target className="w-4 h-4 text-amber-600" />
-                  Estatísticas
+                  EstatÃ­sticas
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">Total de Anúncios</p>
+                    <p className="text-xs text-slate-500 mb-1">Total de AnÃºncios</p>
                     <p className="text-2xl font-bold text-slate-900">{selectedUser._count?.announcements || 0}</p>
                   </div>
                   <div>
@@ -1580,7 +1867,7 @@ const UserManagement: React.FC = () => {
                     <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
                       selectedUser.is_suspended ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
                     }`}>
-                      {selectedUser.is_suspended ? 'Suspenso' : 'Ativo'}
+                      {selectedUser.is_suspended ? 'Bloqueado' : 'Ativo'}
                     </span>
                   </div>
                 </div>
@@ -1590,7 +1877,7 @@ const UserManagement: React.FC = () => {
               <div className="bg-slate-50 rounded-xl p-4">
                 <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-slate-600" />
-                  Informações de Registro
+                  InformaÃ§Ãµes de Registro
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1600,7 +1887,7 @@ const UserManagement: React.FC = () => {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">Último Login</p>
+                    <p className="text-xs text-slate-500 mb-1">Ãšltimo Login</p>
                     <p className="font-semibold text-slate-900">
                       {selectedUser.last_login 
                         ? new Date(selectedUser.last_login).toLocaleString('pt-BR', {
@@ -1617,17 +1904,95 @@ const UserManagement: React.FC = () => {
                 </div>
               </div>
 
-              {/* Motivo de Suspensão (se aplicável) */}
-              {selectedUser.is_suspended && selectedUser.suspension_reason && (
-                <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-                  <h4 className="font-semibold text-red-900 mb-2 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
-                    Motivo da Suspensão
-                  </h4>
-                  <p className="text-sm text-red-800">{selectedUser.suspension_reason}</p>
+              {/* Motivo de SuspensÃ£o (se aplicÃ¡vel) */}
+                {selectedUser.is_suspended && selectedUser.suspension_reason && (
+                  <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                    <h4 className="font-semibold text-red-900 mb-2 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      Motivo do bloqueio
+                    </h4>
+                    <p className="text-sm text-red-800">{selectedUser.suspension_reason}</p>
+                  </div>
+                )}
+
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <h4 className="font-semibold text-slate-900 flex items-center gap-2">
+                      <Store className="w-4 h-4 text-emerald-600" />
+                      AnÃºncios do usuÃ¡rio
+                    </h4>
+                    <span className="text-xs font-semibold text-slate-500">
+                      {userAnnouncements.length} registro(s)
+                    </span>
+                  </div>
+
+                  {userAnnouncementsLoading ? (
+                    <div className="flex items-center justify-center py-8 text-sm text-slate-500 gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Carregando anÃºncios...
+                    </div>
+                  ) : userAnnouncements.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-white p-5 text-center text-sm text-slate-500">
+                      Este usuÃ¡rio nÃ£o possui anÃºncios cadastrados.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {userAnnouncements.map((announcement) => {
+                        const statusMeta = getAnnouncementStatusMeta(announcement.status);
+
+                        return (
+                          <div
+                            key={announcement.id}
+                            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-slate-900 truncate">{announcement.title}</p>
+                                <p className="text-xs text-slate-500 mt-1">
+                                  ID: {announcement.id}
+                                </p>
+                              </div>
+                              <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusMeta.className}`}>
+                                {statusMeta.label}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 text-sm text-slate-600">
+                              <div>
+                                <p className="text-xs text-slate-500 mb-1">PreÃ§o</p>
+                                <p className="font-semibold text-slate-900">
+                                  {announcement.price !== null
+                                    ? announcement.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                    : 'NÃ£o informado'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-slate-500 mb-1">Criado em</p>
+                                <p className="font-semibold text-slate-900">{formatDateCell(announcement.created_at)}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-slate-500 mb-1">Views</p>
+                                <p className="font-semibold text-slate-900">{announcement.views || 0}</p>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => openDeleteAnnouncementModal(announcement)}
+                                className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Excluir anÃºncio
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
 
             <div className="flex items-center gap-3 mt-6">
               <button
@@ -1648,21 +2013,72 @@ const UserManagement: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Suspend Modal */}
-      {showSuspendModal && selectedUser && (
+        {showDeleteAnnouncementModal && selectedUser && selectedAnnouncement && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6">
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Excluir anÃºncio</h3>
+              <p className="text-sm text-slate-600 mb-4">
+                VocÃª estÃ¡ excluindo o anÃºncio <strong>{selectedAnnouncement.title}</strong> do usuÃ¡rio <strong>{selectedUser.name}</strong>.
+              </p>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2 mb-4 text-sm">
+                <p><span className="font-semibold text-slate-700">ID:</span> {selectedAnnouncement.id}</p>
+                <p><span className="font-semibold text-slate-700">Status:</span> {getAnnouncementStatusMeta(selectedAnnouncement.status).label}</p>
+                <p><span className="font-semibold text-slate-700">Criado em:</span> {formatDateCell(selectedAnnouncement.created_at)}</p>
+              </div>
+
+              <textarea
+                value={announcementDeleteReason}
+                onChange={(e) => setAnnouncementDeleteReason(e.target.value)}
+                placeholder="Informe o motivo da exclusÃ£o (obrigatÃ³rio)..."
+                className="w-full border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[120px]"
+              />
+
+              <div className="flex items-center gap-3 mt-6">
+                <button
+                  onClick={closeDeleteAnnouncementModal}
+                  disabled={isDeletingAnnouncement}
+                  className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg font-semibold hover:bg-slate-50 transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDeleteAnnouncement}
+                  disabled={!announcementDeleteReason.trim() || isDeletingAnnouncement}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-colors disabled:opacity-50"
+                >
+                  {isDeletingAnnouncement ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Excluindo...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Excluir anÃºncio
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+  
+        {/* Suspend Modal */}
+        {showSuspendModal && selectedUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-slate-900 mb-4">Suspender Usuário</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-4">Bloquear usuário</h3>
             <p className="text-slate-600 mb-4">
-              Suspender: <strong>{selectedUser.name}</strong>
+              Bloquear: <strong>{selectedUser.name}</strong>
             </p>
             <textarea
               value={suspensionReason}
               onChange={(e) => setSuspensionReason(e.target.value)}
-              placeholder="Motivo da suspensão (obrigatório)..."
+              placeholder="Motivo do bloqueio (obrigatório)..."
               className="w-full border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[100px]"
             />
             <div className="flex items-center gap-3 mt-6">
@@ -1676,11 +2092,46 @@ const UserManagement: React.FC = () => {
                 Cancelar
               </button>
               <button
-                onClick={handleSuspendUser}
+                onClick={handleBlockUser}
                 disabled={!suspensionReason.trim()}
                 className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-colors disabled:opacity-50"
               >
-                Suspender Usuário
+                Bloquear usuário
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+        {showUnsuspendModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-slate-900 mb-4">Desbloquear usuário</h3>
+            <p className="text-slate-600 mb-4">
+              Desbloquear: <strong>{selectedUser.name}</strong>
+            </p>
+            <textarea
+              value={unsuspensionReason}
+              onChange={(e) => setUnsuspensionReason(e.target.value)}
+              placeholder="Motivo do desbloqueio (obrigatório)..."
+              className="w-full border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500 min-h-[100px]"
+            />
+            <div className="flex items-center gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowUnsuspendModal(false);
+                  setUnsuspensionReason('');
+                }}
+                className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 rounded-lg font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleUnblockUser}
+                disabled={!unsuspensionReason.trim()}
+                className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors disabled:opacity-50"
+              >
+                Desbloquear usuário
               </button>
             </div>
           </div>
@@ -1691,3 +2142,4 @@ const UserManagement: React.FC = () => {
 };
 
 export default UserManagement;
+
