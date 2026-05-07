@@ -5,6 +5,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { toast } from 'sonner';
 import { LEAD_STATUS, CHAT_STATUS } from '../constants/status';
 import { useLayout } from '../src/contexts/LayoutContext';
+import { isTimestampExpired, syncTrustedTime } from '../src/lib/trustedTime';
 
 const applyPhoneMask = (value: string) => {
   const numbers = value.replace(/\D/g, '');
@@ -97,6 +98,8 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
     setIsSubmitting(true);
 
     try {
+      await syncTrustedTime();
+
       const { data: announcementData, error: announcementError } = await supabase
         .from('announcements')
         .select('status, expires_at')
@@ -110,9 +113,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         return;
       }
 
-      const isExpiredByDate =
-        !!announcementData.expires_at &&
-        new Date(announcementData.expires_at).getTime() <= Date.now();
+      const isExpiredByDate = isTimestampExpired(announcementData.expires_at);
 
       if (announcementData.status !== 'ACTIVE' || isExpiredByDate) {
         toast.error('Este anuncio nao aceita novos contatos.', {

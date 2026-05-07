@@ -13,6 +13,7 @@ import { usePublicAds } from '../src/hooks/useAds';
 import { useCategoryCounts } from '../src/hooks/useCategoryCounts';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { supabase } from '../src/lib/supabaseClient';
+import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 import { Ad } from '../types';
 
 class AdCardErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -90,9 +91,9 @@ const Home: React.FC = () => {
   const impressionSignatureRef = useRef<string>('');
 
   const hasActiveHomeHighlight = (ad: any) =>
-    Boolean(ad.highlightHome && (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date()));
+    Boolean(ad.highlightHome && isTimestampActive(ad.highlightHomeUntil));
   const hasActiveCategoryHighlight = (ad: any) =>
-    Boolean(ad.highlightCategory && (!ad.highlightCategoryUntil || new Date(ad.highlightCategoryUntil) > new Date()));
+    Boolean(ad.highlightCategory && isTimestampActive(ad.highlightCategoryUntil));
 
   const highlightedAdsBase = useMemo(
     () => ads.filter((ad) => hasActiveHomeHighlight(ad)),
@@ -103,6 +104,8 @@ const Home: React.FC = () => {
     let cancelled = false;
 
     const loadHomeShowcaseStats = async () => {
+      await syncTrustedTime();
+
       if (highlightedAdsBase.length === 0) {
         setHomeShowcaseStats({});
         return;

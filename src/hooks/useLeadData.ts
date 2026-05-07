@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime';
 
 interface LeadData {
   id: string;
@@ -28,6 +29,7 @@ export const useLeadData = (chatId: string | null) => {
 
     const fetchLead = async () => {
       setIsLoading(true);
+      await syncTrustedTime();
       
       const { data, error } = await supabase
         .from('leads')
@@ -40,17 +42,19 @@ export const useLeadData = (chatId: string | null) => {
         console.error('Erro ao buscar lead:', error);
         setLead(null);
       } else if (data) {
+        const isLocked = isTimestampExpired(data.contact_expires_at);
+
         setLead({
           id: data.id,
-          buyerName: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? 'Contato bloqueado' : data.buyer_name,
-          buyerEmail: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? null : data.buyer_email,
-          buyerPhone: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? null : data.buyer_phone,
-          buyerCep: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? null : data.buyer_cep,
-          initialMessage: data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now() ? null : data.initial_message,
+          buyerName: isLocked ? 'Contato bloqueado' : data.buyer_name,
+          buyerEmail: isLocked ? null : data.buyer_email,
+          buyerPhone: isLocked ? null : data.buyer_phone,
+          buyerCep: isLocked ? null : data.buyer_cep,
+          initialMessage: isLocked ? null : data.initial_message,
           status: data.status,
           createdAt: data.created_at,
           contactExpiresAt: data.contact_expires_at ?? null,
-          isLocked: !!data.contact_expires_at && new Date(data.contact_expires_at).getTime() <= Date.now()
+          isLocked
         });
       } else {
         setLead(null);

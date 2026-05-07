@@ -881,11 +881,11 @@ const UserDashboardView: React.FC = () => {
   const PerformancePanelLocked = () => {
     const title = isDowngradedBasicPlan
       ? 'Seu plano atual não inclui o Painel de Performance'
-      : 'O Painel de Performance está disponível nos planos pagos Safra, Produtor e Loja Parceira.';
+      : 'O Painel de Performance está disponível exclusivamente nos planos Safra, Produtor e Loja Parceira.';
 
     const description = isDowngradedBasicPlan
       ? 'Faça upgrade para voltar a acompanhar seus resultados'
-      : 'Faça upgrade para acompanhar seus resultados com métricas e insights exclusivos.';
+      : 'Faça upgrade e acompanhe o desempenho dos seus anúncios com métricas e insights estratégicos para apoiar suas decisões e gerar mais oportunidades de venda.';
 
     return (
       <div className="space-y-6 animate-in fade-in duration-500 pb-20">
@@ -1074,9 +1074,10 @@ const UserDashboardView: React.FC = () => {
 
       try {
         if (ad.status === AdStatus.PAUSED) {
-          const { data: capacityStatus, error: capacityError } = await supabase.rpc('get_my_active_ad_capacity_status');
+          const { data: capacityRows, error: capacityError } = await supabase.rpc('get_my_active_ad_capacity_status');
 
           if (!capacityError) {
+            const capacityStatus = Array.isArray(capacityRows) ? capacityRows[0] : capacityRows;
             const canReactivatePausedAd = Boolean(capacityStatus?.can_publish_new);
 
             if (!canReactivatePausedAd) {

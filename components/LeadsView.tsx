@@ -8,6 +8,7 @@ import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
 import { LEAD_STATUS, LEAD_STATUS_LABELS, LEAD_STATUS_COLORS } from '../constants/status';
 import type { LeadStatus } from '../constants/status';
+import { isTimestampExpired, syncTrustedTime } from '../src/lib/trustedTime';
 
 const PAGE_SIZE = 20; // Número de leads por página
 
@@ -106,6 +107,8 @@ const LeadsView: React.FC = () => {
     setIsLoading(reset);
     
     try {
+      await syncTrustedTime();
+
       const from = currentPage * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
@@ -127,7 +130,7 @@ const LeadsView: React.FC = () => {
 
       const mappedLeads: Lead[] = data.map((lead: any) => ({
         ...lead,
-        is_locked: !!lead.contact_expires_at && new Date(lead.contact_expires_at).getTime() <= Date.now(),
+        is_locked: isTimestampExpired(lead.contact_expires_at),
         announcement_title: lead.announcements?.title,
         announcement_price: lead.announcements?.price,
         announcement_image: lead.announcements?.images?.[0]
@@ -158,6 +161,8 @@ const LeadsView: React.FC = () => {
     const nextPage = page + 1;
     
     try {
+      await syncTrustedTime();
+
       const from = nextPage * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
@@ -179,7 +184,7 @@ const LeadsView: React.FC = () => {
 
       const mappedLeads: Lead[] = data.map((lead: any) => ({
         ...lead,
-        is_locked: !!lead.contact_expires_at && new Date(lead.contact_expires_at).getTime() <= Date.now(),
+        is_locked: isTimestampExpired(lead.contact_expires_at),
         announcement_title: lead.announcements?.title,
         announcement_price: lead.announcements?.price,
         announcement_image: lead.announcements?.images?.[0]

@@ -5,6 +5,7 @@ import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { emitCountsRefresh } from '../lib/countSync'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseUnauthorizedError } from '../lib/supabaseAuthGuard'
+import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime'
 import { Chat, Message, LeadStatus } from '../../types'
 import { LEAD_STATUS } from '../../constants/status'
 import { toast } from 'sonner'
@@ -22,7 +23,7 @@ const getChatFreezeState = (
     }
   }
 
-  if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+  if (isTimestampExpired(expiresAt)) {
     return {
       isFrozen: true,
       freezeReason: 'announcement_expired' as const,
@@ -30,7 +31,7 @@ const getChatFreezeState = (
     }
   }
 
-  if (leadContactExpiresAt && new Date(leadContactExpiresAt).getTime() <= Date.now()) {
+  if (isTimestampExpired(leadContactExpiresAt)) {
     return {
       isFrozen: true,
       freezeReason: 'lead_contact_expired' as const,
@@ -43,6 +44,25 @@ const getChatFreezeState = (
     freezeReason: null,
     isLeadContactExpired: false
   }
+}
+
+const getLeadContactExpirationMap = async (chatIds: string[]) => {
+  if (chatIds.length === 0) {
+    return new Map<string, string | null>()
+  }
+
+  const { data, error } = await supabase
+    .from('leads')
+    .select('chat_id, contact_expires_at')
+    .in('chat_id', chatIds)
+
+  if (error) {
+    throw error
+  }
+
+  return new Map<string, string | null>(
+    (data || []).map((lead) => [lead.chat_id as string, lead.contact_expires_at as string | null])
+  )
 }
 
 export const useChats = (announcementId?: string | null) => {
@@ -74,6 +94,8 @@ export const useChats = (announcementId?: string | null) => {
     isFetchingRef.current = true
 
     try {
+      await syncTrustedTime()
+
       if (!silent) {
         setIsLoading(true)
       } else {
@@ -113,11 +135,27 @@ export const useChats = (announcementId?: string | null) => {
       } else {
         clearRetry()
         setError(null)
-        const mappedChats: Chat[] = (data || []).map(chat => ({
+        const chatRows = data || []
+        let leadExpirationByChat = new Map<string, string | null>()
+
+        try {
+          // Use the lead record itself as the source of truth for contact locking.
+          leadExpirationByChat = await getLeadContactExpirationMap(
+            chatRows.map((chat) => chat.id).filter(Boolean)
+          )
+        } catch (leadError) {
+          console.error('[useChats] Erro ao buscar expiracao dos leads:', leadError)
+        }
+
+        const mappedChats: Chat[] = chatRows.map(chat => {
+          const leadContactExpiresAt =
+            leadExpirationByChat.get(chat.id) ?? chat.lead_contact_expires_at ?? null
+
+          return {
           ...getChatFreezeState(
             chat.announcement_status,
             chat.announcement_expires_at,
-            chat.lead_contact_expires_at
+            leadContactExpiresAt
           ),
           direction: chat.buyer_id === user.id ? 'sent' : 'received',
           id: chat.id,
@@ -129,7 +167,7 @@ export const useChats = (announcementId?: string | null) => {
           adExpiresAt: chat.announcement_expires_at,
           adExpiredAt: chat.announcement_expired_at,
           adDeletionScheduledAt: chat.announcement_deletion_scheduled_at,
-          leadContactExpiresAt: chat.lead_contact_expires_at,
+          leadContactExpiresAt,
           sellerId: chat.seller_id,
           sellerName: chat.seller_name,
           buyerId: chat.buyer_id,
@@ -139,7 +177,7 @@ export const useChats = (announcementId?: string | null) => {
           unreadCount: chat.unread_count || 0,
           status: chat.status,
           createdAt: chat.created_at
-        }))
+        }})
 
         setChats(mappedChats)
       }

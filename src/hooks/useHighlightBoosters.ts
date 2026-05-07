@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { getTrustedNowMs, syncTrustedTime } from '../lib/trustedTime';
 import {
   HighlightBoosterPurchaseRecord,
   HighlightBoosterRecord,
@@ -39,7 +40,7 @@ const mapPurchase = (row: any): HighlightBoosterPurchaseRecord => ({
 });
 
 const getRecentBoosterPurchasesCount = (rows: any[]) => {
-  const now = Date.now();
+  const now = getTrustedNowMs();
   const windowStart = now - 30 * 24 * 60 * 60 * 1000;
 
   return rows.filter((row) => {
@@ -83,6 +84,8 @@ export const useHighlightBoosters = () => {
   };
 
   const loadUserData = async () => {
+    await syncTrustedTime();
+
     if (!user?.id) {
       setPurchases([]);
       setSummary({

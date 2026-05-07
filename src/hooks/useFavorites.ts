@@ -2,13 +2,10 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { Favorite } from '../../types'
+import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime'
 
 const getEffectiveAdStatus = (status: string, expiresAt?: string | null) => {
-  if (
-    (status === 'ACTIVE' || status === 'active') &&
-    expiresAt &&
-    new Date(expiresAt).getTime() <= Date.now()
-  ) {
+  if ((status === 'ACTIVE' || status === 'active') && isTimestampExpired(expiresAt)) {
     return 'EXPIRED'
   }
 
@@ -29,6 +26,7 @@ export const useFavorites = () => {
     }
 
     setIsLoading(true)
+    await syncTrustedTime()
     const { data, error } = await supabase
       .from('favorites')
       .select(`

@@ -6,6 +6,7 @@ import HomeAdsCarousel from '../components/HomeAdsCarousel';
 import { usePublicAds } from '../src/hooks/useAds';
 import { usePublicCategoryCatalog } from '../src/hooks/usePublicCategoryCatalog';
 import { supabase } from '../src/lib/supabaseClient';
+import { getTrustedHoursAgo, isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 import {
   getCategoryGroupBySlug,
   getGroupCategorySlugs,
@@ -63,14 +64,9 @@ const normalize = (value?: string | null) =>
     .replace(/^-+|-+$/g, '');
 
 const isHighlightActive = (value?: boolean, until?: string | null) =>
-  Boolean(value) && (!until || new Date(until).getTime() > Date.now());
+  Boolean(value) && isTimestampActive(until);
 
-const getHoursAgo = (dateValue?: string | null) => {
-  if (!dateValue) return Number.POSITIVE_INFINITY;
-  const timestamp = new Date(dateValue).getTime();
-  if (Number.isNaN(timestamp)) return Number.POSITIVE_INFINITY;
-  return (Date.now() - timestamp) / (1000 * 60 * 60);
-};
+const getHoursAgo = (dateValue?: string | null) => getTrustedHoursAgo(dateValue);
 
 const getAnnouncementQualityBaseScore = (ad: Ad) => {
   let score = 0;
@@ -293,6 +289,8 @@ const AdsListingView: React.FC = () => {
     let cancelled = false;
 
     const loadRankingSettings = async () => {
+      await syncTrustedTime();
+
       const { data, error: settingsError } = await supabase.rpc('get_public_category_ranking_settings');
 
       if (settingsError) {
@@ -389,6 +387,8 @@ const AdsListingView: React.FC = () => {
     let cancelled = false;
 
     const loadShowcaseStats = async () => {
+      await syncTrustedTime();
+
       if (categoryHighlightedAds.length === 0) {
         setCategoryShowcaseStats({});
         return;

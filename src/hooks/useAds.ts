@@ -3,13 +3,10 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { Ad } from '../../types'
 import { getCategoryGroupBySlug, getGroupCategorySlugs } from '../lib/categoryHierarchy'
+import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime'
 
 const getEffectiveAdStatus = (status: string, expiresAt?: string | null) => {
-  if (
-    (status === 'ACTIVE' || status === 'active') &&
-    expiresAt &&
-    new Date(expiresAt).getTime() <= Date.now()
-  ) {
+  if ((status === 'ACTIVE' || status === 'active') && isTimestampExpired(expiresAt)) {
     return 'EXPIRED';
   }
 
@@ -74,6 +71,7 @@ export const useUserAds = () => {
 
     const fetchAds = async () => {
       setIsLoading(true)
+      await syncTrustedTime()
       const [{ data, error }, { data: editRequests, error: pendingEditRequestsError }] = await Promise.all([
         supabase
           .from('announcements')
@@ -182,6 +180,7 @@ export const usePublicAds = (filters?: {
   useEffect(() => {
     const fetchAds = async () => {
       setIsLoading(true)
+      await syncTrustedTime()
 
       let query = supabase
         .from('announcements')
@@ -413,6 +412,7 @@ export const useAllAds = () => {
   useEffect(() => {
     const fetchAll = async () => {
       setIsLoading(true)
+      await syncTrustedTime()
       const { data, error } = await supabase
         .from('announcements')
         .select('*')
@@ -497,6 +497,7 @@ export const useAd = (adId: string | undefined) => {
 
     const fetchAd = async () => {
       setIsLoading(true)
+      await syncTrustedTime()
 
       const { data: adData, error: adError } = await supabase
         .from('announcements')

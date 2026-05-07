@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CATEGORIES } from '../../constants';
 import { supabase } from '../lib/supabaseClient';
 import { getCategoryGroupKey } from '../lib/categoryHierarchy';
+import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime';
 
 export const useCategoryCounts = () => {
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
@@ -19,6 +20,8 @@ export const useCategoryCounts = () => {
   useEffect(() => {
     const loadCategoryCounts = async () => {
       try {
+        await syncTrustedTime();
+
         const { data, error } = await supabase
           .from('announcements')
           .select('category_slug, expires_at')
@@ -29,10 +32,7 @@ export const useCategoryCounts = () => {
         }
 
         const nextCounts = (data || []).reduce<Record<string, number>>((acc, announcement) => {
-          if (
-            announcement.expires_at &&
-            new Date(announcement.expires_at).getTime() <= Date.now()
-          ) {
+          if (isTimestampExpired(announcement.expires_at)) {
             return acc;
           }
 
