@@ -29,7 +29,6 @@ const PrivacyView = lazy(() => import('./pages/PrivacyView'));
 const NewsListingView = lazy(() => import('./pages/NewsListingView'));
 const NewsArticleView = lazy(() => import('./pages/NewsArticleView'));
 const UserDashboardView = lazy(() => import('./pages/UserDashboardView'));
-const MessagesView = lazy(() => import('./pages/MessagesView'));
 const FavoritesView = lazy(() => import('./pages/FavoritesView'));
 const InstitutionalPage = lazy(() => import('./pages/InstitutionalPage'));
 
@@ -81,6 +80,13 @@ const PageLoader = () => (
     <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-green-700"></div>
   </div>
 );
+
+const LegacyMessagesRedirect = () => {
+  const location = useLocation();
+  const destination = `/minha-conta/mensagens${location.search || ''}`;
+
+  return <Navigate to={destination} replace />;
+};
 
 class RouteErrorBoundary extends React.Component<{ children: React.ReactNode; resetKey?: string }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode; resetKey?: string }) {
@@ -203,7 +209,7 @@ const AppContent: React.FC = () => {
               path="/mensagens" 
               element={
                 <RequireAuth>
-                  <MessagesView />
+                  <LegacyMessagesRedirect />
                 </RequireAuth>
               } 
             />

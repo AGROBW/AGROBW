@@ -10,6 +10,7 @@ import { supabase } from '../src/lib/supabaseClient';
 import { detectUserState } from '../src/utils/geoLocation';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
+import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 
 interface AdCardProps {
   ad: Ad;
@@ -22,6 +23,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
   const { settings } = useLayout();
   const [isFav, setIsFav] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
+  const [, setTrustedTimeVersion] = useState(0);
   
   useEffect(() => {
     let isActive = true;
@@ -41,6 +43,20 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
       isActive = false;
     };
   }, [ad.id, user, isFavorited]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void syncTrustedTime().then(() => {
+      if (isMounted) {
+        setTrustedTimeVersion((current) => current + 1);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   
   const handleFavoriteClick = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -70,8 +86,8 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
   const primaryImage = getPrimaryImageFromList(ad.images, settings.defaultAdImageUrl);
 
   // Verificar se o destaque está ativo (não expirado)
-  const isCategoryHighlightActive = ad.highlightCategory && (!ad.highlightCategoryUntil || new Date(ad.highlightCategoryUntil) > new Date());
-  const isHomeHighlightActive = ad.highlightHome && (!ad.highlightHomeUntil || new Date(ad.highlightHomeUntil) > new Date());
+  const isCategoryHighlightActive = Boolean(ad.highlightCategory) && isTimestampActive(ad.highlightCategoryUntil);
+  const isHomeHighlightActive = Boolean(ad.highlightHome) && isTimestampActive(ad.highlightHomeUntil);
   const shouldShowHomeHighlight =
     highlightDisplayMode === 'home'
       ? true

@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { getTrustedNowMs, syncTrustedTime } from '../../src/lib/trustedTime';
 
 type SponsorStatus = 'active' | 'paused' | 'expired';
 type SponsorTargetType = 'site' | 'whatsapp';
@@ -139,7 +140,7 @@ const SponsorsManagement: React.FC = () => {
   const activeSponsors = useMemo(
     () =>
       sponsors.filter((sponsor) => {
-        const now = Date.now();
+        const now = getTrustedNowMs();
         const startsAt = new Date(sponsor.starts_at).getTime();
         const endsAt = sponsor.ends_at ? new Date(sponsor.ends_at).getTime() : null;
         return sponsor.status === 'active' && startsAt <= now && (!endsAt || endsAt >= now);
@@ -150,6 +151,8 @@ const SponsorsManagement: React.FC = () => {
   const loadSponsors = async () => {
     try {
       setLoading(true);
+      await syncTrustedTime();
+
       const [sponsorsResult, statsResult, sponsorLeadsResult] = await Promise.all([
         supabase
           .from('site_sponsors')
@@ -275,9 +278,11 @@ const SponsorsManagement: React.FC = () => {
 
   const updateSponsorStatus = async (sponsor: SiteSponsor, status: SponsorStatus) => {
     try {
+      await syncTrustedTime();
+
       const payload =
         status === 'expired'
-          ? { status, ends_at: new Date().toISOString() }
+          ? { status, ends_at: new Date(getTrustedNowMs()).toISOString() }
           : { status };
 
       const { error } = await supabase

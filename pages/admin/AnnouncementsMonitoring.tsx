@@ -24,6 +24,7 @@ import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { toast } from 'sonner';
 import { CATEGORY_HIERARCHY, getCategoryGroupBySlug } from '../../src/lib/categoryHierarchy';
+import { getTrustedNowMs, syncTrustedTime } from '../../src/lib/trustedTime';
 
 type MonitoringAnnouncement = {
   id: string;
@@ -151,8 +152,9 @@ const AnnouncementsMonitoring: React.FC = () => {
     setLoading(true);
 
     try {
-      const nowIso = new Date().toISOString();
-      const sevenDaysAheadIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      await syncTrustedTime();
+      const trustedNowMs = getTrustedNowMs();
+      const sevenDaysAheadMs = trustedNowMs + 7 * 24 * 60 * 60 * 1000;
 
       const { data, error } = await supabase.rpc('admin_list_announcements_monitoring');
       if (error) throw error;
@@ -165,8 +167,8 @@ const AnnouncementsMonitoring: React.FC = () => {
         expiringSoon: rows.filter((item) =>
           item.status === 'ACTIVE' &&
           item.expires_at &&
-          new Date(item.expires_at).getTime() > Date.now() &&
-          new Date(item.expires_at).getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000
+          new Date(item.expires_at).getTime() > trustedNowMs &&
+          new Date(item.expires_at).getTime() <= sevenDaysAheadMs
         ).length,
         highlighted: rows.filter((item) => Boolean(item.highlight_home || item.highlight_category)).length,
       });
@@ -256,8 +258,8 @@ const AnnouncementsMonitoring: React.FC = () => {
           const isExpiringSoon =
             row.status === 'ACTIVE' &&
             row.expires_at &&
-            new Date(row.expires_at).getTime() > Date.now() &&
-            new Date(row.expires_at).getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000;
+            new Date(row.expires_at).getTime() > trustedNowMs &&
+            new Date(row.expires_at).getTime() <= sevenDaysAheadMs;
 
           const highViewsNoLead = (row.views || 0) >= 50 && (row.leadsCount || 0) === 0;
           const hasHighlight = Boolean(row.highlight_home || row.highlight_category);
@@ -287,11 +289,13 @@ const AnnouncementsMonitoring: React.FC = () => {
     'Categoria';
 
   const getAlertMeta = (announcement: MonitoringAnnouncement) => {
+    const trustedNowMs = getTrustedNowMs();
+    const sevenDaysAheadMs = trustedNowMs + 7 * 24 * 60 * 60 * 1000;
     const isExpiringSoon =
       announcement.status === 'ACTIVE' &&
       announcement.expires_at &&
-      new Date(announcement.expires_at).getTime() > Date.now() &&
-      new Date(announcement.expires_at).getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000;
+      new Date(announcement.expires_at).getTime() > trustedNowMs &&
+      new Date(announcement.expires_at).getTime() <= sevenDaysAheadMs;
 
     if (announcement.status === 'PENDING') {
       return {

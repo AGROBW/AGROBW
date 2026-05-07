@@ -1,25 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/contexts/AuthContext';
-import { useRateLimit, formatTimeRemaining } from '../src/hooks/useRateLimit';
+import { formatTimeRemaining } from '../src/hooks/useRateLimit';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../src/hooks/useAdminAudit';
 import { CaptchaWidget } from '../components/CaptchaWidget';
 import { ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { supabase } from '../src/lib/supabaseClient';
+
+interface AdminLoginRateLimitStatus {
+  attempts_used: number;
+  remaining_attempts: number;
+  is_blocked: boolean;
+  blocked_until: string | null;
+  time_until_unblock_seconds: number;
+  should_show_captcha: boolean;
+  server_now: string;
+}
+
+const defaultRateLimitStatus: AdminLoginRateLimitStatus = {
+  attempts_used: 0,
+  remaining_attempts: 5,
+  is_blocked: false,
+  blocked_until: null,
+  time_until_unblock_seconds: 0,
+  should_show_captcha: false,
+  server_now: new Date().toISOString(),
+};
 
 const AdminLoginView: React.FC = () => {
   const navigate = useNavigate();
   const { signIn, user, isAdmin } = useAuth();
   const { logAction } = useAdminAudit();
-  
-  // Rate Limiting (5 tentativas a cada 15 min, bloqueio de 30 min)
-  const {
-    canAttempt,
-    remainingAttempts,
-    isBlocked,
-    timeUntilUnblock,
-    recordAttempt,
-    reset
-  } = useRateLimit('admin-login', 5, 15 * 60 * 1000, 30 * 60 * 1000);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,38 +38,149 @@ const AdminLoginView: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showCaptcha, setShowCaptcha] = useState(false);
+  const [rateLimitStatus, setRateLimitStatus] = useState<AdminLoginRateLimitStatus>(defaultRateLimitStatus);
+  const [timeUntilUnblock, setTimeUntilUnblock] = useState(0);
+
+  const isBlocked = rateLimitStatus.is_blocked && timeUntilUnblock > 0;
+  const remainingAttempts = rateLimitStatus.remaining_attempts;
+  const canAttempt = !isBlocked && remainingAttempts > 0;
+
+  const loadRateLimitStatus = async (targetEmail: string) => {
+    const normalizedEmail = targetEmail.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      setRateLimitStatus(defaultRateLimitStatus);
+      setTimeUntilUnblock(0);
+      setShowCaptcha(false);
+      return defaultRateLimitStatus;
+    }
+
+    const { data, error: rpcError } = await supabase.rpc('get_admin_login_rate_limit_status', {
+      p_email: normalizedEmail,
+    });
+
+    if (rpcError) {
+      throw rpcError;
+    }
+
+    const nextStatus = (Array.isArray(data) ? data[0] : data) as AdminLoginRateLimitStatus | undefined;
+    const resolvedStatus = nextStatus || defaultRateLimitStatus;
+
+    setRateLimitStatus(resolvedStatus);
+    setTimeUntilUnblock(resolvedStatus.time_until_unblock_seconds || 0);
+    setShowCaptcha(resolvedStatus.should_show_captcha);
+
+    return resolvedStatus;
+  };
+
+  const registerLoginAttempt = async (targetEmail: string, success: boolean, reason?: string) => {
+    const normalizedEmail = targetEmail.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      return defaultRateLimitStatus;
+    }
+
+    const { data, error: rpcError } = await supabase.rpc('register_admin_login_attempt', {
+      p_email: normalizedEmail,
+      p_success: success,
+      p_reason: reason || null,
+      p_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+    });
+
+    if (rpcError) {
+      throw rpcError;
+    }
+
+    const nextStatus = (Array.isArray(data) ? data[0] : data) as AdminLoginRateLimitStatus | undefined;
+    const resolvedStatus = nextStatus || defaultRateLimitStatus;
+
+    setRateLimitStatus(resolvedStatus);
+    setTimeUntilUnblock(resolvedStatus.time_until_unblock_seconds || 0);
+    setShowCaptcha(resolvedStatus.should_show_captcha);
+
+    return resolvedStatus;
+  };
 
   useEffect(() => {
     if (user && isAdmin) {
-      // Login bem-sucedido, resetar rate limit
-      reset();
       setTimeout(() => navigate('/admin'), 300);
       return;
     }
+
     if (user && !isAdmin) {
       setError('Usuário não possui permissão de administrador.');
       setTimeout(() => navigate('/minha-conta'), 300);
     }
-  }, [user, isAdmin, navigate, reset]);
+  }, [user, isAdmin, navigate]);
 
-  // Mostrar captcha após 2 tentativas falhadas
   useEffect(() => {
     if (remainingAttempts <= 3 && remainingAttempts > 0) {
       setShowCaptcha(true);
     }
   }, [remainingAttempts]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Verificar se está bloqueado
-    if (isBlocked || !canAttempt) {
-      setError(`🔒 Bloqueado por segurança. Tente novamente em ${formatTimeRemaining(timeUntilUnblock)}`);
+  useEffect(() => {
+    if (timeUntilUnblock <= 0) return;
+
+    const intervalId = window.setInterval(() => {
+      setTimeUntilUnblock((current) => {
+        if (current <= 1) {
+          window.clearInterval(intervalId);
+          setRateLimitStatus((previous) => ({
+            ...previous,
+            is_blocked: false,
+            blocked_until: null,
+            time_until_unblock_seconds: 0,
+          }));
+          return 0;
+        }
+
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [timeUntilUnblock]);
+
+  useEffect(() => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      setRateLimitStatus(defaultRateLimitStatus);
+      setTimeUntilUnblock(0);
+      setShowCaptcha(false);
       return;
     }
 
-    // Verificar captcha (se necessário)
-    if (showCaptcha && !captchaToken) {
+    const timeoutId = window.setTimeout(() => {
+      void loadRateLimitStatus(normalizedEmail).catch((rpcError) => {
+        console.warn('[AdminLogin] Falha ao carregar rate limit do servidor:', rpcError);
+      });
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [email]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const normalizedEmail = email.trim().toLowerCase();
+    let latestStatus = rateLimitStatus;
+
+    try {
+      latestStatus = await loadRateLimitStatus(normalizedEmail);
+    } catch (rpcError) {
+      console.error('[AdminLogin] Erro ao validar rate limit no servidor:', rpcError);
+      setError('⚠️ Não foi possível validar a segurança do login agora. Tente novamente.');
+      return;
+    }
+
+    if (latestStatus.is_blocked || latestStatus.remaining_attempts <= 0) {
+      setError(`🔒 Bloqueado por segurança. Tente novamente em ${formatTimeRemaining(latestStatus.time_until_unblock_seconds)}`);
+      return;
+    }
+
+    if (latestStatus.should_show_captcha && !captchaToken) {
       setError('⚠️ Complete a verificação de segurança (captcha)');
       return;
     }
@@ -68,12 +190,14 @@ const AdminLoginView: React.FC = () => {
 
     try {
       const { error: signInError } = await signIn(email, password);
-      
+
       if (signInError) {
-        // Registrar tentativa falhada
-        recordAttempt();
-        
-        // Tentar registrar em auditoria (se usuário foi encontrado)
+        const updatedStatus = await registerLoginAttempt(
+          normalizedEmail,
+          false,
+          `Login falhou: ${signInError.message}`
+        );
+
         try {
           await logAction({
             action: ADMIN_ACTIONS.FORCE_LOGOUT,
@@ -82,31 +206,30 @@ const AdminLoginView: React.FC = () => {
             oldValue: { email, timestamp: new Date().toISOString() }
           });
         } catch (auditError) {
-          // Falha silenciosa na auditoria
           console.warn('[AdminLogin] Falha ao registrar tentativa em auditoria:', auditError);
         }
 
-        // Mensagens específicas de erro
-        if (signInError.message.includes('Invalid')) {
+        if (updatedStatus.is_blocked || updatedStatus.remaining_attempts <= 0) {
+          setError(`🔒 Bloqueado por segurança. Tente novamente em ${formatTimeRemaining(updatedStatus.time_until_unblock_seconds)}`);
+        } else if (signInError.message.includes('Invalid')) {
           setError('❌ Credenciais inválidas. Verifique e-mail e senha.');
         } else if (signInError.message.includes('Email not confirmed')) {
           setError('⚠️ E-mail não verificado. Verifique sua caixa de entrada.');
+        } else if (signInError.message === 'USER_SUSPENDED') {
+          setError('❌ Sua conta administrativa está suspensa.');
         } else {
           setError(`❌ ${signInError.message}`);
         }
 
-        // Resetar captcha
         setCaptchaToken(null);
-        
         setLoading(false);
       } else {
-        // Login bem-sucedido - auditoria será registrada ao carregar dashboard
+        await registerLoginAttempt(normalizedEmail, true, 'Login administrativo concluido com sucesso.');
         console.log('[AdminLogin] Login bem-sucedido');
       }
     } catch (err) {
       console.error('[AdminLogin] Erro inesperado:', err);
       setError('❌ Erro de conexão. Tente novamente.');
-      recordAttempt();
       setLoading(false);
     }
   };
@@ -122,7 +245,6 @@ const AdminLoginView: React.FC = () => {
           <p className="text-slate-400 mt-2 text-sm font-bold uppercase tracking-widest">Acesso Restrito</p>
         </div>
 
-        {/* Status de Segurança */}
         {isBlocked && (
           <div className="bg-red-500 text-white p-4 rounded-xl mb-6 text-center border-2 border-red-600 animate-shake">
             <div className="flex items-center justify-center gap-2 mb-2">
@@ -158,8 +280,8 @@ const AdminLoginView: React.FC = () => {
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
               E-mail Administrativo
             </label>
-            <input 
-              type="email" 
+            <input
+              type="email"
               required
               autoComplete="username"
               value={email}
@@ -174,8 +296,8 @@ const AdminLoginView: React.FC = () => {
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
               Senha Mestra
             </label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               required
               autoComplete="current-password"
               value={password}
@@ -186,7 +308,6 @@ const AdminLoginView: React.FC = () => {
             />
           </div>
 
-          {/* Captcha (aparece após algumas tentativas) */}
           {showCaptcha && !isBlocked && (
             <div className="border-2 border-slate-200 rounded-xl p-4 bg-slate-50">
               <div className="flex items-center gap-2 mb-3">
@@ -213,10 +334,10 @@ const AdminLoginView: React.FC = () => {
               />
             </div>
           )}
-          
-          <button 
+
+          <button
             type="submit"
-            disabled={loading || isBlocked || (showCaptcha && !captchaToken)}
+            disabled={loading || isBlocked || (showCaptcha && !captchaToken) || !canAttempt}
             className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-slate-200 hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
           >
             {loading ? (
@@ -236,8 +357,8 @@ const AdminLoginView: React.FC = () => {
         </form>
 
         <div className="mt-10 text-center">
-          <button 
-            onClick={() => navigate('/')} 
+          <button
+            onClick={() => navigate('/')}
             className="text-slate-400 text-xs font-bold hover:text-slate-900 transition-colors uppercase tracking-widest"
           >
             Voltar para o site
@@ -251,8 +372,8 @@ const AdminLoginView: React.FC = () => {
           25% { transform: translateX(-5px); }
           75% { transform: translateX(5px); }
         }
-        .animate-shake { 
-          animation: shake 0.2s ease-in-out 0s 2; 
+        .animate-shake {
+          animation: shake 0.2s ease-in-out 0s 2;
         }
       `}</style>
     </div>

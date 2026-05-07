@@ -20,9 +20,10 @@ const Icons = {
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const { ads: allAds, isLoading: adsLoading } = useAllAds();
-  const adminData = JSON.parse(localStorage.getItem('bwagro_admin_user') || '{"name": "Admin"}');
+  const adminName = user?.name?.trim() || 'Admin';
+  const adminInitials = adminName.slice(0, 2).toUpperCase();
 
   const handleLogout = async () => {
     await signOut();
@@ -129,11 +130,11 @@ const AdminDashboard: React.FC = () => {
         <header className="flex justify-between items-center mb-10">
           <div>
             <h2 className="text-xl font-bold text-gray-900 leading-tight">Console de Administração</h2>
-            <p className="text-xs text-gray-500">Logado como: <span className="font-bold text-slate-700">{adminData.name}</span></p>
+            <p className="text-xs text-gray-500">Logado como: <span className="font-bold text-slate-700">{adminName}</span></p>
           </div>
           <div className="flex items-center gap-4">
             <div className="w-8 h-8 bg-slate-200 rounded-lg flex items-center justify-center text-xs font-bold text-slate-500">
-              {adminData.name.substring(0, 2).toUpperCase()}
+              {adminInitials}
             </div>
           </div>
         </header>
