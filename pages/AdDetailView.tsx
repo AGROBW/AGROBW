@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ChevronRight, Clock, DollarSign, Eye, Flag, Heart, MessageCircle, Share2, ShieldCheck, Calendar, Gauge, Ruler, Weight, Wrench, Hammer, Cog, Circle, MapPin, Package, Truck, Droplet, Zap, Thermometer, Wind } from 'lucide-react';
 import { useAd } from '../src/hooks/useAds';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -20,14 +20,41 @@ const iconMap: Record<string, React.ComponentType<any>> = {
 
 const AdDetailView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { ad, isLoading, error } = useAd(id);
   const { user } = useAuth();
   const { settings } = useLayout();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const { snapshot: reportSnapshot, isSubmitting: isSubmittingReport, submitReport } = useAnnouncementReports(ad?.id);
+  const hasAutoOpenedContactModalRef = useRef(false);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const shouldAutoOpenContactSeller = searchParams.get('openContactSeller') === '1';
+
+    if (!shouldAutoOpenContactSeller || !user || !ad || ad.status !== 'ACTIVE' || user.id === ad.userId) {
+      return;
+    }
+
+    if (!hasAutoOpenedContactModalRef.current) {
+      hasAutoOpenedContactModalRef.current = true;
+      setIsModalOpen(true);
+    }
+
+    searchParams.delete('openContactSeller');
+    const cleanedSearch = searchParams.toString();
+    const nextUrl = `${location.pathname}${cleanedSearch ? `?${cleanedSearch}` : ''}${location.hash}`;
+    navigate(nextUrl, { replace: true });
+  }, [ad, location.hash, location.pathname, location.search, navigate, user]);
 
   const handleContactSeller = () => {
+    if (!user) {
+      const redirectTarget = `${location.pathname}${location.search}${location.hash}`;
+      navigate(`/cadastro?redirect=${encodeURIComponent(redirectTarget)}&intent=contact-seller`);
+      return;
+    }
     if (!user) {
       toast.error('Para negociar, você precisa estar logado em sua conta.', {
         duration: 4000,
@@ -117,12 +144,14 @@ const AdDetailView: React.FC = () => {
     );
   }
 
-  // Fallback: se price for 0, usar unit_price
+  const isPriceOnRequest = !!ad.priceNegotiable;
   const priceToDisplay = ad.price > 0 ? ad.price : ((ad as any).unit_price || 0);
-  const formattedPrice = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(priceToDisplay);
+  const formattedPrice = isPriceOnRequest
+    ? 'Sob consulta'
+    : new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+      }).format(priceToDisplay);
   const safeDescription = censorContactData(ad.description || '').censored;
   const primaryImage = getPrimaryImageFromList(ad.images, settings.defaultAdImageUrl);
   const commercialHighlights = [

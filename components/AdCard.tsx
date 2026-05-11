@@ -77,7 +77,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
   
   // Suporta tanto price quanto unit_price
   const priceValue = (ad as any).unit_price || ad.price;
-  const isPriceOnRequest = !!ad.priceNegotiable || !!ad.acceptsTrade;
+  const isPriceOnRequest = !!ad.priceNegotiable;
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',

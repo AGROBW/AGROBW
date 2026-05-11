@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle2,
   Clock3,
@@ -27,6 +27,9 @@ type VerificationQueueItem = {
   document_review_notes?: string | null;
   document_reviewed_at?: string | null;
   document_reviewed_by?: string | null;
+  document_last_attempt_at?: string | null;
+  document_retry_available_at?: string | null;
+  document_last_failure_reason?: string | null;
   cidade?: string | null;
   estado?: string | null;
   updated_at?: string | null;
@@ -85,7 +88,7 @@ const VerificationRequestsManagement: React.FC = () => {
         console.error('[VerificationRequests] Erro ao carregar documento:', error);
         if (!cancelled) {
           setDocumentUrl(null);
-          toast.error('Não foi possível carregar o documento para visualização');
+          toast.error('Não foi possível carregar o documento para visualização.');
         }
       } finally {
         if (!cancelled) {
@@ -109,7 +112,7 @@ const VerificationRequestsManagement: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id,name,email,avatar,document,document_path,document_verified,document_review_status,document_review_notes,document_reviewed_at,document_reviewed_by,cidade,estado,updated_at,created_at')
+        .select('id,name,email,avatar,document,document_path,document_verified,document_review_status,document_review_notes,document_reviewed_at,document_reviewed_by,document_last_attempt_at,document_retry_available_at,document_last_failure_reason,cidade,estado,updated_at,created_at')
         .not('document_path', 'is', null)
         .order('updated_at', { ascending: false });
 
@@ -129,7 +132,7 @@ const VerificationRequestsManagement: React.FC = () => {
       }
     } catch (error) {
       console.error('[VerificationRequests] Erro ao carregar fila:', error);
-      toast.error('Não foi possível carregar a fila de verificações');
+      toast.error('Não foi possível carregar a fila de verificações.');
     } finally {
       setLoading(false);
     }
@@ -159,6 +162,11 @@ const VerificationRequestsManagement: React.FC = () => {
   }, [items]);
 
   const selectedFileIsPdf = selectedItem?.document_path?.toLowerCase().endsWith('.pdf') ?? false;
+  const formatOptionalDateTime = (value?: string | null, fallback = 'Não informado') => {
+    if (!value) return fallback;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('pt-BR');
+  };
 
   const notifyUser = async (target: VerificationQueueItem, approved: boolean, reason?: string) => {
     const title = approved ? 'Seu selo verificado foi aprovado' : 'Seu documento precisa de ajustes';
@@ -193,6 +201,8 @@ const VerificationRequestsManagement: React.FC = () => {
           document_review_notes: null,
           document_reviewed_at: nowIso,
           document_reviewed_by: user?.id || null,
+          document_retry_available_at: null,
+          document_last_failure_reason: null,
         })
         .eq('id', selectedItem.id);
 
@@ -214,11 +224,11 @@ const VerificationRequestsManagement: React.FC = () => {
         reason: 'Documentação aprovada para selo verificado',
       });
 
-      toast.success('Documentação aprovada com sucesso');
+      toast.success('Documentação aprovada com sucesso.');
       await loadRequests();
     } catch (error) {
       console.error('[VerificationRequests] Erro ao aprovar documento:', error);
-      toast.error('Não foi possível aprovar a documentação');
+      toast.error('Não foi possível aprovar a documentação.');
     } finally {
       setSubmittingAction(null);
     }
@@ -228,7 +238,7 @@ const VerificationRequestsManagement: React.FC = () => {
     if (!selectedItem) return;
     const reason = reviewNotes.trim();
     if (!reason) {
-      toast.error('Informe o motivo da rejeição');
+      toast.error('Informe o motivo da rejeição.');
       return;
     }
 
@@ -264,11 +274,11 @@ const VerificationRequestsManagement: React.FC = () => {
         reason,
       });
 
-      toast.success('Documentação rejeitada e usuário notificado');
+      toast.success('Documentação rejeitada e usuário notificado.');
       await loadRequests();
     } catch (error) {
       console.error('[VerificationRequests] Erro ao rejeitar documento:', error);
-      toast.error('Não foi possível rejeitar a documentação');
+      toast.error('Não foi possível rejeitar a documentação.');
     } finally {
       setSubmittingAction(null);
     }
@@ -369,6 +379,11 @@ const VerificationRequestsManagement: React.FC = () => {
                           <p className="truncate text-sm font-bold text-slate-900">{item.name}</p>
                           <p className="truncate text-xs text-slate-500">{item.email}</p>
                           <p className="truncate text-xs text-slate-400">{item.document || 'Documento não informado'}</p>
+                          {item.document_retry_available_at ? (
+                            <p className="truncate text-xs text-amber-700">
+                              Nova tentativa em {formatOptionalDateTime(item.document_retry_available_at)}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
 
@@ -432,7 +447,25 @@ const VerificationRequestsManagement: React.FC = () => {
                       : 'Ainda não revisado'}
                   </span>
                 </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold text-slate-900">Última tentativa</span>
+                  <span>{formatOptionalDateTime(selectedItem.document_last_attempt_at, 'Não registrada')}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold text-slate-900">Nova tentativa liberada</span>
+                  <span>{formatOptionalDateTime(selectedItem.document_retry_available_at, 'Sem bloqueio ativo')}</span>
+                </div>
               </div>
+
+              {selectedItem.document_last_failure_reason ? (
+                <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <Clock3 className="h-4 w-4" />
+                    Última falha automática
+                  </div>
+                  <p className="mt-2 leading-6">{selectedItem.document_last_failure_reason}</p>
+                </div>
+              ) : null}
 
               <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50">
                 <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
@@ -523,3 +556,4 @@ const VerificationRequestsManagement: React.FC = () => {
 };
 
 export default VerificationRequestsManagement;
+

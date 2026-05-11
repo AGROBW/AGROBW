@@ -13,6 +13,7 @@ export enum AdStatus {
   EXPIRED = 'EXPIRED',
   BLOCKED = 'BLOCKED',
   PENDING = 'PENDING',
+  REJECTED = 'REJECTED',
   SOLD = 'SOLD'
 }
 
@@ -68,6 +69,8 @@ export interface Ad {
   storeDisplayOrder?: number | null;
   expiresAt?: string;
   expiredAt?: string;
+  rejectedAt?: string;
+  rejectionReason?: string | null;
   deletionScheduledAt?: string;
   whatsapp: string;
   technicalDetails?: TechnicalDetail[];
@@ -175,6 +178,9 @@ export interface User {
   document_review_notes?: string | null;
   document_reviewed_at?: string | null;
   document_reviewed_by?: string | null;
+  document_last_attempt_at?: string | null;
+  document_retry_available_at?: string | null;
+  document_last_failure_reason?: string | null;
   whatsapp?: string;
   business_description?: string;
   cep?: string;
@@ -746,10 +752,37 @@ export interface GrowthConversionSettings {
   triggerNoLeadsEnabled: boolean;
   triggerExpiringEnabled: boolean;
   triggerPlanLimitEnabled: boolean;
+  templates: GrowthConversionTemplates;
   updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+export type GrowthConversionTriggerKey =
+  | 'high_views'
+  | 'top_category'
+  | 'no_leads'
+  | 'expiring'
+  | 'plan_limit';
+
+export type RenewalNotificationStageKey =
+  | 'seven_days'
+  | 'three_days'
+  | 'one_day'
+  | 'expiration_day'
+  | 'expired';
+
+export interface PlanAlertTemplate {
+  subject: string;
+  title: string;
+  message: string;
+  supportText: string;
+  cta: string;
+  link: string;
+}
+
+export type GrowthConversionTemplates = Record<GrowthConversionTriggerKey, PlanAlertTemplate>;
+export type RenewalNotificationTemplates = Record<RenewalNotificationStageKey, PlanAlertTemplate>;
 
 export interface RenewalNotificationSettings {
   id: string;
@@ -762,6 +795,50 @@ export interface RenewalNotificationSettings {
   notifyAfterExpiration: boolean;
   daysAfterExpiration: number;
   showDashboardToast: boolean;
+  templates: RenewalNotificationTemplates;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SitePopupAudience = 'visitors' | 'authenticated' | 'all';
+export type SitePopupPageScope = 'site' | 'home' | 'plans' | 'custom';
+
+export interface SitePopupMetrics {
+  popupId: string;
+  views: number;
+  clicks: number;
+  dismissals: number;
+}
+
+export interface SitePopupUserState {
+  popupId: string;
+  userId: string;
+  firstSeenAt?: string | null;
+  lastSeenAt?: string | null;
+  dismissedAt?: string | null;
+  clickedAt?: string | null;
+  seenCount: number;
+}
+
+export interface SitePopup {
+  id: string;
+  name: string;
+  title: string;
+  message: string;
+  supportText: string;
+  primaryButtonLabel: string;
+  primaryButtonLink: string;
+  delaySeconds: number;
+  isActive: boolean;
+  showOnce: boolean;
+  audience: SitePopupAudience;
+  pageScope: SitePopupPageScope;
+  customPath?: string | null;
+  displayOrder: number;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  metrics?: SitePopupMetrics | null;
   updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;

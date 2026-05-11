@@ -49,7 +49,11 @@ const PricingView: React.FC = () => {
       })
       .concat({
         question: 'O que é o período de cooldown dos Destaques?',
-        answer: 'O cooldown é o intervalo de 15 dias que começa depois do vencimento do destaque usado naquele mesmo tipo.\n\nExemplo: se um anúncio receber destaque em categoria no dia 01/05 e esse destaque vencer em 16/05, ele só poderá receber novo destaque em categoria a partir de 31/05.\n\nEssa regra vale separadamente para home e categoria, preservando a rotatividade dos espaços mais visíveis da plataforma.',
+        answer: 'O cooldown é o intervalo de tempo após a utilização de um destaque durante o qual o mesmo anúncio não pode ser destacado novamente.\n\nEsse período existe para garantir que todos os anunciantes tenham oportunidade de aparecer nos espaços mais visíveis da plataforma, mantendo a qualidade e o desempenho dos destaques.',
+      })
+      .concat({
+        question: 'Como funciona na prática? Após utilizar o Destaque:',
+        answer: 'Seu anúncio fica destacado pelo período contratado.\nAo final, entra automaticamente em um intervalo de 15 dias (cooldown).\nDurante esse tempo, ele não poderá ser destacado novamente no mesmo espaço.\n\nApós esse período, você pode voltar a utilizar seus créditos normalmente.',
       }),
     []
   );

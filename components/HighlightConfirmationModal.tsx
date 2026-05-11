@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { X, AlertTriangle, Sparkles, Home, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../src/lib/supabaseClient';
 import { toast } from 'sonner';
 import { useSubscription } from '../src/hooks/useSubscription';
 import { useLayout } from '../src/contexts/LayoutContext';
+import { useHighlightBoosters } from '../src/hooks/useHighlightBoosters';
+import { getTrustedNowMs, syncTrustedTime } from '../src/lib/trustedTime';
 
 type HighlightType = 'category' | 'home';
 
@@ -30,7 +32,9 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
   onSuccess,
 }) => {
   const [isApplying, setIsApplying] = useState(false);
-  const { usage, refreshUsage } = useSubscription();
+  const [trustedTimeReady, setTrustedTimeReady] = useState(false);
+  const { usage, refreshUsage, subscription } = useSubscription();
+  const { boosters, purchases } = useHighlightBoosters();
   const { settings } = useLayout();
 
   const highlightConfig = {
@@ -67,6 +71,81 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
     highlightType === 'category'
       ? 'Este anuncio ja esta destacado na Home. Remova ou aguarde o fim do destaque atual para usar destaque em Categoria.'
       : 'Este anuncio ja esta destacado em Categoria. Remova ou aguarde o fim do destaque atual para usar destaque na Home.';
+  const nextHighlightLabel = highlightType === 'category' ? 'destaque em Categoria' : 'destaque na Home';
+  const oppositeHighlightLabel = highlightType === 'category' ? 'Home' : 'Categoria';
+  const estimatedCreditSource = remainingPlanCredits > 0 && usage.isWithinPeriod
+    ? 'plan'
+    : config.boosterRemaining > 0
+      ? 'booster'
+      : null;
+
+  const estimatedDurationDays = useMemo(() => {
+    if (estimatedCreditSource === 'plan') {
+      return highlightType === 'category'
+        ? Number(subscription?.plans?.category_highlight_days ?? 7)
+        : Number(subscription?.plans?.home_highlight_days ?? 7);
+    }
+
+    if (estimatedCreditSource === 'booster') {
+      const eligiblePurchase = [...purchases]
+        .filter((purchase) => {
+          if (purchase.status !== 'credited') return false;
+          return highlightType === 'category'
+            ? purchase.categoryCreditsRemaining > 0
+            : purchase.homeCreditsRemaining > 0;
+        })
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
+
+      if (eligiblePurchase) {
+        const booster = boosters.find((item) => item.id === eligiblePurchase.boosterId);
+        if (booster) {
+          return highlightType === 'category'
+            ? Number(booster.categoryHighlightDays ?? 30)
+            : Number(booster.homeHighlightDays ?? 15);
+        }
+      }
+
+      return highlightType === 'category' ? 30 : 15;
+    }
+
+    return null;
+  }, [boosters, estimatedCreditSource, highlightType, purchases, subscription?.plans?.category_highlight_days, subscription?.plans?.home_highlight_days]);
+
+  const estimatedDates = useMemo(() => {
+    if (!trustedTimeReady || !estimatedDurationDays) return null;
+
+    const now = new Date(getTrustedNowMs());
+    const expiresAt = new Date(now.getTime());
+    expiresAt.setDate(expiresAt.getDate() + estimatedDurationDays);
+
+    const availableAfter = new Date(expiresAt.getTime());
+    availableAfter.setDate(availableAfter.getDate() + 15);
+
+    return {
+      expiresAtLabel: expiresAt.toLocaleDateString('pt-BR'),
+      availableAfterLabel: availableAfter.toLocaleDateString('pt-BR'),
+    };
+  }, [estimatedDurationDays, trustedTimeReady]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!isOpen) {
+      setTrustedTimeReady(false);
+      return;
+    }
+
+    setTrustedTimeReady(false);
+    void syncTrustedTime().finally(() => {
+      if (isMounted) {
+        setTrustedTimeReady(true);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
 
   const handleApplyHighlight = async () => {
     if (isApplying || hasConflictingHighlight) return;
@@ -127,7 +206,7 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
-          className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
+          className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[min(92vh,820px)] overflow-hidden flex flex-col"
         >
           <div
             className={`${highlightType === 'category' ? `${config.bgColor} ${config.borderColor}` : ''} border-b-2 px-6 py-4 flex items-center justify-between`}
@@ -163,7 +242,8 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
             </button>
           </div>
 
-          <div className="p-6 space-y-5">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+            <div className="space-y-4 sm:space-y-5">
             <div>
               <p className="text-sm text-slate-500 font-medium mb-1">Anuncio:</p>
               <p className="text-base font-semibold text-slate-800">{announcementTitle}</p>
@@ -223,17 +303,21 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
               </div>
             </div>
 
-            <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="space-y-2">
+            <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-3 sm:p-4">
+              <div className="flex items-start gap-2.5 sm:gap-3">
+                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1.5 sm:space-y-2">
                   <p className="text-sm font-bold text-amber-900">Atencao:</p>
-                  <ul className="text-sm text-amber-800 space-y-1 list-disc list-inside">
+                  <ul className="text-[13px] sm:text-sm text-amber-800 space-y-1 pl-4 sm:pl-5 list-disc">
                     <li>O sistema consome primeiro os creditos do seu plano.</li>
                     <li>Quando o ciclo acabar, o consumo continua pelos creditos extras do booster.</li>
-                    <li>O novo cooldown de 15 dias comeca somente depois que este destaque vencer.</li>
-                    <li>Exemplo: se o destaque expirar em 16/05, o mesmo anuncio so podera receber novo destaque deste tipo a partir de 31/05.</li>
-                    <li>O anuncio precisa estar sem destaque do tipo oposto para seguir com esta acao.</li>
+                    <li>Ao ativar este destaque, este anuncio so podera receber {nextHighlightLabel} novamente 15 dias apos o vencimento do periodo ativo.</li>
+                    <li>
+                      {estimatedDates
+                        ? `Se voce ativar este destaque agora, ele ficara ativo ate ${estimatedDates.expiresAtLabel} e este anuncio podera receber novo destaque deste tipo a partir de ${estimatedDates.availableAfterLabel}.`
+                        : 'Calculando a data real de vencimento e a proxima data disponivel com base na hora segura do servidor...'}
+                    </li>
+                    <li>O anuncio precisa estar sem destaque em {oppositeHighlightLabel} para seguir com esta acao.</li>
                   </ul>
                 </div>
               </div>
@@ -285,9 +369,10 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
                 </div>
               )}
             </div>
+            </div>
           </div>
 
-          <div className="bg-slate-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-slate-200">
+          <div className="bg-slate-50 px-4 py-4 sm:px-6 flex items-center justify-end gap-3 border-t border-slate-200 shrink-0">
             <button
               onClick={onClose}
               disabled={isApplying}

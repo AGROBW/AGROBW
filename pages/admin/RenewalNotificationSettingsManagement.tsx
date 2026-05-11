@@ -1,6 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { AlarmClock, BellRing, CalendarClock, RefreshCcw, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import PlanAlertTemplateEditor from '../../components/admin/PlanAlertTemplateEditor';
+import {
+  PlanAlertTemplate,
+  RenewalNotificationStageKey,
+  RenewalNotificationTemplates,
+} from '../../types';
+import {
+  DEFAULT_RENEWAL_NOTIFICATION_TEMPLATES,
+  PLAN_ALERT_PLACEHOLDERS,
+  RENEWAL_SAMPLE_VALUES,
+  RENEWAL_TEMPLATE_LABELS,
+  clonePlanAlertTemplate,
+  cloneTemplateSet,
+} from '../../src/lib/planAlertTemplates';
 import { useRenewalNotificationSettings } from '../../src/hooks/useRenewalNotificationSettings';
 
 type FormState = {
@@ -13,6 +27,7 @@ type FormState = {
   notifyAfterExpiration: boolean;
   daysAfterExpiration: number;
   showDashboardToast: boolean;
+  templates: RenewalNotificationTemplates;
 };
 
 const RenewalNotificationSettingsManagement: React.FC = () => {
@@ -27,7 +42,9 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
     notifyAfterExpiration: defaultSettings.notifyAfterExpiration,
     daysAfterExpiration: defaultSettings.daysAfterExpiration,
     showDashboardToast: defaultSettings.showDashboardToast,
+    templates: cloneTemplateSet(defaultSettings.templates),
   });
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<RenewalNotificationStageKey>('seven_days');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -43,6 +60,7 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
       notifyAfterExpiration: settings.notifyAfterExpiration,
       daysAfterExpiration: settings.daysAfterExpiration,
       showDashboardToast: settings.showDashboardToast,
+      templates: cloneTemplateSet(settings.templates),
     });
   }, [settings]);
 
@@ -54,89 +72,93 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
     }));
   };
 
+  const handleTemplateChange = (field: keyof PlanAlertTemplate, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      templates: {
+        ...prev.templates,
+        [selectedTemplateKey]: {
+          ...prev.templates[selectedTemplateKey],
+          [field]: value,
+        },
+      },
+    }));
+  };
+
+  const handleRestoreDefaultTemplate = () => {
+    setForm((prev) => ({
+      ...prev,
+      templates: {
+        ...prev.templates,
+        [selectedTemplateKey]: clonePlanAlertTemplate(DEFAULT_RENEWAL_NOTIFICATION_TEMPLATES[selectedTemplateKey]),
+      },
+    }));
+    toast.success('Texto padrao restaurado para esta etapa.');
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     const { error } = await saveSettings(form);
 
     if (error) {
-      toast.error('Não foi possível salvar as regras de renovação.', { description: error });
+      toast.error('Nao foi possivel salvar as regras de renovacao.', { description: error });
     } else {
-      toast.success('Regras de renovação atualizadas com sucesso.');
+      toast.success('Regras de renovacao atualizadas com sucesso.');
     }
 
     setIsSaving(false);
   };
 
-  const stages = [
+  const stages: Array<{
+    key: keyof Pick<
+      FormState,
+      | 'notifySevenDaysBefore'
+      | 'notifyThreeDaysBefore'
+      | 'notifyOneDayBefore'
+      | 'notifyOnExpirationDay'
+      | 'notifyAfterExpiration'
+    >;
+    title: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [
     {
-      key: 'notifySevenDaysBefore' as const,
+      key: 'notifySevenDaysBefore',
       title: '7 dias antes',
-      description: 'Lembra o assinante com antecedência suficiente para renovar com calma.',
+      description: 'Lembra o assinante com antecedencia suficiente para renovar com calma.',
       icon: CalendarClock,
     },
     {
-      key: 'notifyThreeDaysBefore' as const,
+      key: 'notifyThreeDaysBefore',
       title: '3 dias antes',
-      description: 'Reforça que o plano está perto do vencimento e evita esquecimento.',
+      description: 'Reforca que o plano esta perto do vencimento e evita esquecimento.',
       icon: AlarmClock,
     },
     {
-      key: 'notifyOneDayBefore' as const,
+      key: 'notifyOneDayBefore',
       title: '1 dia antes',
-      description: 'Último aviso preventivo antes da data final do plano.',
+      description: 'Ultimo aviso preventivo antes da data final do plano.',
       icon: BellRing,
     },
     {
-      key: 'notifyOnExpirationDay' as const,
+      key: 'notifyOnExpirationDay',
       title: 'No dia do vencimento',
-      description: 'Mostra urgência para renovar no mesmo dia e não perder benefícios.',
+      description: 'Mostra urgencia para renovar no mesmo dia e nao perder beneficios.',
       icon: RefreshCcw,
     },
     {
-      key: 'notifyAfterExpiration' as const,
-      title: 'Após expirar',
-      description: 'Lembra o usuário de reativar o plano depois que ele venceu.',
+      key: 'notifyAfterExpiration',
+      title: 'Apos expirar',
+      description: 'Lembra o usuario de reativar o plano depois que ele venceu.',
       icon: AlarmClock,
     },
   ];
 
-  const renewalPreviews = [
-    {
-      key: 'notifySevenDaysBefore' as const,
-      title: 'Renovacao AGRO BW: seu plano expira em 7 dias',
-      content:
-        'Seu plano "Loja Parceira" expira em 7 dias. Renove com antecedência para manter anúncios, destaques e benefícios ativos sem interrupção.',
-      cta: 'Renovar com antecedência',
-    },
-    {
-      key: 'notifyThreeDaysBefore' as const,
-      title: 'Renovacao AGRO BW: seu plano expira em 3 dias',
-      content:
-        'Seu plano "Profissional" expira em 3 dias. Vale revisar a renovação agora para não perder sua exposição na plataforma.',
-      cta: 'Revisar renovação',
-    },
-    {
-      key: 'notifyOneDayBefore' as const,
-      title: 'Renovacao AGRO BW: seu plano expira amanha',
-      content:
-        'Seu plano "Loja Parceira" vence amanhã. Garanta a renovação para continuar com acesso aos recursos pagos sem pausa.',
-      cta: 'Renovar hoje',
-    },
-    {
-      key: 'notifyOnExpirationDay' as const,
-      title: 'Renovacao AGRO BW: seu plano vence hoje',
-      content:
-        'Seu plano "Loja Parceira" vence hoje. Renove agora para não interromper seus benefícios e a exposição dos seus anúncios.',
-      cta: 'Renovar agora',
-    },
-    {
-      key: 'notifyAfterExpiration' as const,
-      title: 'Renovacao AGRO BW: seu plano expirou',
-      content:
-        'Seu plano "Loja Parceira" já expirou. Reative a assinatura para recuperar recursos pagos, exposição e continuidade operacional.',
-      cta: 'Reativar assinatura',
-    },
-  ];
+  const templateOptions = (Object.keys(RENEWAL_TEMPLATE_LABELS) as RenewalNotificationStageKey[]).map((key) => ({
+    key,
+    title: RENEWAL_TEMPLATE_LABELS[key].title,
+    description: RENEWAL_TEMPLATE_LABELS[key].description,
+  }));
 
   return (
     <div className="space-y-6">
@@ -144,13 +166,13 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.28em] text-amber-700">
-              Renovação inteligente
+              Renovacao inteligente
             </div>
             <div>
-              <h2 className="text-2xl font-black text-slate-950">Notificações para planos pagos</h2>
+              <h2 className="text-2xl font-black text-slate-950">Notificacoes para planos pagos</h2>
               <p className="max-w-3xl text-sm leading-6 text-slate-500">
-                Configure os alertas de retenção para avisar sobre vencimento e expiração. Essa lógica
-                vale para todos os planos pagos, excluindo Start e Básico.
+                Configure os alertas de retencao para avisar sobre vencimento e expiracao. Essa logica
+                vale para todos os planos pagos, excluindo Start e Basico.
               </p>
             </div>
           </div>
@@ -172,7 +194,7 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Motor geral</p>
-              <h3 className="mt-1 text-lg font-black text-slate-950">Ativação e limites</h3>
+              <h3 className="mt-1 text-lg font-black text-slate-950">Ativacao e limites</h3>
             </div>
 
             <button
@@ -193,7 +215,7 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Máx. notificações por dia
+                Max. notificacoes por dia
               </span>
               <input
                 type="number"
@@ -206,7 +228,7 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
 
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Dias após expiração
+                Dias apos expiracao
               </span>
               <input
                 type="number"
@@ -230,7 +252,7 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
             <div>
               <p className="text-sm font-black text-slate-950">Toast ao entrar no painel</p>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                Mantém o aviso com alta visibilidade além da central de notificações.
+                Mantem o aviso com alta visibilidade alem da central de notificacoes.
               </p>
             </div>
             <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em] ${
@@ -241,9 +263,8 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
           </button>
 
           <div className="rounded-[24px] border border-amber-200 bg-amber-50/80 p-4 text-sm leading-6 text-amber-900">
-            <strong className="font-black">Observação:</strong> a rotina respeita o limite diário por usuário
-            e dispara apenas para planos pagos. Start e Básico ficam fora dessa lógica para não misturar
-            retenção com conversão de entrada.
+            <strong className="font-black">Observacao:</strong> essa area separa copy de renovacao da copy de
+            conversao. Assim voce consegue ajustar urgencia, promessa e CTA sem misturar os dois contextos.
           </div>
         </div>
 
@@ -285,55 +306,21 @@ const RenewalNotificationSettingsManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.4)]">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Prévia dos textos</p>
-            <h3 className="mt-1 text-lg font-black text-slate-950">Mensagens de retenção e renovação</h3>
-          </div>
-          <span className="text-xs font-semibold text-slate-400">
-            Central de notificações {form.showDashboardToast ? '+ toast no painel' : 'sem toast no painel'}
-          </span>
-        </div>
-
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {renewalPreviews.map((preview) => {
-            const enabled = form[preview.key];
-
-            return (
-              <div
-                key={preview.key}
-                className={`rounded-[24px] border p-5 transition ${
-                  enabled
-                    ? 'border-amber-200 bg-[linear-gradient(135deg,rgba(245,158,11,0.10)_0%,#ffffff_75%)]'
-                    : 'border-slate-200 bg-slate-50/80 opacity-70'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span
-                    className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
-                      enabled ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-500'
-                    }`}
-                  >
-                    {enabled ? 'Ativo' : 'Pausado'}
-                  </span>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Plan alert</span>
-                </div>
-
-                <p className="mt-4 text-base font-black leading-6 text-slate-950">{preview.title}</p>
-                <p className="mt-3 text-sm leading-6 text-slate-500">{preview.content}</p>
-
-                <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                  <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600">
-                    CTA: {preview.cta}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-400">/minha-conta/meu-plano</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <PlanAlertTemplateEditor
+        sectionLabel="Copys da renovacao"
+        sectionTitle="Edite os textos enviados em cada etapa do vencimento"
+        sectionDescription="As etapas ficam separadas por momento da jornada: 7 dias, 3 dias, 1 dia, dia do vencimento e pos-expiracao. Os placeholders sao preenchidos automaticamente no envio."
+        previewHint={form.showDashboardToast ? 'Card, notificacao e toast' : 'Card e notificacao'}
+        accent="amber"
+        items={templateOptions}
+        selectedKey={selectedTemplateKey}
+        onSelect={(key) => setSelectedTemplateKey(key as RenewalNotificationStageKey)}
+        template={form.templates[selectedTemplateKey]}
+        previewValues={RENEWAL_SAMPLE_VALUES}
+        placeholders={PLAN_ALERT_PLACEHOLDERS}
+        onChange={handleTemplateChange}
+        onRestoreDefault={handleRestoreDefaultTemplate}
+      />
     </div>
   );
 };

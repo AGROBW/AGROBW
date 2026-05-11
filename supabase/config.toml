@@ -67,3 +67,8 @@ entrypoint = "./functions/complete-meta-social-connection/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/validate-meta-social-connection/index.ts"
+
+[functions.validate-document]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/validate-document/index.ts"

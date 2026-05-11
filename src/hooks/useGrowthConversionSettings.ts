@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { GrowthConversionSettings } from '../../types';
+import {
+  DEFAULT_GROWTH_CONVERSION_TEMPLATES,
+  cloneTemplateSet,
+  mergeGrowthTemplates,
+} from '../lib/planAlertTemplates';
 
 const DEFAULT_GROWTH_CONVERSION_SETTINGS: Omit<
   GrowthConversionSettings,
@@ -17,6 +22,7 @@ const DEFAULT_GROWTH_CONVERSION_SETTINGS: Omit<
   triggerNoLeadsEnabled: true,
   triggerExpiringEnabled: true,
   triggerPlanLimitEnabled: true,
+  templates: cloneTemplateSet(DEFAULT_GROWTH_CONVERSION_TEMPLATES),
   updatedBy: null,
 };
 
@@ -42,6 +48,7 @@ const mapGrowthConversionSettings = (row: any): GrowthConversionSettings => ({
     row.trigger_expiring_enabled ?? DEFAULT_GROWTH_CONVERSION_SETTINGS.triggerExpiringEnabled,
   triggerPlanLimitEnabled:
     row.trigger_plan_limit_enabled ?? DEFAULT_GROWTH_CONVERSION_SETTINGS.triggerPlanLimitEnabled,
+  templates: mergeGrowthTemplates(row.templates),
   updatedBy: row.updated_by ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -116,6 +123,7 @@ export const useGrowthConversionSettings = () => {
         payload.triggerPlanLimitEnabled ??
         settings?.triggerPlanLimitEnabled ??
         DEFAULT_GROWTH_CONVERSION_SETTINGS.triggerPlanLimitEnabled,
+      templates: payload.templates ?? settings?.templates ?? DEFAULT_GROWTH_CONVERSION_SETTINGS.templates,
       updated_at: new Date().toISOString(),
     };
 

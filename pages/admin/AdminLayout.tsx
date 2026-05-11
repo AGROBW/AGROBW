@@ -98,6 +98,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           { label: 'Noticias', path: '/admin/news', icon: Newspaper },
           { label: 'Newsletter', path: '/admin/newsletter', icon: Mail },
           { label: 'Campanhas', path: '/admin/campaigns', icon: Megaphone },
+          { label: 'Pop-ups do site', path: '/admin/site-popups', icon: Bell },
           { label: 'Patrocinadores', path: '/admin/sponsors', icon: Handshake },
           { label: 'Promocoes', path: '/admin/promotions', icon: Gift },
         ],

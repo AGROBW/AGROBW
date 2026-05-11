@@ -158,7 +158,7 @@ const Header: React.FC = () => {
                         className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                       >
                         <UserIcon className="w-4 h-4 text-slate-500" strokeWidth={2} />
-                        <span className="font-medium">Minha Conta</span>
+                        <span className="font-medium">Painel do Usuário</span>
                       </Link>
 
                       {isAdmin && (

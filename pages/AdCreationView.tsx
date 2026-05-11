@@ -180,7 +180,7 @@ const PreviewAnnouncementModal: React.FC<{
     style: 'currency',
     currency: 'BRL',
   }).format(previewAd.price || 0);
-  const displayPrice = previewAd.priceNegotiable || previewAd.acceptsTrade ? 'Sob consulta' : formattedPrice;
+  const displayPrice = previewAd.priceNegotiable ? 'Sob consulta' : formattedPrice;
   const previewDescription = censorContactData(previewAd.description || '').censored;
 
   return (
@@ -398,6 +398,7 @@ const AdCreationView: React.FC = () => {
   const editAdId = searchParams.get('edit');
   const isEditingExistingAd = Boolean(editAdId);
   const hasStoreListingAccess = !!subscription?.plans?.has_seller_store;
+  const hasAnnouncementVideo = hasStoreListingAccess && Boolean(formData.videoUrl);
   const normalizeTechnicalLabel = (value: string) => slugify(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   const normalizeSubcategoryValue = (value: string) => slugify(value).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   const hasConservationStateField = technicalFieldsSchema.some((field: any) =>
@@ -569,7 +570,7 @@ const AdCreationView: React.FC = () => {
           title: requestPayload.title ?? adData.title ?? '',
           description: requestPayload.description ?? adData.description ?? '',
           price: Number(requestPayload.price ?? adData.price ?? 0),
-          priceNegotiable: Boolean(requestPayload.accepts_trade ?? adData.accepts_trade),
+          priceNegotiable: Boolean(requestPayload.price_negotiable ?? adData.price_negotiable ?? requestPayload.accepts_trade ?? adData.accepts_trade),
           categoryGroupSlug: getCategoryGroupForCategorySlug(requestPayload.category_slug || adData.category_slug)?.slug || getCategoryGroupBySlug(requestPayload.category_slug || adData.category_slug)?.slug || requestPayload.category_slug || adData.category_slug || '',
           categoryId: requestPayload.category_id || adData.category_id || '',
           categorySlug: requestPayload.category_slug || adData.category_slug || '',
@@ -1071,7 +1072,8 @@ const AdCreationView: React.FC = () => {
       cep: (formData.location?.cep || '').replace(/\D/g, '') || null,
       product_condition: shouldShowStoreProductCondition ? formData.productCondition || null : null,
       availability: hasStoreListingAccess ? formData.availability || null : null,
-      accepts_trade: hasStoreListingAccess ? !!formData.acceptsTrade : false,
+          accepts_trade: hasStoreListingAccess ? !!formData.acceptsTrade : false,
+          price_negotiable: !!formData.priceNegotiable,
       has_warranty: hasStoreListingAccess ? !!formData.hasWarranty : false,
       warranty_details: hasStoreListingAccess && formData.hasWarranty ? (formData.warrantyDetails || null) : null,
       has_invoice: hasStoreListingAccess ? !!formData.hasInvoice : false,
@@ -1605,7 +1607,8 @@ const AdCreationView: React.FC = () => {
         cep: cleanCep || null,
       product_condition: shouldShowStoreProductCondition ? formData.productCondition || null : null,
         availability: hasStoreListingAccess ? formData.availability || null : null,
-        accepts_trade: hasStoreListingAccess ? !!formData.acceptsTrade : false,
+          accepts_trade: hasStoreListingAccess ? !!formData.acceptsTrade : false,
+          price_negotiable: !!formData.priceNegotiable,
         has_warranty: hasStoreListingAccess ? !!formData.hasWarranty : false,
         warranty_details: hasStoreListingAccess && formData.hasWarranty ? (formData.warrantyDetails || null) : null,
         has_invoice: hasStoreListingAccess ? !!formData.hasInvoice : false,
@@ -1624,6 +1627,7 @@ const AdCreationView: React.FC = () => {
         description: editablePayload.description,
         categorySlug: editablePayload.category_slug,
         images: editablePayload.images,
+        hasVideo: hasStoreListingAccess && Boolean(editablePayload.video_url),
       });
 
       if (moderationResult?.blocked) {
@@ -2281,7 +2285,9 @@ const AdCreationView: React.FC = () => {
                   <div className="mt-4 p-4 bg-green-50 border-2 border-green-200 rounded-xl">
                     <p className="text-xs font-black text-green-700 uppercase tracking-widest mb-1">Valor Total na Vitrine</p>
                     <p className="text-2xl font-black text-green-900">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(formData.price || 0)}
+                      {formData.priceNegotiable
+                        ? 'Sob consulta'
+                        : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(formData.price || 0)}
                     </p>
                     <p className="text-xs text-green-600 mt-1">
                       {formData.quantity} {formData.unit} × R$ {formData.unitPrice.toFixed(2)}
@@ -2296,11 +2302,10 @@ const AdCreationView: React.FC = () => {
                     onChange={e => setFormData({
                       ...formData,
                       priceNegotiable: e.target.checked,
-                      acceptsTrade: e.target.checked,
                     })}
                     className="w-5 h-5 rounded border-slate-300 text-green-600 focus:ring-green-500"
                   />
-                  <span className="text-sm font-bold text-slate-600">Preço sob consulta / Aceita troca</span>
+                  <span className="text-sm font-bold text-slate-600">Preço sob consulta</span>
                 </label>
               </div>
 
@@ -2363,7 +2368,11 @@ const AdCreationView: React.FC = () => {
             <div className="flex-1 space-y-8">
               <div className="bg-green-50 p-8 rounded-[2rem] border border-green-100">
                 <h3 className="text-xl font-black text-green-900 mb-2">Quase lá!</h3>
-                <p className="text-green-700">Verifique se todas as informações estão corretas. Seu anúncio será publicado instantaneamente.</p>
+                <p className="text-green-700">
+                  {hasAnnouncementVideo
+                    ? 'Verifique se todas as informações estão corretas. Como este anúncio contém vídeo, ele será enviado automaticamente para análise antes da publicação.'
+                    : 'Verifique se todas as informações estão corretas. Seu anúncio será publicado instantaneamente.'}
+                </p>
               </div>
 
               {/* Alerta de limite atingido */}

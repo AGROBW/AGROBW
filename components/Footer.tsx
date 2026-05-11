@@ -126,7 +126,7 @@ const Footer: React.FC = () => {
                 <li><Link to="/categorias" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Categorias</Link></li>
                 <li><Link to="/anunciar" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Anunciar Grátis</Link></li>
                 <li><Link to="/planos" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Planos Premium</Link></li>
-                <li><Link to="/patrocinador" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Patrocinador</Link></li>
+                <li><Link to="/patrocinador" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Vitrine Premium</Link></li>
               </ul>
             </div>
 

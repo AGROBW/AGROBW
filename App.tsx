@@ -8,6 +8,7 @@ import { useSiteAnalyticsTracking } from './src/hooks/useSiteAnalyticsTracking';
 import { ProtectedAdminRoute } from './components/ProtectedAdminRoute';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import SitePopupCampaignGate from './components/site/SitePopupCampaignGate';
 import Home from './pages/Home';
 
 // Lazy loading pages
@@ -47,6 +48,7 @@ const PaymentsManagement = lazy(() => import('./pages/admin/PaymentsManagement')
 const NewsManagement = lazy(() => import('./pages/admin/NewsManagement'));
 const NewsletterSubscriptionsManagement = lazy(() => import('./pages/admin/NewsletterSubscriptionsManagement'));
 const CampaignsManagement = lazy(() => import('./pages/admin/CampaignsManagement'));
+const SitePopupsManagement = lazy(() => import('./pages/admin/SitePopupsManagement'));
 const SponsorsManagement = lazy(() => import('./pages/admin/SponsorsManagement'));
 const PromotionsManagement = lazy(() => import('./pages/admin/PromotionsManagement'));
 const PublicationRulesManagement = lazy(() => import('./pages/admin/PublicationRulesManagement'));
@@ -253,6 +255,7 @@ const AppContent: React.FC = () => {
               <Route path="news" element={<NewsManagement />} />
               <Route path="newsletter" element={<NewsletterSubscriptionsManagement />} />
               <Route path="campaigns" element={<CampaignsManagement />} />
+              <Route path="site-popups" element={<SitePopupsManagement />} />
               <Route path="sponsors" element={<SponsorsManagement />} />
               <Route path="promotions" element={<PromotionsManagement />} />
               <Route path="publication-rules" element={<PublicationRulesManagement />} />
@@ -271,6 +274,7 @@ const AppContent: React.FC = () => {
       </main>
 
       {!isAdminPath && !isUserAreaPath && <Footer />}
+      {!isAdminPath && !isUserAreaPath && <SitePopupCampaignGate />}
 
       {/* Floating WhatsApp Action */}
       {!isAdminPath && !isUserAreaPath && (

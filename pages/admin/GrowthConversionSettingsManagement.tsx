@@ -1,6 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { BellRing, Megaphone, Save, Sparkles, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
+import PlanAlertTemplateEditor from '../../components/admin/PlanAlertTemplateEditor';
+import {
+  GrowthConversionTemplates,
+  GrowthConversionTriggerKey,
+  PlanAlertTemplate,
+} from '../../types';
+import {
+  DEFAULT_GROWTH_CONVERSION_TEMPLATES,
+  GROWTH_SAMPLE_VALUES,
+  GROWTH_TEMPLATE_LABELS,
+  PLAN_ALERT_PLACEHOLDERS,
+  clonePlanAlertTemplate,
+  cloneTemplateSet,
+} from '../../src/lib/planAlertTemplates';
 import { useGrowthConversionSettings } from '../../src/hooks/useGrowthConversionSettings';
 
 type FormState = {
@@ -15,6 +29,7 @@ type FormState = {
   triggerNoLeadsEnabled: boolean;
   triggerExpiringEnabled: boolean;
   triggerPlanLimitEnabled: boolean;
+  templates: GrowthConversionTemplates;
 };
 
 const GrowthConversionSettingsManagement: React.FC = () => {
@@ -31,7 +46,9 @@ const GrowthConversionSettingsManagement: React.FC = () => {
     triggerNoLeadsEnabled: defaultSettings.triggerNoLeadsEnabled,
     triggerExpiringEnabled: defaultSettings.triggerExpiringEnabled,
     triggerPlanLimitEnabled: defaultSettings.triggerPlanLimitEnabled,
+    templates: cloneTemplateSet(defaultSettings.templates),
   });
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<GrowthConversionTriggerKey>('high_views');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -49,6 +66,7 @@ const GrowthConversionSettingsManagement: React.FC = () => {
       triggerNoLeadsEnabled: settings.triggerNoLeadsEnabled,
       triggerExpiringEnabled: settings.triggerExpiringEnabled,
       triggerPlanLimitEnabled: settings.triggerPlanLimitEnabled,
+      templates: cloneTemplateSet(settings.templates),
     });
   }, [settings]);
 
@@ -60,92 +78,96 @@ const GrowthConversionSettingsManagement: React.FC = () => {
     }));
   };
 
+  const handleTemplateChange = (field: keyof PlanAlertTemplate, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      templates: {
+        ...prev.templates,
+        [selectedTemplateKey]: {
+          ...prev.templates[selectedTemplateKey],
+          [field]: value,
+        },
+      },
+    }));
+  };
+
+  const handleRestoreDefaultTemplate = () => {
+    setForm((prev) => ({
+      ...prev,
+      templates: {
+        ...prev.templates,
+        [selectedTemplateKey]: clonePlanAlertTemplate(DEFAULT_GROWTH_CONVERSION_TEMPLATES[selectedTemplateKey]),
+      },
+    }));
+    toast.success('Texto padrao restaurado para este gatilho.');
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
 
     const { error } = await saveSettings(form);
 
     if (error) {
-      toast.error('Não foi possível salvar as regras de conversão.', {
+      toast.error('Nao foi possivel salvar as regras de conversao.', {
         description: error,
       });
     } else {
-      toast.success('Regras de conversão atualizadas com sucesso.');
+      toast.success('Regras de conversao atualizadas com sucesso.');
     }
 
     setIsSaving(false);
   };
 
-  const triggerCards = [
+  const triggerCards: Array<{
+    key: keyof Pick<
+      FormState,
+      | 'triggerHighViewsEnabled'
+      | 'triggerTopCategoryEnabled'
+      | 'triggerNoLeadsEnabled'
+      | 'triggerExpiringEnabled'
+      | 'triggerPlanLimitEnabled'
+    >;
+    title: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [
     {
-      key: 'triggerHighViewsEnabled' as const,
+      key: 'triggerHighViewsEnabled',
       title: 'Alta visibilidade',
-      description: 'Notifica quando um anúncio já acumulou visualizações suficientes para merecer impulso.',
+      description: 'Notifica quando um anuncio ja acumulou visualizacoes suficientes para merecer impulso.',
       icon: TrendingUp,
     },
     {
-      key: 'triggerTopCategoryEnabled' as const,
+      key: 'triggerTopCategoryEnabled',
       title: 'Topo da categoria',
-      description: 'Usa o destaque do anúncio entre os mais vistos da categoria como gatilho de upgrade.',
+      description: 'Usa o destaque do anuncio entre os mais vistos da categoria como gatilho de upgrade.',
       icon: Sparkles,
     },
     {
-      key: 'triggerNoLeadsEnabled' as const,
+      key: 'triggerNoLeadsEnabled',
       title: 'Muitas views sem contato',
-      description: 'Ativa quando a exposição está alta, mas ainda não houve contato suficiente.',
+      description: 'Ativa quando a exposicao esta alta, mas ainda nao houve contato suficiente.',
       icon: BellRing,
     },
     {
-      key: 'triggerExpiringEnabled' as const,
+      key: 'triggerExpiringEnabled',
       title: 'Expirando em breve',
-      description: 'Lembra o usuário de que o anúncio está perto do vencimento e pode perder tração.',
+      description: 'Lembra o usuario de que o anuncio esta perto do vencimento e pode perder tracao.',
       icon: Megaphone,
     },
     {
-      key: 'triggerPlanLimitEnabled' as const,
-      title: 'Plano limita exposição',
+      key: 'triggerPlanLimitEnabled',
+      title: 'Plano limita exposicao',
       description: 'Usa interesse real do mercado para sugerir um plano com mais destaque.',
       icon: Sparkles,
     },
   ];
 
-  const notificationPreviews = [
-    {
-      key: 'triggerHighViewsEnabled' as const,
-      title: 'Oportunidade AGRO BW: anúncio com boa tração',
-      content:
-        'Seu anúncio "Trator John Deere 6125J" já acumulou 24 visualizações. Destacá-lo agora pode ajudar a transformar audiência em contatos.',
-      cta: 'Ver planos e impulsionar',
-    },
-    {
-      key: 'triggerTopCategoryEnabled' as const,
-      title: 'Oportunidade AGRO BW: anúncio em evidência na categoria',
-      content:
-        'Seu anúncio "Colheitadeira S660" está entre os mais vistos da categoria. Um destaque pode acelerar contatos e ampliar a exposição.',
-      cta: 'Comprar destaque',
-    },
-    {
-      key: 'triggerNoLeadsEnabled' as const,
-      title: 'Oportunidade AGRO BW: alta audiência sem conversão',
-      content:
-        'Seu anúncio "Pulverizador 2000L" já acumulou 57 visualizações e ainda não recebeu contatos. Um plano com destaque pode aumentar suas chances de conversão.',
-      cta: 'Ver planos com mais alcance',
-    },
-    {
-      key: 'triggerExpiringEnabled' as const,
-      title: 'Oportunidade AGRO BW: anúncio perto do vencimento',
-      content:
-        'Seu anúncio "Fazenda 120 hectares" expira em 3 dia(s) e já chamou atenção de compradores. Aproveite o momento para reforçar a exposição.',
-      cta: 'Renovar estratégia do anúncio',
-    },
-    {
-      key: 'triggerPlanLimitEnabled' as const,
-      title: 'Oportunidade AGRO BW: seu plano limita a exposição',
-      content:
-        'Seu anúncio "Sementes de milho híbrido" já está gerando interesse, mas o plano atual não libera destaques Home/Categoria. Fazer upgrade agora pode ampliar o alcance.',
-      cta: 'Fazer upgrade agora',
-    },
-  ];
+  const templateOptions = (Object.keys(GROWTH_TEMPLATE_LABELS) as GrowthConversionTriggerKey[]).map((key) => ({
+    key,
+    title: GROWTH_TEMPLATE_LABELS[key].title,
+    description: GROWTH_TEMPLATE_LABELS[key].description,
+  }));
 
   return (
     <div className="space-y-6">
@@ -153,13 +175,13 @@ const GrowthConversionSettingsManagement: React.FC = () => {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.28em] text-emerald-700">
-              Conversão inteligente
+              Conversao inteligente
             </div>
             <div>
-              <h2 className="text-2xl font-black text-slate-950">Notificações de upgrade para usuários gratuitos</h2>
+              <h2 className="text-2xl font-black text-slate-950">Notificacoes de upgrade para usuarios gratuitos</h2>
               <p className="max-w-3xl text-sm leading-6 text-slate-500">
-                Configure os gatilhos que transformam comportamento real do anúncio em oportunidade de conversão.
-                As mensagens são entregues para planos Start, Básico e planos sem destaque Home/Categoria.
+                Configure os gatilhos que transformam comportamento real do anuncio em oportunidade de conversao.
+                As mensagens sao entregues para planos Start, Basico e planos sem destaque Home/Categoria.
               </p>
             </div>
           </div>
@@ -181,7 +203,7 @@ const GrowthConversionSettingsManagement: React.FC = () => {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Motor geral</p>
-              <h3 className="mt-1 text-lg font-black text-slate-950">Ativação e limites</h3>
+              <h3 className="mt-1 text-lg font-black text-slate-950">Ativacao e limites</h3>
             </div>
 
             <button
@@ -202,7 +224,7 @@ const GrowthConversionSettingsManagement: React.FC = () => {
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Máx. notificações por dia
+                Max. notificacoes por dia
               </span>
               <input
                 type="number"
@@ -215,7 +237,7 @@ const GrowthConversionSettingsManagement: React.FC = () => {
 
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Dias para expiração
+                Dias para expiracao
               </span>
               <input
                 type="number"
@@ -254,7 +276,7 @@ const GrowthConversionSettingsManagement: React.FC = () => {
 
             <label className="space-y-2 sm:col-span-2">
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Views mínimas para anúncio expirando
+                Views minimas para anuncio expirando
               </span>
               <input
                 type="number"
@@ -267,9 +289,9 @@ const GrowthConversionSettingsManagement: React.FC = () => {
           </div>
 
           <div className="rounded-[24px] border border-amber-200 bg-amber-50/80 p-4 text-sm leading-6 text-amber-900">
-            <strong className="font-black">Observação:</strong> o MVP usa comportamento real do anúncio com base nas views
-            acumuladas, leads, conversas e proximidade da expiração. A visibilidade fica alta sem depender de modal
-            agressivo: o usuário recebe toast de destaque e a notificação também permanece na central.
+            <strong className="font-black">Observacao:</strong> o motor continua usando views, leads, conversas
+            e proximidade da expiracao. O novo editor controla apenas a copy, sem abrir espaco para HTML livre nem
+            quebrar a logica dos gatilhos.
           </div>
         </div>
 
@@ -313,55 +335,21 @@ const GrowthConversionSettingsManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.4)]">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Prévia dos textos</p>
-            <h3 className="mt-1 text-lg font-black text-slate-950">O que o usuário vai receber</h3>
-          </div>
-          <span className="text-xs font-semibold text-slate-400">
-            Toast de destaque + central de notificações
-          </span>
-        </div>
-
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {notificationPreviews.map((preview) => {
-            const enabled = form[preview.key];
-
-            return (
-              <div
-                key={preview.key}
-                className={`rounded-[24px] border p-5 transition ${
-                  enabled
-                    ? 'border-emerald-200 bg-[linear-gradient(135deg,rgba(22,163,74,0.08)_0%,#ffffff_75%)]'
-                    : 'border-slate-200 bg-slate-50/80 opacity-70'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span
-                    className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] ${
-                      enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'
-                    }`}
-                  >
-                    {enabled ? 'Ativo' : 'Pausado'}
-                  </span>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Plan alert</span>
-                </div>
-
-                <p className="mt-4 text-base font-black leading-6 text-slate-950">{preview.title}</p>
-                <p className="mt-3 text-sm leading-6 text-slate-500">{preview.content}</p>
-
-                <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                  <span className="inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600">
-                    CTA: {preview.cta}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-400">/minha-conta/meu-plano</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <PlanAlertTemplateEditor
+        sectionLabel="Copys da conversao"
+        sectionTitle="Edite os textos enviados nos gatilhos de upgrade"
+        sectionDescription="Cada gatilho pode ter assunto, titulo, mensagem principal, apoio, CTA e link proprios. Os placeholders abaixo sao substituidos automaticamente na hora do envio."
+        previewHint="Card, notificacao e e-mail"
+        accent="emerald"
+        items={templateOptions}
+        selectedKey={selectedTemplateKey}
+        onSelect={(key) => setSelectedTemplateKey(key as GrowthConversionTriggerKey)}
+        template={form.templates[selectedTemplateKey]}
+        previewValues={GROWTH_SAMPLE_VALUES}
+        placeholders={PLAN_ALERT_PLACEHOLDERS}
+        onChange={handleTemplateChange}
+        onRestoreDefault={handleRestoreDefaultTemplate}
+      />
     </div>
   );
 };

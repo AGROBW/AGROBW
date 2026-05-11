@@ -19,6 +19,7 @@ import MessagesView from '../components/MessagesView';
 import LeadsView from '../components/LeadsView';
 import RadarView from '../components/RadarView';
 import { getBusinessDescriptionValidationError, MAX_BUSINESS_DESCRIPTION_LENGTH } from '../src/utils/businessDescription';
+import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 import HighlightConfirmationModal from '../components/HighlightConfirmationModal';
 import RecommendedUpgradeModal from '../components/finance/RecommendedUpgradeModal';
 import VerifiedBadge from '../components/VerifiedBadge';
@@ -135,6 +136,8 @@ const UserDashboardView: React.FC = () => {
     success: boolean;
     message: string;
   } | null>(null);
+  const [documentRetryAvailableAt, setDocumentRetryAvailableAt] = useState<string | null>(user?.document_retry_available_at || null);
+  const [documentLastFailureReason, setDocumentLastFailureReason] = useState<string | null>(user?.document_last_failure_reason || null);
   const hasSellerStoreAccess = Boolean(subscription?.plans?.has_seller_store);
   const { store: mySellerStore } = useMySellerStore();
   const showSellerStoreMenu = hasSellerStoreAccess || Boolean(mySellerStore);
@@ -186,6 +189,11 @@ const UserDashboardView: React.FC = () => {
       isActive = false;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    setDocumentRetryAvailableAt(user?.document_retry_available_at || null);
+    setDocumentLastFailureReason(user?.document_last_failure_reason || null);
+  }, [user?.document_retry_available_at, user?.document_last_failure_reason]);
 
   useEffect(() => {
     if (!user?.id || location.pathname !== '/minha-conta') return;
@@ -295,145 +303,40 @@ const UserDashboardView: React.FC = () => {
       .replace(/-+$/, ''); // Remove hÃ­fen do fim
   };
 
-  // FunÃ§Ã£o auxiliar para formatar CPF ou CNPJ
-  const formatDocument = (doc: string): string => {
-    const cleanDoc = doc.replace(/\D/g, '');
-    
-    if (cleanDoc.length === 11) {
-      // CPF: 000.000.000-00
-      return cleanDoc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-    } else if (cleanDoc.length === 14) {
-      // CNPJ: 00.000.000/0000-00
-      return cleanDoc.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
-    }
-    
-    return cleanDoc; // Retorna sem formataÃ§Ã£o se nÃ£o for CPF nem CNPJ
+  const getUserInitials = (name?: string | null) => {
+    const parts = String(name || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    if (parts.length === 0) return 'U';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+
+    return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
   };
 
-  // FunÃ§Ã£o para extrair CPF/CNPJ de texto usando regex
-  const extractDocumentFromText = (text: string): string | null => {
-    // Remover quebras de linha e mÃºltiplos espaÃ§os, mas manter espaÃ§os Ãºnicos
-    const normalizedText = text.replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ');
-    
-    // Regex flexÃ­vel para CNPJ: aceita separadores opcionais (., -, /, espaÃ§o)
-    // Exemplos: 61.232.149/0001-90, 61232149/0001-90, 61 232 149/0001-90
-    const cnpjRegex = /\d{2}[.\s]?\d{3}[.\s]?\d{3}[/\s]?\d{4}[-\s]?\d{2}/g;
-    
-    // Regex flexÃ­vel para CPF: aceita separadores opcionais (., -, espaÃ§o)
-    // Exemplos: 029.177.601-92, 029177601-92, 029 177 601-92
-    const cpfRegex = /\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2}/g;
-    
-    // Buscar CNPJ primeiro (14 dÃ­gitos) - prioridade para empresas
-    const cnpjMatches = normalizedText.match(cnpjRegex);
-    if (cnpjMatches && cnpjMatches.length > 0) {
-      // Remover todos os caracteres nÃ£o numÃ©ricos
-      const cnpj = cnpjMatches[0].replace(/\D/g, '');
-      if (cnpj.length === 14) {
-        console.log('[OCR] CNPJ encontrado:', cnpjMatches[0], 'â†’', cnpj);
-        return cnpj;
-      }
-    }
-    
-    // Buscar CPF (11 dÃ­gitos)
-    const cpfMatches = normalizedText.match(cpfRegex);
-    if (cpfMatches && cpfMatches.length > 0) {
-      // Remover todos os caracteres nÃ£o numÃ©ricos
-      const cpf = cpfMatches[0].replace(/\D/g, '');
-      if (cpf.length === 11) {
-        console.log('[OCR] CPF encontrado:', cpfMatches[0], 'â†’', cpf);
-        return cpf;
-      }
-    }
-    
-    console.log('[OCR] Nenhum CPF/CNPJ encontrado no texto');
-    return null;
-  };
-
-  // Função para validar documento via OCR.space API
+  // Função para validar documento via Edge Function segura
   const validateDocumentWithOCR = async (file: File): Promise<{
     success: boolean;
     message: string;
     extractedDocument?: string;
   }> => {
     try {
-      // Preparar FormData para enviar à API
       const formData = new FormData();
-      formData.append('apikey', 'K85883462288957');
-      formData.append('language', 'por');
-      formData.append('isOverlayRequired', 'false');
       formData.append('file', file);
-      
-      // Adicionar filetype para PDFs
-      if (file.type === 'application/pdf') {
-        formData.append('filetype', 'PDF');
-      }
-
-      // Enviar para OCR.space API
-      const response = await fetch('https://api.ocr.space/parse/image', {
-        method: 'POST',
-        body: formData
+      const { data, error } = await supabase.functions.invoke('validate-document', {
+        body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Erro ao comunicar com a API de OCR');
+      if (error) {
+        throw new Error(error.message || 'Erro ao comunicar com o servidor de validacao');
       }
 
-      const data = await response.json();
-
-      // Verificar se houve erro na API
-      if (data.IsErroredOnProcessing) {
-        throw new Error(data.ErrorMessage?.[0] || 'Erro ao processar documento');
-      }
-
-      // Extrair texto do resultado
-      const parsedText = data.ParsedResults?.[0]?.ParsedText;
-      
-      if (!parsedText) {
-        return {
-          success: false,
-          message: 'Não foi possível extrair texto do documento. Verifique a qualidade da imagem.'
-        };
-      }
-
-      console.log('[OCR] Texto extraído:', parsedText);
-
-      // Extrair CPF/CNPJ do texto
-      const extractedDocument = extractDocumentFromText(parsedText);
-
-      if (!extractedDocument) {
-        return {
-          success: false,
-          message: 'Não foi possível identificar CPF ou CNPJ no documento.'
-        };
-      }
-
-      console.log('[OCR] Documento extraído:', extractedDocument);
-
-      // Comparar com documento do usuário
-      const userDocument = user?.document?.replace(/\D/g, ''); // Remover formatação
-
-      if (!userDocument) {
-        return {
-          success: false,
-          message: 'Você ainda não cadastrou seu CPF/CNPJ no perfil.',
-          extractedDocument
-        };
-      }
-
-      // Verificar correspondência
-      if (extractedDocument === userDocument) {
-        return {
-          success: true,
-          message: 'Documento validado com sucesso. Os dados conferem.',
-          extractedDocument
-        };
-      } else {
-        return {
-          success: false,
-          message: `Os dados do documento não batem com o seu perfil. Documento extraído: ${formatDocument(extractedDocument)} | Cadastrado: ${formatDocument(userDocument)}`,
-          extractedDocument
-        };
-      }
+      return {
+        success: Boolean(data?.success),
+        message: String(data?.message || 'Não foi possível validar o documento.'),
+        extractedDocument: typeof data?.extractedDocument === 'string' ? data.extractedDocument : undefined,
+      };
 
     } catch (error: any) {
       console.error('[OCR] Erro:', error);
@@ -442,6 +345,21 @@ const UserDashboardView: React.FC = () => {
         message: `Erro ao validar documento: ${error.message}`
       };
     }
+  };
+
+  const isDocumentRetryBlocked = Boolean(documentRetryAvailableAt && isTimestampActive(documentRetryAvailableAt));
+
+  const getDocumentRetryBlockedMessage = () => {
+    if (!documentRetryAvailableAt) {
+      return documentLastFailureReason || 'Sua verificação documental está temporariamente bloqueada.';
+    }
+
+    const retryDate = new Date(documentRetryAvailableAt);
+    const retryLabel = Number.isNaN(retryDate.getTime())
+      ? documentRetryAvailableAt
+      : retryDate.toLocaleString('pt-BR');
+
+    return `${documentLastFailureReason || 'Não foi possível validar seu documento automaticamente.'} Você poderá tentar novamente em ${retryLabel}.`;
   };
 
   // FunÃ§Ã£o para upload de avatar
@@ -508,6 +426,31 @@ const UserDashboardView: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
+    await syncTrustedTime();
+
+    const { data: retryRows, error: retryStatusError } = await supabase.rpc('get_my_document_verification_retry_status');
+    if (!retryStatusError) {
+      const retryStatus = Array.isArray(retryRows) ? retryRows[0] : retryRows;
+      setDocumentRetryAvailableAt(retryStatus?.document_retry_available_at || null);
+      setDocumentLastFailureReason(retryStatus?.document_last_failure_reason || null);
+
+      if (retryStatus?.can_retry === false) {
+        toast.error(
+          retryStatus?.document_retry_available_at
+            ? `${retryStatus?.document_last_failure_reason || 'Não foi possível validar seu documento automaticamente.'} Você poderá tentar novamente em ${new Date(retryStatus.document_retry_available_at).toLocaleString('pt-BR')}.`
+            : (retryStatus?.document_last_failure_reason || 'Sua verificação documental está temporariamente bloqueada.')
+        );
+        event.target.value = '';
+        return;
+      }
+    }
+
+    if (documentRetryAvailableAt && isTimestampActive(documentRetryAvailableAt)) {
+      toast.error(getDocumentRetryBlockedMessage());
+      event.target.value = '';
+      return;
+    }
+
     // Validar tipo de arquivo (PDF, JPG, PNG)
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
     if (!allowedTypes.includes(file.type)) {
@@ -547,21 +490,21 @@ const UserDashboardView: React.FC = () => {
       const isPDFTooLarge = isPDF && file.size > 1 * 1024 * 1024; // 1MB
       
       if (isPDFTooLarge) {
-        // PDF grande: análise manual
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ 
-            document_path: filePath,
-            document_verified: null,
-            document_review_status: 'pending',
-            document_review_notes: null,
-            document_reviewed_at: null,
-            document_reviewed_by: null,
-          })
-          .eq('id', user.id);
+        const { data: resultRows, error: completionError } = await supabase.rpc(
+          'complete_my_document_verification_upload',
+          {
+            p_document_path: filePath,
+            p_result: 'pending',
+            p_failure_reason: null,
+          }
+        );
 
-        if (updateError) throw updateError;
-        
+        if (completionError) throw completionError;
+
+        const result = Array.isArray(resultRows) ? resultRows[0] : resultRows;
+        setDocumentRetryAvailableAt(result?.document_retry_available_at || null);
+        setDocumentLastFailureReason(result?.document_last_failure_reason || null);
+        await refreshStats();
         setUploadSuccess('PDF enviado. Por ser um arquivo grande, aguarde a análise manual da equipe.');
       } else {
         // Imagens ou PDFs pequenos: validação OCR automática
@@ -571,20 +514,20 @@ const UserDashboardView: React.FC = () => {
         setValidationResult(validationResult);
         
         if (validationResult.success) {
-          // Atualizar document_path com validação aprovada
-          const { error: updateError } = await supabase
-            .from('users')
-            .update({ 
-              document_path: filePath,
-              document_verified: true,
-              document_review_status: 'approved',
-              document_review_notes: null,
-              document_reviewed_at: new Date().toISOString(),
-              document_reviewed_by: null,
-            })
-            .eq('id', user.id);
+          const { data: resultRows, error: completionError } = await supabase.rpc(
+            'complete_my_document_verification_upload',
+            {
+              p_document_path: filePath,
+              p_result: 'approved',
+              p_failure_reason: null,
+            }
+          );
 
-          if (updateError) console.error('Erro ao atualizar status:', updateError);
+          if (completionError) throw completionError;
+
+          const result = Array.isArray(resultRows) ? resultRows[0] : resultRows;
+          setDocumentRetryAvailableAt(result?.document_retry_available_at || null);
+          setDocumentLastFailureReason(result?.document_last_failure_reason || null);
           
           // Atualizar contexto de autenticação para refletir mudança sem reload
           await refreshStats();
@@ -606,20 +549,27 @@ const UserDashboardView: React.FC = () => {
           
           setUploadSuccess(`${isPDF ? 'PDF' : 'Documento'} validado e enviado com sucesso.`);
         } else {
-          // Salvar mesmo se não validado (para revisão manual)
-          const { error: updateError } = await supabase
-            .from('users')
-            .update({ 
-              document_path: filePath,
-              document_verified: false,
-              document_review_status: 'pending',
-              document_review_notes: null,
-              document_reviewed_at: null,
-              document_reviewed_by: null,
-            })
-            .eq('id', user.id);
+          const { data: resultRows, error: completionError } = await supabase.rpc(
+            'complete_my_document_verification_upload',
+            {
+              p_document_path: filePath,
+              p_result: 'rejected',
+              p_failure_reason: validationResult.message,
+            }
+          );
 
-          if (updateError) console.error('Erro ao atualizar status:', updateError);
+          if (completionError) throw completionError;
+
+          const result = Array.isArray(resultRows) ? resultRows[0] : resultRows;
+          setDocumentRetryAvailableAt(result?.document_retry_available_at || null);
+          const failureReason = result?.document_last_failure_reason || validationResult.message || null;
+          setDocumentLastFailureReason(failureReason);
+          await refreshStats();
+          const retryBlockedMessage =
+            result?.document_retry_available_at
+              ? `${failureReason || 'Não foi possível validar seu documento automaticamente.'} Você poderá tentar novamente em ${new Date(result.document_retry_available_at).toLocaleString('pt-BR')}.`
+              : (failureReason || 'Não foi possível validar seu documento automaticamente.');
+          toast.error(retryBlockedMessage);
         }
         
         setIsValidatingDocument(false);
@@ -633,10 +583,15 @@ const UserDashboardView: React.FC = () => {
       
     } catch (error: any) {
       console.error('Erro ao fazer upload do documento:', error);
+      setValidationResult({
+        success: false,
+        message: error.message || 'Erro ao enviar documento',
+      });
       toast.error(error.message || 'Erro ao enviar documento');
     } finally {
       setIsUploadingDocument(false);
       setIsValidatingDocument(false);
+      event.target.value = '';
     }
   };
 
@@ -645,12 +600,12 @@ const UserDashboardView: React.FC = () => {
     { label: 'Meu Plano', path: '/minha-conta/meu-plano', icon: <Icons.Plan />, badge: 0 },
     { label: 'Meus Anúncios', path: '/minha-conta/anuncios', icon: <Icons.Ads />, badge: 0 },
     { label: 'Mensagens', path: '/minha-conta/mensagens', icon: <Icons.Messages />, badge: messagesCount },
+    ...(showSellerStoreMenu ? [{ label: 'Minha Loja', path: '/minha-conta/minha-loja', icon: <Icons.Store />, badge: 0 }] : []),
     { label: 'Leads', path: '/minha-conta/leads', icon: <Icons.Leads />, badge: newLeadsCount },
     { label: 'Favoritos', path: '/minha-conta/favoritos', icon: <Icons.Favorites />, badge: 0 },
     { label: 'Radar de Oportunidades', path: '/minha-conta/radar', icon: <Icons.Radar />, badge: 0 },
     { label: 'Inteligência Comercial', path: '/minha-conta/inteligencia-comercial', icon: <Icons.Commercial />, badge: 0 },
     { label: 'Financeiro', path: '/minha-conta/financeiro', icon: <Icons.Finance />, badge: 0 },
-    ...(showSellerStoreMenu ? [{ label: 'Minha Loja', path: '/minha-conta/minha-loja', icon: <Icons.Store />, badge: 0 }] : []),
     { label: 'Central de Ajuda', path: '/minha-conta/ajuda', icon: <Icons.Help />, badge: 0 },
     { label: 'Perfil', path: '/minha-conta/perfil', icon: <Icons.Profile />, badge: 0 },
   ];
@@ -816,8 +771,8 @@ const UserDashboardView: React.FC = () => {
           />
           <DashboardStatsCard
             icon={<Heart className="w-6 h-6" strokeWidth={1.5} />}
-            label="Taxa de Conversão"
-            value={`${Number(dashboardStats?.conversion_rate || 0).toFixed(1)}%`}
+            label="Favoritos recebidos"
+            value={dashboardStats?.total_favorites || 0}
             bgColor="bg-rose-50"
             iconColor="text-rose-600"
             loading={dashboardLoading}
@@ -831,9 +786,9 @@ const UserDashboardView: React.FC = () => {
             loading={dashboardLoading}
           />
           <DashboardStatsCard
-            icon={<Inbox className="w-6 h-6" strokeWidth={1.5} />}
-            label="Leads Gerados"
-            value={dashboardStats?.total_leads || 0}
+            icon={<TrendingUp className="w-6 h-6" strokeWidth={1.5} />}
+            label="Taxa de Conversão"
+            value={`${Number(dashboardStats?.conversion_rate || 0).toFixed(1)}%`}
             bgColor="bg-amber-50"
             iconColor="text-amber-600"
             loading={dashboardLoading}
@@ -924,7 +879,7 @@ const UserDashboardView: React.FC = () => {
 
   const AdsDashboard = () => {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = usePersistentState<'all' | 'active' | 'pending' | 'paused' | 'blocked' | 'expired'>(
+    const [activeTab, setActiveTab] = usePersistentState<'all' | 'active' | 'pending' | 'paused' | 'rejected' | 'blocked' | 'expired'>(
       'user-dashboard:ads-active-tab',
       'all'
     );
@@ -949,30 +904,33 @@ const UserDashboardView: React.FC = () => {
     }, [ads, removedAdIds]);
 
     const counts = useMemo(() => {
-      const active = visibleAds.filter(a => a.status === AdStatus.ACTIVE).length;
-      const pending = visibleAds.filter(a => a.status === AdStatus.PENDING).length;
-      const paused = visibleAds.filter(a => a.status === AdStatus.PAUSED).length;
-      const expired = visibleAds.filter(a => a.status === AdStatus.EXPIRED).length;
-      return {
-        all: visibleAds.length,
-        active,
-        pending,
-        paused,
-        expired,
-        blocked: expired
-      };
-    }, [visibleAds]);
+        const active = visibleAds.filter(a => a.status === AdStatus.ACTIVE).length;
+        const pending = visibleAds.filter(a => a.status === AdStatus.PENDING).length;
+        const paused = visibleAds.filter(a => a.status === AdStatus.PAUSED).length;
+        const rejected = visibleAds.filter(a => a.status === AdStatus.REJECTED).length;
+        const expired = visibleAds.filter(a => a.status === AdStatus.EXPIRED).length;
+        return {
+          all: visibleAds.length,
+          active,
+          pending,
+          paused,
+          rejected,
+          expired,
+          blocked: expired
+        };
+      }, [visibleAds]);
 
     const filteredAds = useMemo(() => {
       const normalized = searchTerm.trim().toLowerCase();
-      const byTab = visibleAds.filter(ad => {
-        if (activeTab === 'active') return ad.status === AdStatus.ACTIVE;
-        if (activeTab === 'pending') return ad.status === AdStatus.PENDING;
-        if (activeTab === 'paused') return ad.status === AdStatus.PAUSED;
-        if (activeTab === 'expired') return ad.status === AdStatus.EXPIRED;
-        if (activeTab === 'blocked') return ad.status === AdStatus.EXPIRED;
-        return true;
-      });
+        const byTab = visibleAds.filter(ad => {
+          if (activeTab === 'active') return ad.status === AdStatus.ACTIVE;
+          if (activeTab === 'pending') return ad.status === AdStatus.PENDING;
+          if (activeTab === 'paused') return ad.status === AdStatus.PAUSED;
+          if (activeTab === 'rejected') return ad.status === AdStatus.REJECTED;
+          if (activeTab === 'expired') return ad.status === AdStatus.EXPIRED;
+          if (activeTab === 'blocked') return ad.status === AdStatus.EXPIRED;
+          return true;
+        });
 
       if (!normalized) return byTab;
       return byTab.filter(ad => ad.title.toLowerCase().includes(normalized) || ad.id.toLowerCase().includes(normalized));
@@ -985,6 +943,7 @@ const UserDashboardView: React.FC = () => {
       { id: 'active', label: 'Ativos', count: counts.active },
       { id: 'pending', label: 'Em Análise', count: counts.pending },
       { id: 'paused', label: 'Pausados', count: counts.paused },
+      { id: 'rejected', label: 'Reprovados', count: counts.rejected },
       { id: 'blocked', label: 'Excluídos', count: counts.blocked }
     ] as const;
 
@@ -992,9 +951,20 @@ const UserDashboardView: React.FC = () => {
       [AdStatus.ACTIVE]: 'Ativo',
       [AdStatus.PAUSED]: 'Pausado',
       [AdStatus.PENDING]: 'Em Análise',
+      [AdStatus.REJECTED]: 'Reprovado',
       [AdStatus.BLOCKED]: 'Excluído',
       [AdStatus.EXPIRED]: 'Expirado',
       [AdStatus.SOLD]: 'Vendido'
+    };
+
+    const statusToneClass: Record<string, string> = {
+      [AdStatus.ACTIVE]: 'text-green-700',
+      [AdStatus.PAUSED]: 'text-slate-500',
+      [AdStatus.PENDING]: 'text-amber-700',
+      [AdStatus.REJECTED]: 'text-rose-700',
+      [AdStatus.BLOCKED]: 'text-slate-500',
+      [AdStatus.EXPIRED]: 'text-slate-500',
+      [AdStatus.SOLD]: 'text-slate-500'
     };
 
     // Handlers para ações
@@ -1064,6 +1034,31 @@ const UserDashboardView: React.FC = () => {
       }
 
       return `Exclusão automática em ${deletionDate.toLocaleDateString('pt-BR')}`;
+    };
+
+    const getRejectedStatusLabel = (ad: Ad) => {
+      if (!ad.rejectedAt) {
+        return 'Anúncio reprovado pela moderação';
+      }
+
+      const rejectedDate = new Date(ad.rejectedAt);
+      if (Number.isNaN(rejectedDate.getTime())) {
+        return `Anúncio reprovado em ${ad.rejectedAt}`;
+      }
+
+      return `Anúncio reprovado em ${rejectedDate.toLocaleDateString('pt-BR')}`;
+    };
+
+    const getAdStatusSupportingLabel = (ad: Ad) => {
+      if (ad.status === AdStatus.REJECTED) {
+        return getRejectedStatusLabel(ad);
+      }
+
+      if (ad.status === AdStatus.EXPIRED) {
+        return getExpiredRetentionLabel(ad);
+      }
+
+      return `Anúncio ${getAdLifetimeLabel(ad).toLowerCase()}`;
     };
 
     const handleTogglePause = async (ad: Ad) => {
@@ -1208,13 +1203,29 @@ const UserDashboardView: React.FC = () => {
     const handleHighlightClick = (ad: Ad, type: 'category' | 'home') => {
       const hasCategoryHighlight = Boolean((ad as any).highlight_category || ad.highlightCategory);
       const hasHomeHighlight = Boolean((ad as any).highlight_home || ad.highlightHome);
+      const categoryUntil = (ad as any).highlight_category_until || (ad as any).highlightCategoryUntil;
+      const homeUntil = (ad as any).highlight_home_until || (ad as any).highlightHomeUntil;
+      const hasActiveCategoryHighlight = hasCategoryHighlight && isTimestampActive(categoryUntil);
+      const hasActiveHomeHighlight = hasHomeHighlight && isTimestampActive(homeUntil);
       const isBlocked = (type === 'category' && hasHomeHighlight) || (type === 'home' && hasCategoryHighlight);
+      const isSameTypeAlreadyActive =
+        (type === 'category' && hasActiveCategoryHighlight) ||
+        (type === 'home' && hasActiveHomeHighlight);
 
       if (isBlocked) {
         toast.error(
           type === 'category'
         ? 'Destaque bloqueado: este anúncio já está destacado na Home e não pode receber destaque em Categoria ao mesmo tempo.'
         : 'Destaque bloqueado: este anúncio já está destacado em Categoria e não pode receber destaque na Home ao mesmo tempo.'
+        );
+        return;
+      }
+
+      if (isSameTypeAlreadyActive) {
+        toast.error(
+          type === 'category'
+            ? 'Este anúncio já está com destaque em Categoria ativo. Ele só poderá receber novo destaque em Categoria 15 dias após o vencimento do período atual.'
+            : 'Este anúncio já está com destaque na Home ativo. Ele só poderá receber novo destaque na Home 15 dias após o vencimento do período atual.'
         );
         return;
       }
@@ -1392,13 +1403,17 @@ const UserDashboardView: React.FC = () => {
                       Código: {ad.id} | Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     <p className="text-xs text-slate-500 truncate">
-                            Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {ad.status === AdStatus.EXPIRED ? getExpiredRetentionLabel(ad) : `Anúncio ${getAdLifetimeLabel(ad).toLowerCase()}`}
+                            Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {getAdStatusSupportingLabel(ad)}
                       {getHighlightLifetimeLabel(ad) ? ` | Destaque ${getHighlightLifetimeLabel(ad).replace('Categoria', 'categoria').replace('Home', 'home')}` : ''}
                     </p>
                     <p className="text-xs text-slate-500">
                       Visitas: {ad.views} | Valor: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.price)}
                     </p>
-                    {ad.latestEditRequestStatus === 'rejected' && ad.latestEditRejectionReason ? (
+                    {ad.status === AdStatus.REJECTED && ad.rejectionReason ? (
+                      <p className="mt-1 text-xs font-medium text-rose-700">
+                        Motivo da reprovação: {ad.rejectionReason}
+                      </p>
+                    ) : ad.latestEditRequestStatus === 'rejected' && ad.latestEditRejectionReason ? (
                       <p className="mt-1 text-xs font-medium text-amber-700">
                         Ultima alteracao rejeitada: {ad.latestEditRejectionReason}
                       </p>
@@ -1406,18 +1421,32 @@ const UserDashboardView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <span className={`text-xs font-semibold ${ad.status === AdStatus.ACTIVE ? 'text-green-700' : 'text-slate-500'}`}>
+                    <span className={`text-xs font-semibold ${statusToneClass[ad.status] || 'text-slate-500'}`}>
                       {statusLabel[ad.status] || 'Status'}
                     </span>
                     <div className="flex items-center gap-1 text-slate-400">
                       {/* Botão de Destaques */}
-                      {ad.status !== AdStatus.EXPIRED && (
+                      {ad.status !== AdStatus.EXPIRED && ad.status !== AdStatus.REJECTED && (
                         <>
                         {(() => {
                           const hasCategoryHighlight = Boolean((ad as any).highlight_category || ad.highlightCategory);
                           const hasHomeHighlight = Boolean((ad as any).highlight_home || ad.highlightHome);
-                          const categoryBlocked = hasHomeHighlight;
-                          const homeBlocked = hasCategoryHighlight;
+                          const categoryUntil = (ad as any).highlight_category_until || ad.highlightCategoryUntil;
+                          const homeUntil = (ad as any).highlight_home_until || ad.highlightHomeUntil;
+                          const hasActiveCategoryHighlight = hasCategoryHighlight && isTimestampActive(categoryUntil);
+                          const hasActiveHomeHighlight = hasHomeHighlight && isTimestampActive(homeUntil);
+                          const categoryBlocked = hasHomeHighlight || hasActiveCategoryHighlight;
+                          const homeBlocked = hasCategoryHighlight || hasActiveHomeHighlight;
+                          const categoryTitle = hasActiveCategoryHighlight
+                            ? 'Este anúncio já está com destaque em Categoria ativo. Novo destaque em Categoria só fica disponível 15 dias após o vencimento.'
+                            : hasHomeHighlight
+                              ? 'Indisponível: este anúncio já está destacado na Home'
+                              : 'Destaque na categoria';
+                          const homeTitle = hasActiveHomeHighlight
+                            ? 'Este anúncio já está com destaque na Home ativo. Novo destaque na Home só fica disponível 15 dias após o vencimento.'
+                            : hasCategoryHighlight
+                              ? 'Indisponível: este anúncio já está destacado em Categoria'
+                              : 'Destaque na home';
 
                           return (
                             <>
@@ -1433,7 +1462,7 @@ const UserDashboardView: React.FC = () => {
                               ? 'cursor-not-allowed text-slate-300'
                               : 'hover:bg-blue-50 hover:text-blue-700'
                           }`} 
-                          title={categoryBlocked ? 'Indisponível: este anúncio já está destacado na Home' : 'Destaque na categoria'}
+                          title={categoryTitle}
                         >
                           <TrendingUp className="w-4 h-4" strokeWidth={1.5} />
                         </button>
@@ -1449,7 +1478,7 @@ const UserDashboardView: React.FC = () => {
                               ? 'cursor-not-allowed text-slate-300'
                               : 'hover:bg-amber-50 hover:text-amber-700'
                           }`} 
-                          title={homeBlocked ? 'Indisponível: este anúncio já está destacado em Categoria' : 'Destaque na home'}
+                          title={homeTitle}
                         >
                           <Sparkles className="w-4 h-4" strokeWidth={1.5} />
                         </button>
@@ -1483,7 +1512,7 @@ const UserDashboardView: React.FC = () => {
                         >
                           <CreditCard className="w-4 h-4" strokeWidth={1.5} />
                         </button>
-                      ) : (
+                      ) : ad.status !== AdStatus.REJECTED ? (
                       <button 
                         onClick={(e) => {
                           e.preventDefault();
@@ -1499,7 +1528,7 @@ const UserDashboardView: React.FC = () => {
                       >
                         <PauseCircle className="w-4 h-4" strokeWidth={1.5} />
                       </button>
-                      )}
+                      ) : null}
                       {/* Botão Excluir */}
                       <button 
                         onClick={(e) => {
@@ -3200,11 +3229,17 @@ const UserDashboardView: React.FC = () => {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_46%,#ecfdf5_100%)] p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.34)] sm:flex-row sm:items-center">
           <div className="relative">
-            <img
-              src={user?.avatar || 'https://i.pravatar.cc/150?u=bwagro'}
-              alt={userName}
-              className="h-16 w-16 rounded-2xl object-cover shadow-sm ring-4 ring-white"
-            />
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt={userName}
+                className="h-16 w-16 rounded-2xl object-cover shadow-sm ring-4 ring-white"
+              />
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#16a34a_0%,#15803d_38%,#0f172a_100%)] text-lg font-black tracking-[0.08em] text-white shadow-sm ring-4 ring-white">
+                {getUserInitials(user?.name)}
+              </div>
+            )}
             <label 
               htmlFor="avatar-upload" 
               className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-white shadow-[0_14px_24px_-16px_rgba(15,23,42,0.9)] cursor-pointer transition-colors hover:bg-slate-800"
@@ -3436,45 +3471,61 @@ const UserDashboardView: React.FC = () => {
                 <h4 className="text-sm font-semibold">Central de Verificação</h4>
               </div>
               <div className="rounded-[22px] border border-dashed border-slate-200 bg-white p-5 text-center shadow-sm">
-                <input 
-                  type="file" 
-                  className="hidden" 
-                  id="doc-upload"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={handleDocumentUpload}
-                  disabled={isUploadingDocument || isValidatingDocument}
-                />
-                <label 
-                  htmlFor="doc-upload" 
-                  className={`inline-flex items-center gap-2 text-sm font-semibold cursor-pointer transition-colors ${
-                    isUploadingDocument || isValidatingDocument
-                      ? 'text-slate-400 cursor-not-allowed' 
-                      : 'text-green-700 hover:text-green-800'
-                  }`}
-                >
-                  {isUploadingDocument ? (
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    id="doc-upload"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={handleDocumentUpload}
+                    disabled={isUploadingDocument || isValidatingDocument || isDocumentRetryBlocked}
+                  />
+                  <label 
+                    htmlFor="doc-upload" 
+                    className={`inline-flex items-center gap-2 text-sm font-semibold cursor-pointer transition-colors ${
+                      isUploadingDocument || isValidatingDocument || isDocumentRetryBlocked
+                        ? 'text-slate-400 cursor-not-allowed' 
+                        : 'text-green-700 hover:text-green-800'
+                    }`}
+                  >
+                    {isUploadingDocument ? (
                     <>
                       <div className="w-4 h-4 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
                       Enviando documento...
                     </>
                   ) : isValidatingDocument ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
-                      Validando com OCR...
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
-                      Enviar Documento (RG/CNH ou Contrato Social)
-                    </>
+                        <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
+                        Validando com OCR...
+                      </>
+                    ) : isDocumentRetryBlocked ? (
+                      <>
+                        <Clock3 className="w-4 h-4" strokeWidth={1.5} />
+                        Nova tentativa bloqueada por 24h
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
+                        Enviar Documento (RG/CNH ou Contrato Social)
+                      </>
                   )}
                 </label>
-                <p className="text-xs text-slate-500 mt-2">
-                  Seus dados são protegidos por criptografia. Documentos e PDFs pequenos (&lt;1MB) são validados automaticamente via OCR.
-                </p>
-                
-                {/* Mensagem de Sucesso Geral */}
-                {uploadSuccess && (
+                  <p className="text-xs text-slate-500 mt-2">
+                    Seus dados são protegidos por criptografia. Documentos e PDFs pequenos (&lt;1MB) são validados automaticamente via OCR.
+                  </p>
+
+                  {isDocumentRetryBlocked && (
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-left">
+                      <p className="text-xs font-semibold text-amber-800">
+                        Nova tentativa temporariamente bloqueada
+                      </p>
+                      <p className="mt-1 text-xs text-amber-700">
+                        {getDocumentRetryBlockedMessage()}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Mensagem de Sucesso Geral */}
+                  {uploadSuccess && (
                   <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
                     <p className="text-xs text-green-700 font-semibold">{uploadSuccess}</p>
                   </div>

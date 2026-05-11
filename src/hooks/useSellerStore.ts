@@ -32,6 +32,7 @@ type MySellerStoreAnnouncementRow = {
   product_condition?: 'novo' | 'seminovo' | 'usado' | null;
   availability?: 'pronta_entrega' | 'sob_encomenda' | 'consultar_estoque' | null;
   accepts_trade?: boolean | null;
+  price_negotiable?: boolean | null;
   city?: string | null;
   state?: string | null;
   cep?: string | null;
@@ -123,7 +124,7 @@ const mapAnnouncement = (ad: any): Ad => ({
   title: ad.title,
   description: ad.description,
   price: parseFloat(ad.unit_price || ad.price),
-  priceNegotiable: !!ad.accepts_trade,
+  priceNegotiable: !!(ad.price_negotiable ?? ad.accepts_trade),
   productCondition: ad.product_condition || undefined,
   availability: ad.availability || undefined,
   acceptsTrade: !!ad.accepts_trade,

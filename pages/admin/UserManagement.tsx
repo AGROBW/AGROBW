@@ -25,7 +25,7 @@ import {
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { toast } from 'sonner';
-import { deleteAnnouncementWithRelations } from '../../src/hooks/useAds';
+import { adminDeleteAnnouncementWithNotification } from '../../src/hooks/useAds';
 
 interface User {
   id: string;
@@ -420,7 +420,7 @@ const UserManagement: React.FC = () => {
       setTotalCount(count || 0);
     } catch (error) {
       console.error('[UserManagement] Erro ao carregar usuÃ¡rios:', error);
-      toast.error('Erro ao carregar usuÃ¡rios');
+      toast.error('Erro ao carregar usuários.');
     } finally {
       setLoading(false);
     }
@@ -566,7 +566,7 @@ const UserManagement: React.FC = () => {
       let mapped = rows.map((row) => ({
         id: row.id,
         user_id: row.user_id,
-        user_name: row.users?.name || 'NÃ£o informado',
+        user_name: row.users?.name || 'Não informado',
         user_email: row.users?.email || 'Sem e-mail',
         plan_name: row.plans?.name || 'Sem plano',
         status: row.status,
@@ -626,7 +626,7 @@ const UserManagement: React.FC = () => {
       setUserAnnouncements(mappedAnnouncements);
     } catch (error) {
       console.error('[UserManagement] Erro ao carregar anÃºncios do usuÃ¡rio:', error);
-      toast.error('Erro ao carregar anÃºncios do usuÃ¡rio');
+      toast.error('Erro ao carregar anúncios do usuário.');
       setUserAnnouncements([]);
     } finally {
       setUserAnnouncementsLoading(false);
@@ -674,14 +674,17 @@ const UserManagement: React.FC = () => {
 
   const handleDeleteAnnouncement = async () => {
     if (!selectedUser || !selectedAnnouncement || !announcementDeleteReason.trim()) {
-      toast.error('Informe o motivo da exclusÃ£o do anÃºncio');
+      toast.error('Informe o motivo da exclusão do anúncio.');
       return;
     }
 
     setIsDeletingAnnouncement(true);
 
     try {
-      await deleteAnnouncementWithRelations(selectedAnnouncement.id);
+      await adminDeleteAnnouncementWithNotification(
+        selectedAnnouncement.id,
+        announcementDeleteReason.trim(),
+      );
 
       await logAction({
         action: ADMIN_ACTIONS.DELETE_AD,
@@ -695,10 +698,10 @@ const UserManagement: React.FC = () => {
         newValue: {
           deleted: true,
         },
-        reason: `AnÃºncio "${selectedAnnouncement.title}" excluÃ­do na GestÃ£o de UsuÃ¡rios. Motivo: ${announcementDeleteReason.trim()}`,
+        reason: `Anúncio "${selectedAnnouncement.title}" excluído na Gestão de Usuários. Motivo: ${announcementDeleteReason.trim()}`,
       });
 
-      toast.success('AnÃºncio excluÃ­do com sucesso');
+      toast.success('Anúncio excluído com sucesso.');
 
       setUserAnnouncements((current) =>
         current.filter((announcement) => announcement.id !== selectedAnnouncement.id)
@@ -728,8 +731,8 @@ const UserManagement: React.FC = () => {
 
       closeDeleteAnnouncementModal();
     } catch (error: any) {
-      console.error('[UserManagement] Erro ao excluir anÃºncio:', error);
-      toast.error(error?.message || 'Erro ao excluir anÃºncio');
+      console.error('[UserManagement] Erro ao excluir anúncio:', error);
+      toast.error(error?.message || 'Erro ao excluir anúncio.');
     } finally {
       setIsDeletingAnnouncement(false);
     }
@@ -744,17 +747,17 @@ const UserManagement: React.FC = () => {
     try {
       const selectedPlan = availablePlans.find((plan) => plan.id === newPlan);
       if (!selectedPlan) {
-        toast.error('Plano selecionado n\u00e3o encontrado');
+        toast.error('Plano selecionado não encontrado.');
         return false;
       }
 
       if (selectedPlan.is_default_signup_plan && selectedUser.start_plan_consumed_at) {
-        toast.error('Este usuario ja consumiu o plano inicial do cadastro. Escolha um plano pago diferente para a reativacao.');
+        toast.error('Este usuário já consumiu o plano inicial do cadastro. Escolha um plano pago diferente para a reativação.');
         return false;
       }
 
       if (!planPeriodStart || !planPeriodEnd || new Date(`${planPeriodEnd}T23:59:59.999`) <= new Date(`${planPeriodStart}T00:00:00`)) {
-        toast.error('Informe um per\u00edodo v\u00e1lido para o plano');
+        toast.error('Informe um período válido para o plano.');
         return false;
       }
 
@@ -789,7 +792,7 @@ const UserManagement: React.FC = () => {
           duration_unit: planDurationUnit,
           rpc_result: data,
         },
-        reason: `Plano de ${selectedUser.name} alterado de ${selectedUser.plan_name || 'sem plano ativo'} para ${selectedPlan.name} com vig\u00eancia administrativa de ${formatDateCell(periodStartIso)} at\u00e9 ${formatDateCell(periodEndIso)}`
+        reason: `Plano de ${selectedUser.name} alterado de ${selectedUser.plan_name || 'sem plano ativo'} para ${selectedPlan.name} com vigência administrativa de ${formatDateCell(periodStartIso)} até ${formatDateCell(periodEndIso)}`
       });
 
       toast.success(`Plano alterado para ${selectedPlan.name}`);
@@ -831,14 +834,14 @@ const UserManagement: React.FC = () => {
         resourceId: selectedUser.id,
         oldValue,
         newValue: { role: newRole, is_admin: isAdmin },
-        reason: `Permiss\u00f5es de ${selectedUser.name} alteradas para ${newRole}`
+        reason: `Permissões de ${selectedUser.name} alteradas para ${newRole}`
       });
 
       toast.success(`Role alterado para ${newRole}`);
       return true;
     } catch (error) {
       console.error('[UserManagement] Erro ao atualizar role:', error);
-      toast.error('Erro ao atualizar permiss\u00f5es');
+      toast.error('Erro ao atualizar permissões.');
       return false;
     }
   };
@@ -866,7 +869,7 @@ const UserManagement: React.FC = () => {
 
   const handleSuspendUser = async () => {
     if (!selectedUser || !suspensionReason.trim()) {
-      toast.error('Informe o motivo da suspensÃ£o');
+      toast.error('Informe o motivo da suspensão.');
       return;
     }
 
@@ -896,16 +899,16 @@ const UserManagement: React.FC = () => {
           is_suspended: true,
           suspension_reason: suspensionReason
         },
-        reason: `UsuÃ¡rio ${selectedUser.name} suspenso: ${suspensionReason}`
+        reason: `Usuário ${selectedUser.name} suspenso: ${suspensionReason}`
       });
 
-      toast.success('UsuÃ¡rio suspenso com sucesso');
+      toast.success('Usuário suspenso com sucesso.');
       setShowSuspendModal(false);
       setSuspensionReason('');
       loadUsers();
     } catch (error) {
       console.error('[UserManagement] Erro ao suspender:', error);
-      toast.error('Erro ao suspender usuÃ¡rio');
+      toast.error('Erro ao suspender usuário.');
     }
   };
 
@@ -935,14 +938,14 @@ const UserManagement: React.FC = () => {
           is_suspended: false,
           suspension_reason: null
         },
-        reason: `SuspensÃ£o de ${user.name} removida`
+        reason: `Suspensão de ${user.name} removida`
       });
 
-      toast.success('SuspensÃ£o removida');
+      toast.success('Suspensão removida.');
       loadUsers();
     } catch (error) {
-      console.error('[UserManagement] Erro ao remover suspensÃ£o:', error);
-      toast.error('Erro ao remover suspensÃ£o');
+      console.error('[UserManagement] Erro ao remover suspensão:', error);
+      toast.error('Erro ao remover suspensão.');
     }
   };
 
@@ -980,10 +983,10 @@ const UserManagement: React.FC = () => {
           suspension_reason: suspensionReason,
           suspended_at: blockedAtIso
         },
-        reason: `UsuÃ¡rio ${selectedUser.name} bloqueado: ${suspensionReason}`
+        reason: `Usuário ${selectedUser.name} bloqueado: ${suspensionReason}`
       });
 
-      toast.success('UsuÃ¡rio bloqueado com sucesso');
+      toast.success('Usuário bloqueado com sucesso.');
       setShowSuspendModal(false);
       setSuspensionReason('');
       setSelectedUser((current) =>
@@ -998,8 +1001,8 @@ const UserManagement: React.FC = () => {
       );
       loadUsers();
     } catch (error) {
-      console.error('[UserManagement] Erro ao bloquear usuÃ¡rio:', error);
-      toast.error('Erro ao bloquear usuÃ¡rio');
+      console.error('[UserManagement] Erro ao bloquear usuário:', error);
+      toast.error('Erro ao bloquear usuário.');
     }
   };
 
@@ -1037,7 +1040,7 @@ const UserManagement: React.FC = () => {
         reason: `Bloqueio de ${selectedUser.name} removido. Motivo: ${unsuspensionReason}`
       });
 
-      toast.success('UsuÃ¡rio desbloqueado com sucesso');
+      toast.success('Usuário desbloqueado com sucesso.');
       setShowUnsuspendModal(false);
       setUnsuspensionReason('');
       setSelectedUser((current) =>
@@ -1051,8 +1054,8 @@ const UserManagement: React.FC = () => {
       );
       loadUsers();
     } catch (error) {
-      console.error('[UserManagement] Erro ao desbloquear usuÃ¡rio:', error);
-      toast.error('Erro ao desbloquear usuÃ¡rio');
+      console.error('[UserManagement] Erro ao desbloquear usuário:', error);
+      toast.error('Erro ao desbloquear usuário.');
     }
   };
 
@@ -1143,7 +1146,7 @@ const UserManagement: React.FC = () => {
       await loadUsers();
     } catch (error) {
       console.error('[UserManagement] Erro ao alterar selo verificado:', error);
-      toast.error('Erro ao alterar selo verificado do usuario.');
+      toast.error('Erro ao alterar selo verificado do usuário.');
     }
   };
 
@@ -1155,10 +1158,10 @@ const UserManagement: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-slate-900">GestÃ£o de UsuÃ¡rios</h1>
+          <h1 className="text-3xl font-black text-slate-900">Gestão de Usuários</h1>
           <p className="text-slate-500 mt-1">
             {activeTab === 'users'
-              ? `${totalCount} usuÃ¡rio${totalCount !== 1 ? 's' : ''} cadastrado${totalCount !== 1 ? 's' : ''}`
+              ? `${totalCount} usuário${totalCount !== 1 ? 's' : ''} cadastrado${totalCount !== 1 ? 's' : ''}`
               : `${subscriptionsTotalCount} assinatura${subscriptionsTotalCount !== 1 ? 's' : ''} encontrada${subscriptionsTotalCount !== 1 ? 's' : ''}`}
           </p>
         </div>
@@ -1172,7 +1175,7 @@ const UserManagement: React.FC = () => {
 
       <div className="flex gap-2 rounded-xl border border-slate-200 bg-white p-1.5">
         {[
-          { id: 'users', label: 'UsuÃ¡rios', icon: Users },
+          { id: 'users', label: 'Usuários', icon: Users },
           { id: 'subscriptions', label: 'Assinaturas', icon: CreditCard },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -1252,19 +1255,19 @@ const UserManagement: React.FC = () => {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  UsuÃ¡rio
+                  Usuário
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  AnÃºncios
+                  Anúncios
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
-                  AÃ§Ãµes
+                  Ações
                 </th>
               </tr>
             </thead>
@@ -1280,7 +1283,7 @@ const UserManagement: React.FC = () => {
               ) : users.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                    Nenhum usuÃ¡rio encontrado
+                    Nenhum usuário encontrado
                   </td>
                 </tr>
               ) : (
@@ -1319,7 +1322,7 @@ const UserManagement: React.FC = () => {
                         }}
                         className="text-green-600 hover:underline font-semibold"
                       >
-                        {user._count?.announcements || 0} anÃºncio{user._count?.announcements !== 1 ? 's' : ''}
+                        {user._count?.announcements || 0} anúncio{user._count?.announcements !== 1 ? 's' : ''}
                       </button>
                     </td>
                     <td className="px-6 py-4">
@@ -1399,7 +1402,7 @@ const UserManagement: React.FC = () => {
                             setShowDetailsModal(true);
                           }}
                           className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
-                          title="Ver Detalhes"
+                          title="Ver detalhes"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -1416,7 +1419,7 @@ const UserManagement: React.FC = () => {
         {totalPages > 1 && (
           <div className="border-t border-slate-200 px-6 py-4 flex items-center justify-between">
             <p className="text-sm text-slate-500">
-              PÃ¡gina {page + 1} de {totalPages}
+              Página {page + 1} de {totalPages}
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -1541,11 +1544,11 @@ const UserManagement: React.FC = () => {
               <table className="w-full min-w-[980px]">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">UsuÃ¡rio</th>
+                    <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Usuário</th>
                     <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Plano</th>
                     <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Tipo</th>
                     <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">InÃ­cio</th>
+                    <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Início</th>
                     <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Vencimento</th>
                     <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">Loja</th>
                   </tr>
@@ -1581,7 +1584,7 @@ const UserManagement: React.FC = () => {
                           <td className="px-6 py-4">
                             <p className="font-semibold text-slate-900">{subscription.plan_name}</p>
                             <p className="text-xs text-slate-500">
-                              {subscription.monthly_price > 0 ? `R$ ${subscription.monthly_price.toFixed(2)}/mÃªs` : 'Plano sem cobranÃ§a'}
+                              {subscription.monthly_price > 0 ? `R$ ${subscription.monthly_price.toFixed(2)}/mês` : 'Plano sem cobrança'}
                             </p>
                           </td>
                           <td className="px-6 py-4">
@@ -1621,7 +1624,7 @@ const UserManagement: React.FC = () => {
 
             {subscriptionsTotalPages > 1 && (
               <div className="border-t border-slate-200 px-6 py-4 flex items-center justify-between">
-                <p className="text-sm text-slate-500">PÃ¡gina {subscriptionsPage + 1} de {subscriptionsTotalPages}</p>
+                <p className="text-sm text-slate-500">Página {subscriptionsPage + 1} de {subscriptionsTotalPages}</p>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setSubscriptionsPage(Math.max(0, subscriptionsPage - 1))}
@@ -1750,15 +1753,15 @@ const UserManagement: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Role/Permiss&otilde;es</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Perfil e permissões</label>
                 <select
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
-                  <option value="user">User (padr&atilde;o)</option>
+                  <option value="user">Usuário (padrão)</option>
                   <option value="editor">Editor (moderador)</option>
-                  <option value="admin">Admin (acesso total)</option>
+                  <option value="admin">Administrador (acesso total)</option>
                 </select>
               </div>
             </div>
@@ -1788,7 +1791,7 @@ const UserManagement: React.FC = () => {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-900">Detalhes do UsuÃ¡rio</h3>
+              <h3 className="text-xl font-bold text-slate-900">Detalhes do usuário</h3>
               <button
                 onClick={() => setShowDetailsModal(false)}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
@@ -1798,11 +1801,11 @@ const UserManagement: React.FC = () => {
             </div>
             
             <div className="space-y-6">
-              {/* InformaÃ§Ãµes Pessoais */}
+              {/* Informações pessoais */}
               <div className="bg-slate-50 rounded-xl p-4">
                 <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                   <Users className="w-4 h-4 text-green-600" />
-                  InformaÃ§Ãµes Pessoais
+                  Informações pessoais
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1815,20 +1818,20 @@ const UserManagement: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 mb-1">Telefone</p>
-                    <p className="font-semibold text-slate-900">{selectedUser.phone || 'NÃ£o informado'}</p>
+                    <p className="font-semibold text-slate-900">{selectedUser.phone || 'Não informado'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 mb-1">CPF/CNPJ</p>
-                    <p className="font-semibold text-slate-900">{selectedUser.document || 'NÃ£o informado'}</p>
+                    <p className="font-semibold text-slate-900">{selectedUser.document || 'Não informado'}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Plano e PermissÃµes */}
+              {/* Plano e permissões */}
               <div className="bg-slate-50 rounded-xl p-4">
                 <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                   <Target className="w-4 h-4 text-blue-600" />
-                  Plano e PermissÃµes
+                  Plano e permissões
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1845,21 +1848,21 @@ const UserManagement: React.FC = () => {
                       'bg-slate-100 text-slate-800'
                     }`}>
                       {selectedUser.role === 'admin' ? 'Administrador' :
-                       selectedUser.role === 'editor' ? 'Editor' : 'UsuÃ¡rio'}
+                       selectedUser.role === 'editor' ? 'Editor' : 'Usuário'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* EstatÃ­sticas */}
+              {/* Estatísticas */}
               <div className="bg-slate-50 rounded-xl p-4">
                 <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                   <Target className="w-4 h-4 text-amber-600" />
-                  EstatÃ­sticas
+                  Estatísticas
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">Total de AnÃºncios</p>
+                    <p className="text-xs text-slate-500 mb-1">Total de anúncios</p>
                     <p className="text-2xl font-bold text-slate-900">{selectedUser._count?.announcements || 0}</p>
                   </div>
                   <div>
@@ -1877,7 +1880,7 @@ const UserManagement: React.FC = () => {
               <div className="bg-slate-50 rounded-xl p-4">
                 <h4 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
                   <Clock className="w-4 h-4 text-slate-600" />
-                  InformaÃ§Ãµes de Registro
+                  Informações de registro
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1887,7 +1890,7 @@ const UserManagement: React.FC = () => {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 mb-1">Ãšltimo Login</p>
+                    <p className="text-xs text-slate-500 mb-1">Último login</p>
                     <p className="font-semibold text-slate-900">
                       {selectedUser.last_login 
                         ? new Date(selectedUser.last_login).toLocaleString('pt-BR', {
@@ -1904,7 +1907,7 @@ const UserManagement: React.FC = () => {
                 </div>
               </div>
 
-              {/* Motivo de SuspensÃ£o (se aplicÃ¡vel) */}
+              {/* Motivo do bloqueio (se aplicável) */}
                 {selectedUser.is_suspended && selectedUser.suspension_reason && (
                   <div className="bg-red-50 rounded-xl p-4 border border-red-200">
                     <h4 className="font-semibold text-red-900 mb-2 flex items-center gap-2">
@@ -1919,7 +1922,7 @@ const UserManagement: React.FC = () => {
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <h4 className="font-semibold text-slate-900 flex items-center gap-2">
                       <Store className="w-4 h-4 text-emerald-600" />
-                      AnÃºncios do usuÃ¡rio
+                      Anúncios do usuário
                     </h4>
                     <span className="text-xs font-semibold text-slate-500">
                       {userAnnouncements.length} registro(s)
@@ -1929,11 +1932,11 @@ const UserManagement: React.FC = () => {
                   {userAnnouncementsLoading ? (
                     <div className="flex items-center justify-center py-8 text-sm text-slate-500 gap-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Carregando anÃºncios...
+                      Carregando anúncios...
                     </div>
                   ) : userAnnouncements.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-white p-5 text-center text-sm text-slate-500">
-                      Este usuÃ¡rio nÃ£o possui anÃºncios cadastrados.
+                      Este usuário não possui anúncios cadastrados.
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -1959,11 +1962,11 @@ const UserManagement: React.FC = () => {
 
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 text-sm text-slate-600">
                               <div>
-                                <p className="text-xs text-slate-500 mb-1">PreÃ§o</p>
+                                <p className="text-xs text-slate-500 mb-1">Preço</p>
                                 <p className="font-semibold text-slate-900">
                                   {announcement.price !== null
                                     ? announcement.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                                    : 'NÃ£o informado'}
+                                    : 'Não informado'}
                                 </p>
                               </div>
                               <div>
@@ -1983,7 +1986,7 @@ const UserManagement: React.FC = () => {
                                 className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
                               >
                                 <Trash2 className="w-4 h-4" />
-                                Excluir anÃºncio
+                                Excluir anúncio
                               </button>
                             </div>
                           </div>
@@ -2019,9 +2022,9 @@ const UserManagement: React.FC = () => {
         {showDeleteAnnouncementModal && selectedUser && selectedAnnouncement && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl max-w-lg w-full p-6">
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Excluir anÃºncio</h3>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Excluir anúncio</h3>
               <p className="text-sm text-slate-600 mb-4">
-                VocÃª estÃ¡ excluindo o anÃºncio <strong>{selectedAnnouncement.title}</strong> do usuÃ¡rio <strong>{selectedUser.name}</strong>.
+                Você está excluindo o anúncio <strong>{selectedAnnouncement.title}</strong> do usuário <strong>{selectedUser.name}</strong>.
               </p>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2 mb-4 text-sm">
@@ -2033,7 +2036,7 @@ const UserManagement: React.FC = () => {
               <textarea
                 value={announcementDeleteReason}
                 onChange={(e) => setAnnouncementDeleteReason(e.target.value)}
-                placeholder="Informe o motivo da exclusÃ£o (obrigatÃ³rio)..."
+                placeholder="Informe o motivo da exclusão (obrigatório)..."
                 className="w-full border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[120px]"
               />
 
@@ -2058,7 +2061,7 @@ const UserManagement: React.FC = () => {
                   ) : (
                     <>
                       <Trash2 className="w-4 h-4" />
-                      Excluir anÃºncio
+                      Excluir anúncio
                     </>
                   )}
                 </button>

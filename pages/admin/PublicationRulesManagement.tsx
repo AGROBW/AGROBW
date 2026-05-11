@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, RefreshCw, Save, Search, Shield, ToggleLeft, ToggleRight } from 'lucide-react';
+import { AlertTriangle, Lock, RefreshCw, Save, Search, Shield, ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
+import { systemVideoModerationReason } from '../../src/utils/publicationModeration';
 
 type RuleKind =
   | 'keyword'
@@ -10,9 +11,10 @@ type RuleKind =
   | 'min_description_length'
   | 'contact_info'
   | 'external_link'
-  | 'require_image';
+  | 'require_image'
+  | 'system_video_review';
 type RuleAction = 'review' | 'block';
-type RuleTarget = 'title' | 'description' | 'both' | 'category' | 'images';
+type RuleTarget = 'title' | 'description' | 'both' | 'category' | 'images' | 'video';
 
 type PublicationRule = {
   id: string;
@@ -25,6 +27,7 @@ type PublicationRule = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  is_system?: boolean;
 };
 
 const emptyForm = {
@@ -38,6 +41,18 @@ const emptyForm = {
   isActive: true,
 };
 
+const editableRuleKinds: Array<Exclude<RuleKind, 'system_video_review'>> = [
+  'keyword',
+  'regex',
+  'category',
+  'min_description_length',
+  'contact_info',
+  'external_link',
+  'require_image',
+];
+
+const editableTargets: Array<Exclude<RuleTarget, 'video'>> = ['title', 'description', 'both', 'category', 'images'];
+
 const ruleKindLabels: Record<RuleKind, string> = {
   keyword: 'Palavra-chave',
   regex: 'Expressao regular',
@@ -46,6 +61,7 @@ const ruleKindLabels: Record<RuleKind, string> = {
   contact_info: 'Contato no anuncio',
   external_link: 'Link externo',
   require_image: 'Imagem obrigatoria',
+  system_video_review: 'Regra do sistema',
 };
 
 const actionLabels: Record<RuleAction, string> = {
@@ -59,7 +75,24 @@ const targetLabels: Record<RuleTarget, string> = {
   both: 'Titulo e descricao',
   category: 'Categoria',
   images: 'Imagens',
+  video: 'Video',
 };
+
+const systemRules: PublicationRule[] = [
+  {
+    id: 'system-video-review',
+    name: systemVideoModerationReason.rule_name || 'Video anexado',
+    description: systemVideoModerationReason.message || 'Anuncios com video passam por analise obrigatoria.',
+    rule_kind: 'system_video_review',
+    action: 'review',
+    target: 'video',
+    pattern: null,
+    is_active: true,
+    created_at: '',
+    updated_at: '',
+    is_system: true,
+  },
+];
 
 const multiPatternRuleKinds: RuleKind[] = ['keyword', 'regex', 'category'];
 
@@ -148,9 +181,10 @@ const PublicationRulesManagement: React.FC = () => {
 
   const filteredRules = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return rules;
+    const mergedRules = [...systemRules, ...rules];
+    if (!term) return mergedRules;
 
-    return rules.filter((rule) =>
+    return mergedRules.filter((rule) =>
       [rule.name, rule.description, rule.pattern, ruleKindLabels[rule.rule_kind], actionLabels[rule.action]]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term))
@@ -326,9 +360,9 @@ const PublicationRulesManagement: React.FC = () => {
                   onChange={(event) => setForm((current) => ({ ...current, ruleKind: event.target.value as RuleKind }))}
                   className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-green-500"
                 >
-                  {Object.entries(ruleKindLabels).map(([value, label]) => (
+                  {editableRuleKinds.map((value) => (
                     <option key={value} value={value}>
-                      {label}
+                      {ruleKindLabels[value]}
                     </option>
                   ))}
                 </select>
@@ -358,9 +392,9 @@ const PublicationRulesManagement: React.FC = () => {
                   onChange={(event) => setForm((current) => ({ ...current, target: event.target.value as RuleTarget }))}
                   className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-green-500"
                 >
-                  {Object.entries(targetLabels).map(([value, label]) => (
+                  {editableTargets.map((value) => (
                     <option key={value} value={value}>
-                      {label}
+                      {targetLabels[value]}
                     </option>
                   ))}
                 </select>
@@ -457,19 +491,25 @@ const PublicationRulesManagement: React.FC = () => {
                 filteredRules.map((rule) => (
                   <div key={rule.id} className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-black text-slate-900">{rule.name}</p>
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                            rule.action === 'block' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                          }`}
-                        >
-                          {actionLabels[rule.action]}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-black text-slate-900">{rule.name}</p>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                          rule.action === 'block' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {actionLabels[rule.action]}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+                        {rule.is_active ? 'Ativa' : 'Inativa'}
+                      </span>
+                      {rule.is_system ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                          <Lock className="h-3.5 w-3.5" />
+                          Regra do sistema
                         </span>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
-                          {rule.is_active ? 'Ativa' : 'Inativa'}
-                        </span>
-                      </div>
+                      ) : null}
+                    </div>
                       <p className="mt-1 text-sm text-slate-500">{rule.description || 'Sem descricao.'}</p>
                       <p className="mt-2 text-xs text-slate-400">
                         {ruleKindLabels[rule.rule_kind]} | {targetLabels[rule.target]}
@@ -479,21 +519,33 @@ const PublicationRulesManagement: React.FC = () => {
 
                     <div className="flex items-center gap-2">
                       {rule.action === 'block' ? <AlertTriangle className="h-4 w-4 text-red-500" /> : null}
-                      <button
-                        type="button"
-                        onClick={() => editRule(rule)}
-                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void toggleRule(rule)}
-                        className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
-                        title={rule.is_active ? 'Desativar' : 'Ativar'}
-                      >
-                        {rule.is_active ? <ToggleRight className="h-5 w-5 text-green-600" /> : <ToggleLeft className="h-5 w-5" />}
-                      </button>
+                      {rule.is_system ? (
+                        <span className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-400">
+                          Nativo
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => editRule(rule)}
+                            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void toggleRule(rule)}
+                            className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
+                            title={rule.is_active ? 'Desativar' : 'Ativar'}
+                          >
+                            {rule.is_active ? (
+                              <ToggleRight className="h-5 w-5 text-green-600" />
+                            ) : (
+                              <ToggleLeft className="h-5 w-5" />
+                            )}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))

@@ -10,7 +10,7 @@ import {
   MapPin,
   Sprout
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useLayout } from '../src/contexts/LayoutContext';
@@ -20,6 +20,7 @@ type ProfileType = 'individual' | 'company' | null;
 
 const RegisterView: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signUp, user } = useAuth();
   const { settings } = useLayout();
 
@@ -47,6 +48,21 @@ const RegisterView: React.FC = () => {
     estado: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const redirectTarget = searchParams.get('redirect') || '/minha-conta';
+  const contactSellerIntent = searchParams.get('intent') === 'contact-seller';
+  const registerLoginLink = `/login${location.search}`;
+
+  const buildPostAuthRedirect = (fallbackPath: string) => {
+    const baseTarget = redirectTarget || fallbackPath;
+
+    if (!contactSellerIntent) {
+      return baseTarget || fallbackPath;
+    }
+
+    const separator = baseTarget.includes('?') ? '&' : '?';
+    return `${baseTarget}${separator}openContactSeller=1`;
+  };
 
   const onlyDigits = (value: string) => value.replace(/\D/g, '');
 
@@ -175,9 +191,9 @@ const RegisterView: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/minha-conta', { replace: true });
+      navigate(buildPostAuthRedirect('/minha-conta'), { replace: true });
     }
-  }, [navigate, user]);
+  }, [location.search, navigate, user]);
 
   const handleCepBlur = async () => {
     const cepClean = formData.cep.replace(/\D/g, '');
@@ -299,7 +315,7 @@ const RegisterView: React.FC = () => {
       description: 'Sua conta foi criada com sucesso.'
     });
     setLoading(false);
-    navigate('/anunciar', { replace: true });
+    navigate(buildPostAuthRedirect('/anunciar'), { replace: true });
   };
 
   const getPasswordStrength = () => {
@@ -783,7 +799,7 @@ const RegisterView: React.FC = () => {
             <p className="text-slate-500 font-medium">
               Já possui uma conta?{' '}
               <Link
-                to="/login"
+                to={registerLoginLink}
                 className="font-black hover:underline underline-offset-4 decoration-2"
                 style={{ color: settings.primaryColor }}
               >

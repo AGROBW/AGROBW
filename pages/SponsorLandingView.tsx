@@ -113,15 +113,15 @@ const formatCompactNumber = (value: number) =>
 const benefitCards = [
   {
     icon: Eye,
-    title: 'Visibilidade imediata',
-    description: 'Sua marca aparece no topo da plataforma no primeiro clique do comprador, antes de qualquer anúncio orgânico.',
-    stat: '+24 mil impressões/mês',
+    title: 'Mais presença para sua marca',
+    description: 'Destaque sua empresa em espaços de alta visibilidade e fortaleça sua presença dentro da plataforma.',
+    stat: 'Visibilidade estratégica',
   },
   {
     icon: MousePointerClick,
-    title: 'Cliques qualificados',
-    description: 'O banner disputa atenção no exato momento em que o usuário está explorando oportunidades reais de negócio.',
-    stat: 'CTR médio de 5,7%',
+    title: 'Conexão com compradores',
+    description: 'Aproxime sua marca de usuários que já estão navegando por anúncios e avaliando oportunidades de negócio.',
+    stat: 'Conexão qualificada',
   },
   {
     icon: Target,
@@ -156,13 +156,13 @@ const exclusiveFeatures = [
   {
     icon: BadgeCheck,
     title: 'Exclusividade por nicho',
-    description: 'Cada patrocinador ocupa um segmento distinto, reduzindo concorrência direta e aumentando a atenção sobre sua marca.',
+    description: 'Cada marca da Vitrine Premium ocupa um segmento distinto, reduzindo concorrência direta e aumentando a atenção sobre sua marca.',
   },
 ];
 
 const metrics = [
   { icon: Eye, title: 'Impressões', description: 'Quantas vezes o banner foi exibido para compradores.' },
-  { icon: MousePointerClick, title: 'Cliques', description: 'Interações que demonstram interesse real no seu patrocínio.' },
+  { icon: MousePointerClick, title: 'Cliques', description: 'Interações que demonstram interesse real na sua Vitrine Premium.' },
   { icon: BarChart3, title: 'CTR', description: 'Taxa de cliques para medir a eficiência do criativo.' },
   { icon: MessageCircle, title: 'Contatos no WhatsApp', description: 'Quantidade de redirecionamentos iniciados diretamente.' },
   { icon: MapPin, title: 'Região principal', description: 'Localização dominante do público com maior interesse.' },
@@ -180,7 +180,7 @@ const testimonials = [
     name: 'Carlos Mendonça',
     role: 'Diretor Comercial - Agro Máquinas Sul',
     avatar: 'https://i.pravatar.cc/80?u=carlos_agro',
-    text: 'Em 30 dias como patrocinador, recebemos mais de 40 contatos qualificados direto pelo WhatsApp. O ROI superou qualquer outra mídia digital que testamos no setor.',
+    text: 'Em 30 dias na Vitrine Premium, recebemos mais de 40 contatos qualificados direto pelo WhatsApp. O ROI superou qualquer outra mídia digital que testamos no setor.',
     stars: 5,
   },
   {
@@ -194,7 +194,7 @@ const testimonials = [
     name: 'Roberto Faria',
     role: 'CEO - AgroTech Soluções',
     avatar: 'https://i.pravatar.cc/80?u=roberto_agrotech',
-    text: 'Estamos no segundo ciclo de patrocínio. A visibilidade no topo do marketplace trouxe leads que já se tornaram clientes recorrentes. Vale muito o investimento.',
+    text: 'Estamos no segundo ciclo da Vitrine Premium. A visibilidade no topo do marketplace trouxe leads que já se tornaram clientes recorrentes. Vale muito o investimento.',
     stars: 5,
   },
 ];
@@ -209,7 +209,7 @@ const faqs = [
     answer: 'Você pode enviar seu próprio material. Se precisar de apoio, nossa equipe pode indicar parceiros de criação. O formato solicitado é simples: imagem JPG/PNG em alta resolução + URL de destino.',
   },
   {
-    question: 'Qual é o prazo mínimo de patrocínio?',
+    question: 'Qual é o prazo mínimo da Vitrine Premium?',
     answer: 'O contrato mínimo é de 30 dias. Após o período inicial, você pode renovar mensalmente com prioridade sobre novos interessados no mesmo nicho.',
   },
   {
@@ -285,7 +285,7 @@ const SponsorLandingView: React.FC = () => {
   const contactMessage = useMemo(() => {
     return [
       `Olá, equipe ${brandName}.`,
-      'Tenho interesse em reservar um espaço de patrocinador.',
+      'Tenho interesse em reservar um espaço na Vitrine Premium.',
       '',
       `Empresa: ${form.companyName || '-'}`,
       `Responsável: ${form.contactName || '-'}`,
@@ -388,7 +388,7 @@ const SponsorLandingView: React.FC = () => {
     const saved = await submitSponsorInterestLead('email');
     if (!saved) return;
     setFormSent(true);
-    const subject = encodeURIComponent(`Interesse em patrocínio - ${form.companyName.trim()}`);
+    const subject = encodeURIComponent(`Interesse em Vitrine Premium - ${form.companyName.trim()}`);
     const body = encodeURIComponent(contactMessage);
     window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
   };
@@ -416,7 +416,7 @@ const SponsorLandingView: React.FC = () => {
             {/* badge */}
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300 backdrop-blur mb-6">
               <Sparkles className="h-3.5 w-3.5" />
-              Patrocínio premium - Marketplace agro
+              Vitrine Premium - Marketplace agro
             </div>
 
             <h1 className="text-5xl md:text-7xl font-black leading-[0.95] text-white mb-6">
@@ -512,7 +512,7 @@ const SponsorLandingView: React.FC = () => {
               {vagasRestantes} de {totalSponsorSlots} vagas disponíveis
             </h2>
             <p className="text-slate-500 text-sm leading-7 max-w-xl">
-              O carrossel comporta apenas {totalSponsorSlots} patrocinadores simultâneos, cada um de um nicho diferente. Exclusividade real para a sua marca.
+              O carrossel comporta apenas {totalSponsorSlots} marcas simultâneas na Vitrine Premium, cada uma de um nicho diferente. Exclusividade real para a sua marca.
             </p>
           </div>
           <div className="flex-shrink-0 flex flex-col items-center gap-4">
@@ -654,8 +654,8 @@ const SponsorLandingView: React.FC = () => {
                   <TrendingUp className="h-6 w-6" style={{ color: settings.primaryColor }} />
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-slate-950">{formatCompactNumber(sponsorStats.generated_leads)}</p>
-                  <p className="text-xs text-slate-400">leads gerados</p>
+                  <p className="text-2xl font-black text-slate-950">{formatCompactNumber(sponsorStats.active_stores)}</p>
+                  <p className="text-xs text-slate-400">lojas ativas</p>
                 </div>
               </div>
             </div>
@@ -703,7 +703,7 @@ const SponsorLandingView: React.FC = () => {
               Acompanhe resultados reais semanalmente
             </h2>
             <p className="mt-4 text-base leading-8 text-slate-500">
-              Você recebe um relatório com os indicadores que importam para medir o retorno do patrocínio e ajustar a estratégia.
+              Você recebe um relatório com os indicadores que importam para medir o retorno da Vitrine Premium e ajustar a estratégia.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
@@ -729,8 +729,8 @@ const SponsorLandingView: React.FC = () => {
       {/* -- DEPOIMENTOS ----------------------------------------------------- */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
         <div className="text-center mb-14">
-          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Quem já patrocinou</p>
-          <h2 className="text-3xl md:text-5xl font-black text-slate-950">O que dizem nossos patrocinadores</h2>
+          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Quem já anunciou na vitrine</p>
+          <h2 className="text-3xl md:text-5xl font-black text-slate-950">O que dizem nossos anunciantes</h2>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
           {testimonials.map((t) => (
@@ -766,7 +766,7 @@ const SponsorLandingView: React.FC = () => {
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <div className="text-center mb-12">
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Dúvidas frequentes</p>
-            <h2 className="text-3xl md:text-4xl font-black text-slate-950">Perguntas dos patrocinadores</h2>
+            <h2 className="text-3xl md:text-4xl font-black text-slate-950">Perguntas sobre a Vitrine Premium</h2>
           </div>
           <div className="rounded-[2rem] border border-slate-200 bg-white px-8 shadow-[0_8px_30px_-10px_rgba(15,23,42,0.1)]">
             {faqs.map((faq) => (
@@ -969,7 +969,7 @@ const SponsorLandingView: React.FC = () => {
                 </div>
 
                 <p className="mt-5 text-xs text-slate-400">
-                  Ao enviar, você concorda em receber retorno da equipe {brandName} sobre disponibilidade de patrocínio.{' '}
+                  Ao enviar, você concorda em receber retorno da equipe {brandName} sobre disponibilidade da Vitrine Premium.{' '}
                   <Link to="/" className="font-semibold text-slate-600 hover:text-slate-800">Voltar para a plataforma</Link>
                 </p>
               </>

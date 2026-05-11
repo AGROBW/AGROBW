@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { RenewalNotificationSettings } from '../../types';
+import {
+  DEFAULT_RENEWAL_NOTIFICATION_TEMPLATES,
+  cloneTemplateSet,
+  mergeRenewalTemplates,
+} from '../lib/planAlertTemplates';
 
 const DEFAULT_RENEWAL_NOTIFICATION_SETTINGS: Omit<
   RenewalNotificationSettings,
@@ -15,6 +20,7 @@ const DEFAULT_RENEWAL_NOTIFICATION_SETTINGS: Omit<
   notifyAfterExpiration: true,
   daysAfterExpiration: 1,
   showDashboardToast: true,
+  templates: cloneTemplateSet(DEFAULT_RENEWAL_NOTIFICATION_TEMPLATES),
   updatedBy: null,
 };
 
@@ -36,6 +42,7 @@ const mapRenewalNotificationSettings = (row: any): RenewalNotificationSettings =
     row.days_after_expiration ?? DEFAULT_RENEWAL_NOTIFICATION_SETTINGS.daysAfterExpiration,
   showDashboardToast:
     row.show_dashboard_toast ?? DEFAULT_RENEWAL_NOTIFICATION_SETTINGS.showDashboardToast,
+  templates: mergeRenewalTemplates(row.templates),
   updatedBy: row.updated_by ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -102,6 +109,7 @@ export const useRenewalNotificationSettings = () => {
         payload.showDashboardToast ??
         settings?.showDashboardToast ??
         DEFAULT_RENEWAL_NOTIFICATION_SETTINGS.showDashboardToast,
+      templates: payload.templates ?? settings?.templates ?? DEFAULT_RENEWAL_NOTIFICATION_SETTINGS.templates,
       updated_at: new Date().toISOString(),
     };
 

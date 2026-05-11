@@ -55,6 +55,26 @@ export const deleteAnnouncementWithRelations = async (announcementId: string) =>
   }
 };
 
+export const adminDeleteAnnouncementWithNotification = async (
+  announcementId: string,
+  reason: string,
+) => {
+  const { data, error } = await supabase.rpc('admin_delete_announcement_with_notification', {
+    p_announcement_id: announcementId,
+    p_reason: reason,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data?.success) {
+    throw new Error(data?.error || 'Falha ao excluir anuncio com notificacao');
+  }
+
+  return data;
+};
+
 // Hook para buscar anuncios do usuario
 export const useUserAds = () => {
   const { user } = useAuth()
@@ -113,7 +133,7 @@ export const useUserAds = () => {
           title: ad.title,
           description: ad.description,
           price: parseFloat(ad.unit_price || ad.price),
-          priceNegotiable: !!ad.accepts_trade,
+          priceNegotiable: !!(ad.price_negotiable ?? ad.accepts_trade),
           productCondition: ad.product_condition || undefined,
           availability: ad.availability || undefined,
           acceptsTrade: !!ad.accepts_trade,
@@ -145,6 +165,8 @@ export const useUserAds = () => {
           createdAt: ad.created_at,
           expiresAt: ad.expires_at,
           expiredAt: ad.expired_at,
+          rejectedAt: ad.rejected_at,
+          rejectionReason: ad.rejection_reason || null,
           deletionScheduledAt: ad.deletion_scheduled_at,
           whatsapp: ad.whatsapp,
           highlightCategory: ad.highlight_category || false,
@@ -340,7 +362,7 @@ export const usePublicAds = (filters?: {
           title: ad.title,
           description: ad.description,
           price: parseFloat(ad.unit_price || ad.price),
-          priceNegotiable: !!ad.accepts_trade,
+          priceNegotiable: !!(ad.price_negotiable ?? ad.accepts_trade),
           productCondition: ad.product_condition || undefined,
           availability: ad.availability || undefined,
           acceptsTrade: !!ad.accepts_trade,
@@ -429,7 +451,7 @@ export const useAllAds = () => {
           title: ad.title,
           description: ad.description,
           price: parseFloat(ad.unit_price || ad.price),
-          priceNegotiable: !!ad.accepts_trade,
+          priceNegotiable: !!(ad.price_negotiable ?? ad.accepts_trade),
           productCondition: ad.product_condition || undefined,
           availability: ad.availability || undefined,
           acceptsTrade: !!ad.accepts_trade,
@@ -584,7 +606,7 @@ export const useAd = (adId: string | undefined) => {
         title: data.title,
         description: data.description,
         price: parseFloat(data.unit_price || data.price),
-        priceNegotiable: !!data.accepts_trade,
+        priceNegotiable: !!(data.price_negotiable ?? data.accepts_trade),
         productCondition: data.product_condition || undefined,
         availability: data.availability || undefined,
         acceptsTrade: !!data.accepts_trade,

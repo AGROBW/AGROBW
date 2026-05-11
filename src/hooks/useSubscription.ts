@@ -25,6 +25,8 @@ export type UserSubscription = {
     max_ads: number | null;
     category_highlights_count: number;
     home_highlight_count: number;
+    category_highlight_days: number | null;
+    home_highlight_days: number | null;
     ad_duration_days: number | null;
     lead_contact_limit_days: number | null;
     lead_contact_limit_days_monthly: number | null;
@@ -125,6 +127,8 @@ export const useSubscription = () => {
             max_ads,
             category_highlights_count,
             home_highlight_count,
+            category_highlight_days,
+            home_highlight_days,
             ad_duration_days,
             lead_contact_limit_days,
             lead_contact_limit_days_monthly,

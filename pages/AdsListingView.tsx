@@ -255,7 +255,10 @@ const AdsListingView: React.FC = () => {
     return categories.filter((category) => relevantCategorySlugs.includes(category.slug));
   }, [categories, relevantCategorySlugs, catSlug]);
   const categoryInfo = useMemo(
-    () => relevantCategories.find((category) => category.slug === catSlug) || relevantCategories[0] || null,
+    () => {
+      if (!catSlug) return null;
+      return relevantCategories.find((category) => category.slug === catSlug) || relevantCategories[0] || null;
+    },
     [relevantCategories, catSlug]
   );
   const availableSubcategories = useMemo(() => {

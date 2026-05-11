@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Shield, 
-  Search, 
-  Filter,
-  ChevronLeft, 
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
+import React, { useEffect, useState } from 'react';
+import {
   AlertTriangle,
+  ArrowDownCircle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Filter,
+  Search,
+  Shield,
   TrendingUp,
   User as UserIcon,
-  ArrowDownCircle
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabaseClient';
 import { toast } from 'sonner';
@@ -22,12 +22,12 @@ interface AuditLog {
   admin_email: string;
   action: string;
   resource_type: string;
-  resource_id: string;
+  resource_id: string | null;
   old_value: any;
   new_value: any;
-  reason: string;
-  ip_address: string;
-  user_agent: string;
+  reason: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
   created_at: string;
 }
 
@@ -41,6 +41,91 @@ interface AdminStats {
   admin_email: string;
   action_count: number;
 }
+
+const likelyMojibakePattern = /Ã|Â|â|ðŸ|�/;
+const mojibakeReplacements: Array<[RegExp, string]> = [
+  [/Ã¡/g, 'á'],
+  [/Ã /g, 'à'],
+  [/Ã¢/g, 'â'],
+  [/Ã£/g, 'ã'],
+  [/Ã¤/g, 'ä'],
+  [/Ã©/g, 'é'],
+  [/Ãª/g, 'ê'],
+  [/Ã¨/g, 'è'],
+  [/Ã­/g, 'í'],
+  [/Ã¬/g, 'ì'],
+  [/Ã³/g, 'ó'],
+  [/Ã²/g, 'ò'],
+  [/Ã´/g, 'ô'],
+  [/Ãµ/g, 'õ'],
+  [/Ã¶/g, 'ö'],
+  [/Ãº/g, 'ú'],
+  [/Ã¹/g, 'ù'],
+  [/Ã»/g, 'û'],
+  [/Ã¼/g, 'ü'],
+  [/Ã§/g, 'ç'],
+  [/Ã\u0081/g, 'Á'],
+  [/Ã\u0080/g, 'À'],
+  [/Ã\u0082/g, 'Â'],
+  [/Ã\u0083/g, 'Ã'],
+  [/Ã\u0089/g, 'É'],
+  [/Ã\u008A/g, 'Ê'],
+  [/Ã\u008D/g, 'Í'],
+  [/Ã\u0093/g, 'Ó'],
+  [/Ã\u0094/g, 'Ô'],
+  [/Ã\u0095/g, 'Õ'],
+  [/Ã\u009A/g, 'Ú'],
+  [/Ã\u0087/g, 'Ç'],
+  [/Â /g, ' '],
+];
+
+const normalizeAuditText = (value?: string | null, fallback = '') => {
+  if (!value) {
+    return fallback;
+  }
+
+  if (!likelyMojibakePattern.test(value)) {
+    return value;
+  }
+
+  let normalized = value;
+  mojibakeReplacements.forEach(([pattern, replacement]) => {
+    normalized = normalized.replace(pattern, replacement);
+  });
+
+  return normalized;
+};
+
+const normalizeAuditPayload = (value: any): any => {
+  if (typeof value === 'string') {
+    return normalizeAuditText(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeAuditPayload(item));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, normalizeAuditPayload(nestedValue)]),
+    );
+  }
+
+  return value;
+};
+
+const normalizeAuditLog = (log: AuditLog): AuditLog => ({
+  ...log,
+  admin_name: normalizeAuditText(log.admin_name, 'Administrador'),
+  admin_email: normalizeAuditText(log.admin_email, 'Sem e-mail'),
+  action: normalizeAuditText(log.action, log.action),
+  resource_type: normalizeAuditText(log.resource_type, log.resource_type),
+  reason: normalizeAuditText(log.reason),
+  ip_address: normalizeAuditText(log.ip_address),
+  user_agent: normalizeAuditText(log.user_agent),
+  old_value: normalizeAuditPayload(log.old_value),
+  new_value: normalizeAuditPayload(log.new_value),
+});
 
 const AuditLogs: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -60,12 +145,13 @@ const AuditLogs: React.FC = () => {
   const PAGE_SIZE = 20;
 
   useEffect(() => {
-    loadLogs();
-    loadStats();
+    void loadLogs();
+    void loadStats();
   }, [page, filterAction, filterResource, filterAdmin, searchTerm]);
 
   const loadLogs = async () => {
     setLoading(true);
+
     try {
       let query = supabase
         .from('v_recent_admin_actions')
@@ -91,13 +177,15 @@ const AuditLogs: React.FC = () => {
 
       const { data, error, count } = await query;
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      setLogs(data || []);
+      setLogs((data || []).map((log) => normalizeAuditLog(log as AuditLog)));
       setTotalCount(count || 0);
     } catch (error) {
       console.error('[AuditLogs] Erro ao carregar logs:', error);
-      toast.error('Erro ao carregar logs de auditoria');
+      toast.error('Erro ao carregar logs de auditoria.');
     } finally {
       setLoading(false);
     }
@@ -105,32 +193,34 @@ const AuditLogs: React.FC = () => {
 
   const loadStats = async () => {
     try {
-      // Action stats
       const { data: actionData } = await supabase
         .from('v_admin_action_stats')
         .select('*')
         .order('action_count', { ascending: false })
         .limit(5);
 
-      setActionStats(actionData || []);
+      setActionStats((actionData || []).map((stat) => ({
+        ...stat,
+        action_name: normalizeAuditText(stat.action_name, stat.action_name),
+      })));
 
-      // Admin stats (top 5 most active)
-      const { data: adminData } = await supabase
-        .from('v_recent_admin_actions')
-        .select('admin_name, admin_email');
+      const { data: adminData } = await supabase.from('v_recent_admin_actions').select('admin_name, admin_email');
 
       if (adminData) {
         const adminCountMap = new Map<string, AdminStats>();
-        
+
         adminData.forEach((log) => {
-          const key = log.admin_email;
+          const normalizedEmail = normalizeAuditText(log.admin_email, 'Sem e-mail');
+          const normalizedName = normalizeAuditText(log.admin_name, 'Administrador');
+          const key = normalizedEmail;
+
           if (adminCountMap.has(key)) {
-            adminCountMap.get(key)!.action_count++;
+            adminCountMap.get(key)!.action_count += 1;
           } else {
             adminCountMap.set(key, {
-              admin_name: log.admin_name,
-              admin_email: log.admin_email,
-              action_count: 1
+              admin_name: normalizedName,
+              admin_email: normalizedEmail,
+              action_count: 1,
             });
           }
         });
@@ -142,7 +232,6 @@ const AuditLogs: React.FC = () => {
         setAdminStats(adminStatsArray);
       }
 
-      // Critical actions count (last 24h)
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
 
@@ -174,15 +263,19 @@ const AuditLogs: React.FC = () => {
     if (action.includes('DOWNGRADED')) {
       return 'bg-amber-100 text-amber-800';
     }
+
     if (action.includes('DELETE') || action.includes('SUSPEND')) {
       return 'bg-red-100 text-red-800';
     }
+
     if (action.includes('APPROVE') || action.includes('CREATE')) {
       return 'bg-green-100 text-green-800';
     }
+
     if (action.includes('UPDATE') || action.includes('EDIT')) {
       return 'bg-blue-100 text-blue-800';
     }
+
     return 'bg-slate-100 text-slate-800';
   };
 
@@ -201,23 +294,23 @@ const AuditLogs: React.FC = () => {
       case 'UPDATE_PLAN':
         return 'Alterar plano';
       case 'UPDATE_USER_ROLE':
-        return 'Alterar role';
+        return 'Alterar perfil';
       default:
-        return action;
+        return normalizeAuditText(action, action);
     }
   };
 
   const getActionIcon = (action: string) => {
     if (action.includes('DOWNGRADED')) {
-      return <ArrowDownCircle className="w-3.5 h-3.5" />;
+      return <ArrowDownCircle className="h-3.5 w-3.5" />;
     }
 
     if (action.includes('DELETE') || action.includes('SUSPEND')) {
-      return <AlertTriangle className="w-3.5 h-3.5" />;
+      return <AlertTriangle className="h-3.5 w-3.5" />;
     }
 
     if (action.includes('APPROVE') || action.includes('CREATE')) {
-      return <Shield className="w-3.5 h-3.5" />;
+      return <Shield className="h-3.5 w-3.5" />;
     }
 
     return null;
@@ -227,84 +320,77 @@ const AuditLogs: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-slate-900">Auditoria & Segurança</h1>
-          <p className="text-slate-500 mt-1">{totalCount} ações registradas</p>
+          <h1 className="text-3xl font-black text-slate-900">Auditoria e Segurança</h1>
+          <p className="mt-1 text-slate-500">{totalCount} ações registradas</p>
         </div>
         <button
           onClick={() => {
-            loadLogs();
-            loadStats();
+            void loadLogs();
+            void loadStats();
           }}
-          className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors"
+          className="rounded-lg bg-green-500 px-4 py-2 font-semibold text-white transition-colors hover:bg-green-600"
         >
           Atualizar
         </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Total Actions */}
-        <div className="bg-white rounded-xl p-6 border border-slate-200">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-500 uppercase">Total de Ações</p>
-              <p className="text-3xl font-black text-slate-900 mt-2">{totalCount}</p>
+              <p className="text-sm font-semibold uppercase text-slate-500">Total de ações</p>
+              <p className="mt-2 text-3xl font-black text-slate-900">{totalCount}</p>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <Shield className="w-6 h-6 text-green-600" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100">
+              <Shield className="h-6 w-6 text-green-600" />
             </div>
           </div>
         </div>
 
-        {/* Critical Actions (24h) */}
-        <div className="bg-white rounded-xl p-6 border border-slate-200">
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-500 uppercase">Ações Críticas (24h)</p>
-              <p className="text-3xl font-black text-slate-900 mt-2">{criticalActionsCount}</p>
+              <p className="text-sm font-semibold uppercase text-slate-500">Ações críticas (24h)</p>
+              <p className="mt-2 text-3xl font-black text-slate-900">{criticalActionsCount}</p>
             </div>
-            <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-100">
+              <AlertTriangle className="h-6 w-6 text-red-600" />
             </div>
           </div>
         </div>
 
-        {/* Active Admins */}
-        <div className="bg-white rounded-xl p-6 border border-slate-200">
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-500 uppercase">Admins Ativos</p>
-              <p className="text-3xl font-black text-slate-900 mt-2">{adminStats.length}</p>
+              <p className="text-sm font-semibold uppercase text-slate-500">Admins ativos</p>
+              <p className="mt-2 text-3xl font-black text-slate-900">{adminStats.length}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <UserIcon className="w-6 h-6 text-blue-600" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
+              <UserIcon className="h-6 w-6 text-blue-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-6 border border-slate-200">
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-500 uppercase">Downgrades automáticos (24h)</p>
-              <p className="text-3xl font-black text-slate-900 mt-2">{autoDowngradesCount}</p>
+              <p className="text-sm font-semibold uppercase text-slate-500">Downgrades automáticos (24h)</p>
+              <p className="mt-2 text-3xl font-black text-slate-900">{autoDowngradesCount}</p>
             </div>
-            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-              <ArrowDownCircle className="w-6 h-6 text-amber-600" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100">
+              <ArrowDownCircle className="h-6 w-6 text-amber-600" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stats Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Top Actions */}
-        <div className="bg-white rounded-xl p-6 border border-slate-200">
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-green-600" />
-            Top 5 Ações Mais Frequentes
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
+            <TrendingUp className="h-5 w-5 text-green-600" />
+            Top 5 ações mais frequentes
           </h3>
           <div className="space-y-3">
             {actionStats.map((stat, idx) => (
@@ -316,11 +402,10 @@ const AuditLogs: React.FC = () => {
           </div>
         </div>
 
-        {/* Most Active Admins */}
-        <div className="bg-white rounded-xl p-6 border border-slate-200">
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <UserIcon className="w-5 h-5 text-blue-600" />
-            Top 5 Admins Mais Ativos
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
+            <UserIcon className="h-5 w-5 text-blue-600" />
+            Top 5 admins mais ativos
           </h3>
           <div className="space-y-3">
             {adminStats.map((stat, idx) => (
@@ -336,38 +421,35 @@ const AuditLogs: React.FC = () => {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl p-4 border border-slate-200">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Search */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-4 md:flex-row">
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar por motivo ou ID do recurso..."
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full rounded-lg border border-slate-200 py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
           </div>
 
-          {/* Filters */}
           <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-slate-400" />
+            <Filter className="h-5 w-5 text-slate-400" />
             <select
               value={filterAction}
               onChange={(e) => setFilterAction(e.target.value)}
-              className="px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="rounded-lg border border-slate-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
-              <option value="all">Todas as Ações</option>
-              <option value="APPROVE_AD">Aprovar Anúncio</option>
-              <option value="REJECT_AD">Rejeitar Anúncio</option>
-              <option value="DELETE_AD">Deletar Anúncio</option>
-              <option value="SUSPEND_USER">Suspender Usuário</option>
-              <option value="UPDATE_PLAN">Alterar Plano</option>
-              <option value="UPDATE_USER_ROLE">Alterar Role</option>
+              <option value="all">Todas as ações</option>
+              <option value="APPROVE_AD">Aprovar anúncio</option>
+              <option value="REJECT_AD">Rejeitar anúncio</option>
+              <option value="DELETE_AD">Excluir anúncio</option>
+              <option value="SUSPEND_USER">Suspender usuário</option>
+              <option value="UPDATE_PLAN">Alterar plano</option>
+              <option value="UPDATE_USER_ROLE">Alterar perfil</option>
               <option value="SUBSCRIPTION_AUTO_DOWNGRADED">Downgrade automático</option>
             </select>
           </div>
@@ -375,9 +457,9 @@ const AuditLogs: React.FC = () => {
           <select
             value={filterResource}
             onChange={(e) => setFilterResource(e.target.value)}
-            className="px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="rounded-lg border border-slate-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
           >
-            <option value="all">Todos os Recursos</option>
+            <option value="all">Todos os recursos</option>
             <option value="announcement">Anúncios</option>
             <option value="user">Usuários</option>
             <option value="subscription">Assinaturas</option>
@@ -385,28 +467,27 @@ const AuditLogs: React.FC = () => {
         </div>
       </div>
 
-      {/* Logs Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">
                   Data/Hora
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">
                   Admin
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">
                   Ação
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">
                   Recurso
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">
                   Motivo
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-black text-slate-600 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-600">
                   Detalhes
                 </th>
               </tr>
@@ -416,7 +497,7 @@ const AuditLogs: React.FC = () => {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                      <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-green-600"></div>
                     </div>
                   </td>
                 </tr>
@@ -429,40 +510,44 @@ const AuditLogs: React.FC = () => {
               ) : (
                 logs.map((log) => (
                   <React.Fragment key={log.id}>
-                    <tr className="hover:bg-slate-50 transition-colors">
+                    <tr className="transition-colors hover:bg-slate-50">
                       <td className="px-6 py-4 text-sm text-slate-600">
                         {new Date(log.created_at).toLocaleString('pt-BR')}
                       </td>
                       <td className="px-6 py-4">
                         <div>
-                          <p className="font-semibold text-slate-900">{log.admin_name}</p>
-                          <p className="text-xs text-slate-500">{log.admin_email}</p>
+                          <p className="font-semibold text-slate-900">{log.admin_name || 'Administrador'}</p>
+                          <p className="text-xs text-slate-500">{log.admin_email || 'Sem e-mail'}</p>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${getActionColor(log.action)}`}>
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${getActionColor(log.action)}`}
+                        >
                           {getActionIcon(log.action)}
                           {getActionLabel(log.action)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{log.resource_type}</p>
-                          <p className="text-xs text-slate-500 font-mono">{log.resource_id.substring(0, 8)}...</p>
+                          <p className="text-sm font-semibold text-slate-900">{log.resource_type || 'system'}</p>
+                          <p className="font-mono text-xs text-slate-500">
+                            {log.resource_id ? `${log.resource_id.substring(0, 8)}...` : 'Sem ID de recurso'}
+                          </p>
                         </div>
                       </td>
-                      <td className="px-6 py-4 max-w-xs">
-                        <p className="text-sm text-slate-600 truncate">{log.reason}</p>
+                      <td className="max-w-xs px-6 py-4">
+                        <p className="truncate text-sm text-slate-600">{log.reason || 'Sem motivo informado'}</p>
                       </td>
                       <td className="px-6 py-4">
                         <button
                           onClick={() => toggleExpandRow(log.id)}
-                          className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                          className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
                         >
                           {expandedRow === log.id ? (
-                            <ChevronUp className="w-4 h-4" />
+                            <ChevronUp className="h-4 w-4" />
                           ) : (
-                            <ChevronDown className="w-4 h-4" />
+                            <ChevronDown className="h-4 w-4" />
                           )}
                         </button>
                       </td>
@@ -472,23 +557,23 @@ const AuditLogs: React.FC = () => {
                         <td colSpan={6} className="px-6 py-4">
                           <div className="space-y-4">
                             <div>
-                              <h4 className="font-bold text-slate-900 mb-2">Informações Completas</h4>
+                              <h4 className="mb-2 font-bold text-slate-900">Informações completas</h4>
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <p className="text-xs font-semibold text-slate-500 uppercase">IP Address</p>
-                                  <p className="text-sm text-slate-900 font-mono">{log.ip_address || 'N/A'}</p>
+                                  <p className="text-xs font-semibold uppercase text-slate-500">IP Address</p>
+                                  <p className="font-mono text-sm text-slate-900">{log.ip_address || 'N/A'}</p>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-semibold text-slate-500 uppercase">User Agent</p>
-                                  <p className="text-sm text-slate-900 truncate">{log.user_agent || 'N/A'}</p>
+                                  <p className="text-xs font-semibold uppercase text-slate-500">User Agent</p>
+                                  <p className="truncate text-sm text-slate-900">{log.user_agent || 'N/A'}</p>
                                 </div>
                               </div>
                             </div>
 
                             {log.old_value && (
                               <div>
-                                <h4 className="font-bold text-slate-900 mb-2">Valor Anterior</h4>
-                                <pre className="bg-white border border-slate-200 rounded-lg p-3 text-xs overflow-x-auto">
+                                <h4 className="mb-2 font-bold text-slate-900">Valor anterior</h4>
+                                <pre className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-3 text-xs">
                                   {JSON.stringify(log.old_value, null, 2)}
                                 </pre>
                               </div>
@@ -496,17 +581,17 @@ const AuditLogs: React.FC = () => {
 
                             {log.new_value && (
                               <div>
-                                <h4 className="font-bold text-slate-900 mb-2">Novo Valor</h4>
-                                <pre className="bg-white border border-slate-200 rounded-lg p-3 text-xs overflow-x-auto">
+                                <h4 className="mb-2 font-bold text-slate-900">Novo valor</h4>
+                                <pre className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-3 text-xs">
                                   {JSON.stringify(log.new_value, null, 2)}
                                 </pre>
                               </div>
                             )}
 
                             <div>
-                              <h4 className="font-bold text-slate-900 mb-2">Motivo Completo</h4>
-                              <p className="text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3">
-                                {log.reason}
+                              <h4 className="mb-2 font-bold text-slate-900">Motivo completo</h4>
+                              <p className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                                {log.reason || 'Sem motivo informado'}
                               </p>
                             </div>
                           </div>
@@ -520,9 +605,8 @@ const AuditLogs: React.FC = () => {
           </table>
         </div>
 
-        {/* Pagination */}
         {totalPages > 1 && (
-          <div className="border-t border-slate-200 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4">
             <p className="text-sm text-slate-500">
               Página {page + 1} de {totalPages}
             </p>
@@ -530,16 +614,16 @@ const AuditLogs: React.FC = () => {
               <button
                 onClick={() => setPage(Math.max(0, page - 1))}
                 disabled={page === 0}
-                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
                 disabled={page >= totalPages - 1}
-                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
               >
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="h-5 w-5" />
               </button>
             </div>
           </div>
