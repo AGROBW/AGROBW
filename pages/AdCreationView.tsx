@@ -339,6 +339,30 @@ const AdCreationView: React.FC = () => {
       normalized.includes('simultaneous active ad')
     );
   };
+
+  const isDuplicateActiveAnnouncementError = (value: unknown) => {
+    const normalized = String(value || '').toLowerCase();
+    return (
+      normalized.includes('anuncio ativo muito parecido') ||
+      normalized.includes('anúncio ativo muito parecido') ||
+      normalized.includes('publique outro igual') ||
+      normalized.includes('publicar outro igual') ||
+      normalized.includes('edite o anuncio existente')
+    );
+  };
+
+  const formatCooldownReleaseDate = (value?: string | null) => {
+    if (!value) {
+      return '';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    return date.toLocaleString('pt-BR');
+  };
   
   // A rota jÃ¡ Ã© protegida pelo RequireAuth no App.tsx.
   if (!user) return null;
@@ -1621,6 +1645,41 @@ const AdCreationView: React.FC = () => {
         whatsapp: user?.whatsapp || user?.phone || null
       };
 
+      const { data: cooldownRows, error: cooldownError } = await supabase.rpc(
+        'get_announcement_similarity_cooldown',
+        {
+          p_user_id: userId,
+          p_title: editablePayload.title,
+          p_category_id: editablePayload.category_id,
+          p_city: editablePayload.city,
+          p_state: editablePayload.state,
+          p_price: editablePayload.price,
+          p_ignore_announcement_id: isEditingExistingAd ? editAdId : null,
+        },
+      );
+
+      if (cooldownError) {
+        console.error('[Publish] Erro ao validar cooldown de anuncio semelhante:', cooldownError);
+        toast.error('Não foi possível validar a republicação deste anúncio.', {
+          description: 'Tente novamente em instantes.',
+        });
+        return;
+      }
+
+      const similarCooldown = (cooldownRows as Array<{
+        matched_announcement_id: string | null;
+        matched_title: string | null;
+        source_status: string;
+        cooldown_until: string;
+      }> | null)?.[0];
+
+      if (similarCooldown) {
+        toast.error('Este anúncio semelhante está em cooldown', {
+          description: `Você poderá publicar novamente após ${formatCooldownReleaseDate(similarCooldown.cooldown_until)}.`,
+        });
+        return;
+      }
+
       const technicalDetailsPayload = buildTechnicalDetailsPayload();
       const moderationResult = await evaluatePublicationModeration({
         title: editablePayload.title,
@@ -1630,11 +1689,58 @@ const AdCreationView: React.FC = () => {
         hasVideo: hasStoreListingAccess && Boolean(editablePayload.video_url),
       });
 
+      const { data: similarityRows, error: similarityError } = await supabase.rpc(
+        'get_announcement_similarity_review_signal',
+        {
+          p_user_id: userId,
+          p_title: editablePayload.title,
+          p_category_id: editablePayload.category_id,
+          p_city: editablePayload.city,
+          p_state: editablePayload.state,
+          p_price: editablePayload.price,
+          p_ignore_announcement_id: isEditingExistingAd ? editAdId : null,
+        },
+      );
+
+      if (similarityError) {
+        console.error('[Publish] Erro ao avaliar similaridade de anuncio:', similarityError);
+        toast.error('Não foi possível validar a similaridade deste anúncio.', {
+          description: 'Tente novamente em instantes.',
+        });
+        return;
+      }
+
+      const similarityReviewSignal = (similarityRows as Array<{
+        suspicious: boolean;
+        similarity_score: number;
+        matched_announcement_id: string | null;
+        matched_title: string | null;
+        review_reason: string | null;
+      }> | null)?.[0];
+
       if (moderationResult?.blocked) {
         toast.error('Anúncio bloqueado pelas regras de publicação.', {
           description: formatPublicationModerationReasons(moderationResult.reasons),
         });
         return;
+      }
+
+      const effectiveModerationResult = {
+        blocked: Boolean(moderationResult?.blocked),
+        reviewRequired: Boolean(moderationResult?.reviewRequired),
+        reasons: moderationResult?.reasons ? [...moderationResult.reasons] : [],
+      };
+
+      if (similarityReviewSignal?.suspicious) {
+        effectiveModerationResult.reviewRequired = true;
+        effectiveModerationResult.reasons.push({
+          rule_kind: 'system_duplicate_similarity_review',
+          rule_name: 'Anúncio semelhante identificado',
+          action: 'review',
+          message:
+            similarityReviewSignal.review_reason ||
+            'Este anúncio está muito parecido com outro da sua conta e foi enviado para análise antes da publicação.',
+        });
       }
 
       if (isEditingExistingAd && editAdId) {
@@ -1690,7 +1796,7 @@ const AdCreationView: React.FC = () => {
       const payload = {
         ...editablePayload,
         user_id: userId,
-        status: moderationResult?.reviewRequired ? AdStatus.PENDING : AdStatus.ACTIVE,
+        status: effectiveModerationResult.reviewRequired ? AdStatus.PENDING : AdStatus.ACTIVE,
         expires_at: buildAnnouncementExpiresAt(),
       };
 
@@ -1734,7 +1840,13 @@ const AdCreationView: React.FC = () => {
       console.log('[Publish] Resultado final:', { data, error });
 
       if (error) {
-        if (isAdCapacityError(`${error.message || ''} ${error.details || ''} ${error.hint || ''}`)) {
+        const errorContext = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`;
+
+        if (isDuplicateActiveAnnouncementError(errorContext)) {
+          toast.error('Já existe um anúncio semelhante ativo', {
+            description: error.message,
+          });
+        } else if (isAdCapacityError(errorContext)) {
           toast.error('Limite de anúncios atingido', {
             description: getAdCapacityBlockedMessage(),
           });
@@ -1823,9 +1935,9 @@ const AdCreationView: React.FC = () => {
       localStorage.removeItem('bwagro_ad_draft_id');
       setDraftAdId(null);
       setCurrentStep('SUCCESS');
-      if (moderationResult?.reviewRequired || String(data.status).toUpperCase() === 'PENDING') {
+      if (effectiveModerationResult.reviewRequired || String(data.status).toUpperCase() === 'PENDING') {
         toast.success('Anúncio enviado para análise da equipe.', {
-          description: formatPublicationModerationReasons(moderationResult?.reasons || []),
+          description: formatPublicationModerationReasons(effectiveModerationResult.reasons),
         });
       } else {
         toast.success('Anúncio publicado com sucesso.');
@@ -1833,7 +1945,12 @@ const AdCreationView: React.FC = () => {
       navigate('/minha-conta/anuncios');
     } catch (error: any) {
       console.error('[Publish] Erro inesperado ao publicar anÃºncio:', error);
-      if (isAdCapacityError(`${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`)) {
+      const errorContext = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`;
+      if (isDuplicateActiveAnnouncementError(errorContext)) {
+        toast.error('Já existe um anúncio semelhante ativo', {
+          description: error.message,
+        });
+      } else if (isAdCapacityError(errorContext)) {
         toast.error('Limite de anúncios atingido', {
           description: getAdCapacityBlockedMessage(),
         });
