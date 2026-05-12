@@ -1,36 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { ensureSiteAnalyticsSessionId, getSiteAnalyticsDeviceType } from '../lib/siteAnalyticsSession';
 
-const SESSION_STORAGE_KEY = 'bwagro:analytics-session-id';
 const HEARTBEAT_INTERVAL_MS = 60_000;
 const isDevelopment = import.meta.env.DEV;
 
 const logTrackingError = (scope: string, error: unknown) => {
   if (!isDevelopment) return;
   console.warn(`[SiteAnalytics] ${scope}`, error);
-};
-
-const ensureSessionId = () => {
-  if (typeof window === 'undefined') return '';
-
-  const stored = window.localStorage.getItem(SESSION_STORAGE_KEY);
-  if (stored) return stored;
-
-  const sessionId =
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `session-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-
-  window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
-  return sessionId;
-};
-
-const getDeviceType = () => {
-  if (typeof window === 'undefined') return 'unknown';
-  const ua = window.navigator.userAgent.toLowerCase();
-  if (/mobile|iphone|android(?!.*tablet)/.test(ua)) return 'mobile';
-  if (/ipad|tablet/.test(ua)) return 'tablet';
-  return 'desktop';
 };
 
 const describePage = (pathname: string) => {
@@ -108,7 +85,7 @@ export const useSiteAnalyticsTracking = ({
   userCity?: string | null;
   userState?: string | null;
 }) => {
-  const sessionId = useMemo(() => ensureSessionId(), []);
+  const sessionId = useMemo(() => ensureSiteAnalyticsSessionId(), []);
   const lastTrackedPathRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -123,7 +100,7 @@ export const useSiteAnalyticsTracking = ({
         p_current_path: pathname,
         p_page_type: page.pageType,
         p_page_label: page.pageLabel,
-        p_device_type: getDeviceType(),
+        p_device_type: getSiteAnalyticsDeviceType(),
         p_is_admin_area: false,
         p_user_city: userCity ?? null,
         p_user_state: userState ?? null,
@@ -143,7 +120,7 @@ export const useSiteAnalyticsTracking = ({
         p_entity_key: page.entityKey,
         p_referrer: document.referrer || null,
         p_user_agent: navigator.userAgent || null,
-        p_device_type: getDeviceType(),
+        p_device_type: getSiteAnalyticsDeviceType(),
         p_is_admin_area: false,
         p_user_city: userCity ?? null,
         p_user_state: userState ?? null,

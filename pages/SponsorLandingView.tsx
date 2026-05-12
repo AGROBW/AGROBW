@@ -644,21 +644,6 @@ const SponsorLandingView: React.FC = () => {
               alt="Agronegócio em ação"
               className="relative z-10 w-full h-[500px] object-cover rounded-[2.5rem] shadow-2xl"
             />
-            {/* floating badge */}
-            <div className="absolute z-20 -bottom-5 -right-5 rounded-2xl bg-white border border-slate-200 shadow-xl p-5">
-              <div className="flex items-center gap-3">
-                <div
-                  className="h-12 w-12 rounded-2xl flex items-center justify-center"
-                  style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 12%, white)` }}
-                >
-                  <TrendingUp className="h-6 w-6" style={{ color: settings.primaryColor }} />
-                </div>
-                <div>
-                  <p className="text-2xl font-black text-slate-950">{formatCompactNumber(sponsorStats.active_stores)}</p>
-                  <p className="text-xs text-slate-400">lojas ativas</p>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* content */}

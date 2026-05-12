@@ -14,6 +14,9 @@ import { SitePopup } from '../../types';
 const AUTH_BLOCKED_PATHS = ['/login', '/cadastro', '/redefinir-senha'];
 const SESSION_KEY_STORAGE = 'bwagro-site-popup-session-key';
 
+const getPopupSessionSeenKey = (popupId: string) => `bwagro-site-popup-session-seen:${popupId}`;
+const getPopupDismissedKey = (popupId: string) => `bwagro-site-popup-dismissed:${popupId}`;
+
 const getPopupSessionKey = () => {
   const stored = window.sessionStorage.getItem(SESSION_KEY_STORAGE);
   if (stored) return stored;
@@ -38,10 +41,13 @@ const SitePopupCampaignGate: React.FC = () => {
   const location = useLocation();
   const [activePopup, setActivePopup] = useState<SitePopup | null>(null);
   const [isVisible, setIsVisible] = useState(false);
-
-  const storageKey = useMemo(() => {
+  const sessionSeenKey = useMemo(() => {
     if (!activePopup) return null;
-    return `bwagro-site-popup-seen:${activePopup.id}`;
+    return getPopupSessionSeenKey(activePopup.id);
+  }, [activePopup]);
+  const dismissedKey = useMemo(() => {
+    if (!activePopup) return null;
+    return getPopupDismissedKey(activePopup.id);
   }, [activePopup]);
 
   useEffect(() => {
@@ -64,12 +70,15 @@ const SitePopupCampaignGate: React.FC = () => {
           if (popup.startsAt && new Date(popup.startsAt) > serverNow) return false;
           if (popup.endsAt && new Date(popup.endsAt) < serverNow) return false;
 
-          const popupStorageKey = `bwagro-site-popup-seen:${popup.id}`;
-          if (popup.showOnce && window.localStorage.getItem(popupStorageKey) === 'true') return false;
+          if (window.localStorage.getItem(getPopupDismissedKey(popup.id)) === 'true') return false;
 
-          if (popup.showOnce && user?.id) {
+          if (popup.showOnce && window.sessionStorage.getItem(getPopupSessionSeenKey(popup.id)) === 'true') {
+            return false;
+          }
+
+          if (user?.id) {
             const existingState = userStates.get(popup.id);
-            if (existingState?.firstSeenAt || existingState?.clickedAt || existingState?.dismissedAt) {
+            if (existingState?.dismissedAt) {
               return false;
             }
           }
@@ -95,6 +104,9 @@ const SitePopupCampaignGate: React.FC = () => {
     }
 
     const timeoutId = window.setTimeout(() => {
+      if (activePopup.showOnce) {
+        window.sessionStorage.setItem(getPopupSessionSeenKey(activePopup.id), 'true');
+      }
       setIsVisible(true);
       void recordSitePopupEvent(activePopup.id, 'view', location.pathname, getPopupSessionKey());
       if (user?.id) {
@@ -107,26 +119,30 @@ const SitePopupCampaignGate: React.FC = () => {
     };
   }, [activePopup, location.pathname, user?.id]);
 
-  const markAsSeen = () => {
-    if (activePopup?.showOnce && storageKey) {
-      window.localStorage.setItem(storageKey, 'true');
+  const handleClose = () => {
+    if (activePopup) {
+      void recordSitePopupEvent(activePopup.id, 'dismiss', location.pathname, getPopupSessionKey());
     }
+    setIsVisible(false);
   };
 
-  const handleClose = () => {
-    markAsSeen();
+  const handleDecline = () => {
+    if (dismissedKey) {
+      window.localStorage.setItem(dismissedKey, 'true');
+    }
+
     if (activePopup) {
       void recordSitePopupEvent(activePopup.id, 'dismiss', location.pathname, getPopupSessionKey());
       if (user?.id) {
         void syncSitePopupUserState(activePopup.id, user.id, 'dismiss');
       }
     }
+
     setIsVisible(false);
   };
 
   const handlePrimaryAction = () => {
     const destination = activePopup?.primaryButtonLink?.trim();
-    markAsSeen();
     if (activePopup) {
       void recordSitePopupEvent(activePopup.id, 'click', location.pathname, getPopupSessionKey());
       if (user?.id) {
@@ -198,10 +214,10 @@ const SitePopupCampaignGate: React.FC = () => {
 
             <button
               type="button"
-              onClick={handleClose}
+              onClick={handleDecline}
               className="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
             >
-              Agora nao
+              Nao tenho interesse
             </button>
           </div>
         </div>

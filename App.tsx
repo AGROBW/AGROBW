@@ -90,6 +90,20 @@ const LegacyMessagesRedirect = () => {
   return <Navigate to={destination} replace />;
 };
 
+const ScrollToTop = () => {
+  const location = useLocation();
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, location.search]);
+
+  return null;
+};
+
 class RouteErrorBoundary extends React.Component<{ children: React.ReactNode; resetKey?: string }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode; resetKey?: string }) {
     super(props);
@@ -313,6 +327,7 @@ const AppContent: React.FC = () => {
 
 const App = () => (
   <Router>
+    <ScrollToTop />
     <AuthProvider>
       <LayoutProvider>
         <AppContent />

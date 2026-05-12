@@ -844,6 +844,60 @@ export interface SitePopup {
   updatedAt: string;
 }
 
+export interface SponsorMetricRegionBreakdown {
+  region: string;
+  clicks: number;
+}
+
+export interface SponsorMetricReport {
+  sponsorId: string;
+  sponsorName: string;
+  periodStart: string;
+  periodEnd: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  primaryRegion: string;
+  topRegions: SponsorMetricRegionBreakdown[];
+}
+
+export interface SponsorMetricEmailJob {
+  id: string;
+  sponsorId: string;
+  sponsorName: string;
+  periodStart: string;
+  periodEnd: string;
+  recipientEmail: string;
+  recipientName?: string | null;
+  reportPayload: Record<string, unknown>;
+  status: 'pending' | 'processing' | 'sent' | 'failed' | 'skipped';
+  provider: string;
+  attempts: number;
+  lastError?: string | null;
+  queuedAt: string;
+  processingStartedAt?: string | null;
+  lastAttemptAt?: string | null;
+  sentAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SponsorMetricEmailDispatchLog {
+  id: string;
+  triggeredBy: 'cron' | 'admin';
+  status: 'processing' | 'completed' | 'failed';
+  requestedLimit: number;
+  processedCount: number;
+  sentCount: number;
+  failedCount: number;
+  skippedCount: number;
+  notes?: string | null;
+  startedAt: string;
+  finishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RadarMatchEmailJob {
   id: string;
   matchId: string;

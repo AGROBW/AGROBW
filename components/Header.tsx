@@ -86,6 +86,7 @@ const Header: React.FC = () => {
             </button>
             <Link to="/categorias" className="text-sm font-medium text-slate-600 hover:text-green-700 transition-colors">Categorias</Link>
             <Link to="/lojas-parceiras" className="text-sm font-medium text-slate-600 hover:text-green-700 transition-colors">Lojas Parceiras</Link>
+            <Link to="/patrocinador" className="text-sm font-medium text-slate-600 hover:text-green-700 transition-colors">Vitrine Premium</Link>
             <Link to="/planos" className="text-sm font-medium text-slate-600 hover:text-green-700 transition-colors">Planos</Link>
           </nav>
 
@@ -250,6 +251,13 @@ const Header: React.FC = () => {
             className="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
           >
             Lojas Parceiras
+          </Link>
+          <Link 
+            to="/patrocinador" 
+            onClick={() => setIsOpen(false)}
+            className="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
+          >
+            Vitrine Premium
           </Link>
           <Link 
             to="/planos" 

@@ -11,7 +11,8 @@
 
 alter table public.leads
   add column if not exists contact_expires_at timestamptz,
-  add column if not exists received_with_active_access boolean not null default false;
+  add column if not exists received_with_active_access boolean not null default false,
+  add column if not exists unlocked_once_at timestamptz;
 
 create or replace function public.seller_has_active_plan_contact_access(
   p_seller_id uuid,
@@ -93,11 +94,19 @@ declare
   v_rows_updated integer := 0;
 begin
   update public.leads l
-  set contact_expires_at = case
-    when coalesce(l.received_with_active_access, false) then null
-    when public.seller_has_active_plan_contact_access(l.seller_id, now()) then null
-    else coalesce(l.created_at, now()) - interval '1 second'
-  end
+  set
+    unlocked_once_at = case
+      when coalesce(l.received_with_active_access, false) then l.unlocked_once_at
+      when l.unlocked_once_at is not null then l.unlocked_once_at
+      when public.seller_has_active_plan_contact_access(l.seller_id, now()) then coalesce(l.unlocked_once_at, now())
+      else l.unlocked_once_at
+    end,
+    contact_expires_at = case
+      when coalesce(l.received_with_active_access, false) then null
+      when l.unlocked_once_at is not null then null
+      when public.seller_has_active_plan_contact_access(l.seller_id, now()) then null
+      else coalesce(l.created_at, now()) - interval '1 second'
+    end
   where l.seller_id = p_seller_id;
 
   get diagnostics v_rows_updated = row_count;
@@ -129,11 +138,19 @@ for each row
 execute function public.sync_lead_windows_after_subscription_change();
 
 update public.leads l
-set contact_expires_at = case
-  when coalesce(l.received_with_active_access, false) then null
-  when public.seller_has_active_plan_contact_access(l.seller_id, now()) then null
-  else coalesce(l.created_at, now()) - interval '1 second'
-end;
+set
+  unlocked_once_at = case
+    when coalesce(l.received_with_active_access, false) then l.unlocked_once_at
+    when l.unlocked_once_at is not null then l.unlocked_once_at
+    when l.contact_expires_at is null then coalesce(l.unlocked_once_at, now())
+    else l.unlocked_once_at
+  end,
+  contact_expires_at = case
+    when coalesce(l.received_with_active_access, false) then null
+    when l.unlocked_once_at is not null then null
+    when public.seller_has_active_plan_contact_access(l.seller_id, now()) then null
+    else coalesce(l.created_at, now()) - interval '1 second'
+  end;
 
 create or replace function public.block_messages_for_expired_announcements()
 returns trigger

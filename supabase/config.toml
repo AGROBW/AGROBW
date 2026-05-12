@@ -72,3 +72,8 @@ entrypoint = "./functions/validate-meta-social-connection/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/validate-document/index.ts"
+
+[functions.sync-sponsor-metric-emails]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/sync-sponsor-metric-emails/index.ts"

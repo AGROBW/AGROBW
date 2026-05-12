@@ -2917,9 +2917,34 @@ const UserDashboardView: React.FC = () => {
       newPassword: '',
       confirmPassword: '',
     });
+    const [selectedProfileTab, setSelectedProfileTab] = useState<'identity' | 'contact' | 'security' | 'verification'>('identity');
     const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
     const [isLoadingCep, setIsLoadingCep] = useState(false);
     const lastLookedUpCepRef = useRef('');
+
+    // Calcular percentual de preenchimento do perfil
+    const calculateProfileCompletion = () => {
+      const requiredFields = ['name', 'whatsapp', 'cep', 'logradouro', 'numero', 'bairro', 'cidade', 'estado'];
+      const filledFields = requiredFields.filter((field) => profileForm[field as keyof typeof profileForm]?.trim());
+      return Math.round((filledFields.length / requiredFields.length) * 100);
+    };
+
+    const profileCompletion = calculateProfileCompletion();
+    const isProfileComplete = profileCompletion === 100;
+
+    // Status de cada seção
+    const getSectionStatus = (section: 'identity' | 'contact' | 'security' | 'verification') => {
+      switch (section) {
+        case 'identity':
+          return profileForm.name?.trim() && profileForm.businessDescription?.trim() ? 'complete' : 'incomplete';
+        case 'contact':
+          return profileForm.whatsapp?.trim() && profileForm.cep?.trim() && profileForm.cidade?.trim() ? 'complete' : 'incomplete';
+        case 'security':
+          return 'neutral';
+        case 'verification':
+          return user?.document_verified ? 'complete' : 'incomplete';
+      }
+    };
 
     useEffect(() => {
       setProfileForm({
@@ -3225,6 +3250,356 @@ const UserDashboardView: React.FC = () => {
       }
     };
 
+    const profileTabs = [
+      {
+        id: 'identity' as const,
+        label: 'Dados principais',
+        description: 'Nome, documento e descrição do negócio.',
+        icon: <User className="h-4 w-4" strokeWidth={1.5} />,
+      },
+      {
+        id: 'contact' as const,
+        label: 'Localização e contato',
+        description: 'Endereço, cidade, estado e WhatsApp.',
+        icon: <Map className="h-4 w-4" strokeWidth={1.5} />,
+      },
+      {
+        id: 'security' as const,
+        label: 'Segurança e acesso',
+        description: 'Atualize sua senha de acesso.',
+        icon: <ShieldCheck className="h-4 w-4" strokeWidth={1.5} />,
+      },
+      {
+        id: 'verification' as const,
+        label: 'Verificação',
+        description: 'Envio e acompanhamento documental.',
+        icon: <FileText className="h-4 w-4" strokeWidth={1.5} />,
+      },
+    ];
+
+    const ProfileSectionCard = ({
+      title,
+      description,
+      icon,
+      color = 'emerald',
+      children,
+    }: {
+      title: string;
+      description: string;
+      icon: React.ReactNode;
+      color?: 'emerald' | 'blue' | 'amber' | 'slate';
+      children: React.ReactNode;
+    }) => {
+      const colorMap = {
+        emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', icon: 'bg-emerald-100 text-emerald-700' },
+        blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'bg-blue-100 text-blue-700' },
+        amber: { bg: 'bg-amber-50', border: 'border-amber-200', icon: 'bg-amber-100 text-amber-700' },
+        slate: { bg: 'bg-slate-50', border: 'border-slate-200', icon: 'bg-slate-100 text-slate-700' },
+      };
+      const colors = colorMap[color];
+
+      return (
+        <div className={`space-y-5 rounded-3xl border ${colors.border} ${colors.bg} p-6 shadow-md`}>
+          <div className="flex items-start gap-4">
+            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${colors.icon} shadow-sm flex-shrink-0`}>
+              {icon}
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+              <p className="mt-1 text-sm text-slate-600">{description}</p>
+            </div>
+          </div>
+          <div className="space-y-4">{children}</div>
+        </div>
+      );
+    };
+
+    const identitySection = (
+      <ProfileSectionCard
+        title="Dados principais"
+        description="Atualize a identidade pública exibida no seu painel e nos seus anúncios."
+        icon={<User className="h-5 w-5" strokeWidth={1.5} />}
+        color="emerald"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className={requiredLabelClass}>Nome / Razão Social <span className="text-red-500">*</span></label>
+            <input
+              className={getProfileInputClass('name')}
+              value={profileForm.name}
+              onChange={(event) => handleProfileFieldChange('name', event.target.value)}
+            />
+            {profileErrors.name && <p className="text-xs text-red-600">{profileErrors.name}</p>}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-500">CPF / CNPJ</label>
+            <input
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
+              value={user?.document || ''}
+              readOnly
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-slate-500">Descrição do Negócio</label>
+          <textarea
+            className={`w-full resize-none rounded-xl border bg-white px-3.5 py-3 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 ${
+              profileErrors.businessDescription
+                ? 'border-red-300 bg-red-50 focus:border-red-300 focus:ring-red-100'
+                : 'border-slate-200 focus:border-green-600 focus:ring-green-100'
+            }`}
+            rows={4}
+            placeholder="Descreva sua atuação, região e diferencial sem incluir telefone, e-mail, links ou redes sociais."
+            value={profileForm.businessDescription}
+            onChange={(event) => handleProfileFieldChange('businessDescription', event.target.value)}
+          />
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] text-slate-500">
+              Esse texto aparece no bloco do vendedor da página do anúncio.
+            </p>
+            <span className="text-[11px] font-medium text-slate-400">
+              {profileForm.businessDescription.length}/{MAX_BUSINESS_DESCRIPTION_LENGTH}
+            </span>
+          </div>
+          {profileErrors.businessDescription && <p className="text-xs text-red-600">{profileErrors.businessDescription}</p>}
+        </div>
+      </ProfileSectionCard>
+    );
+
+    const contactSection = (
+      <ProfileSectionCard
+        title="Localização e contato"
+        description="Mantenha seu endereço e WhatsApp atualizados para acelerar negociações."
+        icon={<Map className="h-5 w-5" strokeWidth={1.5} />}
+        color="blue"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className={requiredLabelClass}>CEP <span className="text-red-500">*</span></label>
+            <input
+              className={getProfileInputClass('cep')}
+              value={profileForm.cep}
+              onChange={(event) => handleProfileFieldChange('cep', event.target.value)}
+              onBlur={handleCepBlur}
+              placeholder="00000-000"
+            />
+            {isLoadingCep && <p className="text-xs text-slate-500">Buscando endereço pelo CEP...</p>}
+            {profileErrors.cep && <p className="text-xs text-red-600">{profileErrors.cep}</p>}
+          </div>
+          <div className="space-y-1">
+            <label className={requiredLabelClass}>WhatsApp <span className="text-red-500">*</span></label>
+            <input
+              className={getProfileInputClass('whatsapp')}
+              value={profileForm.whatsapp}
+              onChange={(event) => handleProfileFieldChange('whatsapp', event.target.value)}
+            />
+            {profileErrors.whatsapp && <p className="text-xs text-red-600">{profileErrors.whatsapp}</p>}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1 sm:col-span-2">
+            <label className={requiredLabelClass}>Logradouro <span className="text-red-500">*</span></label>
+            <input
+              className={getProfileInputClass('logradouro')}
+              value={profileForm.logradouro}
+              onChange={(event) => handleProfileFieldChange('logradouro', event.target.value)}
+            />
+            {profileErrors.logradouro && <p className="text-xs text-red-600">{profileErrors.logradouro}</p>}
+          </div>
+          <div className="space-y-1">
+            <label className={requiredLabelClass}>Número <span className="text-red-500">*</span></label>
+            <input
+              className={getProfileInputClass('numero')}
+              value={profileForm.numero}
+              onChange={(event) => handleProfileFieldChange('numero', event.target.value)}
+            />
+            {profileErrors.numero && <p className="text-xs text-red-600">{profileErrors.numero}</p>}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-500">Complemento</label>
+            <input
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
+              value={profileForm.complemento}
+              onChange={(event) => handleProfileFieldChange('complemento', event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className={requiredLabelClass}>Bairro <span className="text-red-500">*</span></label>
+            <input
+              className={getProfileInputClass('bairro')}
+              value={profileForm.bairro}
+              onChange={(event) => handleProfileFieldChange('bairro', event.target.value)}
+            />
+            {profileErrors.bairro && <p className="text-xs text-red-600">{profileErrors.bairro}</p>}
+          </div>
+          <div className="space-y-1">
+            <label className={requiredLabelClass}>Cidade <span className="text-red-500">*</span></label>
+            <input
+              className={getProfileInputClass('cidade')}
+              value={profileForm.cidade}
+              onChange={(event) => handleProfileFieldChange('cidade', event.target.value)}
+            />
+            {profileErrors.cidade && <p className="text-xs text-red-600">{profileErrors.cidade}</p>}
+          </div>
+          <div className="space-y-1">
+            <label className={requiredLabelClass}>Estado <span className="text-red-500">*</span></label>
+            <input
+              className={getProfileInputClass('estado')}
+              value={profileForm.estado}
+              onChange={(event) => handleProfileFieldChange('estado', event.target.value)}
+            />
+            {profileErrors.estado && <p className="text-xs text-red-600">{profileErrors.estado}</p>}
+          </div>
+        </div>
+      </ProfileSectionCard>
+    );
+
+    const securitySection = (
+      <ProfileSectionCard
+        title="Segurança e acesso"
+        description="Atualize sua senha sempre que quiser reforçar a proteção da sua conta."
+        icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.5} />}
+        color="slate"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-500">Senha Atual</label>
+            <input
+              type="password"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
+              value={passwordForm.currentPassword}
+              onChange={(event) => handlePasswordFieldChange('currentPassword', event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-500">Nova Senha</label>
+            <input
+              type="password"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
+              value={passwordForm.newPassword}
+              onChange={(event) => handlePasswordFieldChange('newPassword', event.target.value)}
+            />
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-semibold text-slate-500">Confirmação</label>
+            <input
+              type="password"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
+              value={passwordForm.confirmPassword}
+              onChange={(event) => handlePasswordFieldChange('confirmPassword', event.target.value)}
+            />
+          </div>
+        </div>
+      </ProfileSectionCard>
+    );
+
+    const verificationSection = (
+      <PlanGuard requiredFeature="has_verification_badge">
+        <ProfileSectionCard
+          title="Central de Verificação"
+          description="Envie seu documento e acompanhe o status da validação documental."
+          icon={<FileText className="h-5 w-5" strokeWidth={1.5} />}
+          color="amber"
+        >
+          <div className="rounded-[22px] border border-dashed border-slate-200 bg-white p-5 text-center shadow-sm">
+            <input
+              type="file"
+              className="hidden"
+              id="doc-upload"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={handleDocumentUpload}
+              disabled={isUploadingDocument || isValidatingDocument || isDocumentRetryBlocked}
+            />
+            <label
+              htmlFor="doc-upload"
+              className={`inline-flex items-center gap-2 text-sm font-semibold cursor-pointer transition-colors ${
+                isUploadingDocument || isValidatingDocument || isDocumentRetryBlocked
+                  ? 'text-slate-400 cursor-not-allowed'
+                  : 'text-green-700 hover:text-green-800'
+              }`}
+            >
+              {isUploadingDocument ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
+                  Enviando documento...
+                </>
+              ) : isValidatingDocument ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
+                  Validando com OCR...
+                </>
+              ) : isDocumentRetryBlocked ? (
+                <>
+                  <Clock3 className="w-4 h-4" strokeWidth={1.5} />
+                  Nova tentativa bloqueada por 24h
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
+                  Enviar Documento (RG/CNH ou Contrato Social)
+                </>
+              )}
+            </label>
+            <p className="mt-2 text-xs text-slate-500">
+              Seus dados são protegidos por criptografia. Documentos e PDFs pequenos (&lt;1MB) são validados automaticamente via OCR.
+            </p>
+
+            {isDocumentRetryBlocked && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-left">
+                <p className="text-xs font-semibold text-amber-800">Nova tentativa temporariamente bloqueada</p>
+                <p className="mt-1 text-xs text-amber-700">{getDocumentRetryBlockedMessage()}</p>
+              </div>
+            )}
+
+            {uploadSuccess && (
+              <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
+                <p className="text-xs font-semibold text-green-700">{uploadSuccess}</p>
+              </div>
+            )}
+
+            {validationResult && (
+              <div
+                className={`mt-3 rounded-xl border p-3 ${
+                  validationResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <div className="mt-0.5 flex-shrink-0">
+                    {validationResult.success ? (
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500">
+                        <span className="text-xs font-bold text-white">✓</span>
+                      </div>
+                    ) : (
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500">
+                        <span className="text-xs font-bold text-white">✕</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className={`text-xs font-semibold ${validationResult.success ? 'text-green-700' : 'text-red-700'}`}>
+                      {validationResult.message}
+                    </p>
+                    {!validationResult.success && (
+                      <p className="mt-2 text-xs text-slate-600">
+                        Dica: certifique-se de que a imagem está nítida e o documento está bem enquadrado.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </ProfileSectionCard>
+      </PlanGuard>
+    );
+
+    const activeProfileSection = {
+      identity: identitySection,
+      contact: contactSection,
+      security: securitySection,
+      verification: verificationSection,
+    }[selectedProfileTab];
+
     return (
       <div className="space-y-6">
         <div className="flex flex-col gap-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_46%,#ecfdf5_100%)] p-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.34)] sm:flex-row sm:items-center">
@@ -3240,8 +3615,8 @@ const UserDashboardView: React.FC = () => {
                 {getUserInitials(user?.name)}
               </div>
             )}
-            <label 
-              htmlFor="avatar-upload" 
+            <label
+              htmlFor="avatar-upload"
               className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-white shadow-[0_14px_24px_-16px_rgba(15,23,42,0.9)] cursor-pointer transition-colors hover:bg-slate-800"
               title="Alterar foto de perfil"
             >
@@ -3264,7 +3639,9 @@ const UserDashboardView: React.FC = () => {
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-lg font-bold text-slate-900">{userName}</h3>
               {user?.document_verified && (
-                <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm">Vendedor Verificado</span>
+                <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm">
+                  Vendedor Verificado
+                </span>
               )}
             </div>
             <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
@@ -3283,291 +3660,61 @@ const UserDashboardView: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
-            <div className="flex items-center gap-2 text-slate-900">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900/5 text-green-700 shadow-sm">
-                <User className="w-4 h-4" strokeWidth={1.5} />
-              </div>
-              <h4 className="text-sm font-semibold">Identidade</h4>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className={requiredLabelClass}>Nome / Razão Social <span className="text-red-500">*</span></label>
-                <input
-                  className={getProfileInputClass('name')}
-                  value={profileForm.name}
-                  onChange={(event) => handleProfileFieldChange('name', event.target.value)}
-                />
-                {profileErrors.name && <p className="text-xs text-red-600">{profileErrors.name}</p>}
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">CPF / CNPJ</label>
-                <input
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
-                  value={user?.document || ''}
-                  readOnly
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500">Descrição do Negócio</label>
-              <textarea
-                className={`w-full resize-none rounded-xl border bg-white px-3.5 py-3 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 ${
-                  profileErrors.businessDescription
-                    ? 'border-red-300 bg-red-50 focus:border-red-300 focus:ring-red-100'
-                    : 'border-slate-200 focus:border-green-600 focus:ring-green-100'
-                }`}
-                rows={3}
-                placeholder="Descreva sua atuação, região e diferencial sem incluir telefone, e-mail, links ou redes sociais."
-                value={profileForm.businessDescription}
-                onChange={(event) => handleProfileFieldChange('businessDescription', event.target.value)}
-              />
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] text-slate-500">
-                  Esse texto aparece no bloco do vendedor da página do anúncio.
-                </p>
-                <span className="text-[11px] font-medium text-slate-400">
-                  {profileForm.businessDescription.length}/{MAX_BUSINESS_DESCRIPTION_LENGTH}
-                </span>
-              </div>
-              {profileErrors.businessDescription && <p className="text-xs text-red-600">{profileErrors.businessDescription}</p>}
-            </div>
-          </div>
-
-          <div className="space-y-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
-            <div className="flex items-center gap-2 text-slate-900">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900/5 text-green-700 shadow-sm">
-                <Map className="w-4 h-4" strokeWidth={1.5} />
-              </div>
-              <h4 className="text-sm font-semibold">Localização e Contato</h4>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className={requiredLabelClass}>CEP <span className="text-red-500">*</span></label>
-                <input
-                  className={getProfileInputClass('cep')}
-                  value={profileForm.cep}
-                  onChange={(event) => handleProfileFieldChange('cep', event.target.value)}
-                  onBlur={handleCepBlur}
-                  placeholder="00000-000"
-                />
-                {isLoadingCep && <p className="text-xs text-slate-500">Buscando endereço pelo CEP...</p>}
-                {profileErrors.cep && <p className="text-xs text-red-600">{profileErrors.cep}</p>}
-              </div>
-              <div className="space-y-1">
-                <label className={requiredLabelClass}>WhatsApp <span className="text-red-500">*</span></label>
-                <input
-                  className={getProfileInputClass('whatsapp')}
-                  value={profileForm.whatsapp}
-                  onChange={(event) => handleProfileFieldChange('whatsapp', event.target.value)}
-                />
-                {profileErrors.whatsapp && <p className="text-xs text-red-600">{profileErrors.whatsapp}</p>}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1 sm:col-span-2">
-                <label className={requiredLabelClass}>Logradouro <span className="text-red-500">*</span></label>
-                <input
-                  className={getProfileInputClass('logradouro')}
-                  value={profileForm.logradouro}
-                  onChange={(event) => handleProfileFieldChange('logradouro', event.target.value)}
-                />
-                {profileErrors.logradouro && <p className="text-xs text-red-600">{profileErrors.logradouro}</p>}
-              </div>
-              <div className="space-y-1">
-                <label className={requiredLabelClass}>Número <span className="text-red-500">*</span></label>
-                <input
-                  className={getProfileInputClass('numero')}
-                  value={profileForm.numero}
-                  onChange={(event) => handleProfileFieldChange('numero', event.target.value)}
-                />
-                {profileErrors.numero && <p className="text-xs text-red-600">{profileErrors.numero}</p>}
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Complemento</label>
-                <input
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
-                  value={profileForm.complemento}
-                  onChange={(event) => handleProfileFieldChange('complemento', event.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className={requiredLabelClass}>Bairro <span className="text-red-500">*</span></label>
-                <input
-                  className={getProfileInputClass('bairro')}
-                  value={profileForm.bairro}
-                  onChange={(event) => handleProfileFieldChange('bairro', event.target.value)}
-                />
-                {profileErrors.bairro && <p className="text-xs text-red-600">{profileErrors.bairro}</p>}
-              </div>
-              <div className="space-y-1">
-                <label className={requiredLabelClass}>Cidade <span className="text-red-500">*</span></label>
-                <input
-                  className={getProfileInputClass('cidade')}
-                  value={profileForm.cidade}
-                  onChange={(event) => handleProfileFieldChange('cidade', event.target.value)}
-                />
-                {profileErrors.cidade && <p className="text-xs text-red-600">{profileErrors.cidade}</p>}
-              </div>
-              <div className="space-y-1">
-                <label className={requiredLabelClass}>Estado <span className="text-red-500">*</span></label>
-                <input
-                  className={getProfileInputClass('estado')}
-                  value={profileForm.estado}
-                  onChange={(event) => handleProfileFieldChange('estado', event.target.value)}
-                />
-                {profileErrors.estado && <p className="text-xs text-red-600">{profileErrors.estado}</p>}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
-            <div className="flex items-center gap-2 text-slate-900">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900/5 text-green-700 shadow-sm">
-                <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
-              </div>
-              <h4 className="text-sm font-semibold">Segurança e Acesso</h4>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Senha Atual</label>
-                <input
-                  type="password"
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
-                  value={passwordForm.currentPassword}
-                  onChange={(event) => handlePasswordFieldChange('currentPassword', event.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Nova Senha</label>
-                <input
-                  type="password"
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
-                  value={passwordForm.newPassword}
-                  onChange={(event) => handlePasswordFieldChange('newPassword', event.target.value)}
-                />
-              </div>
-              <div className="space-y-1 sm:col-span-2">
-                <label className="text-xs font-semibold text-slate-500">Confirmação</label>
-                <input
-                  type="password"
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm shadow-sm"
-                  value={passwordForm.confirmPassword}
-                  onChange={(event) => handlePasswordFieldChange('confirmPassword', event.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          <PlanGuard requiredFeature="has_verification_badge">
-            <div className="space-y-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
-              <div className="flex items-center gap-2 text-slate-900">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900/5 text-green-700 shadow-sm">
-                  <FileText className="w-4 h-4" strokeWidth={1.5} />
-                </div>
-                <h4 className="text-sm font-semibold">Central de Verificação</h4>
-              </div>
-              <div className="rounded-[22px] border border-dashed border-slate-200 bg-white p-5 text-center shadow-sm">
-                  <input 
-                    type="file" 
-                    className="hidden" 
-                    id="doc-upload"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={handleDocumentUpload}
-                    disabled={isUploadingDocument || isValidatingDocument || isDocumentRetryBlocked}
-                  />
-                  <label 
-                    htmlFor="doc-upload" 
-                    className={`inline-flex items-center gap-2 text-sm font-semibold cursor-pointer transition-colors ${
-                      isUploadingDocument || isValidatingDocument || isDocumentRetryBlocked
-                        ? 'text-slate-400 cursor-not-allowed' 
-                        : 'text-green-700 hover:text-green-800'
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[236px_minmax(0,1fr)] xl:items-start">
+          <aside className="h-fit rounded-[28px] border border-slate-200 bg-white/90 p-3 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.2)] xl:sticky xl:top-24">
+            <nav className="space-y-2">
+              {profileTabs.map((tab) => {
+                const isSelected = selectedProfileTab === tab.id;
+                const status = getSectionStatus(tab.id);
+                let selectedClasses = '';
+                let iconClasses = '';
+                let textClasses = '';
+                if (isSelected) {
+                  if (tab.id === 'identity') {
+                    selectedClasses = 'border-emerald-300 bg-gradient-to-br from-emerald-50 to-emerald-100 shadow-md';
+                    iconClasses = 'bg-emerald-100 text-emerald-700';
+                    textClasses = 'text-emerald-900';
+                  } else if (tab.id === 'contact') {
+                    selectedClasses = 'border-blue-300 bg-gradient-to-br from-blue-50 to-blue-100 shadow-md';
+                    iconClasses = 'bg-blue-100 text-blue-700';
+                    textClasses = 'text-blue-900';
+                  } else if (tab.id === 'security') {
+                    selectedClasses = 'border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100 shadow-md';
+                    iconClasses = 'bg-slate-100 text-slate-700';
+                    textClasses = 'text-slate-900';
+                  } else if (tab.id === 'verification') {
+                    selectedClasses = 'border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100 shadow-md';
+                    iconClasses = 'bg-amber-100 text-amber-700';
+                    textClasses = 'text-amber-900';
+                  }
+                }
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setSelectedProfileTab(tab.id)}
+                    className={`flex min-w-[220px] items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-all xl:min-w-0 xl:w-full ${
+                      isSelected
+                        ? selectedClasses
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900'
                     }`}
                   >
-                    {isUploadingDocument ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
-                      Enviando documento...
-                    </>
-                  ) : isValidatingDocument ? (
-                    <>
-                        <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin" />
-                        Validando com OCR...
-                      </>
-                    ) : isDocumentRetryBlocked ? (
-                      <>
-                        <Clock3 className="w-4 h-4" strokeWidth={1.5} />
-                        Nova tentativa bloqueada por 24h
-                      </>
-                    ) : (
-                      <>
-                        <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
-                        Enviar Documento (RG/CNH ou Contrato Social)
-                      </>
-                  )}
-                </label>
-                  <p className="text-xs text-slate-500 mt-2">
-                    Seus dados são protegidos por criptografia. Documentos e PDFs pequenos (&lt;1MB) são validados automaticamente via OCR.
-                  </p>
+                    <span className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl flex-shrink-0 ${iconClasses || 'bg-slate-100 text-slate-500'}`}>
+                      {tab.icon}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className={`block text-sm font-semibold ${textClasses}`}>{tab.label}</span>
+                      <span className="block text-xs leading-5 text-slate-500">{tab.description}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
 
-                  {isDocumentRetryBlocked && (
-                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-left">
-                      <p className="text-xs font-semibold text-amber-800">
-                        Nova tentativa temporariamente bloqueada
-                      </p>
-                      <p className="mt-1 text-xs text-amber-700">
-                        {getDocumentRetryBlockedMessage()}
-                      </p>
-                    </div>
-                  )}
-                  
-                  {/* Mensagem de Sucesso Geral */}
-                  {uploadSuccess && (
-                  <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3">
-                    <p className="text-xs text-green-700 font-semibold">{uploadSuccess}</p>
-                  </div>
-                )}
-                
-                {/* Resultado da Validação OCR */}
-                {validationResult && (
-                  <div className={`mt-3 rounded-xl border p-3 ${
-                    validationResult.success 
-                      ? 'bg-green-50 border-green-200' 
-                      : 'bg-red-50 border-red-200'
-                  }`}>
-                    <div className="flex items-start gap-2">
-                      <div className="flex-shrink-0 mt-0.5">
-                        {validationResult.success ? (
-                          <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">✓</span>
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">✕</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 text-left">
-                        <p className={`text-xs font-semibold ${
-                          validationResult.success ? 'text-green-700' : 'text-red-700'
-                        }`}>
-                          {validationResult.message}
-                        </p>
-                        {!validationResult.success && (
-                          <p className="text-xs text-slate-600 mt-2">
-                            Dica: certifique-se de que a imagem está nítida e o documento está bem enquadrado.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </PlanGuard>
+          <div className="min-h-[500px]">
+            {activeProfileSection}
+          </div>
         </div>
       </div>
     );
