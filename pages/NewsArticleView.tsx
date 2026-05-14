@@ -3,6 +3,9 @@ import { Link, useParams } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { supabase } from '../src/lib/supabaseClient';
 import { useLayout } from '../src/contexts/LayoutContext';
+import SeoHead from '../components/SeoHead';
+import StructuredData from '../components/StructuredData';
+import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 
 const NewsArticleView: React.FC = () => {
   const { slug } = useParams();
@@ -47,9 +50,61 @@ const NewsArticleView: React.FC = () => {
   }
 
   const sources = article.news_article_sources || [];
+  const articleStructuredData = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Início',
+          item: buildAbsoluteSiteUrl('/'),
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Notícias',
+          item: buildAbsoluteSiteUrl('/noticias'),
+        },
+        {
+          '@type': 'ListItem',
+          position: 3,
+          name: article.title,
+          item: buildAbsoluteSiteUrl(`/noticias/${article.slug}`),
+        },
+      ],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'NewsArticle',
+      headline: article.title,
+      description: article.summary || article.subtitle || undefined,
+      image: article.featured_image_url ? [article.featured_image_url] : undefined,
+      datePublished: article.published_at || undefined,
+      dateModified: article.updated_at || article.published_at || undefined,
+      mainEntityOfPage: buildAbsoluteSiteUrl(`/noticias/${article.slug}`),
+      author: {
+        '@type': 'Organization',
+        name: 'AGRO BW',
+      },
+      publisher: {
+        '@type': 'Organization',
+        name: 'AGRO BW',
+      },
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 py-16">
+      <SeoHead
+        title={article.title || 'Notícia do agro'}
+        description={(article.summary || article.subtitle || 'Acompanhe notícias, análises e conteúdos do agronegócio na AGRO BW.').slice(0, 160)}
+        canonicalPath={`/noticias/${article.slug}`}
+        image={article.featured_image_url || null}
+        type="article"
+      />
+      <StructuredData id="news-article" data={articleStructuredData} />
       <div className="mx-auto max-w-4xl px-4">
         <Link to="/noticias" className="mb-8 inline-flex items-center gap-2 text-sm font-bold text-slate-600" style={{ ['--news-link-color' as any]: settings.primaryColor }}>
           <ChevronLeft className="h-4 w-4" />
@@ -59,7 +114,13 @@ const NewsArticleView: React.FC = () => {
         <article className="overflow-hidden rounded-[2rem] border border-slate-100 bg-white shadow-sm">
           {article.featured_image_url ? (
             <div className="h-72 bg-slate-100 md:h-[420px]">
-              <img src={article.featured_image_url} alt={article.title} className="h-full w-full object-cover" />
+              <img
+                src={article.featured_image_url}
+                alt={article.title}
+                decoding="async"
+                fetchPriority="high"
+                className="h-full w-full object-cover"
+              />
             </div>
           ) : null}
 

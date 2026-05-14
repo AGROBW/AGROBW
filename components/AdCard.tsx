@@ -128,21 +128,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
         ? 'border-2 shadow-lg' 
         : 'border border-slate-100'
     }`} style={cardStyle}>
-      {/* Badge de Destaque */}
       <div className="absolute top-4 left-4 z-10 flex max-w-[calc(100%-4rem)] flex-col gap-2">
-        {hasActiveHighlight && (
-          <div
-            className="flex items-center gap-1 text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-lg animate-pulse w-fit"
-            style={
-              shouldShowHomeHighlight
-                ? { background: `linear-gradient(90deg, ${settings.accentColor}, color-mix(in srgb, ${settings.accentColor} 82%, white))`, color: settings.secondaryColor }
-                : { background: 'linear-gradient(90deg, #dbeafe, #eff6ff)', color: '#1d4ed8' }
-            }
-          >
-            <Sparkles className="w-3 h-3" strokeWidth={2.5} />
-            {shouldShowHomeHighlight ? 'HOME' : 'CATEGORIA'}
-          </div>
-        )}
         {hasOfficialStore && (
           <div className="flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.18em] px-2.5 py-1 rounded-full shadow-md w-fit bg-gradient-to-r from-emerald-100 to-teal-50 text-emerald-800">
             <Store className="w-2.5 h-2.5" strokeWidth={2.3} />
@@ -178,6 +164,8 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
         <img 
           src={primaryImage} 
           alt={ad.title} 
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent">

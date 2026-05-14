@@ -1,16 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronRight, FilterX, Search, SlidersHorizontal } from 'lucide-react';
 import AdCard from '../components/AdCard';
 import HomeAdsCarousel from '../components/HomeAdsCarousel';
+import SeoHead from '../components/SeoHead';
+import StructuredData from '../components/StructuredData';
 import { usePublicAds } from '../src/hooks/useAds';
 import { usePublicCategoryCatalog } from '../src/hooks/usePublicCategoryCatalog';
+import { useAuth } from '../src/contexts/AuthContext';
 import { supabase } from '../src/lib/supabaseClient';
 import { getTrustedHoursAgo, isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
+import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 import {
   getCategoryGroupBySlug,
   getGroupCategorySlugs,
 } from '../src/lib/categoryHierarchy';
+import { getCategorySeoContent } from '../src/lib/categorySeoContent';
 import { Ad } from '../types';
 
 type SortOption = 'recent' | 'low-price' | 'high-price' | 'views';
@@ -235,7 +240,9 @@ const rebalanceAdsBySellerRotation = (ads: Ad[], seed: string, maxConsecutivePer
 };
 
 const AdsListingView: React.FC = () => {
+  const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const params = new URLSearchParams(location.search);
   const catSlug = params.get('categoria') || '';
   const subSlug = params.get('subcategoria') || '';
@@ -243,6 +250,7 @@ const AdsListingView: React.FC = () => {
 
   const { categories, subcategories } = usePublicCategoryCatalog();
   const categoryGroup = useMemo(() => getCategoryGroupBySlug(catSlug), [catSlug]);
+  const categorySeoContent = useMemo(() => getCategorySeoContent(categoryGroup?.slug || catSlug), [categoryGroup?.slug, catSlug]);
   const relevantCategorySlugs = useMemo(
     () => (categoryGroup ? getGroupCategorySlugs(categoryGroup.slug) : catSlug ? [catSlug] : []),
     [categoryGroup, catSlug]
@@ -379,6 +387,93 @@ const AdsListingView: React.FC = () => {
       return true;
     });
   }, [ads, searchTerm, childSlugFilter, availableSubcategories, stateFilter, cityFilter, minPrice, maxPrice]);
+
+  const seoTitle = useMemo(() => {
+    if (queryTerm.trim()) {
+      return `Resultados para "${queryTerm.trim()}"`;
+    }
+
+    if (categorySeoContent && !subSlug) {
+      return categorySeoContent.title;
+    }
+
+    return categoryGroup?.name || categoryInfo?.name || 'Classificados rurais';
+  }, [categoryGroup?.name, categoryInfo?.name, categorySeoContent, queryTerm, subSlug]);
+
+  const seoDescription = useMemo(() => {
+    if (queryTerm.trim()) {
+      return `Veja anúncios rurais relacionados a ${queryTerm.trim()} e encontre oportunidades no marketplace da AGRO BW.`;
+    }
+
+    if (categoryGroup?.name) {
+      if (categorySeoContent && !subSlug) {
+        return categorySeoContent.description;
+      }
+      return `Explore anúncios de ${categoryGroup.name} e filtre oportunidades por subcategoria, localização e preço.`;
+    }
+
+    return 'Encontre anúncios rurais por categoria, localização e faixa de preço no marketplace da AGRO BW.';
+  }, [categoryGroup?.name, categorySeoContent, queryTerm, subSlug]);
+
+  const seoCanonicalPath = useMemo(() => {
+    if (!catSlug) return '/anuncios';
+
+    const search = new URLSearchParams();
+    search.set('categoria', catSlug);
+    return `/anuncios?${search.toString()}`;
+  }, [catSlug]);
+
+  const shouldNoIndexListing = Boolean(
+    queryTerm.trim() ||
+      subSlug ||
+      childSlugFilter ||
+      stateFilter ||
+      cityFilter ||
+      minPrice ||
+      maxPrice
+  );
+
+  const listingStructuredData = useMemo(() => {
+    const pageName = categoryGroup?.name || categoryInfo?.name || 'Classificados';
+    const breadcrumbItems = [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Início',
+        item: buildAbsoluteSiteUrl('/'),
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Classificados',
+        item: buildAbsoluteSiteUrl('/anuncios'),
+      },
+    ];
+
+    if (pageName !== 'Classificados') {
+      breadcrumbItems.push({
+        '@type': 'ListItem',
+        position: 3,
+        name: pageName,
+        item: buildAbsoluteSiteUrl(seoCanonicalPath),
+      });
+    }
+
+    return [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: breadcrumbItems,
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name: pageName,
+        url: buildAbsoluteSiteUrl(seoCanonicalPath),
+        description: seoDescription,
+      },
+    ];
+  }, [categoryGroup?.name, categoryInfo?.name, seoCanonicalPath, seoDescription]);
 
   const categoryHighlightedAds = useMemo(() => {
     return [...filteredAds]
@@ -592,6 +687,32 @@ const AdsListingView: React.FC = () => {
     setSortBy('recent');
   };
 
+  const handleEmptyCategoryAnnouncement = () => {
+    const announceParams = new URLSearchParams();
+
+    if (catSlug) {
+      announceParams.set('categoria', catSlug);
+    }
+
+    if (childSlugFilter) {
+      announceParams.set('subcategoria', childSlugFilter);
+    }
+
+    const announceUrl = `/anunciar${announceParams.toString() ? `?${announceParams.toString()}` : ''}`;
+
+    if (user) {
+      navigate(announceUrl);
+      return;
+    }
+
+    const registerParams = new URLSearchParams({
+      redirect: announceUrl,
+      intent: 'first-category-ad',
+    });
+
+    navigate(`/cadastro?${registerParams.toString()}`);
+  };
+
   const filtersContent = (
     <>
       <div className="flex items-center justify-between gap-3">
@@ -730,6 +851,13 @@ const AdsListingView: React.FC = () => {
 
   return (
     <div className="bg-slate-50 min-h-screen py-10">
+      <SeoHead
+        title={seoTitle}
+        description={seoDescription}
+        canonicalPath={seoCanonicalPath}
+        noIndex={shouldNoIndexListing}
+      />
+      <StructuredData id="ads-listing" data={listingStructuredData} />
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
           <Link to="/" className="text-green-600">
@@ -742,13 +870,22 @@ const AdsListingView: React.FC = () => {
         <div className="mt-3 flex flex-col gap-4 border-b border-slate-200 pb-8 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-3xl font-semibold text-slate-900">
-              {categoryGroup?.name || categoryInfo?.name || 'Classificados'}
+              {categorySeoContent?.title || categoryGroup?.name || categoryInfo?.name || 'Classificados'}
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              {categoryGroup
+              {categorySeoContent && !shouldNoIndexListing
+                ? categorySeoContent.introBody
+                : categoryGroup
                 ? `Explore os anúncios de ${categoryGroup.name} e refine por subcategoria, localização e faixa de preço.`
                 : 'Encontre oportunidades e filtre os anúncios com mais precisão.'}
             </p>
+            {!shouldNoIndexListing && (
+              <p className="mt-3 max-w-2xl text-sm text-slate-400">
+                {filteredAds.length > 0
+                  ? `${filteredAds.length} oportunidade${filteredAds.length > 1 ? 's' : ''} disponivel${filteredAds.length > 1 ? 'eis' : ''} nesta vitrine no momento.`
+                  : 'Esta vitrine esta pronta para receber os proximos anuncios desta categoria.'}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -807,6 +944,13 @@ const AdsListingView: React.FC = () => {
           </aside>
 
           <section>
+            {categorySeoContent && !shouldNoIndexListing && (
+              <div className="mb-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Guia da categoria</p>
+                <h2 className="mt-3 text-xl font-semibold text-slate-900">{categorySeoContent.introTitle}</h2>
+                <p className="mt-3 text-sm leading-7 text-slate-600">{categorySeoContent.introBody}</p>
+              </div>
+            )}
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Todos os anúncios</h2>
@@ -843,10 +987,36 @@ const AdsListingView: React.FC = () => {
               </div>
             ) : (
               <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-8 py-14 text-center">
-                <p className="text-lg font-semibold text-slate-800">Nenhum anúncio encontrado</p>
-                <p className="mt-2 text-sm text-slate-500">
-                  Ajuste os filtros para ampliar a busca ou explore outra categoria.
-                </p>
+                {filteredAds.length === 0 ? (
+                  <div className="mx-auto max-w-2xl">
+                    <p className="text-2xl font-semibold text-slate-900">Ainda nao temos anuncios aqui</p>
+                    <p className="mt-3 text-base text-slate-600">
+                      Seja o primeiro a anunciar gratis e ganhe visibilidade nesta categoria.
+                    </p>
+                    <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={handleEmptyCategoryAnnouncement}
+                        className="inline-flex min-w-[220px] items-center justify-center rounded-2xl bg-green-700 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-900/15 transition hover:bg-green-800"
+                      >
+                        Anunciar agora
+                      </button>
+                      <Link
+                        to="/categorias"
+                        className="inline-flex min-w-[220px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                      >
+                        Ver outras categorias
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-lg font-semibold text-slate-800">Os anuncios desta categoria estao em destaque agora</p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Confira a vitrine premium acima ou ajuste os filtros para explorar mais resultados.
+                    </p>
+                  </>
+                )}
               </div>
             )}
           </section>

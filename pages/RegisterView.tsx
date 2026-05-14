@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { supabase } from '../src/lib/supabaseClient';
+import SeoHead from '../components/SeoHead';
 
 type ProfileType = 'individual' | 'company' | null;
 
@@ -298,7 +299,12 @@ const RegisterView: React.FC = () => {
       complemento: formData.complemento,
       bairro: formData.bairro,
       cidade: formData.cidade,
-      estado: formData.estado
+      estado: formData.estado,
+      legalConsents: {
+        acceptedTermsOfUse: acceptedTerms,
+        acceptedPrivacyPolicy: acceptedTerms,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : ''
+      }
     });
 
     if (error) {
@@ -331,6 +337,12 @@ const RegisterView: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-white">
+      <SeoHead
+        title="Criar conta"
+        description="Crie sua conta na AGRO BW para anunciar e negociar no agronegócio."
+        canonicalPath="/cadastro"
+        noIndex
+      />
       <div className="hidden lg:block lg:w-[45%] sticky top-0 h-screen relative">
         <img
           src="https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=1600&auto=format&fit=crop"

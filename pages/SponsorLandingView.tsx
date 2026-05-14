@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { supabase } from '../src/lib/supabaseClient';
+import SeoHead from '../components/SeoHead';
 
 const SUPPORT_EMAIL = 'suporte@bwagro.com.br';
 
@@ -395,6 +396,11 @@ const SponsorLandingView: React.FC = () => {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-white">
+      <SeoHead
+        title="Vitrine Premium para marcas do agronegócio"
+        description="Leve sua marca para a Vitrine Premium da AGRO BW e ganhe visibilidade estratégica dentro do marketplace rural."
+        canonicalPath="/patrocinador"
+      />
 
       {/* -- HERO ------------------------------------------------------------ */}
       <section className="relative min-h-[92vh] flex items-center overflow-hidden">

@@ -7,6 +7,7 @@ import {
   Bell,
   ChevronDown,
   FileCheck,
+  FileLock2,
   FolderTree,
   Gift,
   Handshake,
@@ -89,6 +90,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         items: [
           { label: 'Gestao de Usuarios', path: '/admin/users', icon: Users },
           { label: 'Verificacoes', path: '/admin/verifications', icon: BadgeCheck },
+          { label: 'Consentimentos legais', path: '/admin/legal-consents', icon: FileLock2 },
         ],
       },
       {

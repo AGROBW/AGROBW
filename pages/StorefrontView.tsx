@@ -2,8 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { Facebook, Instagram, Linkedin, Link as LinkIcon, Search, ShieldCheck, SlidersHorizontal, Store, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import AdCard from '../components/AdCard';
+import SeoHead from '../components/SeoHead';
+import StructuredData from '../components/StructuredData';
 import { usePublicSellerStore } from '../src/hooks/useSellerStore';
 import { useAuth } from '../src/contexts/AuthContext';
+import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', {
@@ -321,6 +324,12 @@ const StorefrontView: React.FC = () => {
   if (error || !store) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+        <SeoHead
+          title="Loja nao encontrada"
+          description="A loja parceira solicitada nao esta disponivel na AGRO BW."
+          canonicalPath={slug ? `/loja/${slug}` : '/lojas-parceiras'}
+          noIndex
+        />
         <h1 className="text-3xl font-black text-slate-900">Loja não encontrada</h1>
         <p className="mt-3 max-w-md text-sm leading-6 text-slate-500">
           {error || 'A página da loja está indisponível no momento. Confira o endereço informado ou volte para a home da BWAGRO.'}
@@ -341,7 +350,7 @@ const StorefrontView: React.FC = () => {
         <div className="flex flex-col gap-4 md:flex-row md:items-center">
           <div className="flex h-24 w-28 items-center justify-center overflow-hidden rounded-[1.25rem] bg-white shadow-lg md:w-32">
             {store.logoUrl ? (
-              <img src={store.logoUrl} alt={store.storeName} className="h-full w-full object-contain p-3" />
+              <img src={store.logoUrl} alt={store.storeName} decoding="async" className="h-full w-full object-contain p-3" />
             ) : (
               <ShieldCheck className="h-10 w-10 text-[#ff7a18]" strokeWidth={1.5} />
             )}
@@ -385,8 +394,55 @@ const StorefrontView: React.FC = () => {
     </div>
   );
 
+  const storefrontDescription =
+    store.description?.trim() ||
+    `Conheca a loja ${store.storeName}, veja anuncios disponiveis e negocie oportunidades no agronegocio pela AGRO BW.`;
+
+  const storefrontStructuredData = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Início',
+          item: buildAbsoluteSiteUrl('/'),
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Lojas parceiras',
+          item: buildAbsoluteSiteUrl('/lojas-parceiras'),
+        },
+        {
+          '@type': 'ListItem',
+          position: 3,
+          name: store.storeName,
+          item: buildAbsoluteSiteUrl(`/loja/${store.slug}`),
+        },
+      ],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Store',
+      name: store.storeName,
+      description: storefrontDescription,
+      url: buildAbsoluteSiteUrl(`/loja/${store.slug}`),
+      image: store.coverUrl || store.logoUrl || undefined,
+      telephone: store.whatsapp || undefined,
+    },
+  ];
+
   return (
     <div className="bg-[#f5f7fb] pb-16">
+      <SeoHead
+        title={`${store.storeName} | Loja parceira`}
+        description={storefrontDescription.slice(0, 160)}
+        canonicalPath={`/loja/${store.slug}`}
+        image={store.coverUrl || store.logoUrl || null}
+      />
+      <StructuredData id="storefront" data={storefrontStructuredData} />
       <section
         className="relative overflow-hidden"
         style={{

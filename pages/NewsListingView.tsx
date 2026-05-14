@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useNews } from '../src/hooks/useNews';
 import { useLayout } from '../src/contexts/LayoutContext';
+import SeoHead from '../components/SeoHead';
+import StructuredData from '../components/StructuredData';
+import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 
 const NewsListingView: React.FC = () => {
   const { news, isLoading } = useNews();
@@ -10,6 +13,41 @@ const NewsListingView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 py-16">
+      <SeoHead
+        title="Notícias do agronegócio"
+        description="Acompanhe análises, tendências e notícias do agronegócio brasileiro publicadas pela AGRO BW."
+        canonicalPath="/noticias"
+      />
+      <StructuredData
+        id="news-listing"
+        data={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              {
+                '@type': 'ListItem',
+                position: 1,
+                name: 'Início',
+                item: buildAbsoluteSiteUrl('/'),
+              },
+              {
+                '@type': 'ListItem',
+                position: 2,
+                name: 'Notícias',
+                item: buildAbsoluteSiteUrl('/noticias'),
+              },
+            ],
+          },
+          {
+            '@context': 'https://schema.org',
+            '@type': 'CollectionPage',
+            name: 'Notícias do agronegócio',
+            url: buildAbsoluteSiteUrl('/noticias'),
+            description: 'Acompanhe análises, tendências e notícias do agronegócio brasileiro.',
+          },
+        ]}
+      />
       <div className="mx-auto max-w-7xl px-4">
         <div className="mb-10">
           <p className="text-xs font-black uppercase tracking-[0.3em]" style={{ color: settings.primaryColor }}>Notícias AGRO BW</p>
@@ -37,7 +75,7 @@ const NewsListingView: React.FC = () => {
               >
                 <div className="h-48 bg-slate-100">
                   {item.imageUrl ? (
-                    <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover" />
+                    <img src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                   ) : null}
                 </div>
                 <div className="p-6">

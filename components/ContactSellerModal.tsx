@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { LEAD_STATUS, CHAT_STATUS } from '../constants/status';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { isTimestampExpired, syncTrustedTime } from '../src/lib/trustedTime';
+import { recordContactLegalConsents } from '../src/lib/legalConsents';
 
 const applyPhoneMask = (value: string) => {
   const numbers = value.replace(/\D/g, '');
@@ -98,6 +99,20 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
     setIsSubmitting(true);
 
     try {
+      const { error: consentError } = await recordContactLegalConsents({
+        announcementId,
+        sellerId,
+        buyerId: user.id,
+      });
+
+      if (consentError) {
+        console.error('[LegalConsent] Erro ao registrar aceite juridico do contato:', consentError);
+        toast.error('Nao foi possivel registrar o aceite dos termos.', {
+          description: 'Tente novamente antes de enviar sua mensagem ao vendedor.',
+        });
+        return;
+      }
+
       await syncTrustedTime();
 
       const { data: announcementData, error: announcementError } = await supabase

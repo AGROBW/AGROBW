@@ -2900,6 +2900,7 @@ const UserDashboardView: React.FC = () => {
     const userName = user?.name || user?.email || 'Usuário';
     const userCity = user?.location || 'Localização não informada';
     const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
     const [profileForm, setProfileForm] = useState({
       name: '',
       businessDescription: '',
@@ -3012,6 +3013,38 @@ const UserDashboardView: React.FC = () => {
         ...prev,
         [field]: value,
       }));
+    };
+
+    const resetPasswordForm = () => {
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    };
+
+    const validatePasswordChange = () => {
+      if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+        sonnerToast.error('Preencha todos os campos de senha para alterar seu acesso');
+        return false;
+      }
+
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        sonnerToast.error('A nova senha e a confirmacao nao conferem');
+        return false;
+      }
+
+      if (passwordForm.newPassword.length < 8) {
+        sonnerToast.error('A nova senha deve ter pelo menos 8 caracteres');
+        return false;
+      }
+
+      if (passwordForm.currentPassword === passwordForm.newPassword) {
+        sonnerToast.error('Escolha uma nova senha diferente da senha atual');
+        return false;
+      }
+
+      return true;
     };
 
     const lookupCep = async (cleanCep: string) => {
@@ -3146,20 +3179,11 @@ const UserDashboardView: React.FC = () => {
       }
 
       if (wantsPasswordChange) {
-        if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
-          sonnerToast.error('Preencha todos os campos de senha para alterar seu acesso');
-          return;
-        }
+        sonnerToast.info('Use o botao "Atualizar senha" na aba Seguranca e acesso para alterar sua senha com seguranca');
+      }
 
-        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-          sonnerToast.error('A nova senha e a confirmação não conferem');
-          return;
-        }
-
-        if (passwordForm.newPassword.length < 6) {
-          sonnerToast.error('A nova senha deve ter pelo menos 6 caracteres');
-          return;
-        }
+      if (!hasProfileChanges) {
+        return;
       }
 
       setIsSavingProfile(true);
@@ -3211,33 +3235,6 @@ const UserDashboardView: React.FC = () => {
           }
         }
 
-        if (wantsPasswordChange) {
-          const { error: reAuthError } = await supabase.auth.signInWithPassword({
-            email: user.email,
-            password: passwordForm.currentPassword,
-          });
-
-          if (reAuthError) {
-            sonnerToast.error('Senha atual incorreta');
-            setIsSavingProfile(false);
-            return;
-          }
-
-          const { error: passwordError } = await supabase.auth.updateUser({
-            password: passwordForm.newPassword,
-          });
-
-          if (passwordError) {
-            throw passwordError;
-          }
-
-          setPasswordForm({
-            currentPassword: '',
-            newPassword: '',
-            confirmPassword: '',
-          });
-        }
-
         await refreshStats();
         sonnerToast.success('Perfil atualizado com sucesso');
       } catch (error) {
@@ -3247,6 +3244,49 @@ const UserDashboardView: React.FC = () => {
         sonnerToast.error(errorMessage || 'Não foi possível salvar as alterações do perfil');
       } finally {
         setIsSavingProfile(false);
+      }
+    };
+
+    const handleUpdatePassword = async () => {
+      if (!user?.email) {
+        sonnerToast.error('Usuario nao autenticado');
+        return;
+      }
+
+      if (!validatePasswordChange()) {
+        return;
+      }
+
+      setIsUpdatingPassword(true);
+
+      try {
+        const { error: reAuthError } = await supabase.auth.signInWithPassword({
+          email: user.email,
+          password: passwordForm.currentPassword,
+        });
+
+        if (reAuthError) {
+          sonnerToast.error('Senha atual incorreta');
+          return;
+        }
+
+        const { error: passwordError } = await supabase.auth.updateUser({
+          password: passwordForm.newPassword,
+        });
+
+        if (passwordError) {
+          throw passwordError;
+        }
+
+        resetPasswordForm();
+        sonnerToast.success('Senha atualizada com sucesso');
+      } catch (error) {
+        console.error('Erro ao atualizar senha:', error);
+        const errorMessage =
+          error instanceof Error ? error.message : 'Nao foi possivel atualizar sua senha';
+        sonnerToast.error(errorMessage || 'Nao foi possivel atualizar sua senha');
+      } finally {
+        setIsUpdatingPassword(false);
       }
     };
 
@@ -3488,6 +3528,29 @@ const UserDashboardView: React.FC = () => {
               value={passwordForm.confirmPassword}
               onChange={(event) => handlePasswordFieldChange('confirmPassword', event.target.value)}
             />
+          </div>
+        </div>
+        <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs leading-5 text-slate-500">
+            Para sua seguranca, a troca de senha exige a confirmacao da senha atual e acontece separadamente do salvamento dos dados do perfil.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              onClick={handleUpdatePassword}
+              disabled={isUpdatingPassword}
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isUpdatingPassword ? 'Atualizando senha...' : 'Atualizar senha'}
+            </button>
+            <button
+              type="button"
+              onClick={resetPasswordForm}
+              disabled={isUpdatingPassword}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Limpar campos
+            </button>
           </div>
         </div>
       </ProfileSectionCard>

@@ -42,6 +42,11 @@ interface AuthContextType {
       bairro?: string;
       cidade?: string;
       estado?: string;
+      legalConsents?: {
+        acceptedTermsOfUse?: boolean;
+        acceptedPrivacyPolicy?: boolean;
+        userAgent?: string;
+      };
     }
   ) => Promise<{ error: any }>
   signOut: () => Promise<void>
@@ -460,6 +465,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       bairro?: string;
       cidade?: string;
       estado?: string;
+      legalConsents?: {
+        acceptedTermsOfUse?: boolean;
+        acceptedPrivacyPolicy?: boolean;
+        userAgent?: string;
+      };
     }
   ) => {
     const onlyDigits = (value?: string) => (value ?? '').replace(/\D/g, '')
@@ -482,7 +492,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           complemento: additionalData?.complemento,
           bairro: additionalData?.bairro,
           cidade: additionalData?.cidade,
-          estado: additionalData?.estado
+          estado: additionalData?.estado,
+          accepted_terms_of_use: additionalData?.legalConsents?.acceptedTermsOfUse === true,
+          accepted_privacy_policy: additionalData?.legalConsents?.acceptedPrivacyPolicy === true,
+          legal_consent_source: 'register',
+          legal_consent_user_agent: additionalData?.legalConsents?.userAgent || undefined
         }
       }
     })

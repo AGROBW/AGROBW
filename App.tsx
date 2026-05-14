@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { MessageCircle } from 'lucide-react';
-import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LayoutProvider } from './src/contexts/LayoutContext';
@@ -8,6 +8,7 @@ import { useSiteAnalyticsTracking } from './src/hooks/useSiteAnalyticsTracking';
 import { ProtectedAdminRoute } from './components/ProtectedAdminRoute';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import LegalConsentReacceptGate from './components/LegalConsentReacceptGate';
 import SitePopupCampaignGate from './components/site/SitePopupCampaignGate';
 import Home from './pages/Home';
 
@@ -41,6 +42,7 @@ const AdminDashboardOverview = lazy(() => import('./pages/admin/AdminDashboardOv
 const ModerationQueue = lazy(() => import('./pages/admin/ModerationQueue'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const VerificationRequestsManagement = lazy(() => import('./pages/admin/VerificationRequestsManagement'));
+const LegalConsentsManagement = lazy(() => import('./pages/admin/LegalConsentsManagement'));
 const CategoriesManagement = lazy(() => import('./pages/admin/CategoriesManagement'));
 const AnnouncementsMonitoring = lazy(() => import('./pages/admin/AnnouncementsMonitoring'));
 const SiteAnalyticsView = lazy(() => import('./pages/admin/SiteAnalyticsView'));
@@ -262,6 +264,7 @@ const AppContent: React.FC = () => {
               <Route path="moderation" element={<ModerationQueue />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="verifications" element={<VerificationRequestsManagement />} />
+              <Route path="legal-consents" element={<LegalConsentsManagement />} />
               <Route path="categories" element={<CategoriesManagement />} />
               <Route path="monitoring" element={<AnnouncementsMonitoring />} />
               <Route path="statistics" element={<SiteAnalyticsView />} />
@@ -289,6 +292,7 @@ const AppContent: React.FC = () => {
 
       {!isAdminPath && !isUserAreaPath && <Footer />}
       {!isAdminPath && !isUserAreaPath && <SitePopupCampaignGate />}
+      {!isAdminPath && <LegalConsentReacceptGate />}
 
       {/* Floating WhatsApp Action */}
       {!isAdminPath && !isUserAreaPath && (

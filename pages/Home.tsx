@@ -9,12 +9,15 @@ import NewsGrid from '../components/NewsGrid';
 import HomeAdsCarousel from '../components/HomeAdsCarousel';
 import HomeStoresCarousel from '../components/HomeStoresCarousel';
 import SiteSponsorShowcase from '../components/SiteSponsorShowcase';
+import SeoHead from '../components/SeoHead';
+import StructuredData from '../components/StructuredData';
 import { CATEGORIES } from '../constants';
 import { usePublicAds } from '../src/hooks/useAds';
 import { useCategoryCounts } from '../src/hooks/useCategoryCounts';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { supabase } from '../src/lib/supabaseClient';
 import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
+import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 import { Ad } from '../types';
 
 class AdCardErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -206,6 +209,38 @@ const Home: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: settings.backgroundColor }}>
+      <SeoHead
+        title="Marketplace rural para comprar e vender no agronegócio"
+        description="Encontre anúncios rurais, negocie com produtores e lojas parceiras e anuncie grátis no marketplace da AGRO BW."
+        canonicalPath="/"
+      />
+      <StructuredData
+        id="home-website"
+        data={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: 'AGRO BW',
+            url: buildAbsoluteSiteUrl('/'),
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: `${buildAbsoluteSiteUrl('/anuncios')}?q={search_term_string}`,
+              'query-input': 'required name=search_term_string',
+            },
+          },
+          {
+            '@context': 'https://schema.org',
+            '@type': 'Organization',
+            name: 'AGRO BW',
+            url: buildAbsoluteSiteUrl('/'),
+            contactPoint: {
+              '@type': 'ContactPoint',
+              contactType: 'customer support',
+              email: 'suporte@bwagro.com.br',
+            },
+          },
+        ]}
+      />
       <QuotationTicker />
       <AdSlider />
       <HeroSearch />

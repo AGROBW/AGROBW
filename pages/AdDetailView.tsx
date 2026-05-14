@@ -7,11 +7,14 @@ import { useAuth } from '../src/contexts/AuthContext';
 import ContactSellerModal from '../components/ContactSellerModal';
 import ReportAnnouncementModal from '../components/ReportAnnouncementModal';
 import VerifiedBadge from '../components/VerifiedBadge';
+import SeoHead from '../components/SeoHead';
+import StructuredData from '../components/StructuredData';
 import toast from 'react-hot-toast';
 import { censorContactData } from '../src/utils/censorContact';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { useAnnouncementReports } from '../src/hooks/useAnnouncementReports';
+import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 
 // Mapa de ícones para renderizar dinamicamente
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -162,8 +165,72 @@ const AdDetailView: React.FC = () => {
     ad.hasWarranty ? { label: 'Garantia', value: ad.warrantyDetails || 'Garantia informada pela loja' } : null,
   ].filter(Boolean) as Array<{ label: string; value: string }>;
 
+  const adStructuredData = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Início',
+          item: buildAbsoluteSiteUrl('/'),
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Anúncios',
+          item: buildAbsoluteSiteUrl('/anuncios'),
+        },
+        {
+          '@type': 'ListItem',
+          position: 3,
+          name: ad.title,
+          item: buildAbsoluteSiteUrl(`/anuncio/${ad.id}`),
+        },
+      ],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: ad.title,
+      description: safeDescription || `Anúncio rural ${ad.title}`,
+      image: primaryImage ? [primaryImage] : undefined,
+      sku: ad.id,
+      brand: ad.seller?.name || 'AGRO BW',
+      category: ad.categorySlug || ad.subCategoryLabel || undefined,
+      offers: isPriceOnRequest
+        ? {
+            '@type': 'Offer',
+            availability: 'https://schema.org/InStock',
+            url: buildAbsoluteSiteUrl(`/anuncio/${ad.id}`),
+            priceSpecification: {
+              '@type': 'PriceSpecification',
+              priceCurrency: 'BRL',
+              valueAddedTaxIncluded: false,
+              price: 0,
+              description: 'Sob consulta',
+            },
+          }
+        : {
+            '@type': 'Offer',
+            priceCurrency: 'BRL',
+            price: priceToDisplay,
+            availability: 'https://schema.org/InStock',
+            url: buildAbsoluteSiteUrl(`/anuncio/${ad.id}`),
+          },
+    },
+  ];
+
   return (
     <div className="bg-gray-50 pb-20">
+      <SeoHead
+        title={ad.title}
+        description={(safeDescription || `Veja detalhes do anúncio ${ad.title} no marketplace da AGRO BW.`).slice(0, 160)}
+        canonicalPath={`/anuncio/${ad.id}`}
+        image={primaryImage}
+      />
+      <StructuredData id="ad-detail" data={adStructuredData} />
       {/* Breadcrumb */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex items-center gap-2 text-sm text-slate-400 font-medium">

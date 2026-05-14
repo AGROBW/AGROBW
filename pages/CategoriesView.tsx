@@ -6,10 +6,13 @@ import { useCategoryGroupImages } from '../src/hooks/useCategoryGroupImages';
 import { getCategoryIconComponent } from '../src/lib/categoryVisuals';
 import { CATEGORY_HIERARCHY } from '../src/lib/categoryHierarchy';
 import { useLayout } from '../src/contexts/LayoutContext';
+import SeoHead from '../components/SeoHead';
+import StructuredData from '../components/StructuredData';
+import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 
 const CATEGORY_IMAGES: Record<string, string> = {
   animais:  'https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=800&q=80',
-  maquinas: 'https://images.unsplash.com/photo-1585435557343-3b092031a831?w=800&q=80',
+  maquinas: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=800&q=80',
   insumos:  'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800&q=80',
   imoveis:  'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80',
   servicos: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800&q=80',
@@ -21,7 +24,7 @@ const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1625246333195-78d9c38a
 const CategoriesView: React.FC = () => {
   const { getCountForCategory } = useCategoryCounts();
   const { settings } = useLayout();
-  const groupImages = useCategoryGroupImages();
+  const { images: groupImages, isLoading: groupImagesLoading } = useCategoryGroupImages();
 
   const totalAds = CATEGORY_HIERARCHY.reduce(
     (sum, cat) => sum + (getCountForCategory(cat.slug) || 0),
@@ -30,6 +33,41 @@ const CategoriesView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <SeoHead
+        title="Categorias do marketplace rural"
+        description="Explore categorias do agronegócio, encontre anúncios por setor e descubra oportunidades no mercado rural."
+        canonicalPath="/categorias"
+      />
+      <StructuredData
+        id="categories-breadcrumb"
+        data={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              {
+                '@type': 'ListItem',
+                position: 1,
+                name: 'Início',
+                item: buildAbsoluteSiteUrl('/'),
+              },
+              {
+                '@type': 'ListItem',
+                position: 2,
+                name: 'Categorias',
+                item: buildAbsoluteSiteUrl('/categorias'),
+              },
+            ],
+          },
+          {
+            '@context': 'https://schema.org',
+            '@type': 'CollectionPage',
+            name: 'Categorias do marketplace rural',
+            url: buildAbsoluteSiteUrl('/categorias'),
+            description: 'Explore categorias do agronegócio e navegue por anúncios rurais.',
+          },
+        ]}
+      />
       {/* ── HERO ──────────────────────────────────────────────── */}
       <section className="relative overflow-hidden" style={{ backgroundColor: settings.secondaryColor }}>
         <div className="absolute inset-0">
@@ -86,7 +124,9 @@ const CategoriesView: React.FC = () => {
           {CATEGORY_HIERARCHY.map((categoryGroup) => {
             const Icon = getCategoryIconComponent(undefined, categoryGroup.slug);
             const count = getCountForCategory(categoryGroup.slug) || 0;
-            const imgUrl = groupImages[categoryGroup.slug] || CATEGORY_IMAGES[categoryGroup.slug] || FALLBACK_IMAGE;
+            const adminImageUrl = groupImages[categoryGroup.slug];
+            const fallbackImageUrl = CATEGORY_IMAGES[categoryGroup.slug] || FALLBACK_IMAGE;
+            const imgUrl = adminImageUrl || (!groupImagesLoading ? fallbackImageUrl : null);
             const visibleSubcategories = categoryGroup.children.slice(0, 5);
 
             return (
@@ -96,11 +136,17 @@ const CategoriesView: React.FC = () => {
               >
                 {/* imagem de capa */}
                 <div className="relative h-44 overflow-hidden">
-                  <img
-                    src={imgUrl}
-                    alt={categoryGroup.name}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
+                  {imgUrl ? (
+                    <img
+                      src={imgUrl}
+                      alt={categoryGroup.name}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="h-full w-full animate-pulse bg-[linear-gradient(135deg,#dbeafe_0%,#dcfce7_45%,#e2e8f0_100%)]" />
+                  )}
                   {/* overlay gradiente */}
                   <div
                     className="absolute inset-0"

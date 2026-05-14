@@ -319,6 +319,8 @@ const PreviewAnnouncementModal: React.FC<{
 const AdCreationView: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const prefilledCategorySlug = searchParams.get('categoria') || '';
+  const prefilledSubcategorySlug = searchParams.get('subcategoria') || '';
   const { user } = useAuth();
   const { settings } = useLayout();
   const { handleAction } = usePlanCheck();
@@ -383,6 +385,7 @@ const AdCreationView: React.FC = () => {
   const loadedEditAdIdRef = useRef<string | null>(null);
   const hasPublishedSuccessfullyRef = useRef(false);
   const isCleaningDraftRef = useRef(false);
+  const hasAppliedCategoryPrefillRef = useRef(false);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
@@ -718,6 +721,42 @@ const AdCreationView: React.FC = () => {
     };
     loadCategories();
   }, []);
+
+  useEffect(() => {
+    if (isEditingExistingAd || hasAppliedCategoryPrefillRef.current || !prefilledCategorySlug || dbCategories.length === 0) {
+      return;
+    }
+
+    const matchedCategory = dbCategories.find((category) => category.slug === prefilledCategorySlug);
+    if (!matchedCategory) {
+      hasAppliedCategoryPrefillRef.current = true;
+      return;
+    }
+
+    const matchedGroup = getCategoryGroupForCategorySlug(matchedCategory.slug);
+    const matchedSubcategory = prefilledSubcategorySlug
+      ? dbSubcategories.find((subcategory) => subcategory.slug === prefilledSubcategorySlug)
+      : null;
+
+    setFormData((prev: any) => ({
+      ...prev,
+      categoryGroupSlug: matchedGroup?.slug || prev.categoryGroupSlug || matchedCategory.slug,
+      categoryId: matchedCategory.id,
+      categorySlug: matchedCategory.slug,
+      subCategoryId: matchedSubcategory?.id || (prefilledSubcategorySlug ? prev.subCategoryId : ''),
+      subCategoryLabel: matchedSubcategory?.name || (prefilledSubcategorySlug ? prev.subCategoryLabel : ''),
+    }));
+
+    if (!prefilledSubcategorySlug || matchedSubcategory) {
+      hasAppliedCategoryPrefillRef.current = true;
+    }
+  }, [
+    dbCategories,
+    dbSubcategories,
+    isEditingExistingAd,
+    prefilledCategorySlug,
+    prefilledSubcategorySlug,
+  ]);
 
   // Atualizar schema de campos tÃ©cnicos quando categoria mudar
   useEffect(() => {

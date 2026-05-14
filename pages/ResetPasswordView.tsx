@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../src/lib/supabaseClient';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { toast } from 'sonner';
+import SeoHead from '../components/SeoHead';
 
 const ResetPasswordView: React.FC = () => {
   const navigate = useNavigate();
@@ -75,6 +76,12 @@ const ResetPasswordView: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-8">
+      <SeoHead
+        title="Redefinir senha"
+        description="Redefina sua senha de acesso na AGRO BW."
+        canonicalPath="/redefinir-senha"
+        noIndex
+      />
       <div className="w-full max-w-md bg-white border border-slate-100 rounded-2xl p-8 shadow-xl" style={{ boxShadow: `0 24px 60px -40px ${settings.primaryColor}80` }}>
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2 mb-6 group">

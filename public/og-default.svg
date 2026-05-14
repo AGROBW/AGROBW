@@ -1,0 +1,20 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#081C15"/>
+  <rect x="48" y="48" width="1104" height="534" rx="32" fill="url(#paint0_linear)"/>
+  <rect x="84" y="92" width="320" height="96" rx="24" fill="#16A34A"/>
+  <rect x="394" y="92" width="170" height="96" rx="24" fill="#172554"/>
+  <text x="244" y="154" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="56" font-weight="700">AGRO</text>
+  <text x="479" y="154" text-anchor="middle" fill="#FACC15" font-family="Arial, sans-serif" font-size="56" font-weight="700">BW</text>
+  <text x="84" y="292" fill="white" font-family="Arial, sans-serif" font-size="68" font-weight="700">Marketplace rural para</text>
+  <text x="84" y="372" fill="white" font-family="Arial, sans-serif" font-size="68" font-weight="700">comprar, vender e anunciar</text>
+  <text x="84" y="456" fill="#C7D2FE" font-family="Arial, sans-serif" font-size="34" font-weight="400">
+    Visibilidade, negócios e oportunidades para o agronegócio brasileiro.
+  </text>
+  <rect x="84" y="502" width="270" height="18" rx="9" fill="#16A34A" fill-opacity="0.85"/>
+  <defs>
+    <linearGradient id="paint0_linear" x1="48" y1="48" x2="1152" y2="582" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B3B2E"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+  </defs>
+</svg>

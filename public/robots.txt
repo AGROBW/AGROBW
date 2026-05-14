@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /admin/
+Disallow: /minha-conta
+Disallow: /minha-conta/
+Disallow: /login
+Disallow: /cadastro
+Disallow: /redefinir-senha
+
+Sitemap: https://bwagro.com.br/sitemap.xml

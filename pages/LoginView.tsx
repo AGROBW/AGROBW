@@ -4,6 +4,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getRememberDevicePreference } from '../src/lib/supabaseClient';
 import { toast } from 'sonner';
+import SeoHead from '../components/SeoHead';
 
 const LoginView: React.FC = () => {
   const navigate = useNavigate();
@@ -121,6 +122,12 @@ const LoginView: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-white overflow-hidden">
+      <SeoHead
+        title="Entrar"
+        description="Acesse sua conta na AGRO BW."
+        canonicalPath="/login"
+        noIndex
+      />
       <div className="hidden md:flex md:w-[60%] relative h-screen">
         <img
           src="https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?q=80&w=1600&auto=format&fit=crop"

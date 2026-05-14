@@ -9,6 +9,9 @@ import { useLayout } from '../src/contexts/LayoutContext';
 import { Plan } from '../src/hooks/usePlans';
 import { useHighlightBoosters } from '../src/hooks/useHighlightBoosters';
 import HighlightBoosterCard from '../components/boosters/HighlightBoosterCard';
+import SeoHead from '../components/SeoHead';
+import StructuredData from '../components/StructuredData';
+import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 import { getEffectivePlanValidityDays } from '../src/utils/subscriptionUsageWindow';
 
 type BillingCycle = 'monthly' | 'yearly';
@@ -76,7 +79,7 @@ const PricingView: React.FC = () => {
       { id: 'max_ads', label: 'Máximo de anúncios ativos', getValue: (plan) => (plan.max_ads === null ? 'Ilimitado' : String(plan.max_ads)) },
       { id: 'ad_duration_days', label: 'Duração do anúncio', getValue: (plan) => formatNumericValue(plan.ad_duration_days, ' dias') },
       { id: 'expired_deletion_days', label: 'Exclusão após vencimento', getValue: (plan) => formatNumericValue(plan.expired_deletion_days, ' dias') },
-      { id: 'plan_validity_days', label: billingCycle === 'monthly' ? 'Validade do plano no ciclo mensal' : 'Validade do plano no ciclo anual', getValue: (plan) => formatNumericValue(getEffectivePlanValidityDays(plan, billingCycle), ' dias') },
+      { id: 'plan_validity_days', label: 'Validade do plano', getValue: (plan) => formatNumericValue(getEffectivePlanValidityDays(plan, billingCycle), ' dias') },
       { id: 'category_highlights_count', label: 'Destaques por categoria', getValue: (plan) => String(plan.category_highlights_count || 0) },
       { id: 'category_highlight_days', label: 'Duração do destaque na categoria', getValue: (plan) => (plan.category_highlights_count || 0) > 0 ? formatNumericValue(plan.category_highlight_days, ' dias') : '-' },
       { id: 'home_highlight_count', label: 'Destaques na home', getValue: (plan) => String(plan.home_highlight_count || 0) },
@@ -86,9 +89,6 @@ const PricingView: React.FC = () => {
       { id: 'has_email_marketing', label: 'E-mail marketing', getValue: (plan) => plan.has_email_marketing },
       { id: 'social_campaigns_per_month', label: 'Campanhas sociais por mês', getValue: (plan) => plan.social_campaigns_per_month && plan.social_campaigns_per_month > 0 ? String(plan.social_campaigns_per_month) : '-' },
       { id: 'radar_max_alerts', label: 'Alertas do radar', getValue: (plan) => String(plan.radar_max_alerts || 0) },
-      { id: 'radar_has_radius', label: 'Filtro por raio no radar', getValue: (plan) => plan.radar_has_radius },
-      { id: 'radar_has_keywords', label: 'Filtro por palavras-chave', getValue: (plan) => plan.radar_has_keywords },
-      { id: 'radar_has_price_filter', label: 'Filtro por faixa de preço', getValue: (plan) => plan.radar_has_price_filter },
     ];
     const extraKeys = Array.from(new Set(plansRaw.flatMap((plan) => Object.keys(plan.comparison || {}).filter((key) => !baseRows.some((row) => row.id === key)))));
     return [...baseRows, ...extraKeys.map((key) => ({ id: key, label: humanizeComparisonKey(key), getValue: (plan: Plan) => formatComparisonValue(plan.comparison?.[key] ?? '-') }))];
@@ -118,6 +118,42 @@ const PricingView: React.FC = () => {
       ? Boolean(plan.is_default_signup_plan)
       : isLegacyStartSignupPlanName(plan.name || '');
   const isStartPlanLockedForUser = (plan: Plan) => Boolean(user && hasConsumedStartPlan && isCurrentSignupPlan(plan));
+  const pricingFaqStructuredData = useMemo(
+    () => ({
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: visiblePricingFaq.map((faq) => ({
+        '@type': 'Question',
+        name: faq.question,
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: faq.answer,
+        },
+      })),
+    }),
+    [visiblePricingFaq]
+  );
+  const pricingBreadcrumbStructuredData = useMemo(
+    () => ({
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Início',
+          item: buildAbsoluteSiteUrl('/'),
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Planos',
+          item: buildAbsoluteSiteUrl('/planos'),
+        },
+      ],
+    }),
+    []
+  );
 
   const handleSubscribe = async (planId: string, planName: string, monthlyPrice: number, yearlyPrice: number, description?: string | null) => {
     const selectedPlan = plansRaw.find((plan) => plan.id === planId);
@@ -197,6 +233,13 @@ const PricingView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white">
+      <SeoHead
+        title="Planos para anunciar no marketplace rural"
+        description="Compare planos, destaques e benefícios para anunciar com mais visibilidade no marketplace da AGRO BW."
+        canonicalPath="/planos"
+      />
+      <StructuredData id="pricing-faq" data={pricingFaqStructuredData} />
+      <StructuredData id="pricing-breadcrumb" data={pricingBreadcrumbStructuredData} />
       {/* HERO */}
       <section className="relative min-h-[92vh] overflow-hidden flex flex-col justify-end pb-0">
         {/* foto de fundo */}

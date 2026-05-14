@@ -42,7 +42,7 @@ const AdSlider: React.FC = () => {
             title: 'Bem-vindo à BWAGRO',
             subtitle: 'Conectando o produtor rural às melhores oportunidades.',
             button_text: 'Ver Anúncios',
-            button_link: '#/anuncios',
+            button_link: '/anuncios',
             image_url: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1600&auto=format&fit=crop',
             sort_order: 0,
             is_active: true
@@ -57,7 +57,7 @@ const AdSlider: React.FC = () => {
           title: 'Bem-vindo à BWAGRO',
           subtitle: 'Conectando o produtor rural às melhores oportunidades.',
           button_text: 'Ver Anúncios',
-          button_link: '#/anuncios',
+          button_link: '/anuncios',
           image_url: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1600&auto=format&fit=crop',
           sort_order: 0,
           is_active: true
