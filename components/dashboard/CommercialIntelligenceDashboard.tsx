@@ -17,6 +17,7 @@ import {
 import toast from 'react-hot-toast';
 import { useCommercialIntelligence } from '../../src/hooks/useCommercialIntelligence';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { appError } from '../../src/utils/appLogger';
 
 const scoreMeta = {
   high: {
@@ -235,7 +236,9 @@ const CommercialIntelligenceDashboard: React.FC = () => {
 
       toast.success('Preferencias comerciais salvas com sucesso.');
     } catch (error: any) {
-      console.error('[CommercialIntelligence] Erro ao salvar preferencias:', error);
+      appError('[CommercialIntelligence] Erro ao salvar preferencias', error, {
+        userId: user?.id ?? null,
+      });
       toast.error(error?.message || 'Nao foi possivel salvar as preferencias comerciais.');
     }
   };
@@ -251,7 +254,11 @@ const CommercialIntelligenceDashboard: React.FC = () => {
       setHasGeneratedAtLeastOnce(true);
       toast.success('Inteligencia comercial gerada com sucesso.');
     } catch (error: any) {
-      console.error('[CommercialIntelligence] Erro ao gerar relatorio:', error);
+      appError('[CommercialIntelligence] Erro ao gerar relatorio', error, {
+        userId: user?.id ?? null,
+        categorySlug: selectedCategorySlug,
+        subcategorySlug: selectedSubcategorySlug || null,
+      });
       toast.error(error?.message || 'Nao foi possivel gerar a inteligencia comercial.');
     }
   };
@@ -278,7 +285,11 @@ const CommercialIntelligenceDashboard: React.FC = () => {
         setOutreachMessage(outreachMessageSuggestion);
       }
     } catch (error: any) {
-      console.error('[CommercialIntelligence] Erro ao enviar campanha mediada:', error);
+      appError('[CommercialIntelligence] Erro ao enviar campanha mediada', error, {
+        userId: user?.id ?? null,
+        categorySlug: selectedCategorySlug,
+        subcategorySlug: selectedSubcategorySlug || null,
+      });
       toast.error(error?.message || 'Nao foi possivel enviar a campanha mediada.');
     }
   };
@@ -288,7 +299,10 @@ const CommercialIntelligenceDashboard: React.FC = () => {
       await respondToOpportunity(deliveryId, interestNotes[deliveryId] || '');
       toast.success('Interesse confirmado com sucesso. A loja foi avisada pela plataforma.');
     } catch (error: any) {
-      console.error('[CommercialIntelligence] Erro ao confirmar interesse:', error);
+      appError('[CommercialIntelligence] Erro ao confirmar interesse', error, {
+        userId: user?.id ?? null,
+        deliveryId,
+      });
       toast.error(error?.message || 'Nao foi possivel confirmar seu interesse agora.');
     }
   };
@@ -311,7 +325,10 @@ const CommercialIntelligenceDashboard: React.FC = () => {
       }
       toast.success('Conversa mediada iniciada com sucesso.');
     } catch (error: any) {
-      console.error('[CommercialIntelligence] Erro ao iniciar conversa mediada:', error);
+      appError('[CommercialIntelligence] Erro ao iniciar conversa mediada', error, {
+        userId: user?.id ?? null,
+        responseId,
+      });
       toast.error(error?.message || 'Nao foi possivel iniciar a conversa mediada.');
     }
   };
@@ -322,7 +339,10 @@ const CommercialIntelligenceDashboard: React.FC = () => {
       try {
         await loadConversationMessages(conversationId);
       } catch (error: any) {
-        console.error('[CommercialIntelligence] Erro ao carregar conversa:', error);
+        appError('[CommercialIntelligence] Erro ao carregar conversa', error, {
+          userId: user?.id ?? null,
+          conversationId,
+        });
         toast.error(error?.message || 'Nao foi possivel carregar a conversa mediada.');
       }
     }
@@ -342,7 +362,10 @@ const CommercialIntelligenceDashboard: React.FC = () => {
         [conversationId]: '',
       }));
     } catch (error: any) {
-      console.error('[CommercialIntelligence] Erro ao enviar mensagem mediada:', error);
+      appError('[CommercialIntelligence] Erro ao enviar mensagem mediada', error, {
+        userId: user?.id ?? null,
+        conversationId,
+      });
       toast.error(error?.message || 'Nao foi possivel enviar a mensagem agora.');
     }
   };
@@ -365,7 +388,12 @@ const CommercialIntelligenceDashboard: React.FC = () => {
       );
       toast.success('Contato compartilhado com sucesso para esta loja.');
     } catch (error: any) {
-      console.error('[CommercialIntelligence] Erro ao compartilhar contato:', error);
+      appError('[CommercialIntelligence] Erro ao compartilhar contato', error, {
+        userId: user?.id ?? null,
+        conversationId,
+        shareEmail,
+        shareWhatsapp,
+      });
       toast.error(error?.message || 'Nao foi possivel compartilhar seus contatos agora.');
     }
   };

@@ -34,6 +34,7 @@ import { usePersistentState } from '../src/hooks/usePersistentState';
 import { updateUserCoordinates } from '../services/geoService';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
+import { appError, appWarn } from '../src/utils/appLogger';
 import { 
   DashboardStatsCard, 
   PerformanceAttentionModule,
@@ -206,7 +207,10 @@ const UserDashboardView: React.FC = () => {
       });
 
       if (error) {
-        console.error('[UserDashboardView] Erro ao gerar notificação de conversão:', error);
+        appError('[UserDashboardView] Erro ao gerar notificação de conversão', error, {
+          userId: user.id,
+          route: location.pathname,
+        });
         return;
       }
 
@@ -242,7 +246,10 @@ const UserDashboardView: React.FC = () => {
       });
 
       if (error) {
-        console.error('[UserDashboardView] Erro ao gerar notificação de renovação:', error);
+        appError('[UserDashboardView] Erro ao gerar notificação de renovação', error, {
+          userId: user.id,
+          route: location.pathname,
+        });
         return;
       }
 
@@ -339,7 +346,11 @@ const UserDashboardView: React.FC = () => {
       };
 
     } catch (error: any) {
-      console.error('[OCR] Erro:', error);
+      appError('[OCR] Erro ao validar documento via Edge Function', error, {
+        userId: user?.id ?? null,
+        fileName: file.name,
+        fileType: file.type,
+      });
       return {
         success: false,
         message: `Erro ao validar documento: ${error.message}`
@@ -414,7 +425,9 @@ const UserDashboardView: React.FC = () => {
       
       toast.success('Foto de perfil atualizada com sucesso!');
     } catch (error: any) {
-      console.error('Erro ao fazer upload do avatar:', error);
+      appError('Erro ao fazer upload do avatar', error, {
+        userId: user.id,
+      });
       toast.error(error.message || 'Erro ao atualizar foto de perfil');
     } finally {
       setIsUploadingAvatar(false);
@@ -582,7 +595,12 @@ const UserDashboardView: React.FC = () => {
       }, 10000);
       
     } catch (error: any) {
-      console.error('Erro ao fazer upload do documento:', error);
+      appError('Erro ao fazer upload do documento', error, {
+        userId: user.id,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+      });
       setValidationResult({
         success: false,
         message: error.message || 'Erro ao enviar documento',
@@ -659,7 +677,11 @@ const UserDashboardView: React.FC = () => {
       }
     } catch (error) {
       toast.dismiss('booster-dashboard-checkout');
-      console.error('[UserDashboard] Erro ao iniciar checkout do booster:', error);
+      appError('[UserDashboard] Erro ao iniciar checkout do booster', error, {
+        userId: user.id,
+        boosterId: booster.id,
+        boosterName: booster.name,
+      });
       toast.error('Erro inesperado ao processar checkout do booster.');
     }
   };
@@ -1987,12 +2009,13 @@ const UserDashboardView: React.FC = () => {
         await refreshUsage();
       } catch (error: any) {
         const errorMessage = error?.message || error?.details || error?.hint || 'N\u00e3o foi poss\u00edvel resgatar o c\u00f3digo promocional.';
-        console.error('[MyPlanDashboard] Erro ao resgatar codigo promocional:', {
-          message: errorMessage,
-          code: error?.code,
-          details: error?.details,
-          hint: error?.hint,
-          raw: error,
+        appError('[MyPlanDashboard] Erro ao resgatar codigo promocional', error, {
+          userId: user?.id ?? null,
+          code: cleanCode,
+          errorMessage,
+          errorCode: error?.code,
+          errorDetails: error?.details,
+          errorHint: error?.hint,
         });
         sonnerToast.error(errorMessage);
       } finally {
@@ -3086,7 +3109,10 @@ const UserDashboardView: React.FC = () => {
           return next;
         });
       } catch (error) {
-        console.error('Erro ao buscar CEP:', error);
+        appError('Erro ao buscar CEP', error, {
+          userId: user?.id ?? null,
+          cep: cleanCep,
+        });
         lastLookedUpCepRef.current = '';
         setProfileErrors((prev) => ({
           ...prev,
@@ -3231,14 +3257,21 @@ const UserDashboardView: React.FC = () => {
             state: profileForm.estado
           });
           if (!geoUpdated) {
-            console.warn('[Profile] Não foi possível atualizar coordenadas do usuário após salvar o perfil.');
+            appWarn('[Profile] Não foi possível atualizar coordenadas do usuário após salvar o perfil', {
+              userId: user.id,
+              cep: cleanCep,
+              cidade: profileForm.cidade,
+              estado: profileForm.estado,
+            });
           }
         }
 
         await refreshStats();
         sonnerToast.success('Perfil atualizado com sucesso');
       } catch (error) {
-        console.error('Erro ao salvar perfil:', error);
+        appError('Erro ao salvar perfil', error, {
+          userId: user.id,
+        });
         const errorMessage =
           error instanceof Error ? error.message : 'Não foi possível salvar as alterações do perfil';
         sonnerToast.error(errorMessage || 'Não foi possível salvar as alterações do perfil');
@@ -3281,7 +3314,9 @@ const UserDashboardView: React.FC = () => {
         resetPasswordForm();
         sonnerToast.success('Senha atualizada com sucesso');
       } catch (error) {
-        console.error('Erro ao atualizar senha:', error);
+        appError('Erro ao atualizar senha', error, {
+          userId: user.id,
+        });
         const errorMessage =
           error instanceof Error ? error.message : 'Nao foi possivel atualizar sua senha';
         sonnerToast.error(errorMessage || 'Nao foi possivel atualizar sua senha');

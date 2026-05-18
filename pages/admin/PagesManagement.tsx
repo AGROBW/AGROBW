@@ -29,6 +29,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { toast } from 'sonner';
 import { formatDistance } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { sanitizeRichTextHtml } from '../../src/utils/sanitizeRichTextHtml';
 
 const PagesManagement: React.FC = () => {
   const { pages, isLoading, createPage, updatePage, deletePage, togglePublished, validateSlug, generateSlug } = usePages();
@@ -48,11 +49,20 @@ const PagesManagement: React.FC = () => {
   const [showPreview, setShowPreview] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  const syncEditorContent = (html: string) => {
+    const sanitized = sanitizeRichTextHtml(html);
+    setFormData((current) => ({ ...current, content: sanitized }));
+
+    if (contentRef.current && contentRef.current.innerHTML !== sanitized) {
+      contentRef.current.innerHTML = sanitized;
+    }
+  };
+
   // Funções do Editor Rich Text
   const execCommand = (command: string, value?: string) => {
     document.execCommand(command, false, value);
     if (contentRef.current) {
-      setFormData({ ...formData, content: contentRef.current.innerHTML });
+      syncEditorContent(contentRef.current.innerHTML);
     }
   };
 
@@ -91,29 +101,34 @@ const PagesManagement: React.FC = () => {
       return;
     }
 
+    const sanitizedFormData = {
+      ...formData,
+      content: sanitizeRichTextHtml(formData.content),
+    };
+
     try {
       if (editingPage) {
-        const { error } = await updatePage(editingPage.id, formData, user.id);
+        const { error } = await updatePage(editingPage.id, sanitizedFormData, user.id);
         if (error) throw new Error(error);
 
         await logAction({
           action: ADMIN_ACTIONS.UPDATE_PAGE_CONTENT,
           resourceType: RESOURCE_TYPES.PAGE,
           resourceId: editingPage.id,
-          newValue: { title: formData.title, slug: formData.slug },
+          newValue: { title: sanitizedFormData.title, slug: sanitizedFormData.slug },
           reason: 'Página atualizada via painel admin'
         });
 
         toast.success('Página atualizada com sucesso!');
       } else {
-        const { data, error } = await createPage(formData, user.id);
+        const { data, error } = await createPage(sanitizedFormData, user.id);
         if (error) throw new Error(error);
 
         await logAction({
           action: ADMIN_ACTIONS.CREATE_PAGE,
           resourceType: RESOURCE_TYPES.PAGE,
           resourceId: data?.id || '',
-          newValue: { title: formData.title, slug: formData.slug },
+          newValue: { title: sanitizedFormData.title, slug: sanitizedFormData.slug },
           reason: 'Nova página criada via painel admin'
         });
 
@@ -131,12 +146,24 @@ const PagesManagement: React.FC = () => {
     setFormData({
       title: page.title,
       slug: page.slug,
-      content: page.content,
+      content: sanitizeRichTextHtml(page.content),
       meta_title: page.meta_title || '',
       meta_description: page.meta_description || '',
       is_published: page.is_published
     });
     setShowEditor(true);
+  };
+
+  const handlePasteSanitized = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const html = event.clipboardData.getData('text/html');
+    const text = event.clipboardData.getData('text/plain');
+    const sanitized = sanitizeRichTextHtml(html || text.replace(/\n/g, '<br>'));
+    document.execCommand('insertHTML', false, sanitized);
+
+    if (contentRef.current) {
+      syncEditorContent(contentRef.current.innerHTML);
+    }
   };
 
   const handleDelete = async (page: InstitutionalPage) => {
@@ -205,6 +232,8 @@ const PagesManagement: React.FC = () => {
       </div>
     );
   }
+
+  const previewContent = sanitizeRichTextHtml(formData.content);
 
   return (
     <div className="space-y-6">
@@ -423,7 +452,9 @@ const PagesManagement: React.FC = () => {
                   <div
                     ref={contentRef}
                     contentEditable
-                    onInput={(e) => setFormData({ ...formData, content: e.currentTarget.innerHTML })}
+                    onInput={(e) => syncEditorContent(e.currentTarget.innerHTML)}
+                    onBlur={(e) => syncEditorContent(e.currentTarget.innerHTML)}
+                    onPaste={handlePasteSanitized}
                     dangerouslySetInnerHTML={{ __html: formData.content }}
                     className="w-full min-h-[400px] px-4 py-3 border border-t-0 border-slate-300 rounded-b-lg focus:outline-none focus:ring-2 focus:ring-green-500 prose prose-slate max-w-none"
                     style={{ whiteSpace: 'pre-wrap' }}
@@ -436,7 +467,7 @@ const PagesManagement: React.FC = () => {
                   </label>
                   <div
                     className="w-full min-h-[400px] px-6 py-4 border border-slate-300 rounded-lg bg-white prose prose-slate max-w-none"
-                    dangerouslySetInnerHTML={{ __html: formData.content }}
+                    dangerouslySetInnerHTML={{ __html: previewContent }}
                   />
                 </div>
               )}

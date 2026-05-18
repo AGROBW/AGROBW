@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabaseClient';
 import { toast } from 'sonner';
+import { appError, appWarn } from '../../src/utils/appLogger';
 
 interface LegalConsentRow {
   id: string;
@@ -261,7 +262,7 @@ const LegalConsentsManagement: React.FC = () => {
       });
 
       if (error) {
-        console.warn('[LegalConsentsManagement] RPC principal falhou, usando fallback direto na tabela:', error);
+        appWarn('[LegalConsentsManagement] RPC principal falhou, usando fallback direto na tabela', { error });
         const fallbackRows = await fetchFallbackRows(true);
         setRows(fallbackRows);
         return;
@@ -275,7 +276,12 @@ const LegalConsentsManagement: React.FC = () => {
       setRows(nextRows);
       setTotalCount(nextRows[0]?.total_count || 0);
     } catch (error) {
-      console.error('[LegalConsentsManagement] Erro ao carregar consentimentos:', error);
+      appError('[LegalConsentsManagement] Erro ao carregar consentimentos', error, {
+        page,
+        searchTerm,
+        consentTypeFilter,
+        sourceFilter,
+      });
       toast.error('Erro ao carregar consentimentos legais.');
       setRows([]);
       setTotalCount(0);
@@ -297,7 +303,7 @@ const LegalConsentsManagement: React.FC = () => {
       const { data, error } = await supabase.rpc('admin_export_user_legal_consents', buildFilterParams());
 
       if (error) {
-        console.warn('[LegalConsentsManagement] RPC de exportação falhou, usando fallback direto na tabela:', error);
+        appWarn('[LegalConsentsManagement] RPC de exportação falhou, usando fallback direto na tabela', { error });
         const fallbackRows = await fetchFallbackRows(false);
         return fallbackRows.map((row) => ({
           user_name: row.user_name,
@@ -318,7 +324,11 @@ const LegalConsentsManagement: React.FC = () => {
 
       return (data || []) as ExportLegalConsentRow[];
     } catch (error) {
-      console.error('[LegalConsentsManagement] Erro ao buscar dados para exportação:', error);
+      appError('[LegalConsentsManagement] Erro ao buscar dados para exportação', error, {
+        searchTerm,
+        consentTypeFilter,
+        sourceFilter,
+      });
       throw error;
     }
   };
@@ -432,7 +442,11 @@ const LegalConsentsManagement: React.FC = () => {
 
       toast.success('Relatório em PDF preparado com sucesso.');
     } catch (error) {
-      console.error('[LegalConsentsManagement] Erro ao exportar PDF:', error);
+      appError('[LegalConsentsManagement] Erro ao exportar PDF', error, {
+        searchTerm,
+        consentTypeFilter,
+        sourceFilter,
+      });
       toast.error('Não foi possível exportar os consentimentos agora.');
     }
   };

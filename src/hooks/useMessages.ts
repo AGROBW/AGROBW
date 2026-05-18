@@ -9,6 +9,7 @@ import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime'
 import { Chat, Message, LeadStatus } from '../../types'
 import { LEAD_STATUS } from '../../constants/status'
 import { toast } from 'sonner'
+import { appError, appWarn } from '../utils/appLogger'
 
 const getChatFreezeState = (
   status?: string | null,
@@ -120,12 +121,12 @@ export const useChats = (announcementId?: string | null) => {
           clearRetry()
           setError('Sessão expirada')
           setChats([])
-          console.warn('[useChats] Sessão expirada ao buscar conversas.')
+          appWarn('[useChats] Sessão expirada ao buscar conversas', { userId: user.id })
           return
         }
 
         setError(error.message)
-        console.error('Erro ao buscar chats:', error)
+        appError('Erro ao buscar chats', error, { userId: user.id })
         if (typeof window !== 'undefined' && retryTimeoutRef.current === null) {
           retryTimeoutRef.current = window.setTimeout(() => {
             retryTimeoutRef.current = null
@@ -144,7 +145,7 @@ export const useChats = (announcementId?: string | null) => {
             chatRows.map((chat) => chat.id).filter(Boolean)
           )
         } catch (leadError) {
-          console.error('[useChats] Erro ao buscar expiracao dos leads:', leadError)
+          appError('[useChats] Erro ao buscar expiracao dos leads', leadError, { userId: user.id })
         }
 
         const mappedChats: Chat[] = chatRows.map(chat => {
@@ -254,7 +255,7 @@ export const useChats = (announcementId?: string | null) => {
         }
 
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.warn('[useChats] Realtime instável, sincronizando a lista de conversas em segundo plano.')
+          appWarn('[useChats] Realtime instável, sincronizando a lista de conversas em segundo plano', { userId: user.id, status })
           void fetchChats(true)
         }
       })
@@ -328,7 +329,7 @@ export const useMessages = (chatId: string | null) => {
         .single()
 
       if (chatError || !chatData) {
-        console.error('[markAsRead] Erro ao buscar chat:', chatError)
+        appError('[markAsRead] Erro ao buscar chat', chatError, { chatId, userId: user.id })
         return
       }
 
@@ -336,7 +337,7 @@ export const useMessages = (chatId: string | null) => {
       const isBuyer = chatData.buyer_id === user.id
 
       if (!isSeller && !isBuyer) {
-        console.warn('[markAsRead] Usuário não é participante do chat')
+        appWarn('[markAsRead] Usuário não é participante do chat', { chatId, userId: user.id })
         return
       }
 
@@ -348,7 +349,7 @@ export const useMessages = (chatId: string | null) => {
         .eq('is_read', false)
 
       if (messagesError) {
-        console.error('[markAsRead] Erro ao marcar mensagens como lidas:', messagesError)
+          appError('[markAsRead] Erro ao marcar mensagens como lidas', messagesError, { chatId, userId: user.id })
       }
 
       const updateField = isSeller ? 'unread_count_seller' : 'unread_count_buyer'
@@ -358,12 +359,12 @@ export const useMessages = (chatId: string | null) => {
         .eq('id', targetChatId)
 
       if (chatUpdateError) {
-        console.error('[markAsRead] Erro ao atualizar contador do chat:', chatUpdateError)
+          appError('[markAsRead] Erro ao atualizar contador do chat', chatUpdateError, { chatId, userId: user.id })
       } else {
         emitCountsRefresh()
       }
     } catch (err) {
-      console.error('[markAsRead] Erro inesperado:', err)
+      appError('[markAsRead] Erro inesperado', err, { chatId, userId: user.id })
     }
   }
 
@@ -394,7 +395,7 @@ export const useMessages = (chatId: string | null) => {
         if (isSupabaseUnauthorizedError(error)) {
           clearRetry()
           setError('Sessão expirada')
-          console.warn('[useMessages] Sessão expirada ao buscar mensagens.')
+          appWarn('[useMessages] Sessão expirada ao buscar mensagens', { chatId, userId: user.id })
           setIsLoading(false)
           if (silent) {
             endAppSync()
@@ -403,7 +404,7 @@ export const useMessages = (chatId: string | null) => {
         }
 
         setError(error.message)
-        console.error('Erro ao buscar mensagens:', error)
+        appError('Erro ao buscar mensagens', error, { chatId, userId: user.id })
         if (typeof window !== 'undefined' && retryTimeoutRef.current === null) {
           retryTimeoutRef.current = window.setTimeout(() => {
             retryTimeoutRef.current = null
@@ -499,7 +500,7 @@ export const useMessages = (chatId: string | null) => {
         }
 
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.warn('[useMessages] Realtime instável, sincronizando o chat em segundo plano.')
+          appWarn('[useMessages] Realtime instável, sincronizando o chat em segundo plano', { chatId, userId: user.id, status })
           void fetchMessages(true)
         }
       })
@@ -611,7 +612,7 @@ export const useMessages = (chatId: string | null) => {
 
     if (error) {
       setMessages(prev => prev.filter(message => message.id !== optimisticMessageId))
-      console.error('Erro ao enviar mensagem:', error)
+      appError('Erro ao enviar mensagem', error, { chatId, userId: user?.id || null })
         if (
         error.message?.includes('Novo contato bloqueado por plano inativo') ||
         error.message?.includes('Novo contato bloqueado por vigencia inativa') ||
@@ -680,7 +681,7 @@ export const useLeadStatus = (chatId: string | null) => {
         .single()
 
       if (error) {
-        console.error('Erro ao buscar status do lead:', error)
+        appError('Erro ao buscar status do lead', error, { chatId, userId: user.id })
       } else if (data) {
         setLeadStatus(data.status)
       }
@@ -711,7 +712,7 @@ export const useLeadStatus = (chatId: string | null) => {
       .eq('chat_id', chatId)
 
     if (error) {
-      console.error('Erro ao desbloquear lead:', error)
+      appError('Erro ao desbloquear lead', error, { chatId, userId: user.id })
       return { success: false, message: 'Erro ao desbloquear lead' }
     }
 

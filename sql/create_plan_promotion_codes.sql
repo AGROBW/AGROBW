@@ -8,8 +8,8 @@ create table if not exists public.promotion_plan_codes (
   duration_unit text not null default 'months' check (duration_unit in ('days', 'months', 'years')),
   max_redemptions integer,
   max_redemptions_per_user integer not null default 1 check (max_redemptions_per_user > 0),
-  starts_at timestamptz,
-  expires_at timestamptz,
+  starts_on date,
+  expires_on date,
   status text not null default 'active' check (status in ('active', 'paused', 'expired')),
   grant_mode text not null default 'replace_active' check (grant_mode in ('replace_active', 'extend_same_plan')),
   redeemed_count integer not null default 0,
@@ -23,7 +23,7 @@ create unique index if not exists idx_promotion_plan_codes_code_upper
   on public.promotion_plan_codes (upper(code));
 
 create index if not exists idx_promotion_plan_codes_status
-  on public.promotion_plan_codes (status, expires_at);
+  on public.promotion_plan_codes (status, expires_on);
 
 create table if not exists public.promotion_plan_redemptions (
   id uuid primary key default gen_random_uuid(),
@@ -144,6 +144,7 @@ declare
   v_redemption_id uuid;
   v_period_start timestamptz := now();
   v_period_end timestamptz;
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
 begin
   if v_user_id is null then
     raise exception 'Usuario nao autenticado';
@@ -167,11 +168,11 @@ begin
     raise exception 'Codigo promocional indisponivel';
   end if;
 
-  if v_code_record.starts_at is not null and now() < v_code_record.starts_at then
+  if v_code_record.starts_on is not null and v_today < v_code_record.starts_on then
     raise exception 'Codigo promocional ainda nao esta disponivel';
   end if;
 
-  if v_code_record.expires_at is not null and now() > v_code_record.expires_at then
+  if v_code_record.expires_on is not null and v_today > v_code_record.expires_on then
     update public.promotion_plan_codes
     set status = 'expired'
     where id = v_code_record.id;

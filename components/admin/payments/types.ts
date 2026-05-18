@@ -18,6 +18,7 @@ export interface AdminPaymentRecord {
   invoice_xml_url: string | null;
   invoice_status: InvoiceStatus;
   invoice_issued_at: string | null;
+  invoice_issued_on: string | null;
   invoice_notes: string | null;
   fiscal_provider: string | null;
   fiscal_external_id: string | null;

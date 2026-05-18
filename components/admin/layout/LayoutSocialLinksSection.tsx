@@ -23,7 +23,7 @@ const socials = [
   { field: 'instagramUrl', label: 'Instagram', placeholder: 'https://instagram.com/seu-perfil', icon: Instagram },
   { field: 'youtubeUrl', label: 'YouTube', placeholder: 'https://youtube.com/@seucanal', icon: Youtube },
   { field: 'linkedinUrl', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/sua-marca', icon: Linkedin },
-  { field: 'whatsappUrl', label: 'WhatsApp', placeholder: 'https://wa.me/5562999999999', icon: MessageCircle },
+  { field: 'whatsappUrl', label: 'WhatsApp do rodapé', placeholder: 'https://wa.me/5562999999999', icon: MessageCircle },
   { field: 'tiktokUrl', label: 'TikTok', placeholder: 'https://tiktok.com/@seuperfil', icon: Music2 },
 ] as const;
 
@@ -88,7 +88,7 @@ const LayoutSocialLinksSection: React.FC<LayoutSocialLinksSectionProps> = ({ for
             />
             {field === 'whatsappUrl' ? (
               <p className="mt-2 text-xs leading-5 text-slate-500">
-                Use apenas um número válido ou link oficial do WhatsApp. Este campo serve como apoio e compatibilidade.
+                Campo opcional para o ícone social do rodapé. Pode ficar vazio sem afetar o WhatsApp comercial.
               </p>
             ) : null}
           </label>

@@ -7,7 +7,8 @@ export type PageImageField =
   | 'pricingFieldImageUrl'
   | 'sponsorHeroImageUrl'
   | 'sponsorHarvestImageUrl'
-  | 'sponsorFieldImageUrl';
+  | 'sponsorFieldImageUrl'
+  | 'sponsorFinalCtaImageUrl';
 
 type PageImagesFormData = {
   pricingHeroImageUrl: string;
@@ -16,6 +17,7 @@ type PageImagesFormData = {
   sponsorHeroImageUrl: string;
   sponsorHarvestImageUrl: string;
   sponsorFieldImageUrl: string;
+  sponsorFinalCtaImageUrl: string;
 };
 
 interface LayoutPageImagesSectionProps {
@@ -58,6 +60,11 @@ const SPONSOR_IMAGES: Array<{ field: PageImageField; label: string; helper: stri
     field: 'sponsorFieldImageUrl',
     label: 'Formulário / CTA',
     helper: 'Imagem de fundo do formulário de reserva de patrocínio.',
+  },
+  {
+    field: 'sponsorFinalCtaImageUrl',
+    label: 'CTA final',
+    helper: 'Imagem de fundo da última chamada da página de Patrocinadores.',
   },
 ];
 

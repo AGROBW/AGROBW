@@ -12,6 +12,7 @@ import type {
   NewsSourceRecord,
 } from '../../types';
 import { classifyNewsEditorialCategory, normalizeEditorialCategory } from '../utils/newsEditorialCategory';
+import { appError } from '../utils/appLogger';
 
 type DashboardData = {
   totalArticles: number;
@@ -479,7 +480,7 @@ export const useAdminNews = () => {
     }
 
     if (typeof window !== 'undefined') {
-      return `${window.location.origin}/#/noticias/${slug}`;
+      return `${window.location.origin}/noticias/${slug}`;
     }
 
     return `/noticias/${slug}`;
@@ -563,7 +564,7 @@ export const useAdminNews = () => {
     });
 
     if (error) {
-      console.error('[useAdminNews] Erro ao enfileirar publicações sociais:', error);
+      appError('[useAdminNews] Erro ao enfileirar publicações sociais', error, { articleId: article.id });
     } else {
       await fetchSocialPublications();
 
@@ -578,7 +579,10 @@ export const useAdminNews = () => {
         });
 
         if (invokeResult.error) {
-          console.error('[useAdminNews] Erro ao disparar publicação social:', invokeResult.error);
+          appError('[useAdminNews] Erro ao disparar publicação social', invokeResult.error, {
+            articleId: article.id,
+            platform: 'linkedin',
+          });
         } else {
           await fetchSocialPublications();
         }
@@ -595,16 +599,27 @@ export const useAdminNews = () => {
         });
 
         if (invokeResult.error) {
-          console.error('[useAdminNews] Erro ao disparar publicação do Instagram:', invokeResult.error);
+          appError('[useAdminNews] Erro ao disparar publicação do Instagram', invokeResult.error, {
+            articleId: article.id,
+            platform: 'instagram',
+          });
           try {
             const errorBody = await invokeResult.error.context?.json?.();
-            console.error('[useAdminNews] Corpo da resposta de publish-news-social (Instagram):', errorBody);
+            appError('[useAdminNews] Corpo da resposta de publish-news-social (Instagram)', undefined, {
+              articleId: article.id,
+              errorBody,
+            });
           } catch {
             try {
               const errorText = await invokeResult.error.context?.text?.();
-              console.error('[useAdminNews] Corpo da resposta de publish-news-social (Instagram):', errorText);
+              appError('[useAdminNews] Corpo da resposta de publish-news-social (Instagram)', undefined, {
+                articleId: article.id,
+                errorText,
+              });
             } catch {
-              console.error('[useAdminNews] Erro ao ler corpo da resposta de publish-news-social (Instagram)');
+              appError('[useAdminNews] Erro ao ler corpo da resposta de publish-news-social (Instagram)', undefined, {
+                articleId: article.id,
+              });
             }
           }
         } else {
@@ -625,13 +640,21 @@ export const useAdminNews = () => {
     if (error) {
       try {
         const errorBody = await error.context?.json?.();
-        console.error('[useAdminNews] Corpo da resposta de capture-news-url:', errorBody);
+        appError('[useAdminNews] Corpo da resposta de capture-news-url', undefined, {
+          sourceUrl: sourceUrl.trim(),
+          errorBody,
+        });
       } catch {
         try {
           const errorText = await error.context?.text?.();
-          console.error('[useAdminNews] Corpo da resposta de capture-news-url:', errorText);
+          appError('[useAdminNews] Corpo da resposta de capture-news-url', undefined, {
+            sourceUrl: sourceUrl.trim(),
+            errorText,
+          });
         } catch {
-          console.error('[useAdminNews] Erro ao ler corpo da resposta de capture-news-url');
+          appError('[useAdminNews] Erro ao ler corpo da resposta de capture-news-url', undefined, {
+            sourceUrl: sourceUrl.trim(),
+          });
         }
       }
     }
@@ -664,13 +687,24 @@ export const useAdminNews = () => {
     if (error) {
       try {
         const errorBody = await error.context?.json?.();
-        console.error('[useAdminNews] Corpo da resposta de generate-news-article:', errorBody);
+        appError('[useAdminNews] Corpo da resposta de generate-news-article', undefined, {
+          ingestionId,
+          articleId: articleId || null,
+          errorBody,
+        });
       } catch {
         try {
           const errorText = await error.context?.text?.();
-          console.error('[useAdminNews] Corpo da resposta de generate-news-article:', errorText);
+          appError('[useAdminNews] Corpo da resposta de generate-news-article', undefined, {
+            ingestionId,
+            articleId: articleId || null,
+            errorText,
+          });
         } catch {
-          console.error('[useAdminNews] Erro ao ler corpo da resposta de generate-news-article');
+          appError('[useAdminNews] Erro ao ler corpo da resposta de generate-news-article', undefined, {
+            ingestionId,
+            articleId: articleId || null,
+          });
         }
       }
     }

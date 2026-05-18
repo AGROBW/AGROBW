@@ -34,6 +34,77 @@ const textResponse = (body: string, status = 200) =>
     headers: corsHeaders,
   });
 
+const encoder = new TextEncoder();
+const WEBHOOK_TIMESTAMP_TOLERANCE_MS = 5 * 60 * 1000;
+
+const parseMercadoPagoSignature = (signatureHeader: string | null) => {
+  if (!signatureHeader) {
+    return null;
+  }
+
+  const parts = signatureHeader.split(',');
+  let ts: string | null = null;
+  let v1: string | null = null;
+
+  for (const part of parts) {
+    const [rawKey, rawValue] = part.split('=', 2);
+    const key = rawKey?.trim();
+    const value = rawValue?.trim();
+
+    if (!key || !value) {
+      continue;
+    }
+
+    if (key === 'ts') {
+      ts = value;
+    }
+
+    if (key === 'v1') {
+      v1 = value.toLowerCase();
+    }
+  }
+
+  if (!ts || !v1) {
+    return null;
+  }
+
+  return { ts, v1 };
+};
+
+const toHex = (buffer: ArrayBuffer) =>
+  Array.from(new Uint8Array(buffer))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+
+const timingSafeEqual = (left: string, right: string) => {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  let mismatch = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+
+  return mismatch === 0;
+};
+
+const buildMercadoPagoManifest = (notificationId: string, requestId: string, ts: string) =>
+  `id:${notificationId};request-id:${requestId};ts:${ts};`;
+
+const signManifest = async (secret: string, manifest: string) => {
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(manifest));
+  return toHex(signature);
+};
+
 const normalizePaymentStatus = (status?: string): PaymentRowStatus => {
   switch (status) {
     case 'approved':
@@ -92,35 +163,19 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
     const body: WebhookBody = await req.json();
-
-    console.log('Webhook received:', body);
-
-    const { data: webhookLog } = await supabaseAdmin
-      .from('webhook_logs')
-      .insert({
-        provider: 'mercadopago',
-        event_type: body.action || body.type || 'unknown',
-        payload: body,
-        status_code: 200,
-        processed: false,
-      })
-      .select('id')
-      .single();
+    const requestUrl = new URL(req.url);
+    const requestId = req.headers.get('x-request-id');
+    const signatureHeader = req.headers.get('x-signature');
 
     const eventType = body.type || body.topic || '';
     const paymentId = body.data?.id || (body.topic === 'payment' ? body.resource : undefined);
+    const notificationId =
+      requestUrl.searchParams.get('data.id') ||
+      body.data?.id ||
+      String(body.id || '') ||
+      String(paymentId || '');
 
     if (eventType !== 'payment' || !paymentId) {
-      await supabaseAdmin
-        .from('webhook_logs')
-        .update({
-          processed: true,
-          processed_at: new Date().toISOString(),
-          status_code: 200,
-          error_message: `ignored:${eventType || 'unknown'}`,
-        })
-        .eq('id', webhookLog?.id);
-
       return textResponse('OK - ignored');
     }
 
@@ -134,6 +189,88 @@ serve(async (req) => {
       console.error('Mercado Pago not configured:', credentialsError);
       return textResponse('Configuration error', 500);
     }
+
+    const parsedSignature = parseMercadoPagoSignature(signatureHeader);
+    const webhookSecret = String(credentials.mp_webhook_secret || '').trim();
+
+    if (!requestId || !parsedSignature || !webhookSecret || !notificationId) {
+      await supabaseAdmin.from('webhook_logs').insert({
+        provider: 'mercadopago',
+        event_type: body.action || body.type || 'unknown',
+        payload: body,
+        status_code: 401,
+        processed: false,
+        error_message: 'invalid_webhook_signature_context',
+      });
+
+      return textResponse('Unauthorized webhook', 401);
+    }
+
+    const signatureTimestamp = Number(parsedSignature.ts);
+    if (!Number.isFinite(signatureTimestamp)) {
+      await supabaseAdmin.from('webhook_logs').insert({
+        provider: 'mercadopago',
+        event_type: body.action || body.type || 'unknown',
+        payload: body,
+        status_code: 401,
+        processed: false,
+        error_message: 'invalid_webhook_signature_ts',
+      });
+
+      return textResponse('Unauthorized webhook', 401);
+    }
+
+    if (Math.abs(Date.now() - signatureTimestamp) > WEBHOOK_TIMESTAMP_TOLERANCE_MS) {
+      await supabaseAdmin.from('webhook_logs').insert({
+        provider: 'mercadopago',
+        event_type: body.action || body.type || 'unknown',
+        payload: body,
+        status_code: 401,
+        processed: false,
+        error_message: 'expired_webhook_signature_ts',
+      });
+
+      return textResponse('Expired webhook signature', 401);
+    }
+
+    const manifest = buildMercadoPagoManifest(notificationId, requestId, parsedSignature.ts);
+    const expectedSignature = await signManifest(webhookSecret, manifest);
+
+    if (!timingSafeEqual(expectedSignature, parsedSignature.v1)) {
+      await supabaseAdmin.from('webhook_logs').insert({
+        provider: 'mercadopago',
+        event_type: body.action || body.type || 'unknown',
+        payload: body,
+        status_code: 401,
+        processed: false,
+        error_message: 'webhook_signature_mismatch',
+      });
+
+      return textResponse('Invalid webhook signature', 401);
+    }
+
+    const { data: existingRequest } = await supabaseAdmin
+      .from('webhook_request_registry')
+      .select('id, processed_at')
+      .eq('provider', 'mercadopago')
+      .eq('request_id', requestId)
+      .maybeSingle();
+
+    if (existingRequest?.processed_at) {
+      return textResponse('Webhook already processed');
+    }
+
+    const { data: webhookLog } = await supabaseAdmin
+      .from('webhook_logs')
+      .insert({
+        provider: 'mercadopago',
+        event_type: body.action || body.type || 'unknown',
+        payload: body,
+        status_code: 200,
+        processed: false,
+      })
+      .select('id')
+      .single();
 
     const paymentResponse = await fetch(
       `https://api.mercadopago.com/v1/payments/${paymentId}`,
@@ -150,14 +287,6 @@ serve(async (req) => {
     }
 
     const payment = await paymentResponse.json();
-
-    console.log('Payment details:', {
-      id: payment.id,
-      status: payment.status,
-      status_detail: payment.status_detail,
-      external_reference: payment.external_reference,
-      transaction_amount: payment.transaction_amount,
-    });
 
     const externalReference = String(payment.external_reference || '');
     const externalParts = externalReference.split('|');
@@ -489,7 +618,7 @@ serve(async (req) => {
           type: 'SYSTEM',
           title: 'Booster creditado com sucesso',
           content: `Seu booster foi ativado com ${boosterCreditResult.category_credits} destaque(s) em categoria e ${boosterCreditResult.home_credits} destaque(s) na home.`,
-          link: '/#/minha-conta/meus-anuncios',
+          link: '/minha-conta/meus-anuncios',
         });
       } else {
         await supabaseAdmin.from('notifications').insert({
@@ -497,7 +626,7 @@ serve(async (req) => {
           type: 'SYSTEM',
           title: 'Pagamento Aprovado!',
           content: 'Sua assinatura foi ativada com sucesso. Aproveite todos os recursos do seu plano.',
-          link: '/#/minha-conta/financeiro',
+          link: '/minha-conta/financeiro',
         });
       }
 
@@ -537,6 +666,20 @@ serve(async (req) => {
         })
         .eq('id', webhookLog?.id);
 
+      await supabaseAdmin
+        .from('webhook_request_registry')
+        .upsert({
+          provider: 'mercadopago',
+          request_id: requestId,
+          signature_ts_ms: signatureTimestamp,
+          event_type: eventType,
+          payment_id: String(paymentId),
+          webhook_log_id: webhookLog?.id ?? null,
+          processed_at: new Date().toISOString(),
+        }, {
+          onConflict: 'provider,request_id',
+        });
+
       return textResponse('Payment processed');
     }
 
@@ -546,7 +689,7 @@ serve(async (req) => {
         type: 'SYSTEM',
         title: 'Pagamento Recusado',
         content: `Seu pagamento foi recusado. Status: ${payment.status_detail || payment.status}.`,
-        link: '/#/minha-conta/financeiro',
+        link: '/minha-conta/financeiro',
       });
     }
 
@@ -559,6 +702,20 @@ serve(async (req) => {
         error_message: `payment_status:${payment.status || 'unknown'}`,
       })
       .eq('id', webhookLog?.id);
+
+    await supabaseAdmin
+      .from('webhook_request_registry')
+      .upsert({
+        provider: 'mercadopago',
+        request_id: requestId,
+        signature_ts_ms: signatureTimestamp,
+        event_type: eventType,
+        payment_id: String(paymentId),
+        webhook_log_id: webhookLog?.id ?? null,
+        processed_at: new Date().toISOString(),
+      }, {
+        onConflict: 'provider,request_id',
+      });
 
     return textResponse(`Payment ${payment.status || 'ignored'}`);
   } catch (error) {

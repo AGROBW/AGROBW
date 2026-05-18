@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { appError, appWarn } from '../utils/appLogger';
 
 /**
  * Service para upload otimizado de imagens de banners
@@ -102,7 +103,12 @@ export const uploadBannerImage = async (file: File): Promise<UploadResult> => {
     
     // Verificar tamanho final
     if (optimizedBlob.size > 250 * 1024) {
-      console.warn('[uploadBanner] Imagem otimizada ainda está acima de 200kb:', optimizedBlob.size);
+      appWarn('[uploadBanner] Imagem otimizada ainda está acima de 200kb', {
+        optimizedSize: optimizedBlob.size,
+        fileName: file.name,
+        fileType: file.type,
+        originalSize: file.size,
+      });
     }
     
     // Gerar nome único
@@ -120,7 +126,10 @@ export const uploadBannerImage = async (file: File): Promise<UploadResult> => {
       });
     
     if (error) {
-      console.error('[uploadBanner] Erro no upload:', error);
+      appError('[uploadBanner] Erro no upload', error, {
+        fileName,
+        fileType: file.type,
+      });
       return {
         url: null,
         error: error.message
@@ -138,7 +147,11 @@ export const uploadBannerImage = async (file: File): Promise<UploadResult> => {
     };
     
   } catch (err: any) {
-    console.error('[uploadBanner] Erro ao processar imagem:', err);
+    appError('[uploadBanner] Erro ao processar imagem', err, {
+      fileName: file.name,
+      fileType: file.type,
+      originalSize: file.size,
+    });
     return {
       url: null,
       error: err.message || 'Erro ao fazer upload da imagem'
@@ -166,14 +179,18 @@ export const deleteBannerImage = async (imageUrl: string): Promise<{ error: stri
       .remove([path]);
     
     if (error) {
-      console.error('[deleteBannerImage] Erro:', error);
+      appError('[deleteBannerImage] Erro ao remover imagem do bucket', error, {
+        path,
+      });
       return { error: error.message };
     }
     
     return { error: null };
     
   } catch (err: any) {
-    console.error('[deleteBannerImage] Erro ao deletar:', err);
+    appError('[deleteBannerImage] Erro ao deletar imagem de banner', err, {
+      imageUrl,
+    });
     return { error: err.message };
   }
 };

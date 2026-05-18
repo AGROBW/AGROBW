@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useSecurityLog } from '../src/hooks/useSecurityLog';
 import { ShieldAlert, Loader, Home } from 'lucide-react';
+import { appError, appWarn } from '../src/utils/appLogger';
 
 /**
  * Componente de Proteção de Rotas com RBAC e Auditoria de Segurança
@@ -54,7 +55,10 @@ export const ProtectedAdminRoute: React.FC<ProtectedAdminRouteProps> = ({
 
   // Não autenticado - Redirecionar para login
   if (!user) {
-    console.warn('[ProtectedRoute] Acesso negado: Usuário não autenticado');
+    appWarn('[ProtectedRoute] Acesso negado: Usuário não autenticado', {
+      route: location.pathname,
+      requiredRole,
+    });
     return <Navigate to={redirectTo} state={{ from: location }} replace />;
   }
 
@@ -62,11 +66,12 @@ export const ProtectedAdminRoute: React.FC<ProtectedAdminRouteProps> = ({
   const hasAccess = checkRoleAccess(user, requiredRole, isAdmin);
 
   if (!hasAccess) {
-    console.warn('[ProtectedRoute] Acesso negado: Role insuficiente', {
+    appWarn('[ProtectedRoute] Acesso negado: Role insuficiente', {
       userId: user.id,
       userRole: user.role,
       requiredRole,
-      isAdmin
+      isAdmin,
+      route: location.pathname,
     });
 
     // Registrar evento de segurança automaticamente
@@ -78,7 +83,12 @@ export const ProtectedAdminRoute: React.FC<ProtectedAdminRouteProps> = ({
         attemptedRoute: location.pathname,
         reason: `Role insuficiente: ${user.role || 'user'} (requerido: ${requiredRole})`
       }).catch(error => {
-        console.error('[ProtectedRoute] Erro ao registrar tentativa de acesso:', error);
+        appError('[ProtectedRoute] Erro ao registrar tentativa de acesso', error, {
+          userId: user.id,
+          userRole: user.role,
+          requiredRole,
+          route: location.pathname,
+        });
       });
     }
 

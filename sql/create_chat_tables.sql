@@ -156,5 +156,13 @@ CREATE POLICY "Usuários podem marcar notificações como lidas" ON notification
   FOR UPDATE USING (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Sistema pode criar notificações" ON notifications;
-CREATE POLICY "Sistema pode criar notificações" ON notifications
-  FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Admins can insert notifications" ON notifications;
+CREATE POLICY "Admins can insert notifications" ON notifications
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );

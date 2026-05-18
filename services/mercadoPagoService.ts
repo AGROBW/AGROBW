@@ -281,4 +281,4 @@ export const getCustomPlanContactLink = (planName: string): string => {
   return `https://wa.me/${whatsappNumber}?text=${message}`;
 };
 
-export const getContactFormLink = (): string => '/#/contact';
+export const getContactFormLink = (): string => '/contato';

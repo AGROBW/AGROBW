@@ -6,6 +6,7 @@ import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../src/hooks/useAd
 import { CaptchaWidget } from '../components/CaptchaWidget';
 import { ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../src/lib/supabaseClient';
+import { debugLog } from '../src/utils/debugLog';
 
 interface AdminLoginRateLimitStatus {
   attempts_used: number;
@@ -225,7 +226,7 @@ const AdminLoginView: React.FC = () => {
         setLoading(false);
       } else {
         await registerLoginAttempt(normalizedEmail, true, 'Login administrativo concluido com sucesso.');
-        console.log('[AdminLogin] Login bem-sucedido');
+      debugLog('[AdminLogin] Login bem-sucedido');
       }
     } catch (err) {
       console.error('[AdminLogin] Erro inesperado:', err);

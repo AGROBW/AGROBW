@@ -3,6 +3,7 @@ import { Ad, SellerStore } from '../../types';
 import { useAuth } from '../contexts/AuthContext';
 import { getCategoryGroupBySlug, getCategoryGroupForCategorySlug } from '../lib/categoryHierarchy';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 
 type SellerStoreInput = {
   storeName: string;
@@ -204,7 +205,7 @@ export const useMySellerStore = () => {
       .maybeSingle();
 
     if (fetchError) {
-      console.error('[useMySellerStore] Erro ao buscar loja:', fetchError);
+      appError('[useMySellerStore] Erro ao buscar loja', fetchError, { userId: user.id });
       setError(fetchError.message);
       setStore(null);
     } else {
@@ -236,7 +237,7 @@ export const useMySellerStore = () => {
       .order('created_at', { ascending: false });
 
     if (announcementsError) {
-      console.error('[useMySellerStore] Erro ao buscar anúncios da loja:', announcementsError);
+      appError('[useMySellerStore] Erro ao buscar anúncios da loja', announcementsError, { userId: user.id });
       setStoreAnnouncements([]);
       setIsLoadingAnnouncements(false);
       return;
@@ -296,7 +297,7 @@ export const useMySellerStore = () => {
       const { data, error: saveError } = await operation;
 
       if (saveError) {
-        console.error('[useMySellerStore] Erro ao salvar loja:', saveError);
+        appError('[useMySellerStore] Erro ao salvar loja', saveError, { userId: user.id, storeId: store?.id || null });
         setError(saveError.message);
         setIsSaving(false);
         throw new Error(saveError.message);
@@ -399,7 +400,7 @@ export const usePublicSellerStore = (slug: string | undefined) => {
         .maybeSingle();
 
       if (storeError) {
-        console.error('[usePublicSellerStore] Erro ao buscar loja:', storeError);
+        appError('[usePublicSellerStore] Erro ao buscar loja', storeError, { slug });
         setError(storeError.message);
         setStore(null);
         setAnnouncements([]);
@@ -426,7 +427,7 @@ export const usePublicSellerStore = (slug: string | undefined) => {
         .order('created_at', { ascending: false });
 
       if (adsError) {
-        console.error('[usePublicSellerStore] Erro ao buscar anúncios da loja:', adsError);
+        appError('[usePublicSellerStore] Erro ao buscar anúncios da loja', adsError, { slug });
         setError(adsError.message);
         setStore(null);
         setAnnouncements([]);
@@ -474,7 +475,7 @@ export const usePublicSellerStoresCatalog = () => {
       .order('updated_at', { ascending: false });
 
     if (storesError) {
-      console.error('[usePublicSellerStoresCatalog] Erro ao buscar lojas:', storesError);
+      appError('[usePublicSellerStoresCatalog] Erro ao buscar lojas', storesError);
       setError(storesError.message);
       setStores([]);
       setIsLoading(false);
@@ -497,7 +498,7 @@ export const usePublicSellerStoresCatalog = () => {
       .eq('status', 'ACTIVE');
 
     if (announcementsError) {
-      console.error('[usePublicSellerStoresCatalog] Erro ao buscar anúncios das lojas:', announcementsError);
+      appError('[usePublicSellerStoresCatalog] Erro ao buscar anúncios das lojas', announcementsError, { storesCount: storeRows.length });
       setError(announcementsError.message);
       setStores(
         mappedStores.map((store) => ({

@@ -230,7 +230,7 @@ serve(async (req) => {
         continue;
       }
 
-      const ctaLink = `${appUrl.replace(/\/$/, '')}/#/anuncio/${claimedJob.announcement_id}`;
+      const ctaLink = `${appUrl.replace(/\/$/, '')}/anuncio/${claimedJob.announcement_id}`;
       const email = getRadarMatchTemplate({
         appUrl,
         siteName,

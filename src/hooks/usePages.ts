@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { sanitizeRichTextHtml } from '../utils/sanitizeRichTextHtml';
+import { appError } from '../utils/appLogger';
 
 export interface InstitutionalPage {
   id: string;
@@ -28,6 +30,11 @@ export const usePages = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const sanitizePageRecord = (page: InstitutionalPage): InstitutionalPage => ({
+    ...page,
+    content: sanitizeRichTextHtml(page.content),
+  });
+
   const fetchPages = async () => {
     try {
       setIsLoading(true);
@@ -40,9 +47,9 @@ export const usePages = () => {
 
       if (fetchError) throw fetchError;
 
-      setPages(data || []);
+      setPages((data || []).map(sanitizePageRecord));
     } catch (err: any) {
-      console.error('[usePages] Erro ao carregar páginas:', err);
+      appError('[usePages] Erro ao carregar páginas', err);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -62,9 +69,9 @@ export const usePages = () => {
 
       if (fetchError) throw fetchError;
 
-      setPages(data || []);
+      setPages((data || []).map(sanitizePageRecord));
     } catch (err: any) {
-      console.error('[usePages] Erro ao carregar páginas publicadas:', err);
+      appError('[usePages] Erro ao carregar páginas publicadas', err);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -88,19 +95,26 @@ export const usePages = () => {
         throw fetchError;
       }
 
-      return data;
+      return sanitizePageRecord(data);
     } catch (err: any) {
-      console.error(`[usePages] Erro ao buscar página ${slug}:`, err);
+      appError('[usePages] Erro ao buscar página por slug', err, {
+        slug,
+      });
       return null;
     }
   };
 
   const createPage = async (pageData: CreatePageData, userId: string) => {
     try {
+      const sanitizedPayload = {
+        ...pageData,
+        content: sanitizeRichTextHtml(pageData.content),
+      };
+
       const { data, error: insertError } = await supabase
         .from('institutional_pages')
         .insert([{
-          ...pageData,
+          ...sanitizedPayload,
           last_updated_by: userId
         }])
         .select()
@@ -109,19 +123,30 @@ export const usePages = () => {
       if (insertError) throw insertError;
 
       await fetchPages();
-      return { data, error: null };
+      return { data: data ? sanitizePageRecord(data) : null, error: null };
     } catch (err: any) {
-      console.error('[usePages] Erro ao criar página:', err);
+      appError('[usePages] Erro ao criar página', err, {
+        slug: pageData.slug,
+        title: pageData.title,
+        userId,
+      });
       return { data: null, error: err.message };
     }
   };
 
   const updatePage = async (id: string, updates: Partial<InstitutionalPage>, userId: string) => {
     try {
+      const sanitizedPayload = {
+        ...updates,
+        ...(typeof updates.content === 'string'
+          ? { content: sanitizeRichTextHtml(updates.content) }
+          : {}),
+      };
+
       const { data, error: updateError } = await supabase
         .from('institutional_pages')
         .update({
-          ...updates,
+          ...sanitizedPayload,
           last_updated_by: userId
         })
         .eq('id', id)
@@ -131,9 +156,12 @@ export const usePages = () => {
       if (updateError) throw updateError;
 
       await fetchPages();
-      return { data, error: null };
+      return { data: data ? sanitizePageRecord(data) : null, error: null };
     } catch (err: any) {
-      console.error('[usePages] Erro ao atualizar página:', err);
+      appError('[usePages] Erro ao atualizar página', err, {
+        id,
+        userId,
+      });
       return { data: null, error: err.message };
     }
   };
@@ -150,7 +178,9 @@ export const usePages = () => {
       await fetchPages();
       return { error: null };
     } catch (err: any) {
-      console.error('[usePages] Erro ao deletar página:', err);
+      appError('[usePages] Erro ao deletar página', err, {
+        id,
+      });
       return { error: err.message };
     }
   };

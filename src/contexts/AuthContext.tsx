@@ -5,6 +5,7 @@ import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { isSupabaseUnauthorizedError, refreshSupabaseSession } from '../lib/supabaseAuthGuard'
 import { User, UserRole } from '../../types'
 import { toast } from 'sonner'
+import { appError } from '../utils/appLogger'
 
 interface UserStats {
   total_ads: number
@@ -139,10 +140,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           await handleExpiredSession(canSetState)
           return null
         }
-        console.groupCollapsed('[Auth] Erro ao buscar usuário')
-        console.error('userId:', userId)
-        console.error('erro:', userError)
-        console.groupEnd()
+          appError('[Auth] Erro ao buscar usuário', userError, { userId })
         if (!options?.silent) {
           toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
         }
@@ -200,10 +198,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await handleExpiredSession(canSetState)
         return null
       }
-      console.groupCollapsed('[Auth] Erro inesperado ao buscar usuário')
-      console.error('userId:', userId)
-      console.error('erro:', err?.message || err)
-      console.groupEnd()
+        appError('[Auth] Erro inesperado ao buscar usuário', err, { userId })
       if (!options?.silent) {
         toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
       }
@@ -233,10 +228,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           await handleExpiredSession(canSetState)
           return false
         }
-        console.groupCollapsed('[Auth] Erro ao buscar estatísticas')
-        console.error('userId:', userId)
-        console.error('erro:', error)
-        console.groupEnd()
+          appError('[Auth] Erro ao buscar estatísticas', error, { userId })
         if (!options?.silent) {
           toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
         }
@@ -264,10 +256,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await handleExpiredSession(canSetState)
         return false
       }
-      console.groupCollapsed('[Auth] Erro inesperado ao buscar estatísticas')
-      console.error('userId:', userId)
-      console.error('erro:', err?.message || err)
-      console.groupEnd()
+        appError('[Auth] Erro inesperado ao buscar estatísticas', err, { userId })
       if (!options?.silent) {
         toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
       }
@@ -313,7 +302,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         scheduleRetry(userId, options?.canSetState)
       }
     } catch (err: any) {
-      console.error('[Auth] Erro ao sincronizar sessão autenticada:', err)
+        appError('[Auth] Erro ao sincronizar sessão autenticada', err, { userId })
       scheduleRetry(userId, options?.canSetState)
     } finally {
       if (options?.silent) {
@@ -444,7 +433,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const sendPasswordResetEmail = async (email: string) => {
     const baseUrl = (import.meta as any).env?.VITE_SITE_URL || window.location.origin
-    const redirectTo = `${String(baseUrl).replace(/\/$/, '')}/#/redefinir-senha`
+    const redirectTo = `${String(baseUrl).replace(/\/$/, '')}/redefinir-senha`
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
     return { error }
   }

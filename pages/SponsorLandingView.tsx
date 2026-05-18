@@ -264,6 +264,7 @@ const SponsorLandingView: React.FC = () => {
     hero: settings.sponsorHeroImageUrl || AGRO_FALLBACK_IMAGES.hero,
     field: settings.sponsorFieldImageUrl || AGRO_FALLBACK_IMAGES.field,
     harvest: settings.sponsorHarvestImageUrl || AGRO_FALLBACK_IMAGES.harvest,
+    finalCta: settings.sponsorFinalCtaImageUrl || settings.sponsorFieldImageUrl || AGRO_FALLBACK_IMAGES.field,
   };
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
   const [formSent, setFormSent] = useState(false);
@@ -978,7 +979,7 @@ const SponsorLandingView: React.FC = () => {
       >
         <div className="pointer-events-none absolute top-0 right-0 h-full w-1/2">
           <img
-            src={agro_images.field}
+            src={agro_images.finalCta}
             alt=""
             className="w-full h-full object-cover opacity-15"
           />

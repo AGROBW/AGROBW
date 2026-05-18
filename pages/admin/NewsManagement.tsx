@@ -259,7 +259,7 @@ const NewsManagement: React.FC = () => {
             toast.success('Materia retornou para rascunho.');
           }}
           onView={(article) => {
-            window.open(`/#/noticias/${article.slug}`, '_blank', 'noopener,noreferrer');
+            window.open(`/noticias/${article.slug}`, '_blank', 'noopener,noreferrer');
           }}
         />
       ) : null}

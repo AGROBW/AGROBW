@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SitePopup, SitePopupMetrics, SitePopupUserState } from '../../types';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 
 const EMPTY_METRICS: SitePopupMetrics = {
   popupId: '',
@@ -179,7 +180,12 @@ export const recordSitePopupEvent = async (
   });
 
   if (error) {
-    console.error('[recordSitePopupEvent] Erro ao registrar evento de pop-up:', error);
+    appError('[recordSitePopupEvent] Erro ao registrar evento de pop-up', error, {
+      popupId,
+      eventType,
+      pathname,
+      sessionKey,
+    });
   }
 };
 
@@ -195,7 +201,10 @@ export const fetchSitePopupUserStates = async (popupIds: string[], userId: strin
     .in('popup_id', popupIds);
 
   if (error) {
-    console.error('[fetchSitePopupUserStates] Erro ao carregar estado do usuario para pop-ups:', error);
+    appError('[fetchSitePopupUserStates] Erro ao carregar estado do usuario para pop-ups', error, {
+      userId,
+      popupIds,
+    });
     return new Map<string, SitePopupUserState>();
   }
 
@@ -232,7 +241,11 @@ export const syncSitePopupUserState = async (
     .maybeSingle();
 
   if (existingError) {
-    console.error('[syncSitePopupUserState] Erro ao consultar estado atual do usuario para pop-up:', existingError);
+    appError('[syncSitePopupUserState] Erro ao consultar estado atual do usuario para pop-up', existingError, {
+      popupId,
+      userId,
+      eventType,
+    });
     return;
   }
 
@@ -266,7 +279,12 @@ export const syncSitePopupUserState = async (
   const { error } = await query;
 
   if (error) {
-    console.error('[syncSitePopupUserState] Erro ao sincronizar estado do usuario para pop-up:', error);
+    appError('[syncSitePopupUserState] Erro ao sincronizar estado do usuario para pop-up', error, {
+      popupId,
+      userId,
+      eventType,
+      hasExistingState: Boolean(existingState),
+    });
   }
 };
 
@@ -293,7 +311,7 @@ export const useActiveSitePopups = () => {
       if (!isMounted) return;
 
       if (error) {
-        console.error('[useActiveSitePopups] Erro ao carregar pop-ups ativos:', error);
+        appError('[useActiveSitePopups] Erro ao carregar pop-ups ativos', error);
         setPopups([]);
       } else {
         const metricsMap = buildMetricsMap(metricsResult.data);

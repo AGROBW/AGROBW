@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { debugLog } from '../utils/debugLog';
 
 /**
  * Hook para Auditoria Administrativa
@@ -85,7 +86,7 @@ export const useAdminAudit = (): UseAdminAuditReturn => {
         return { success: false, error };
       }
 
-      console.log('[AdminAudit] Ação registrada com sucesso:', {
+      debugLog('[AdminAudit] Ação registrada com sucesso:', {
         logId: data,
         action: params.action,
         resource: `${params.resourceType}:${params.resourceId}`

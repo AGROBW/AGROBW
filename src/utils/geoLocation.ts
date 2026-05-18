@@ -2,6 +2,7 @@
  * Detecta o estado (UF) do visitante através de geolocalização por IP
  * Tenta múltiplos serviços com fallback automático
  */
+import { debugLog } from './debugLog';
 
 // Cache para evitar múltiplas chamadas à API
 let cachedState: string | null = null;
@@ -34,7 +35,7 @@ export async function detectUserState(): Promise<string | null> {
           const state = mapRegionNameToCode(data.region);
           if (state) {
             cachedState = state;
-            console.log('[GeoLocation] Estado detectado via ipinfo.io:', cachedState);
+            debugLog('[GeoLocation] Estado detectado via ipinfo.io:', cachedState);
             return cachedState;
           }
         }
@@ -54,7 +55,7 @@ export async function detectUserState(): Promise<string | null> {
         
         if (data.status === 'success' && data.countryCode === 'BR' && isValidBrazilianState(data.region)) {
           cachedState = data.region.toUpperCase();
-          console.log('[GeoLocation] Estado detectado via ip-api.com:', cachedState);
+          debugLog('[GeoLocation] Estado detectado via ip-api.com:', cachedState);
           return cachedState;
         }
       }

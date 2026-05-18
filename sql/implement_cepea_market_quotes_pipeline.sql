@@ -112,5 +112,5 @@ set
   end,
   product_name = coalesce(product_name, name),
   source_label = coalesce(source_label, source),
-  reference_date = coalesce(reference_date, current_date)
+  reference_date = coalesce(reference_date, (now() AT TIME ZONE 'America/Sao_Paulo')::date)
 where code like 'cepea-%';

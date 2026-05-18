@@ -39,6 +39,8 @@ import { motion } from 'framer-motion';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { debugLog } from '../src/utils/debugLog';
+import { appError, appWarn } from '../src/utils/appLogger';
 
 type Step = 'CATEGORY' | 'DETAILS' | 'MEDIA' | 'PRICING' | 'REVIEW' | 'SUCCESS';
 type ImageItem = {
@@ -662,7 +664,7 @@ const AdCreationView: React.FC = () => {
         }
         setCurrentStep('DETAILS');
       } catch (error) {
-        console.error('[AdCreation] Erro ao carregar anÃºncio para ediÃ§Ã£o:', error);
+        appError('[AdCreation] Erro ao carregar anúncio para edição', error, { editAnnouncementId: editAdId });
         toast.error('NÃ£o foi possÃ­vel carregar o anÃºncio para ediÃ§Ã£o.');
       } finally {
         if (isMountedRef.current) {
@@ -762,13 +764,13 @@ const AdCreationView: React.FC = () => {
   useEffect(() => {
     if (formData.categoryId) {
       const selectedCategory = dbCategories.find(cat => cat.id === formData.categoryId);
-      console.log('[Debug] Categoria selecionada:', selectedCategory?.name, selectedCategory?.slug);
+      debugLog('[AdCreation] Categoria selecionada:', selectedCategory?.name, selectedCategory?.slug);
       
       if (selectedCategory?.technical_fields_schema) {
-        console.log('[Debug] Schema de campos tÃ©cnicos carregado:', selectedCategory.technical_fields_schema);
+        debugLog('[AdCreation] Schema de campos tÃ©cnicos carregado:', selectedCategory.technical_fields_schema);
         setTechnicalFieldsSchema(selectedCategory.technical_fields_schema);
       } else {
-        console.log('[Debug] Nenhum schema de campos tÃ©cnicos definido para esta categoria');
+        debugLog('[AdCreation] Nenhum schema de campos tÃ©cnicos definido para esta categoria');
         setTechnicalFieldsSchema([]);
       }
     } else {
@@ -893,7 +895,7 @@ const AdCreationView: React.FC = () => {
         .eq('id', pendingDraftId)
         .eq('status', AdStatus.PENDING);
     } catch (error) {
-      console.error('[Draft] Erro ao limpar rascunho abandonado:', error);
+      appError('[Draft] Erro ao limpar rascunho abandonado', error, { draftId: draftIdRef.current || null });
     } finally {
       localStorage.removeItem('bwagro_ad_draft');
       localStorage.removeItem('bwagro_ad_draft_id');
@@ -970,7 +972,7 @@ const AdCreationView: React.FC = () => {
             location: { ...prev.location, cep: maskCep(cleanCep), city: data.localidade, state: data.uf }
           }));
         }
-      } catch (e) { console.error("CEP error"); }
+      } catch (e) { appError('Erro ao buscar CEP no cadastro de anúncio', e); }
     }
   };
 
@@ -1092,22 +1094,22 @@ const AdCreationView: React.FC = () => {
 
     // Singleton pattern: se jÃ¡ estÃ¡ criando, aguarda o ID
     if (isCreatingDraft.current) {
-      console.log('[Draft] Aguardando criaÃ§Ã£o do rascunho...');
+      debugLog('[AdCreation] Aguardando criaÃ§Ã£o do rascunho...');
       // Aguarda atÃ© 5 segundos pelo ID (50 tentativas x 100ms)
       for (let i = 0; i < 50; i++) {
         await new Promise(resolve => setTimeout(resolve, 100));
         if (draftIdRef.current) {
-          console.log('[Draft] ID encontrado apÃ³s aguardar:', draftIdRef.current);
+          debugLog('[AdCreation] ID encontrado apÃ³s aguardar:', draftIdRef.current);
           return draftIdRef.current;
         }
       }
-      console.error('[Draft] Timeout ao aguardar ID do rascunho (5s)');
+      appError('[Draft] Timeout ao aguardar ID do rascunho (5s)', undefined, { draftId: draftIdRef.current || null });
       return null;
     }
 
     // Bloquear outras tentativas
     isCreatingDraft.current = true;
-    console.log('[Draft] Iniciando criaÃ§Ã£o de rascunho Ãºnico...');
+    debugLog('[AdCreation] Iniciando criaÃ§Ã£o de rascunho Ãºnico...');
 
     const numericPrice = parseFloat(String(formData.price || 0).replace(/[^0-9.,]/g, '').replace(/\./g, '').replace(',', '.'));
     const numericUnitPrice = parseFloat(String(formData.unitPrice || 0).replace(/[^0-9.,]/g, '').replace(/\./g, '').replace(',', '.'));
@@ -1157,9 +1159,9 @@ const AdCreationView: React.FC = () => {
       .select('id')
       .single();
 
-    console.log('[Draft] Resposta do insert:', { data, error });
+    debugLog('[AdCreation] Resposta do insert do rascunho:', { data, error });
     if (error) {
-      console.error('[Draft] Erro detalhado:', error.message, error.details, error.hint);
+      appError('[Draft] Erro detalhado ao criar rascunho', error, { details: error.details, hint: error.hint });
     }
 
     if (error) {
@@ -1173,7 +1175,7 @@ const AdCreationView: React.FC = () => {
       draftIdRef.current = newId;
       setDraftAdId(newId);
       localStorage.setItem('bwagro_ad_draft_id', newId);
-      console.log('[Draft] Rascunho criado com sucesso:', newId);
+      debugLog('[AdCreation] Rascunho criado com sucesso:', newId);
     }
     
     // Liberar bloqueio
@@ -1195,7 +1197,7 @@ const AdCreationView: React.FC = () => {
       const compressedFile = new File([compressed], nextName, { type: 'image/webp' });
       return compressedFile;
     } catch (err) {
-      console.error('[Ads] Erro ao comprimir imagem:', err);
+      appError('[Ads] Erro ao comprimir imagem', err, { fileName: file.name });
       return file;
     }
   };
@@ -1212,7 +1214,10 @@ const AdCreationView: React.FC = () => {
     const currentDraftId = await ensureDraftAd(media);
     const images = media.images;
     if (!currentDraftId) {
-      console.warn('[Ads] Rascunho nÃ£o salvo, mas fotos permanecem no estado local.');
+      appWarn('[Ads] Rascunho não salvo, mas fotos permanecem no estado local', {
+        categoryId: formData.categoryId,
+        fileCount: imageItems.length,
+      });
       return;
     }
     const { error } = await supabase
@@ -1231,10 +1236,10 @@ const AdCreationView: React.FC = () => {
       .eq('id', currentDraftId);
 
     if (error) {
-      console.error('[Ads] Erro ao atualizar imagens do rascunho:', error);
+      appError('[Ads] Erro ao atualizar imagens do rascunho', error, { draftId: currentDraftId });
     }
     if (videoError) {
-      console.error('[Ads] Erro ao atualizar video do rascunho:', videoError);
+      appError('[Ads] Erro ao atualizar video do rascunho', videoError, { draftId: currentDraftId });
     }
   };
 
@@ -1252,7 +1257,7 @@ const AdCreationView: React.FC = () => {
     const availableSlots = 9 - imageItems.length;
     const fileArray = Array.from(files).slice(0, Math.max(availableSlots, 0));
     
-    console.log('[Debug Ads] Iniciando upload', { files: fileArray.length, categoryId: formData.categoryId });
+    debugLog('[AdCreation] Iniciando upload:', { files: fileArray.length, categoryId: formData.categoryId });
 
     if (fileArray.length === 0) {
       toast.error('Limite de 9 imagens atingido.');
@@ -1329,7 +1334,7 @@ const AdCreationView: React.FC = () => {
           .upload(filePath, compressedFile, { upsert: false });
 
         if (uploadError) {
-          console.error('[Ads] Erro ao enviar imagem:', uploadError);
+          appError('[Ads] Erro ao enviar imagem', uploadError, { fileName: compressedFile.name, draftId: draftIdRef.current || null });
           const isPermission = /permission|rls|not allowed|denied|unauthorized|400/i.test(uploadError.message || '');
           toast.error(
             isPermission ? 'PermissÃ£o negada no envio.' : 'Falha ao enviar imagem.',
@@ -1368,7 +1373,7 @@ const AdCreationView: React.FC = () => {
         }
       }
     } catch (err: any) {
-      console.error('[Ads] Erro inesperado no upload:', err);
+      appError('[Ads] Erro inesperado no upload', err, { draftId: draftIdRef.current || null, categoryId: formData.categoryId });
       toast.error('Falha ao enviar imagens.', { description: 'Tente novamente.' });
     } finally {
       if (isMountedRef.current) {
@@ -1543,7 +1548,7 @@ const AdCreationView: React.FC = () => {
     if (storagePath) {
       const { error } = await supabase.storage.from('announcement-videos').remove([storagePath]);
       if (error) {
-        console.error('[Ads] Erro ao remover video:', error);
+        appError('[Ads] Erro ao remover video', error, { draftId: draftIdRef.current || null });
       }
     }
   };
@@ -1589,7 +1594,7 @@ const AdCreationView: React.FC = () => {
         .from('ads-images')
         .remove([storagePath]);
       if (error) {
-        console.error('[Ads] Erro ao remover imagem:', error);
+        appError('[Ads] Erro ao remover imagem', error, { imageId: item.id, draftId: draftIdRef.current || null });
       }
     }
   };
@@ -1608,7 +1613,7 @@ const AdCreationView: React.FC = () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     
-    console.log('[Publish] Iniciando publicaÃ§Ã£o com dados:', {
+    debugLog('[AdCreation] Iniciando publicaÃ§Ã£o com dados:', {
       categoryId: formData.categoryId,
       technical: formData.technical,
       technicalFieldsSchemaLength: technicalFieldsSchema.length
@@ -1617,7 +1622,7 @@ const AdCreationView: React.FC = () => {
     try {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) {
-        console.error('[Ads] Erro ao obter usuÃ¡rio autenticado:', authError);
+        appError('[Ads] Erro ao obter usuário autenticado', authError);
         toast.error('NÃ£o foi possÃ­vel validar seu login.');
         return;
       }
@@ -1626,7 +1631,7 @@ const AdCreationView: React.FC = () => {
       const userId = authUserId || user?.id;
 
       if (!userId) {
-        console.error('[Ads] user.id nulo, cancelando insert');
+        appError('[Ads] user.id nulo, cancelando insert');
         toast.error('SessÃ£o invÃ¡lida. FaÃ§a login novamente.');
         return;
       }
@@ -1698,7 +1703,7 @@ const AdCreationView: React.FC = () => {
       );
 
       if (cooldownError) {
-        console.error('[Publish] Erro ao validar cooldown de anuncio semelhante:', cooldownError);
+        appError('[Publish] Erro ao validar cooldown de anuncio semelhante', cooldownError, { categoryId: formData.categoryId, userId: user?.id || null });
         toast.error('Não foi possível validar a republicação deste anúncio.', {
           description: 'Tente novamente em instantes.',
         });
@@ -1742,7 +1747,7 @@ const AdCreationView: React.FC = () => {
       );
 
       if (similarityError) {
-        console.error('[Publish] Erro ao avaliar similaridade de anuncio:', similarityError);
+        appError('[Publish] Erro ao avaliar similaridade de anuncio', similarityError, { categoryId: formData.categoryId, userId: user?.id || null });
         toast.error('Não foi possível validar a similaridade deste anúncio.', {
           description: 'Tente novamente em instantes.',
         });
@@ -1844,7 +1849,7 @@ const AdCreationView: React.FC = () => {
 
       // Se existe rascunho, SEMPRE usar update
       if (draftAdId) {
-        console.log('[Publish] Atualizando rascunho:', draftAdId);
+        debugLog('[AdCreation] Atualizando rascunho:', draftAdId);
         
         const updateResult = await supabase
           .from('announcements')
@@ -1857,11 +1862,11 @@ const AdCreationView: React.FC = () => {
         error = updateResult.error;
 
         if (error) {
-          console.error('[Publish] Erro no update:', error);
+          appError('[Publish] Erro no update', error, { announcementId: draftAdId, userId: user?.id || null });
         }
       } else {
         // Sem rascunho, fazer insert direto
-        console.log('[Publish] Criando novo anÃºncio (sem rascunho)');
+        debugLog('[AdCreation] Criando novo anÃºncio (sem rascunho)');
         const insertResult = await supabase
           .from('announcements')
           .insert(payload)
@@ -1872,11 +1877,11 @@ const AdCreationView: React.FC = () => {
         error = insertResult.error;
 
         if (error) {
-          console.error('[Publish] Erro no insert:', error);
+          appError('[Publish] Erro no insert', error, { categoryId: formData.categoryId, userId: user?.id || null });
         }
       }
 
-      console.log('[Publish] Resultado final:', { data, error });
+      debugLog('[AdCreation] Resultado final da publicaÃ§Ã£o:', { data, error });
 
       if (error) {
         const errorContext = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`;
@@ -1901,7 +1906,7 @@ const AdCreationView: React.FC = () => {
       }
 
       const announcementId = data.id;
-      console.log('[Publish] AnÃºncio publicado com sucesso:', announcementId);
+      debugLog('[AdCreation] AnÃºncio publicado com sucesso:', announcementId);
 
       if (cleanCep) {
         const geoUpdated = await updateAnnouncementCoordinates(
@@ -1922,11 +1927,11 @@ const AdCreationView: React.FC = () => {
           }
         );
         if (!geoUpdated) {
-          console.warn('[Ads] NÃ£o foi possÃ­vel atualizar coordenadas do anÃºncio apÃ³s publicaÃ§Ã£o:', announcementId);
+          appWarn('[Ads] Não foi possível atualizar coordenadas do anúncio após publicação', { announcementId });
         }
       }
-      console.log('[Debug] Dados tÃ©cnicos para salvar:', formData.technical);
-      console.log('[Debug] Schema de campos tÃ©cnicos:', technicalFieldsSchema);
+      debugLog('[AdCreation] Dados tÃ©cnicos para salvar:', formData.technical);
+      debugLog('[AdCreation] Schema de campos tÃ©cnicos:', technicalFieldsSchema);
 
       // Salvar especificaÃ§Ãµes tÃ©cnicas na tabela announcement_technical_details
       if (technicalDetailsPayload.length > 0) {
@@ -1937,9 +1942,9 @@ const AdCreationView: React.FC = () => {
           .eq('announcement_id', announcementId);
 
         if (deleteError) {
-          console.warn('[Publish] Aviso ao limpar detalhes antigos:', deleteError);
+          appWarn('[Publish] Aviso ao limpar detalhes antigos', { announcementId, error: deleteError });
         } else {
-          console.log('[Publish] Detalhes tÃ©cnicos antigos removidos (se existiam)');
+          debugLog('[AdCreation] Detalhes tÃ©cnicos antigos removidos (se existiam)');
         }
 
         const technicalDetailsToInsert = technicalDetailsPayload.map(detail => ({
@@ -1949,7 +1954,7 @@ const AdCreationView: React.FC = () => {
           icon_name: detail.icon_name || 'Circle'
         }));
 
-        console.log('[Debug] Detalhes tÃ©cnicos a serem inseridos:', technicalDetailsToInsert);
+        debugLog('[AdCreation] Detalhes tÃ©cnicos a serem inseridos:', technicalDetailsToInsert);
 
         if (technicalDetailsToInsert.length > 0) {
           const { error: detailsError } = await supabase
@@ -1957,16 +1962,16 @@ const AdCreationView: React.FC = () => {
             .insert(technicalDetailsToInsert);
 
           if (detailsError) {
-            console.error('[Publish] Erro ao salvar especificaÃ§Ãµes tÃ©cnicas:', detailsError);
+            appError('[Publish] Erro ao salvar especificações técnicas', detailsError, { announcementId });
             toast.error('Erro ao salvar especificaÃ§Ãµes tÃ©cnicas', { description: detailsError.message });
           } else {
-            console.log('[Publish] EspecificaÃ§Ãµes tÃ©cnicas salvas com sucesso:', technicalDetailsToInsert.length, 'registros');
+            debugLog('[AdCreation] EspecificaÃ§Ãµes tÃ©cnicas salvas com sucesso:', technicalDetailsToInsert.length, 'registros');
           }
         } else {
-          console.log('[Publish] Nenhuma especificaÃ§Ã£o tÃ©cnica para salvar (campos vazios)');
+          debugLog('[AdCreation] Nenhuma especificaÃ§Ã£o tÃ©cnica para salvar (campos vazios)');
         }
       } else {
-        console.log('[Publish] Schema vazio ou dados tÃ©cnicos nÃ£o disponÃ­veis');
+        debugLog('[AdCreation] Schema vazio ou dados tÃ©cnicos nÃ£o disponÃ­veis');
       }
 
       hasPublishedSuccessfullyRef.current = true;
@@ -1983,7 +1988,7 @@ const AdCreationView: React.FC = () => {
       }
       navigate('/minha-conta/anuncios');
     } catch (error: any) {
-      console.error('[Publish] Erro inesperado ao publicar anÃºncio:', error);
+      appError('[Publish] Erro inesperado ao publicar anúncio', error, { draftId: draftAdId || null, categoryId: formData.categoryId, userId: user?.id || null });
       const errorContext = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`;
       if (isDuplicateActiveAnnouncementError(errorContext)) {
         toast.error('Já existe um anúncio semelhante ativo', {

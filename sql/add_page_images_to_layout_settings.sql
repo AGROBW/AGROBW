@@ -7,4 +7,5 @@ ALTER TABLE layout_settings
   ADD COLUMN IF NOT EXISTS pricing_field_image_url   TEXT,
   ADD COLUMN IF NOT EXISTS sponsor_hero_image_url    TEXT,
   ADD COLUMN IF NOT EXISTS sponsor_harvest_image_url TEXT,
-  ADD COLUMN IF NOT EXISTS sponsor_field_image_url   TEXT;
+  ADD COLUMN IF NOT EXISTS sponsor_field_image_url   TEXT,
+  ADD COLUMN IF NOT EXISTS sponsor_final_cta_image_url TEXT;

@@ -87,21 +87,37 @@ USING (
   )
 );
 
--- Service role pode inserir/atualizar (para webhook)
-DROP POLICY IF EXISTS "Service can insert subscriptions" ON user_subscriptions;
-CREATE POLICY "Service can insert subscriptions"
+-- Escrita direta somente por admins autenticados.
+-- Edge Functions com service_role fazem bypass de RLS.
+DROP POLICY IF EXISTS "Only admins can create subscriptions" ON user_subscriptions;
+CREATE POLICY "Only admins can create subscriptions"
 ON user_subscriptions
 FOR INSERT
-TO authenticated, anon
-WITH CHECK (true);
+TO authenticated
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+);
 
-DROP POLICY IF EXISTS "Service can update subscriptions" ON user_subscriptions;
-CREATE POLICY "Service can update subscriptions"
+DROP POLICY IF EXISTS "Admins can update subscriptions" ON user_subscriptions;
+CREATE POLICY "Admins can update subscriptions"
 ON user_subscriptions
 FOR UPDATE
-TO authenticated, anon
-USING (true)
-WITH CHECK (true);
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+);
 
 -- Admins podem deletar assinaturas
 DROP POLICY IF EXISTS "Admins can delete subscriptions" ON user_subscriptions;

@@ -8,6 +8,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { updateUserCoordinates } from '../../services/geoService';
+import { debugLog } from '../utils/debugLog';
+import { appError } from '../utils/appLogger';
 
 export interface OpportunityAlert {
   id: string;
@@ -175,7 +177,7 @@ export const useRadar = () => {
 
       setPlanLimits(matchedPlan ? mapPlanLimits(matchedPlan) : DEFAULT_LIMITS);
     } catch (err: any) {
-      console.error('Erro ao buscar limites do plano:', err);
+      appError('Erro ao buscar limites do plano', err, { userId: user?.id || null });
       setPlanLimits(DEFAULT_LIMITS);
     }
   }, [user?.id]);
@@ -198,7 +200,7 @@ export const useRadar = () => {
         geoUpdatedAt: data?.geo_updated_at ?? null
       });
     } catch (err) {
-      console.error('Erro ao buscar status de localizacao do radar:', err);
+      appError('Erro ao buscar status de localizacao do radar', err, { userId: user?.id || null });
       setLocationStatus({
         hasCep: false,
         hasCoordinates: false,
@@ -222,7 +224,7 @@ export const useRadar = () => {
 
       setAlerts(data || []);
     } catch (err: any) {
-      console.error('Erro ao buscar alertas:', err);
+      appError('Erro ao buscar alertas', err, { userId: user?.id || null });
       setError(err.message);
     }
   }, [user?.id]);
@@ -261,7 +263,7 @@ export const useRadar = () => {
 
       setMatches(mappedMatches);
     } catch (err: any) {
-      console.error('Erro ao buscar matches:', err);
+      appError('Erro ao buscar matches', err, { userId: user?.id || null });
       setError(err.message);
     }
   }, [user?.id]);
@@ -287,7 +289,7 @@ export const useRadar = () => {
         last_match_date: null
       });
     } catch (err: any) {
-      console.error('Erro ao buscar estatÃ­sticas:', err);
+      appError('Erro ao buscar estatísticas', err, { userId: user?.id || null });
     }
   }, [user?.id]);
 
@@ -346,7 +348,7 @@ export const useRadar = () => {
                            (new Date().getTime() - new Date(userData.geo_updated_at).getTime()) > 30 * 24 * 60 * 60 * 1000;
 
         if (needsUpdate && userData?.cep) {
-          console.log('Atualizando coordenadas do usuÃ¡rio...');
+          debugLog('Atualizando coordenadas do usuÃ¡rio...');
           await updateUserCoordinates(user.id, userData.cep, supabase);
           await fetchLocationStatus();
         } else if (!userData?.cep) {
@@ -371,7 +373,7 @@ export const useRadar = () => {
       });
 
       if (retroactiveMatchError) {
-        console.error('Erro ao processar matching retroativo do alerta:', retroactiveMatchError);
+        appError('Erro ao processar matching retroativo do alerta', retroactiveMatchError, { userId: user?.id || null, alertName: alertData.name });
         throw new Error('O alerta foi salvo, mas o processamento retroativo nao conseguiu rodar. Atualize o SQL do radar no Supabase e tente novamente.');
       }
 
@@ -381,7 +383,7 @@ export const useRadar = () => {
       await fetchLocationStatus();
       return data;
     } catch (err: any) {
-      console.error('Erro ao criar alerta:', err);
+      appError('Erro ao criar alerta', err, { userId: user?.id || null, alertName: alertData.name });
       throw err;
     }
   };
@@ -416,7 +418,7 @@ export const useRadar = () => {
           (new Date().getTime() - new Date(userData.geo_updated_at).getTime()) > 30 * 24 * 60 * 60 * 1000;
 
         if (needsUpdate && userData?.cep) {
-          console.log('Atualizando coordenadas do usuÃ¡rio para filtro por raio...');
+          debugLog('Atualizando coordenadas do usuÃ¡rio para filtro por raio...');
           await updateUserCoordinates(user.id, userData.cep, supabase);
           await fetchLocationStatus();
         } else if (!userData?.cep) {
@@ -440,7 +442,7 @@ export const useRadar = () => {
         });
 
         if (retroactiveMatchError) {
-          console.error('Erro ao reprocessar matching retroativo do alerta:', retroactiveMatchError);
+          appError('Erro ao reprocessar matching retroativo do alerta', retroactiveMatchError, { userId: user?.id || null, alertId });
           throw new Error('As alteracoes foram salvas, mas o reprocessamento retroativo do radar falhou. Atualize o SQL do radar no Supabase e tente novamente.');
         }
       }
@@ -451,7 +453,7 @@ export const useRadar = () => {
       await fetchLocationStatus();
       return data;
     } catch (err: any) {
-      console.error('Erro ao atualizar alerta:', err);
+      appError('Erro ao atualizar alerta', err, { userId: user?.id || null, alertId });
       throw err;
     }
   };
@@ -471,7 +473,7 @@ export const useRadar = () => {
 
       await fetchAlerts();
     } catch (err: any) {
-      console.error('Erro ao deletar alerta:', err);
+      appError('Erro ao deletar alerta', err, { userId: user?.id || null, alertId });
       throw err;
     }
   };
@@ -504,7 +506,7 @@ export const useRadar = () => {
       await fetchMatches();
       await fetchStats();
     } catch (err: any) {
-      console.error('Erro ao marcar match como visto:', err);
+      appError('Erro ao marcar match como visto', err, { userId: user?.id || null, matchId });
       throw err;
     }
   };
@@ -527,7 +529,7 @@ export const useRadar = () => {
       await fetchMatches();
       await fetchStats();
     } catch (err: any) {
-      console.error('Erro ao descartar match:', err);
+      appError('Erro ao descartar match', err, { userId: user?.id || null, matchId });
       throw err;
     }
   };
@@ -559,7 +561,7 @@ export const useRadar = () => {
   useEffect(() => {
     if (!user?.id) return;
 
-    console.log('ðŸ”” Iniciando subscription para matches do usuÃ¡rio:', user.id);
+    debugLog('[Radar] Iniciando subscription para matches do usuÃ¡rio:', user.id);
 
     // Subscribe a novos matches
     const matchesSubscription = supabase
@@ -573,7 +575,7 @@ export const useRadar = () => {
           filter: `user_id=eq.${user.id}`
         },
         async (payload) => {
-          console.log('âœ¨ Novo match recebido via Real-time!', payload);
+          debugLog('[Radar] Novo match recebido via real-time:', payload);
           
           // Atualizar matches e stats imediatamente
           try {
@@ -603,7 +605,7 @@ export const useRadar = () => {
                 announcement: match.announcements
               }));
               setMatches(mappedMatches);
-              console.log('âœ… Matches atualizados:', mappedMatches.length);
+              debugLog('[Radar] Matches atualizados:', mappedMatches.length);
             }
 
             // Buscar stats atualizadas
@@ -617,24 +619,24 @@ export const useRadar = () => {
                 unviewed_matches: 0,
                 last_match_date: null
               });
-              console.log('âœ… Stats atualizadas:', stats);
+              debugLog('[Radar] Stats atualizadas:', stats);
             }
           } catch (err) {
-            console.error('âŒ Erro ao processar novo match via Real-time:', err);
+            appError('Erro ao processar novo match via real-time', err, { userId: user?.id || null, payload });
           }
         }
       )
       .subscribe((status) => {
-        console.log('ðŸ“¡ Status da subscription:', status);
+        debugLog('[Radar] Status da subscription:', status);
         if (status === 'SUBSCRIBED') {
-          console.log('âœ… Subscription ativa para matches!');
+          debugLog('[Radar] Subscription ativa para matches');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('âŒ Erro na subscription:', status);
+          appError('Erro na subscription do radar', undefined, { userId: user?.id || null, status });
         }
       });
 
     return () => {
-      console.log('ðŸ”Œ Desconectando subscription de matches');
+      debugLog('[Radar] Desconectando subscription de matches');
       matchesSubscription.unsubscribe();
     };
   }, [user?.id]);

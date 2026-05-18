@@ -8,6 +8,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { supabase } from '../src/lib/supabaseClient';
 import { Notification } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
+import { debugLog } from '../src/utils/debugLog';
 
 // Custom scrollbar styles para a lista de notificações
 const scrollbarStyles = `
@@ -105,7 +106,7 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('[NotificationsModal] Nova notificação:', payload);
+          debugLog('[NotificationsModal] Nova notificação:', payload);
           refreshNotifications();
         }
       )

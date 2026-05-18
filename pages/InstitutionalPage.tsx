@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { usePages, InstitutionalPage as Page } from '../src/hooks/usePages';
+import { sanitizeRichTextHtml } from '../src/utils/sanitizeRichTextHtml';
 
 const InstitutionalPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -53,6 +54,8 @@ const InstitutionalPage: React.FC = () => {
     return <Navigate to="/" replace />;
   }
 
+  const sanitizedContent = sanitizeRichTextHtml(page.content);
+
   return (
     <main className="min-h-screen bg-slate-50 py-12">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
@@ -82,7 +85,7 @@ const InstitutionalPage: React.FC = () => {
                 prose-ul:mb-4 prose-ul:list-disc prose-ul:pl-6
                 prose-ol:mb-4 prose-ol:list-decimal prose-ol:pl-6
                 prose-li:mb-2 prose-li:text-slate-700"
-              dangerouslySetInnerHTML={{ __html: page.content }}
+              dangerouslySetInnerHTML={{ __html: sanitizedContent }}
             />
           </div>
         </article>

@@ -27,6 +27,8 @@ import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { toast } from 'sonner';
 import { adminDeleteAnnouncementWithNotification } from '../../src/hooks/useAds';
+import { debugLog } from '../../src/utils/debugLog';
+import { appError } from '../../src/utils/appLogger';
 
 interface User {
   id: string;
@@ -281,7 +283,7 @@ const UserManagement: React.FC = () => {
   // Debug: Log do usuÃ¡rio selecionado no modal de detalhes
   useEffect(() => {
     if (showDetailsModal && selectedUser) {
-      console.log('[UserManagement] ðŸ“‹ Dados do usuÃ¡rio selecionado:', {
+      debugLog('[UserManagement] Dados do usuÃ¡rio selecionado:', {
         id: selectedUser.id,
         name: selectedUser.name,
         email: selectedUser.email,
@@ -319,7 +321,7 @@ const UserManagement: React.FC = () => {
       if (error) throw error;
       setAvailablePlans(data || []);
     } catch (error) {
-      console.error('[UserManagement] Erro ao carregar planos:', error);
+      appError('[UserManagement] Erro ao carregar planos', error);
     }
   };
 
@@ -367,12 +369,17 @@ const UserManagement: React.FC = () => {
       const { data, error, count } = await query;
 
       if (error) {
-        console.error('[UserManagement] Erro na query:', error);
+        appError('[UserManagement] Erro na query de usuários', error, {
+          page,
+          searchTerm,
+          filterStatus,
+          filterVerification,
+        });
         throw error;
       }
 
       // ðŸ” DEBUG: Log completo dos dados brutos de TODOS os usuÃ¡rios
-      console.log('[UserManagement] ðŸ” DADOS BRUTOS DE TODOS OS USUÃRIOS:', 
+      debugLog('[UserManagement] Dados brutos de todos os usuÃ¡rios:', 
         data?.map(u => ({
           id: u.id,
           name: u.name,
@@ -388,7 +395,7 @@ const UserManagement: React.FC = () => {
       );
 
       // ðŸ” DEBUG: Log completo dos dados brutos
-      console.log('[UserManagement] Dados brutos da query (primeiro usuÃ¡rio):', {
+      debugLog('[UserManagement] Dados brutos da query (primeiro usuÃ¡rio):', {
         total: data?.length,
         firstUser: data?.[0],
         subscriptions: data?.[0]?.user_subscriptions
@@ -436,12 +443,17 @@ const UserManagement: React.FC = () => {
       );
 
       // Log resumido para validaÃ§Ã£o
-      console.log('[UserManagement] âœ… UsuÃ¡rios carregados:', usersWithCounts.length);
+      debugLog('[UserManagement] UsuÃ¡rios carregados:', usersWithCounts.length);
 
       setUsers(usersWithCounts);
       setTotalCount(count || 0);
     } catch (error) {
-      console.error('[UserManagement] Erro ao carregar usuÃ¡rios:', error);
+      appError('[UserManagement] Erro ao carregar usuários', error, {
+        page,
+        searchTerm,
+        filterStatus,
+        filterVerification,
+      });
       toast.error('Erro ao carregar usuários.');
     } finally {
       setLoading(false);
@@ -612,7 +624,11 @@ const UserManagement: React.FC = () => {
           : count || 0
       );
     } catch (error) {
-      console.error('[UserManagement] Erro ao carregar assinaturas:', error);
+      appError('[UserManagement] Erro ao carregar assinaturas', error, {
+        page: subscriptionsPage,
+        searchTerm: subscriptionSearchTerm,
+        statusFilter: subscriptionStatusFilter,
+      });
       toast.error('Erro ao carregar assinaturas');
     } finally {
       setSubscriptionsLoading(false);
@@ -647,7 +663,7 @@ const UserManagement: React.FC = () => {
 
       setUserAnnouncements(mappedAnnouncements);
     } catch (error) {
-      console.error('[UserManagement] Erro ao carregar anÃºncios do usuÃ¡rio:', error);
+      appError('[UserManagement] Erro ao carregar anúncios do usuário', error, { userId });
       toast.error('Erro ao carregar anúncios do usuário.');
       setUserAnnouncements([]);
     } finally {
@@ -681,7 +697,7 @@ const UserManagement: React.FC = () => {
         metadata: row.metadata || null,
       })));
     } catch (error) {
-      console.error('[UserManagement] Erro ao carregar consentimentos legais do usuário:', error);
+      appError('[UserManagement] Erro ao carregar consentimentos legais do usuário', error, { userId });
       toast.error('Erro ao carregar consentimentos legais do usuário.');
       setUserLegalConsents([]);
     } finally {
@@ -817,7 +833,10 @@ const UserManagement: React.FC = () => {
 
       closeDeleteAnnouncementModal();
     } catch (error: any) {
-      console.error('[UserManagement] Erro ao excluir anúncio:', error);
+      appError('[UserManagement] Erro ao excluir anúncio', error, {
+        userId: selectedUser.id,
+        announcementId: selectedAnnouncement.id,
+      });
       toast.error(error?.message || 'Erro ao excluir anúncio.');
     } finally {
       setIsDeletingAnnouncement(false);
@@ -884,7 +903,10 @@ const UserManagement: React.FC = () => {
       toast.success(`Plano alterado para ${selectedPlan.name}`);
       return true;
     } catch (error) {
-      console.error('[UserManagement] Erro ao atualizar plano:', error);
+      appError('[UserManagement] Erro ao atualizar plano', error, {
+        userId: selectedUser.id,
+        planId: newPlan,
+      });
       toast.error('Erro ao atualizar plano');
       return false;
     }
@@ -926,7 +948,10 @@ const UserManagement: React.FC = () => {
       toast.success(`Role alterado para ${newRole}`);
       return true;
     } catch (error) {
-      console.error('[UserManagement] Erro ao atualizar role:', error);
+      appError('[UserManagement] Erro ao atualizar role', error, {
+        userId: selectedUser.id,
+        role: newRole,
+      });
       toast.error('Erro ao atualizar permissões.');
       return false;
     }
@@ -993,7 +1018,7 @@ const UserManagement: React.FC = () => {
       setSuspensionReason('');
       loadUsers();
     } catch (error) {
-      console.error('[UserManagement] Erro ao suspender:', error);
+      appError('[UserManagement] Erro ao suspender usuário', error, { userId: selectedUser.id });
       toast.error('Erro ao suspender usuário.');
     }
   };
@@ -1030,7 +1055,7 @@ const UserManagement: React.FC = () => {
       toast.success('Suspensão removida.');
       loadUsers();
     } catch (error) {
-      console.error('[UserManagement] Erro ao remover suspensão:', error);
+      appError('[UserManagement] Erro ao remover suspensão', error, { userId: user.id });
       toast.error('Erro ao remover suspensão.');
     }
   };
@@ -1087,7 +1112,7 @@ const UserManagement: React.FC = () => {
       );
       loadUsers();
     } catch (error) {
-      console.error('[UserManagement] Erro ao bloquear usuário:', error);
+      appError('[UserManagement] Erro ao bloquear usuário', error, { userId: selectedUser.id });
       toast.error('Erro ao bloquear usuário.');
     }
   };
@@ -1140,7 +1165,7 @@ const UserManagement: React.FC = () => {
       );
       loadUsers();
     } catch (error) {
-      console.error('[UserManagement] Erro ao desbloquear usuário:', error);
+      appError('[UserManagement] Erro ao desbloquear usuário', error, { userId: selectedUser.id });
       toast.error('Erro ao desbloquear usuário.');
     }
   };
@@ -1161,7 +1186,7 @@ const UserManagement: React.FC = () => {
     });
 
     if (error) {
-      console.error('[UserManagement] Erro ao criar notificacao de selo verificado:', error);
+      appError('[UserManagement] Erro ao criar notificacao de selo verificado', error, { userId: user.id });
     }
   };
 
@@ -1231,7 +1256,7 @@ const UserManagement: React.FC = () => {
 
       await loadUsers();
     } catch (error) {
-      console.error('[UserManagement] Erro ao alterar selo verificado:', error);
+      appError('[UserManagement] Erro ao alterar selo verificado', error, { userId: user.id });
       toast.error('Erro ao alterar selo verificado do usuário.');
     }
   };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appError, appWarn } from '../utils/appLogger';
 
 export interface HomeBanner {
   id: string;
@@ -34,7 +35,7 @@ export const useBanners = () => {
 
       setBanners(data || []);
     } catch (err: any) {
-      console.error('[useBanners] Erro ao carregar banners:', err);
+      appError('[useBanners] Erro ao carregar banners', err);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -56,7 +57,7 @@ export const useBanners = () => {
 
       setBanners(data || []);
     } catch (err: any) {
-      console.error('[useBanners] Erro ao carregar banners ativos:', err);
+      appError('[useBanners] Erro ao carregar banners ativos', err);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -76,7 +77,7 @@ export const useBanners = () => {
       await fetchBanners();
       return { data, error: null };
     } catch (err: any) {
-      console.error('[useBanners] Erro ao criar banner:', err);
+      appError('[useBanners] Erro ao criar banner', err, { title: banner.title });
       return { data: null, error: err.message };
     }
   };
@@ -95,7 +96,7 @@ export const useBanners = () => {
       await fetchBanners();
       return { data, error: null };
     } catch (err: any) {
-      console.error('[useBanners] Erro ao atualizar banner:', err);
+      appError('[useBanners] Erro ao atualizar banner', err, { bannerId: id });
       return { data: null, error: err.message };
     }
   };
@@ -111,7 +112,7 @@ export const useBanners = () => {
             .remove([path]);
 
           if (storageError) {
-            console.warn('[useBanners] Erro ao deletar imagem do storage:', storageError);
+          appWarn('[useBanners] Erro ao deletar imagem do storage', { bannerId: id, error: storageError });
           }
         }
       }
@@ -127,7 +128,7 @@ export const useBanners = () => {
       await fetchBanners();
       return { error: null };
     } catch (err: any) {
-      console.error('[useBanners] Erro ao deletar banner:', err);
+      appError('[useBanners] Erro ao deletar banner', err, { bannerId: id });
       return { error: err.message };
     }
   };
@@ -149,7 +150,7 @@ export const useBanners = () => {
       await fetchBanners();
       return { error: null };
     } catch (err: any) {
-      console.error('[useBanners] Erro ao reordenar banners:', err);
+      appError('[useBanners] Erro ao reordenar banners', err, { count: banners.length });
       return { error: err.message };
     }
   };

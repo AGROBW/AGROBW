@@ -7,6 +7,8 @@ import { LEAD_STATUS, CHAT_STATUS } from '../constants/status';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { isTimestampExpired, syncTrustedTime } from '../src/lib/trustedTime';
 import { recordContactLegalConsents } from '../src/lib/legalConsents';
+import { debugLog } from '../src/utils/debugLog';
+import { appError, appWarn } from '../src/utils/appLogger';
 
 const applyPhoneMask = (value: string) => {
   const numbers = value.replace(/\D/g, '');
@@ -106,7 +108,11 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
       });
 
       if (consentError) {
-        console.error('[LegalConsent] Erro ao registrar aceite juridico do contato:', consentError);
+        appError('[LegalConsent] Erro ao registrar aceite juridico do contato', consentError, {
+          announcementId,
+          sellerId,
+          buyerId: user.id,
+        });
         toast.error('Nao foi possivel registrar o aceite dos termos.', {
           description: 'Tente novamente antes de enviar sua mensagem ao vendedor.',
         });
@@ -146,7 +152,11 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         .maybeSingle();
 
       if (checkError) {
-        console.error('[Chat] Erro ao verificar chat existente:', checkError);
+        appError('[Chat] Erro ao verificar chat existente', checkError, {
+          announcementId,
+          sellerId,
+          buyerId: user.id,
+        });
         toast.error('Erro ao verificar conversas existentes.', {
           description: 'Tente novamente daqui a pouco.',
         });
@@ -171,8 +181,11 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
           .single();
 
         if (chatError) {
-          console.error('[Chat] Erro ao criar chat:', chatError);
-          console.error('[Chat] Detalhes do erro:', JSON.stringify(chatError, null, 2));
+          appError('[Chat] Erro ao criar chat', chatError, {
+            announcementId,
+            sellerId,
+            buyerId: user.id,
+          });
 
           let errorMessage = 'Nao foi possivel iniciar a conversa.';
 
@@ -199,7 +212,12 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
           .single();
 
         if (userError) {
-          console.warn('[Lead] Erro ao buscar dados do usuario:', userError);
+          appWarn('[Lead] Erro ao buscar dados do usuario', {
+            announcementId,
+            sellerId,
+            buyerId: user.id,
+            error: userError,
+          });
         }
 
         const buyerName = formData.name?.trim() || userData?.name?.trim() || user.email?.split('@')[0] || 'Comprador';
@@ -225,15 +243,19 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
           .single();
 
         if (leadError) {
-          console.error('[Lead] ERRO ao criar lead:', leadError);
-          console.error('[Lead] Detalhes do erro:', JSON.stringify(leadError, null, 2));
+          appError('[Lead] Erro ao criar lead', leadError, {
+            announcementId,
+            sellerId,
+            buyerId: user.id,
+            chatId,
+          });
           toast.error('Erro ao registrar interesse.', {
             description: 'Nao foi possivel criar o lead deste contato. Tente novamente.',
           });
           return;
         }
 
-        console.log('[Lead] Lead criado com sucesso! ID:', leadData.id);
+          debugLog('[Lead] Lead criado com sucesso. ID:', leadData.id);
       } else {
         const { data: existingLead, error: existingLeadError } = await supabase
           .from('leads')
@@ -242,7 +264,12 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
           .maybeSingle();
 
         if (existingLeadError) {
-          console.error('[Lead] Erro ao verificar lead existente:', existingLeadError);
+          appError('[Lead] Erro ao verificar lead existente', existingLeadError, {
+            announcementId,
+            sellerId,
+            buyerId: user.id,
+            chatId,
+          });
           toast.error('Erro ao validar o contato.', {
             description: 'Nao foi possivel confirmar o lead dessa conversa. Tente novamente.',
           });
@@ -259,7 +286,13 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             .single();
 
           if (userError) {
-            console.warn('[Lead] Erro ao buscar dados do usuario para recriar lead:', userError);
+            appWarn('[Lead] Erro ao buscar dados do usuario para recriar lead', {
+              announcementId,
+              sellerId,
+              buyerId: user.id,
+              chatId,
+              error: userError,
+            });
           }
 
           const buyerName = formData.name?.trim() || userData?.name?.trim() || user.email?.split('@')[0] || 'Comprador';
@@ -285,8 +318,12 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             .single();
 
           if (recoveredLeadError) {
-            console.error('[Lead] ERRO ao recriar lead ausente:', recoveredLeadError);
-            console.error('[Lead] Detalhes do erro:', JSON.stringify(recoveredLeadError, null, 2));
+            appError('[Lead] Erro ao recriar lead ausente', recoveredLeadError, {
+              announcementId,
+              sellerId,
+              buyerId: user.id,
+              chatId,
+            });
             toast.error('Erro ao registrar interesse.', {
               description: 'Nao foi possivel recriar o lead desta conversa. Tente novamente.',
             });
@@ -294,7 +331,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
           }
 
           existingLeadId = recoveredLead.id;
-          console.log('[Lead] Lead ausente recriado com sucesso! ID:', existingLeadId);
+          debugLog('[Lead] Lead ausente recriado com sucesso. ID:', existingLeadId);
         }
       }
 
@@ -308,8 +345,12 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         });
 
       if (messageError) {
-        console.error('[Message] Erro ao enviar mensagem:', messageError);
-        console.error('[Message] Detalhes do erro:', JSON.stringify(messageError, null, 2));
+        appError('[Message] Erro ao enviar mensagem', messageError, {
+          announcementId,
+          sellerId,
+          buyerId: user.id,
+          chatId,
+        });
         toast.error('Erro ao enviar mensagem.', {
           description: 'A conversa nao foi atualizada. Tente novamente em instantes.',
         });
@@ -333,7 +374,11 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         setAcceptedTerms(false);
       }, 300);
     } catch (error) {
-      console.error('[Contact] Erro inesperado:', error);
+      appError('[Contact] Erro inesperado', error, {
+        announcementId,
+        sellerId,
+        buyerId: user.id,
+      });
       toast.error('Erro ao processar sua solicitacao.', {
         description: 'Algo saiu do esperado durante o contato com o vendedor.',
       });

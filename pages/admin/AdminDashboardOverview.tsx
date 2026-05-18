@@ -54,6 +54,7 @@ import {
 import { supabase } from '../../src/lib/supabaseClient';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { useAdminAudit } from '../../src/hooks/useAdminAudit';
+import { appError } from '../../src/utils/appLogger';
 
 // ==========================================
 // TYPES & INTERFACES
@@ -144,7 +145,7 @@ const AdminDashboardOverview: React.FC = () => {
         loadModerationQueue()
       ]);
     } catch (error) {
-      console.error('[Dashboard] Erro ao carregar métricas:', error);
+      appError('[Dashboard] Erro ao carregar métricas', error);
     } finally {
       setLoading(false);
     }
@@ -209,7 +210,7 @@ const AdminDashboardOverview: React.FC = () => {
         })) || []
       });
     } catch (error) {
-      console.error('[Dashboard] Erro ao carregar métricas financeiras:', error);
+      appError('[Dashboard] Erro ao carregar métricas financeiras', error);
     }
   };
 
@@ -274,7 +275,7 @@ const AdminDashboardOverview: React.FC = () => {
       // Setar input com valor atual
       setMarketingCostInput(monthlyMarketingCost.toFixed(2));
     } catch (error) {
-      console.error('[Dashboard] Erro ao carregar métricas de marketing:', error);
+      appError('[Dashboard] Erro ao carregar métricas de marketing', error);
     }
   };
 
@@ -307,7 +308,7 @@ const AdminDashboardOverview: React.FC = () => {
         avgSessionDuration
       });
     } catch (error) {
-      console.error('[Dashboard] Erro ao carregar métricas de tráfego:', error);
+      appError('[Dashboard] Erro ao carregar métricas de tráfego', error);
     }
   };
 
@@ -345,7 +346,7 @@ const AdminDashboardOverview: React.FC = () => {
 
       setModerationQueue(mapped);
     } catch (error) {
-      console.error('[Dashboard] Erro ao carregar fila de moderação:', error);
+      appError('[Dashboard] Erro ao carregar fila de moderação', error);
     }
   };
 
@@ -379,7 +380,9 @@ const AdminDashboardOverview: React.FC = () => {
       alert('Custo de marketing atualizado com sucesso!');
       await loadMarketingMetrics(); // Recarregar CAC
     } catch (error) {
-      console.error('[Dashboard] Erro ao salvar custo:', error);
+      appError('[Dashboard] Erro ao salvar custo de marketing', error, {
+        marketingCost: cost,
+      });
       alert('Erro ao salvar custo de marketing');
     } finally {
       setSavingCost(false);
@@ -417,7 +420,10 @@ const AdminDashboardOverview: React.FC = () => {
       alert('Anúncio aprovado com sucesso!');
       await loadModerationQueue();
     } catch (error) {
-      console.error('[Dashboard] Erro ao aprovar anúncio:', error);
+      appError('[Dashboard] Erro ao aprovar anúncio', error, {
+        announcementId: adId,
+        title: adTitle,
+      });
       alert('Erro ao aprovar anúncio');
     }
   };
@@ -448,7 +454,10 @@ const AdminDashboardOverview: React.FC = () => {
       alert('Anúncio rejeitado');
       await loadModerationQueue();
     } catch (error) {
-      console.error('[Dashboard] Erro ao rejeitar anúncio:', error);
+      appError('[Dashboard] Erro ao rejeitar anúncio', error, {
+        announcementId: adId,
+        title: adTitle,
+      });
       alert('Erro ao rejeitar anúncio');
     }
   };
@@ -479,7 +488,10 @@ const AdminDashboardOverview: React.FC = () => {
       alert('Anúncio colocado em análise');
       await loadModerationQueue();
     } catch (error) {
-      console.error('[Dashboard] Erro ao colocar em análise:', error);
+      appError('[Dashboard] Erro ao colocar anúncio em análise', error, {
+        announcementId: adId,
+        title: adTitle,
+      });
       alert('Erro ao atualizar status');
     }
   };

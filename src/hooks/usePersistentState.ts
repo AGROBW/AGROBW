@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { appWarn } from '../utils/appLogger';
 
 type Updater<T> = T | ((previous: T) => T);
 
@@ -15,7 +16,7 @@ const readStoredValue = <T,>(key: string, initialValue: T): T => {
 
     return JSON.parse(storedValue) as T;
   } catch (error) {
-    console.warn(`[usePersistentState] Não foi possível ler ${key}:`, error);
+    appWarn(`[usePersistentState] Não foi possível ler ${key}`, { error });
     return initialValue;
   }
 };
@@ -31,7 +32,7 @@ export const usePersistentState = <T,>(key: string, initialValue: T) => {
     try {
       window.sessionStorage.setItem(key, JSON.stringify(value));
     } catch (error) {
-      console.warn(`[usePersistentState] Não foi possível salvar ${key}:`, error);
+        appWarn(`[usePersistentState] Não foi possível salvar ${key}`, { error });
     }
   }, [key, value]);
 

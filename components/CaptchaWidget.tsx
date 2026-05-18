@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
+import { debugLog } from '../src/utils/debugLog';
+import { appError, appWarn } from '../src/utils/appLogger';
 
 /**
  * Componente Captcha Wrapper
@@ -68,7 +70,9 @@ export const CaptchaWidget: React.FC<CaptchaWidgetProps> = ({
 
   useEffect(() => {
     if (captchaProvider === 'mock') {
-      console.warn('[Captcha] Nenhuma chave configurada. Usando mock para desenvolvimento.');
+      appWarn('[Captcha] Nenhuma chave configurada. Usando mock para desenvolvimento', {
+        provider: captchaProvider,
+      });
       setIsLoaded(true);
       return;
     }
@@ -90,13 +94,17 @@ export const CaptchaWidget: React.FC<CaptchaWidgetProps> = ({
           try {
             window.turnstile.remove(widgetIdRef.current);
           } catch (err) {
-            console.warn('[Captcha] Erro ao remover Turnstile:', err);
+            appWarn('[Captcha] Erro ao remover Turnstile', {
+              error: err instanceof Error ? err.message : String(err),
+            });
           }
         } else if (captchaProvider === 'hcaptcha' && window.hcaptcha) {
           try {
             window.hcaptcha.remove(widgetIdRef.current);
           } catch (err) {
-            console.warn('[Captcha] Erro ao remover hCaptcha:', err);
+            appWarn('[Captcha] Erro ao remover hCaptcha', {
+              error: err instanceof Error ? err.message : String(err),
+            });
           }
         }
       }
@@ -184,21 +192,27 @@ export const CaptchaWidget: React.FC<CaptchaWidgetProps> = ({
         theme,
         size,
         callback: (token: string) => {
-          console.log('[Captcha] Turnstile verificado');
+            debugLog('[Captcha] Turnstile verificado');
           onVerify(token);
         },
         'error-callback': () => {
-          console.error('[Captcha] Erro no Turnstile');
+          appError('[Captcha] Erro no Turnstile', undefined, {
+            provider: 'turnstile',
+          });
           setError('Erro na verificação');
           onError?.();
         },
         'expired-callback': () => {
-          console.warn('[Captcha] Turnstile expirado');
+          appWarn('[Captcha] Turnstile expirado', {
+            provider: 'turnstile',
+          });
           onExpire?.();
         }
       });
     } catch (err) {
-      console.error('[Captcha] Erro ao renderizar Turnstile:', err);
+      appError('[Captcha] Erro ao renderizar Turnstile', err, {
+        provider: 'turnstile',
+      });
       setError('Erro ao inicializar captcha');
       onError?.();
     }
@@ -213,21 +227,27 @@ export const CaptchaWidget: React.FC<CaptchaWidgetProps> = ({
         theme,
         size,
         callback: (token: string) => {
-          console.log('[Captcha] hCaptcha verificado');
+            debugLog('[Captcha] hCaptcha verificado');
           onVerify(token);
         },
         'error-callback': () => {
-          console.error('[Captcha] Erro no hCaptcha');
+          appError('[Captcha] Erro no hCaptcha', undefined, {
+            provider: 'hcaptcha',
+          });
           setError('Erro na verificação');
           onError?.();
         },
         'expired-callback': () => {
-          console.warn('[Captcha] hCaptcha expirado');
+          appWarn('[Captcha] hCaptcha expirado', {
+            provider: 'hcaptcha',
+          });
           onExpire?.();
         }
       });
     } catch (err) {
-      console.error('[Captcha] Erro ao renderizar hCaptcha:', err);
+      appError('[Captcha] Erro ao renderizar hCaptcha', err, {
+        provider: 'hcaptcha',
+      });
       setError('Erro ao inicializar captcha');
       onError?.();
     }

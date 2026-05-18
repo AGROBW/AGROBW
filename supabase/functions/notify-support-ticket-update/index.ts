@@ -143,7 +143,7 @@ serve(async (req) => {
     }
 
     const appUrl = Deno.env.get('APP_URL') || 'https://bwagro.com';
-    const helpLink = `${appUrl.replace(/\/$/, '')}/#/minha-conta/ajuda`;
+    const helpLink = `${appUrl.replace(/\/$/, '')}/minha-conta/ajuda`;
     const smtpSettings = await loadSmtpSettings(supabaseAdmin);
     const smtpValidationError = validateSmtpSettings(smtpSettings);
     const siteName = smtpSettings?.from_name || 'AGRO BW';
@@ -165,7 +165,7 @@ serve(async (req) => {
         type: 'system',
         title,
         content,
-        link: '/#/minha-conta/ajuda',
+        link: '/minha-conta/ajuda',
       });
 
     if (notificationError) {

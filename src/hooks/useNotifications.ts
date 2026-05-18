@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { Notification } from '../../types'
 import { emitCountsRefresh } from '../lib/countSync'
+import { appError } from '../utils/appLogger'
 
 export const useNotifications = () => {
   const { user } = useAuth()
@@ -33,7 +34,7 @@ export const useNotifications = () => {
 
     if (error) {
       setError(error.message)
-      console.error('Erro ao buscar notificações:', error)
+      appError('Erro ao buscar notificações', error, { userId: user.id })
     } else {
       const mappedNotifications: Notification[] = data.map(notif => ({
         id: notif.id,
@@ -62,7 +63,7 @@ export const useNotifications = () => {
       .eq('id', notificationId)
 
     if (error) {
-      console.error('Erro ao marcar notificação como lida:', error)
+      appError('Erro ao marcar notificação como lida', error, { notificationId, userId: user.id })
     } else {
       setNotifications(prev =>
         prev.map(notif =>
@@ -83,7 +84,7 @@ export const useNotifications = () => {
       .eq('is_read', false)
 
     if (error) {
-      console.error('Erro ao marcar todas como lidas:', error)
+      appError('Erro ao marcar todas como lidas', error, { userId: user.id })
     } else {
       setNotifications(prev =>
         prev.map(notif => ({ ...notif, isRead: true }))
@@ -131,7 +132,7 @@ export const usePriceDropNotifications = () => {
         .limit(10)
 
       if (error) {
-        console.error('Erro ao buscar notificações de preço:', error)
+        appError('Erro ao buscar notificações de preço', error, { userId: user.id })
       } else {
         setPriceDrops(data || [])
       }
@@ -160,7 +161,7 @@ export const useOpportunities = () => {
         .gt('expires_at', new Date().toISOString())
 
       if (error) {
-        console.error('Erro ao buscar oportunidades:', error)
+        appError('Erro ao buscar oportunidades', error, { userId: user.id })
       } else {
         const adIds = new Set(data.map(opp => opp.announcement_id))
         setOpportunities(adIds)

@@ -13,6 +13,7 @@ import SeoHead from '../components/SeoHead';
 import StructuredData from '../components/StructuredData';
 import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 import { getEffectivePlanValidityDays } from '../src/utils/subscriptionUsageWindow';
+import { appError } from '../src/utils/appLogger';
 
 type BillingCycle = 'monthly' | 'yearly';
 type ComparisonRow = { id: string; label: string; getValue: (plan: Plan) => string | boolean };
@@ -167,7 +168,7 @@ const PricingView: React.FC = () => {
     if (isCustomPlan(planName)) return void window.open(getCustomPlanContactLink(planName), '_blank');
     if (!user) {
       toast.error('Voce precisa estar logado para assinar um plano.');
-      setTimeout(() => { window.location.href = '/#/login?redirect=/pricing'; }, 1500);
+      setTimeout(() => { window.location.href = '/login?redirect=/planos'; }, 1500);
       return;
     }
     const amount = billingCycle === 'monthly' ? monthlyPrice : calculateYearlyTotal(monthlyPrice, yearlyPrice);
@@ -179,7 +180,7 @@ const PricingView: React.FC = () => {
       result.success ? toast.success(`Redirecionando para checkout ${getBillingCycleLabel(billingCycle).toLowerCase()}...`) : toast.error(result.error || 'Erro ao processar checkout.');
     } catch (err) {
       toast.dismiss('checkout-loading');
-      console.error('Erro ao iniciar checkout:', err);
+      appError('Erro ao iniciar checkout', err, { planId, billingCycle });
       toast.error('Erro inesperado ao processar checkout.');
     } finally {
       setLoadingPlanId(null);
@@ -191,7 +192,7 @@ const PricingView: React.FC = () => {
     if (!booster) return void toast.error('Nenhum booster disponível no momento.');
     if (!user) {
       toast.error('Voce precisa estar logado para comprar um booster.');
-      setTimeout(() => { window.location.href = '/#/login?redirect=/pricing'; }, 1500);
+      setTimeout(() => { window.location.href = '/login?redirect=/planos'; }, 1500);
       return;
     }
     if (boosterSummary.requiresPaidPlan && boosterSummary.hasEligiblePaidPlan === false) {
@@ -211,7 +212,7 @@ const PricingView: React.FC = () => {
       }
     } catch (err) {
       toast.dismiss('booster-checkout-loading');
-      console.error('Erro ao iniciar checkout do booster:', err);
+        appError('Erro ao iniciar checkout do booster', err, { boosterId: booster.id });
       toast.error('Erro inesperado ao processar checkout do booster.');
     } finally {
       setLoadingPlanId(null);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { RadarMatchEmailDispatchLog, RadarMatchEmailJob } from '../../types';
+import { appError } from '../utils/appLogger';
 
 interface RadarMatchEmailSummary {
   pending: number;
@@ -102,7 +103,7 @@ export const useRadarMatchEmailMonitoring = () => {
       logsResult.error;
 
     if (firstError) {
-      console.error('[useRadarMatchEmailMonitoring] erro ao carregar monitoramento:', firstError);
+      appError('[useRadarMatchEmailMonitoring] erro ao carregar monitoramento', firstError);
       setError(firstError.message);
       setJobs([]);
       setDispatchLogs([]);

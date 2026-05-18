@@ -3,6 +3,8 @@ import { BarChart3, Receipt, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
+import { appError } from '../../src/utils/appLogger';
+import { resolveCivilDateInput } from '../../src/utils/brazilCivilDate';
 import PaymentsOverviewTab from '../../components/admin/payments/PaymentsOverviewTab';
 import PaymentsInvoicesTab from '../../components/admin/payments/PaymentsInvoicesTab';
 import PaymentsActionsTab from '../../components/admin/payments/PaymentsActionsTab';
@@ -60,6 +62,7 @@ const PaymentsManagement: React.FC = () => {
         invoice_xml_url,
         invoice_status,
         invoice_issued_at,
+        invoice_issued_on,
         invoice_notes,
         fiscal_provider,
         fiscal_external_id,
@@ -73,7 +76,7 @@ const PaymentsManagement: React.FC = () => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[PaymentsManagement] Erro ao carregar pagamentos:', error);
+      appError('[PaymentsManagement] Erro ao carregar pagamentos', error);
       toast.error('Erro ao carregar pagamentos');
       setPayments([]);
       setLoading(false);
@@ -107,7 +110,7 @@ const PaymentsManagement: React.FC = () => {
 
     setInvoiceNumber(selectedPayment.invoice_number || '');
     setInvoiceStatus(selectedPayment.invoice_status || 'pending');
-    setInvoiceIssuedAt(selectedPayment.invoice_issued_at ? selectedPayment.invoice_issued_at.slice(0, 10) : '');
+    setInvoiceIssuedAt(resolveCivilDateInput(selectedPayment.invoice_issued_on, selectedPayment.invoice_issued_at));
     setInvoiceExternalUrl(selectedPayment.invoice_pdf_url || '');
     setInvoiceNotes(selectedPayment.invoice_notes || '');
     setUploadFile(null);
@@ -180,7 +183,10 @@ const PaymentsManagement: React.FC = () => {
 
       toast.error('Nenhum documento fiscal anexado a este pagamento.');
     } catch (error) {
-      console.error('[PaymentsManagement] Erro ao abrir nota fiscal:', error);
+      appError('[PaymentsManagement] Erro ao abrir nota fiscal', error, {
+        paymentId: payment.id,
+        invoiceNumber: payment.invoice_number || null,
+      });
       toast.error('Não foi possível abrir a nota fiscal.');
     }
   };
@@ -229,7 +235,7 @@ const PaymentsManagement: React.FC = () => {
         invoice_status: selectedPayment.invoice_status,
         invoice_pdf_url: selectedPayment.invoice_pdf_url,
         invoice_storage_path: selectedPayment.invoice_storage_path,
-        invoice_issued_at: selectedPayment.invoice_issued_at,
+        invoice_issued_on: selectedPayment.invoice_issued_on,
         invoice_notes: selectedPayment.invoice_notes,
       };
 
@@ -240,7 +246,7 @@ const PaymentsManagement: React.FC = () => {
         invoice_status: invoiceStatus,
         invoice_pdf_url: invoiceExternalUrl || null,
         invoice_storage_path: storagePath || null,
-        invoice_issued_at: invoiceIssuedAt ? new Date(`${invoiceIssuedAt}T12:00:00`).toISOString() : null,
+        invoice_issued_on: invoiceIssuedAt || null,
         invoice_notes: invoiceNotes || null,
         updated_at: new Date().toISOString(),
       };
@@ -260,7 +266,7 @@ const PaymentsManagement: React.FC = () => {
           type: 'SYSTEM',
           title: 'Nota fiscal disponível',
           content: 'Sua nota fiscal já está pronta para download na central financeira.',
-          link: '/#/minha-conta/financeiro',
+          link: '/minha-conta/financeiro',
         });
       }
 
@@ -277,7 +283,9 @@ const PaymentsManagement: React.FC = () => {
       await loadPayments();
       setSelectedPayment(null);
     } catch (error: any) {
-      console.error('[PaymentsManagement] Erro ao salvar nota fiscal:', error);
+      appError('[PaymentsManagement] Erro ao salvar nota fiscal', error, {
+        paymentId: selectedPayment?.id || null,
+      });
       toast.error(error.message || 'Erro ao salvar documento fiscal.');
     } finally {
       setSaving(false);
@@ -309,7 +317,10 @@ const PaymentsManagement: React.FC = () => {
           }
         }
 
-        console.error('[PaymentsManagement] Corpo da resposta da issue-nfse:', responseBody);
+        appError('[PaymentsManagement] Corpo da resposta da issue-nfse', undefined, {
+          paymentId: payment.id,
+          responseBody,
+        });
         throw error;
       }
 
@@ -325,7 +336,7 @@ const PaymentsManagement: React.FC = () => {
 
       await loadPayments();
     } catch (error: any) {
-      console.error('[PaymentsManagement] Erro ao emitir NFS-e:', error);
+      appError('[PaymentsManagement] Erro ao emitir NFS-e', error, { paymentId: payment.id });
       toast.error(error.message || 'Não foi possível emitir a NFS-e.');
     } finally {
       setSaving(false);
@@ -381,7 +392,7 @@ const PaymentsManagement: React.FC = () => {
       await loadPayments();
       setSelectedPayment(null);
     } catch (error: any) {
-      console.error('[PaymentsManagement] Erro ao registrar estorno:', error);
+      appError('[PaymentsManagement] Erro ao registrar estorno', error, { paymentId: payment.id });
       toast.error(error.message || 'Não foi possível registrar o estorno.');
     } finally {
       setSaving(false);

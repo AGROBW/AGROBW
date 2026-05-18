@@ -25,6 +25,33 @@ const normalizeCommercialWhatsappNumber = (value: string | null | undefined) => 
   return digits || null;
 };
 
+const normalizeWhatsAppDestination = (value: string | null | undefined) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  if (digitsOnly.length >= 10 && digitsOnly.length <= 15 && !/[a-z]/i.test(trimmed)) {
+    return `https://wa.me/${digitsOnly}`;
+  }
+
+  try {
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(normalized);
+    const host = parsed.hostname.toLowerCase();
+    const isWhatsAppHost =
+      host === 'wa.me' ||
+      host.endsWith('.wa.me') ||
+      host === 'api.whatsapp.com' ||
+      host.endsWith('.whatsapp.com') ||
+      host === 'whatsapp.com';
+
+    return isWhatsAppHost ? normalized : null;
+  } catch {
+    return null;
+  }
+};
+
 const isValidWhatsAppDestination = (value: string | null | undefined) => {
   if (!value) return true;
   const trimmed = value.trim();
@@ -76,6 +103,7 @@ const LayoutManagement: React.FC = () => {
     sponsorHeroImageUrl: defaultSettings.sponsorHeroImageUrl || '',
     sponsorHarvestImageUrl: defaultSettings.sponsorHarvestImageUrl || '',
     sponsorFieldImageUrl: defaultSettings.sponsorFieldImageUrl || '',
+    sponsorFinalCtaImageUrl: defaultSettings.sponsorFinalCtaImageUrl || '',
     facebookUrl: defaultSettings.facebookUrl || '',
     instagramUrl: defaultSettings.instagramUrl || '',
     youtubeUrl: defaultSettings.youtubeUrl || '',
@@ -118,6 +146,7 @@ const LayoutManagement: React.FC = () => {
       sponsorHeroImageUrl: settings.sponsorHeroImageUrl || '',
       sponsorHarvestImageUrl: settings.sponsorHarvestImageUrl || '',
       sponsorFieldImageUrl: settings.sponsorFieldImageUrl || '',
+      sponsorFinalCtaImageUrl: settings.sponsorFinalCtaImageUrl || '',
       facebookUrl: settings.facebookUrl || '',
       instagramUrl: settings.instagramUrl || '',
       youtubeUrl: settings.youtubeUrl || '',
@@ -189,16 +218,13 @@ const LayoutManagement: React.FC = () => {
       return;
     }
 
-    if (!isValidWhatsAppDestination(formData.whatsappUrl)) {
-      toast.error('O campo WhatsApp deve conter um numero valido ou um link do WhatsApp, como wa.me ou api.whatsapp.com.');
-      return;
-    }
-
     const normalizedCommercialWhatsappNumber = normalizeCommercialWhatsappNumber(formData.commercialWhatsappNumber);
     if (formData.commercialWhatsappNumber.trim() && !normalizedCommercialWhatsappNumber) {
       toast.error('Informe um numero comercial valido para o WhatsApp.');
       return;
     }
+
+    const normalizedWhatsappUrl = normalizeWhatsAppDestination(formData.whatsappUrl);
 
     setSaving(true);
     const previousValue = settings;
@@ -223,11 +249,12 @@ const LayoutManagement: React.FC = () => {
       sponsorHeroImageUrl: formData.sponsorHeroImageUrl || null,
       sponsorHarvestImageUrl: formData.sponsorHarvestImageUrl || null,
       sponsorFieldImageUrl: formData.sponsorFieldImageUrl || null,
+      sponsorFinalCtaImageUrl: formData.sponsorFinalCtaImageUrl || null,
       facebookUrl: normalizeOptionalUrl(formData.facebookUrl),
       instagramUrl: normalizeOptionalUrl(formData.instagramUrl),
       youtubeUrl: normalizeOptionalUrl(formData.youtubeUrl),
       linkedinUrl: normalizeOptionalUrl(formData.linkedinUrl),
-      whatsappUrl: normalizeOptionalUrl(formData.whatsappUrl),
+      whatsappUrl: normalizedWhatsappUrl,
       commercialWhatsappNumber: normalizedCommercialWhatsappNumber,
       tiktokUrl: normalizeOptionalUrl(formData.tiktokUrl),
     };
@@ -309,6 +336,7 @@ const LayoutManagement: React.FC = () => {
               sponsorHeroImageUrl: formData.sponsorHeroImageUrl,
               sponsorHarvestImageUrl: formData.sponsorHarvestImageUrl,
               sponsorFieldImageUrl: formData.sponsorFieldImageUrl,
+              sponsorFinalCtaImageUrl: formData.sponsorFinalCtaImageUrl,
             }}
             onChange={handleChange}
             onUpload={handleAssetUpload}
@@ -318,7 +346,8 @@ const LayoutManagement: React.FC = () => {
               uploadingField === 'pricingFieldImageUrl' ||
               uploadingField === 'sponsorHeroImageUrl' ||
               uploadingField === 'sponsorHarvestImageUrl' ||
-              uploadingField === 'sponsorFieldImageUrl'
+              uploadingField === 'sponsorFieldImageUrl' ||
+              uploadingField === 'sponsorFinalCtaImageUrl'
                 ? uploadingField
                 : null
             }

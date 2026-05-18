@@ -167,7 +167,7 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
   const publicStoreUrl = useMemo(() => {
     const normalizedSlug = formData.slug || slugifyStoreValue(formData.storeName);
     if (!normalizedSlug || typeof window === 'undefined') return null;
-    return `${window.location.origin}/#/loja/${normalizedSlug}`;
+    return `${window.location.origin}/loja/${normalizedSlug}`;
   }, [formData.slug, formData.storeName]);
 
   const handleChange = (field: keyof typeof formData, value: string | boolean | number) => {
@@ -777,7 +777,7 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-slate-500">
-                    {publicStoreUrl ? publicStoreUrl.replace(`${window.location.origin}/#/`, '') : '/loja/seu-endereco'}
+                    {publicStoreUrl ? publicStoreUrl.replace(`${window.location.origin}/`, '') : '/loja/seu-endereco'}
                   </p>
                 </div>
 

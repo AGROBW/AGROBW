@@ -100,27 +100,8 @@ ALTER TABLE public.payment_settings ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Admins can view payment settings" ON public.payment_settings;
 DROP POLICY IF EXISTS "Admins can update payment settings" ON public.payment_settings;
 
--- SELECT: Apenas admins
-CREATE POLICY "Admins can view payment settings"
-ON public.payment_settings
-FOR SELECT
-TO authenticated
-USING (public.is_admin() = true);
-
--- UPDATE: Apenas admins
-CREATE POLICY "Admins can update payment settings"
-ON public.payment_settings
-FOR UPDATE
-TO authenticated
-USING (public.is_admin() = true)
-WITH CHECK (public.is_admin() = true);
-
--- INSERT: Apenas admins (caso não exista)
-CREATE POLICY "Admins can insert payment settings"
-ON public.payment_settings
-FOR INSERT
-TO authenticated
-WITH CHECK (public.is_admin() = true);
+-- Acesso direto do frontend a payment_settings deve permanecer bloqueado.
+-- O painel admin deve usar RPCs seguras que nao devolvem os segredos brutos.
 
 -- ==================================================
 -- RLS: webhook_logs
@@ -140,11 +121,8 @@ TO authenticated
 USING (public.is_admin() = true);
 
 -- INSERT: Service role (para endpoint de webhook)
-CREATE POLICY "Service can insert webhook logs"
-ON public.webhook_logs
-FOR INSERT
-TO authenticated, anon
-WITH CHECK (true);
+-- Nenhum INSERT client-side permitido.
+-- Edge Functions com service_role fazem bypass de RLS.
 
 -- DELETE: Apenas admins (limpar logs antigos)
 CREATE POLICY "Admins can delete webhook logs"

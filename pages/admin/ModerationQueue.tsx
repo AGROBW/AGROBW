@@ -5,6 +5,7 @@ import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/us
 import { toast } from 'sonner';
 import { CATEGORY_HIERARCHY, getCategoryGroupBySlug, getGroupCategorySlugs } from '../../src/lib/categoryHierarchy';
 import { formatPublicationModerationReasons, parsePublicationModerationReasons } from '../../src/utils/publicationModeration';
+import { appError, appWarn } from '../../src/utils/appLogger';
 
 interface PendingAnnouncement {
   id: string;
@@ -250,8 +251,8 @@ const ModerationQueue: React.FC = () => {
       const paginatedRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
       const ownersMap = await fetchOwnersMap(Array.from(new Set(paginatedRows.map((item) => item.user_id).filter(Boolean))));
       setAnnouncements(paginatedRows.map((item) => ({ ...item, owner: item.user_id ? ownersMap.get(item.user_id) : undefined })));
-    } catch (error) {
-      console.error('[ModerationQueue] Erro ao carregar anuncios:', error);
+      } catch (error) {
+      appError('[ModerationQueue] Erro ao carregar anuncios', error, { page, searchTerm, filterCategory });
       toast.error('Erro ao carregar anuncios pendentes');
     } finally {
       setLoading(false);
@@ -283,8 +284,8 @@ const ModerationQueue: React.FC = () => {
       }
       setTotalEditRequestsCount(rows.length);
       setEditRequests(rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE));
-    } catch (error) {
-      console.error('[ModerationQueue] Erro ao carregar edicoes:', error);
+      } catch (error) {
+      appError('[ModerationQueue] Erro ao carregar edicoes', error, { page, searchTerm, filterCategory });
       toast.error('Erro ao carregar edicoes pendentes');
     } finally {
       setLoading(false);
@@ -308,8 +309,8 @@ const ModerationQueue: React.FC = () => {
       await logAction({ action: ADMIN_ACTIONS.APPROVE_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: announcement.id, oldValue: { status: announcement.status }, newValue: { status: 'ACTIVE' }, reason: `Anuncio "${announcement.title}" aprovado apos revisao manual` });
       toast.success('Anuncio aprovado com sucesso');
       await loadPendingAnnouncements();
-    } catch (error) {
-      console.error('[ModerationQueue] Erro ao aprovar:', error);
+      } catch (error) {
+      appError('[ModerationQueue] Erro ao aprovar anúncio', error, { announcementId: announcement.id });
       toast.error('Erro ao aprovar anuncio');
     }
   };
@@ -350,9 +351,9 @@ const ModerationQueue: React.FC = () => {
         }
 
         if (!updateData) {
-          console.warn('[ModerationQueue] Update da edicao nao retornou linha; seguindo com anuncio buscado como fallback.', {
-            announcementId: request.announcement_id,
-          });
+            appWarn('[ModerationQueue] Update da edicao nao retornou linha; seguindo com anuncio buscado como fallback.', {
+              announcementId: request.announcement_id,
+            });
         }
       }
 
@@ -385,8 +386,8 @@ const ModerationQueue: React.FC = () => {
       toast.success('Edicao aprovada e aplicada');
       setSelectedEditRequest(null);
       await loadPendingEditRequests();
-    } catch (error) {
-      console.error('[ModerationQueue] Erro ao aprovar edicao:', error);
+      } catch (error) {
+      appError('[ModerationQueue] Erro ao aprovar edicao', error, { requestId: request.id, announcementId: request.announcement_id });
       toast.error('Erro ao aprovar edicao');
     }
   };
@@ -408,7 +409,10 @@ const ModerationQueue: React.FC = () => {
           is_read: false,
         }).select('id').single();
         if (notificationError) {
-          console.error('[ModerationQueue] Erro ao criar notificacao de rejeicao da edicao:', notificationError);
+          appError('[ModerationQueue] Erro ao criar notificacao de rejeicao da edicao', notificationError, {
+            requestId: selectedEditRequest.id,
+            userId: selectedEditRequest.user_id,
+          });
         } else {
           const recipientEmail = selectedEditRequest.requester?.email?.trim() || null;
           const recipientName = selectedEditRequest.requester?.name?.trim() || 'Cliente';
@@ -426,7 +430,10 @@ const ModerationQueue: React.FC = () => {
           });
 
           if (emailJobError) {
-            console.error('[ModerationQueue] Erro ao criar job de e-mail para rejeicao da edicao:', emailJobError);
+            appError('[ModerationQueue] Erro ao criar job de e-mail para rejeicao da edicao', emailJobError, {
+              requestId: selectedEditRequest.id,
+              userId: selectedEditRequest.user_id,
+            });
           }
         }
         await logAction({ action: ADMIN_ACTIONS.REJECT_AD_EDIT, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: selectedEditRequest.announcement_id, oldValue: selectedEditRequest.payload, newValue: { status: 'rejected', rejection_reason: rejectionReason }, reason: `Edicao rejeitada: ${rejectionReason}` });
@@ -444,8 +451,11 @@ const ModerationQueue: React.FC = () => {
       }
       setShowRejectModal(false);
       setRejectionReason('');
-    } catch (error) {
-      console.error('[ModerationQueue] Erro ao rejeitar:', error);
+      } catch (error) {
+      appError('[ModerationQueue] Erro ao rejeitar', error, {
+        requestId: selectedEditRequest?.id || null,
+        announcementId: selectedEditRequest?.announcement_id || null,
+      });
       toast.error('Erro ao rejeitar item');
     }
   };
@@ -596,7 +606,7 @@ const ModerationQueue: React.FC = () => {
                     <td className="px-6 py-4"><span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">{getAnnouncementGroupLabel(announcement)}</span></td>
                     <td className="px-6 py-4"><div className="text-sm"><p className="font-semibold text-slate-900">{announcement.owner?.name}</p><p className="text-slate-500">{announcement.owner?.email}</p></div></td>
                     <td className="px-6 py-4 text-sm text-slate-500">{new Date(announcement.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-                    <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApprove(announcement)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedEditRequest(null); setSelectedAnnouncement(announcement); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar"><X className="h-5 w-5" /></button><button onClick={() => window.open(`/#/anuncio/${announcement.id}`, '_blank')} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Visualizar"><Eye className="h-5 w-5" /></button></div></td>
+                    <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApprove(announcement)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedEditRequest(null); setSelectedAnnouncement(announcement); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar"><X className="h-5 w-5" /></button><button onClick={() => window.open(`/anuncio/${announcement.id}`, '_blank')} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Visualizar"><Eye className="h-5 w-5" /></button></div></td>
                   </tr>
                 ))}
               </tbody>

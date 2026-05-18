@@ -22,6 +22,8 @@
 
 import { useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { debugLog } from '../utils/debugLog';
+import { appError, appWarn } from '../utils/appLogger';
 
 // Tipos
 export interface SecurityEventData {
@@ -78,21 +80,31 @@ export const useSecurityLog = (): UseSecurityLogReturn => {
       });
 
       if (error) {
-        console.error('[useSecurityLog] Erro ao registrar evento completo:', error);
+        appError('[useSecurityLog] Erro ao registrar evento completo', error, {
+          attemptedRoute: data.attemptedRoute,
+          attemptedAction: data.attemptedAction || null,
+          severity: data.severity || 'warning',
+          userId: data.userId || null,
+        });
         return {
           success: false,
           error: error.message
         };
       }
 
-      console.log('[useSecurityLog] Evento de segurança completo registrado:', result);
+      debugLog('[useSecurityLog] Evento de segurança completo registrado:', result);
       
       return {
         success: true,
         eventId: result as string
       };
     } catch (error) {
-      console.error('[useSecurityLog] Erro inesperado no evento completo:', error);
+      appError('[useSecurityLog] Erro inesperado no evento completo', error, {
+        attemptedRoute: data.attemptedRoute,
+        attemptedAction: data.attemptedAction || null,
+        severity: data.severity || 'warning',
+        userId: data.userId || null,
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Erro desconhecido'
@@ -130,7 +142,10 @@ export const useSecurityLog = (): UseSecurityLogReturn => {
         const { ip } = await ipData.json();
         ipAddress = ip;
       } catch (ipError) {
-        console.warn('[useSecurityLog] Não foi possível detectar IP:', ipError);
+        appWarn('[useSecurityLog] Não foi possível detectar IP', {
+          attemptedRoute,
+          error: ipError instanceof Error ? ipError.message : String(ipError),
+        });
         // Continua sem IP
       }
 
@@ -149,7 +164,9 @@ export const useSecurityLog = (): UseSecurityLogReturn => {
         reason
       });
     } catch (error) {
-      console.error('[useSecurityLog] Erro inesperado:', error);
+      appError('[useSecurityLog] Erro inesperado ao registrar acesso não autorizado', error, {
+        attemptedRoute,
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Erro desconhecido'
@@ -175,7 +192,9 @@ export const getClientIP = async (): Promise<string | null> => {
     const data = await response.json();
     return data.ip || null;
   } catch (error) {
-    console.warn('[getClientIP] Não foi possível detectar IP:', error);
+    appWarn('[getClientIP] Não foi possível detectar IP', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 };

@@ -24,8 +24,8 @@ interface PromotionCode {
   duration_unit: DurationUnit;
   max_redemptions: number | null;
   max_redemptions_per_user: number;
-  starts_at: string | null;
-  expires_at: string | null;
+  starts_on: string | null;
+  expires_on: string | null;
   status: PromotionStatus;
   grant_mode: GrantMode;
   redeemed_count: number;
@@ -83,18 +83,9 @@ const formatDateTime = (value: string | null) => {
   });
 };
 
-const toDatetimeLocalValue = (value: string | null | undefined) => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return offsetDate.toISOString().slice(0, 16);
-};
-
-const toIsoOrNull = (value: string) => {
+const toDateOnlyOrNull = (value: string) => {
   if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  return value.slice(0, 10);
 };
 
 const generateCode = () => {
@@ -203,8 +194,8 @@ const PromotionsManagement: React.FC = () => {
       durationUnit: code.duration_unit,
       maxRedemptions: code.max_redemptions ? String(code.max_redemptions) : '',
       maxRedemptionsPerUser: code.max_redemptions_per_user,
-      startsAt: toDatetimeLocalValue(code.starts_at),
-      expiresAt: toDatetimeLocalValue(code.expires_at),
+      startsAt: code.starts_on || '',
+      expiresAt: code.expires_on || '',
       status: code.status,
       grantMode: code.grant_mode,
       internalNotes: code.internal_notes || '',
@@ -217,7 +208,7 @@ const PromotionsManagement: React.FC = () => {
       return;
     }
 
-    if (form.expiresAt && form.startsAt && new Date(form.expiresAt) <= new Date(form.startsAt)) {
+    if (form.expiresAt && form.startsAt && form.expiresAt <= form.startsAt) {
       toast.error('A data final precisa ser maior que a data inicial.');
       return;
     }
@@ -234,8 +225,8 @@ const PromotionsManagement: React.FC = () => {
         duration_unit: form.durationUnit,
         max_redemptions: form.maxRedemptions ? Math.max(1, Number(form.maxRedemptions) || 1) : null,
         max_redemptions_per_user: Math.max(1, Number(form.maxRedemptionsPerUser) || 1),
-        starts_at: toIsoOrNull(form.startsAt),
-        expires_at: toIsoOrNull(form.expiresAt),
+        starts_on: toDateOnlyOrNull(form.startsAt),
+        expires_on: toDateOnlyOrNull(form.expiresAt),
         status: form.status,
         grant_mode: form.grantMode,
         internal_notes: form.internalNotes.trim() || null,
@@ -495,7 +486,7 @@ const PromotionsManagement: React.FC = () => {
               <label className="block">
                 <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Início de validade</span>
                 <input
-                  type="datetime-local"
+                  type="date"
                   value={form.startsAt}
                   onChange={(event) => setForm((current) => ({ ...current, startsAt: event.target.value }))}
                   className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -505,7 +496,7 @@ const PromotionsManagement: React.FC = () => {
               <label className="block">
                 <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-500">Fim de validade</span>
                 <input
-                  type="datetime-local"
+                  type="date"
                   value={form.expiresAt}
                   onChange={(event) => setForm((current) => ({ ...current, expiresAt: event.target.value }))}
                   className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"

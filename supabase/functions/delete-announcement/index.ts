@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import { logSecurityEvent } from '../_shared/security.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -101,6 +102,12 @@ serve(async (req) => {
 
     const authHeader = req.headers.get('Authorization') || '';
     if (!authHeader.startsWith('Bearer ')) {
+      await logSecurityEvent(supabaseAdmin, {
+        req,
+        attemptedRoute: '/functions/v1/delete-announcement',
+        attemptedAction: 'delete_announcement_missing_bearer',
+        reason: 'Authorization header ausente ou sem Bearer token.',
+      });
       return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
     }
 
@@ -111,6 +118,12 @@ serve(async (req) => {
     } = await authClient.auth.getUser(token);
 
     if (authError || !user) {
+      await logSecurityEvent(supabaseAdmin, {
+        req,
+        attemptedRoute: '/functions/v1/delete-announcement',
+        attemptedAction: 'delete_announcement_invalid_jwt',
+        reason: authError?.message || 'JWT inválido para exclusão de anúncio.',
+      });
       return jsonResponse({ success: false, error: 'Invalid JWT', details: authError?.message }, 401);
     }
 
@@ -141,6 +154,18 @@ serve(async (req) => {
     const isOwner = announcement.user_id === user.id;
 
     if (!isAdmin && !isOwner) {
+      await logSecurityEvent(supabaseAdmin, {
+        req,
+        attemptedRoute: '/functions/v1/delete-announcement',
+        attemptedAction: 'delete_announcement_forbidden',
+        userId: user.id,
+        email: user.email ?? null,
+        reason: 'Usuário tentou excluir anúncio sem ser admin nem proprietário.',
+        metadata: {
+          announcementId,
+          announcementOwnerId: announcement.user_id,
+        },
+      });
       return jsonResponse({ success: false, error: 'Forbidden' }, 403);
     }
 

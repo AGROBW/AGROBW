@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { PlanAlertEmailDispatchLog, PlanAlertEmailJob } from '../../types';
+import { appError } from '../utils/appLogger';
 
 interface PlanAlertEmailSummary {
   pending: number;
@@ -93,7 +94,7 @@ export const usePlanAlertEmailMonitoring = () => {
       logsResult.error;
 
     if (firstError) {
-      console.error('[usePlanAlertEmailMonitoring] erro ao carregar monitoramento:', firstError);
+      appError('[usePlanAlertEmailMonitoring] erro ao carregar monitoramento', firstError);
       setError(firstError.message);
       setJobs([]);
       setDispatchLogs([]);

@@ -6,6 +6,7 @@ import { useChats, useMessages } from '../src/hooks/useMessages';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import LogisticsSidebar from './LogisticsSidebar';
+import { debugLog } from '../src/utils/debugLog';
 
 interface MessagesViewProps {
   initialChatId?: string;
@@ -45,9 +46,9 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   // Debug: Log dos dados do chat selecionado
   useEffect(() => {
     if (selectedChat) {
-      console.log('[Chat Debug] Dados do chat selecionado:', selectedChat);
-      console.log('[Chat Debug] Preço:', selectedChat.adPrice);
-      console.log('[Chat Debug] Título:', selectedChat.adTitle);
+      debugLog('[MessagesView] Dados do chat selecionado:', selectedChat);
+      debugLog('[MessagesView] Preço:', selectedChat.adPrice);
+      debugLog('[MessagesView] Título:', selectedChat.adTitle);
     }
   }, [selectedChat]);
   
@@ -342,7 +343,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                         <button
                           type="button"
                           onClick={() => {
-                            window.location.href = '/#/planos';
+                            window.location.href = '/planos';
                           }}
                           className="inline-flex items-center rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700"
                         >

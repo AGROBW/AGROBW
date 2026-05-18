@@ -247,7 +247,8 @@ export const sendMail = async (settings, mail) => {
 export const getLinkHref = (link) => {
   if (!link) return null;
   if (String(link).startsWith('http')) return link;
-  return `${APP_URL.replace(/\/$/, '')}/#${link}`;
+  const normalizedLink = String(link).startsWith('/') ? String(link) : `/${String(link)}`;
+  return `${APP_URL.replace(/\/$/, '')}${normalizedLink}`;
 };
 
 const EMAIL_BRAND_LOGO_URL = process.env.EMAIL_BRAND_LOGO_URL || process.env.VITE_EMAIL_BRAND_LOGO_URL || '';
@@ -851,7 +852,7 @@ export const processRadarJobs = async (smtpSettings, smtpValidationError, limit,
         userName: claimed.recipient_name || 'Cliente',
         announcementTitle: claimed.announcement_title || 'Nova oportunidade no Radar',
         alertName: claimed.alert_name,
-        ctaLink: `${APP_URL.replace(/\/$/, '')}/#/anuncio/${claimed.announcement_id}`,
+        ctaLink: `${APP_URL.replace(/\/$/, '')}/anuncio/${claimed.announcement_id}`,
         branding,
       });
 

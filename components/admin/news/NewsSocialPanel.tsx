@@ -569,7 +569,7 @@ const NewsSocialPanel: React.FC<NewsSocialPanelProps> = ({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr,auto]">
           <input
             className={inputClass}
-            placeholder="Base publica das noticias. Ex.: https://agrobw.com/#/noticias"
+            placeholder="Base publica das noticias. Ex.: https://agrobw.com/noticias"
             value={form.articleUrlBase}
             onChange={(e) => updateField('articleUrlBase', e.target.value)}
           />

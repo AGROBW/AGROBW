@@ -208,11 +208,16 @@ language sql
 security definer
 set search_path = public
 as $$
-  with filtered_views as (
-    select *
-    from public.site_page_views
-    where is_admin_area = false
-      and created_at >= now() - make_interval(days => greatest(p_period_days, 1))
+  with bounds as (
+    select
+      ((now() AT TIME ZONE 'America/Sao_Paulo')::date - greatest(coalesce(p_period_days, 7), 1) + 1) as start_date,
+      (now() AT TIME ZONE 'America/Sao_Paulo')::date as end_date
+  ),
+  filtered_views as (
+    select spv.*
+    from public.site_page_views spv, bounds b
+    where spv.is_admin_area = false
+      and (spv.created_at AT TIME ZONE 'America/Sao_Paulo')::date between b.start_date and b.end_date
   ),
   online_presence as (
     select *
@@ -242,8 +247,8 @@ set search_path = public
 as $$
   with bounds as (
     select
-      (current_date - greatest(p_period_days, 1) + 1) as start_date,
-      current_date as end_date
+      ((now() AT TIME ZONE 'America/Sao_Paulo')::date - greatest(coalesce(p_period_days, 7), 1) + 1) as start_date,
+      (now() AT TIME ZONE 'America/Sao_Paulo')::date as end_date
   ),
   days as (
     select generate_series(
@@ -254,13 +259,13 @@ as $$
   ),
   aggregated as (
     select
-      created_at::date as bucket_date,
+      (spv.created_at AT TIME ZONE 'America/Sao_Paulo')::date as bucket_date,
       count(*) as page_views,
       count(distinct session_id) as unique_visitors
-    from public.site_page_views
-    where is_admin_area = false
-      and created_at >= now() - make_interval(days => greatest(p_period_days, 1))
-    group by created_at::date
+    from public.site_page_views spv, bounds b
+    where spv.is_admin_area = false
+      and (spv.created_at AT TIME ZONE 'America/Sao_Paulo')::date between b.start_date and b.end_date
+    group by (spv.created_at AT TIME ZONE 'America/Sao_Paulo')::date
   )
   select
     d.bucket_date,
@@ -286,15 +291,20 @@ language sql
 security definer
 set search_path = public
 as $$
+  with bounds as (
+    select
+      ((now() AT TIME ZONE 'America/Sao_Paulo')::date - greatest(coalesce(p_period_days, 7), 1) + 1) as start_date,
+      (now() AT TIME ZONE 'America/Sao_Paulo')::date as end_date
+  )
   select
     spv.page_path,
     max(spv.page_label) as page_label,
     max(spv.page_type) as page_type,
     count(*) as views,
     count(distinct spv.session_id) as unique_visitors
-  from public.site_page_views spv
+  from public.site_page_views spv, bounds b
   where spv.is_admin_area = false
-    and spv.created_at >= now() - make_interval(days => greatest(p_period_days, 1))
+    and (spv.created_at AT TIME ZONE 'America/Sao_Paulo')::date between b.start_date and b.end_date
   group by spv.page_path
   order by views desc, unique_visitors desc, spv.page_path asc
   limit greatest(p_limit, 1);
@@ -314,6 +324,11 @@ language sql
 security definer
 set search_path = public
 as $$
+  with bounds as (
+    select
+      ((now() AT TIME ZONE 'America/Sao_Paulo')::date - greatest(coalesce(p_period_days, 7), 1) + 1) as start_date,
+      (now() AT TIME ZONE 'America/Sao_Paulo')::date as end_date
+  )
   select
     spv.entity_id as announcement_id,
     max(a.title) as announcement_title,
@@ -322,10 +337,11 @@ as $$
   from public.site_page_views spv
   left join public.announcements a
     on a.id = spv.entity_id
+  cross join bounds b
   where spv.is_admin_area = false
     and spv.page_type = 'announcement'
     and spv.entity_id is not null
-    and spv.created_at >= now() - make_interval(days => greatest(p_period_days, 1))
+    and (spv.created_at AT TIME ZONE 'America/Sao_Paulo')::date between b.start_date and b.end_date
   group by spv.entity_id
   order by views desc, unique_visitors desc
   limit greatest(p_limit, 1);
@@ -345,6 +361,11 @@ language sql
 security definer
 set search_path = public
 as $$
+  with bounds as (
+    select
+      ((now() AT TIME ZONE 'America/Sao_Paulo')::date - greatest(coalesce(p_period_days, 7), 1) + 1) as start_date,
+      (now() AT TIME ZONE 'America/Sao_Paulo')::date as end_date
+  )
   select
     spv.entity_key as store_slug,
     max(ss.store_name) as store_name,
@@ -353,10 +374,11 @@ as $$
   from public.site_page_views spv
   left join public.seller_stores ss
     on ss.slug = spv.entity_key
+  cross join bounds b
   where spv.is_admin_area = false
     and spv.page_type = 'storefront'
     and spv.entity_key is not null
-    and spv.created_at >= now() - make_interval(days => greatest(p_period_days, 1))
+    and (spv.created_at AT TIME ZONE 'America/Sao_Paulo')::date between b.start_date and b.end_date
   group by spv.entity_key
   order by views desc, unique_visitors desc
   limit greatest(p_limit, 1);

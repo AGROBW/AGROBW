@@ -40,6 +40,25 @@ const isFailureStatus = (status: string) =>
 const buildFocusReference = (prefix: string, providerPaymentId: string) =>
   `${prefix || 'BWAGRO'}-${providerPaymentId}`.replace(/[^A-Za-z0-9_-]/g, '');
 
+const toSaoPauloDateOnly = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(parsed);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  return year && month && day ? `${year}-${month}-${day}` : null;
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -390,6 +409,7 @@ serve(async (req) => {
         invoice_pdf_url: invoicePdfUrl,
         invoice_xml_url: invoiceXmlUrl,
         invoice_issued_at: invoiceIssuedAt,
+        invoice_issued_on: toSaoPauloDateOnly(invoiceIssuedAt),
         updated_at: nowIso,
         metadata: {
           ...(payment.metadata || {}),
@@ -405,7 +425,7 @@ serve(async (req) => {
         type: 'SYSTEM',
         title: 'Nota fiscal disponivel',
         content: 'Sua NFS-e foi emitida e ja esta disponivel para download na central financeira.',
-        link: '/#/minha-conta/financeiro',
+        link: '/minha-conta/financeiro',
       });
     }
 

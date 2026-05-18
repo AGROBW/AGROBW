@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { ContactNotificationEmailDispatchLog, ContactNotificationEmailJob } from '../../types';
+import { appError } from '../utils/appLogger';
 
 interface ContactNotificationEmailSummary {
   pending: number;
@@ -108,7 +109,7 @@ export const useContactNotificationEmailMonitoring = () => {
       logsResult.error;
 
     if (firstError) {
-      console.error('[useContactNotificationEmailMonitoring] erro ao carregar monitoramento:', firstError);
+      appError('[useContactNotificationEmailMonitoring] erro ao carregar monitoramento', firstError);
       setError(firstError.message);
       setJobs([]);
       setDispatchLogs([]);

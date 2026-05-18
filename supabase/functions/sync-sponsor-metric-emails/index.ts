@@ -45,8 +45,8 @@ type AutoSponsorRow = {
   id: string;
   company_name: string;
   status: 'active' | 'paused' | 'expired';
-  starts_at: string;
-  ends_at: string | null;
+  starts_on: string;
+  ends_on: string | null;
   metric_recipient_emails: string[] | null;
   metric_auto_send_enabled: boolean;
   metric_auto_send_frequency: 'weekly' | 'monthly';
@@ -98,11 +98,24 @@ const toLocalComparableDate = (value: string | null) => {
   );
 };
 
+const toDateOnly = (date: Date) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  return year && month && day ? `${year}-${month}-${day}` : '';
+};
+
 const isSponsorActiveNow = (sponsor: AutoSponsorRow) => {
-  const nowUtc = Date.now();
-  const startsAt = new Date(sponsor.starts_at).getTime();
-  const endsAt = sponsor.ends_at ? new Date(sponsor.ends_at).getTime() : null;
-  return sponsor.status === 'active' && startsAt <= nowUtc && (!endsAt || endsAt >= nowUtc);
+  const today = toDateOnly(new Date());
+  return sponsor.status === 'active' && sponsor.starts_on <= today && (!sponsor.ends_on || sponsor.ends_on >= today);
 };
 
 const shouldQueueSponsorToday = (sponsor: AutoSponsorRow, referenceDate: Date) => {
@@ -250,8 +263,8 @@ const queueDueSponsorMetricReports = async (supabaseAdmin: ReturnType<typeof cre
       id,
       company_name,
       status,
-      starts_at,
-      ends_at,
+      starts_on,
+      ends_on,
       metric_recipient_emails,
       metric_auto_send_enabled,
       metric_auto_send_frequency,

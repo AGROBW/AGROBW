@@ -119,7 +119,7 @@ const TermsView: React.FC = () => {
                   Nossa equipe jurídica e de suporte está à disposição para tirar suas dúvidas sobre como operamos.
                 </p>
                 <a 
-                  href="#/contato" 
+                    href="/contato"
                   className="inline-block bg-white px-4 h-9 leading-9 rounded-lg font-semibold text-xs transition-all"
                   style={{ color: settings.primaryColor }}
                 >

@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import { logSecurityEvent } from '../_shared/security.ts';
 
 interface PreferenceRequest {
   planId: string;
@@ -80,6 +81,12 @@ serve(async (req) => {
 
     const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
     if (!authHeader.startsWith('Bearer ')) {
+      await logSecurityEvent(supabaseAdmin, {
+        req,
+        attemptedRoute: '/functions/v1/create-preference',
+        attemptedAction: 'create_preference_missing_bearer',
+        reason: 'Authorization header ausente ou sem Bearer token.',
+      });
       return jsonResponse(
         {
           success: false,
@@ -100,6 +107,12 @@ serve(async (req) => {
     } = await authClient.auth.getUser(token);
 
     if (authError || !user) {
+      await logSecurityEvent(supabaseAdmin, {
+        req,
+        attemptedRoute: '/functions/v1/create-preference',
+        attemptedAction: 'create_preference_invalid_jwt',
+        reason: authError?.message || 'JWT inválido na criação de preferência de pagamento.',
+      });
       return jsonResponse(
         {
           success: false,
@@ -169,6 +182,19 @@ serve(async (req) => {
         (Number(activePlan.monthly_price ?? 0) > 0 || Number(activePlan.yearly_price ?? 0) > 0);
 
       if (!hasEligiblePaidPlan) {
+        await logSecurityEvent(supabaseAdmin, {
+          req,
+          attemptedRoute: '/functions/v1/create-preference',
+          attemptedAction: 'create_preference_booster_without_paid_plan',
+          userId: user.id,
+          email: user.email ?? null,
+          severity: 'warning',
+          reason: 'Usuário tentou comprar booster sem plano pago elegível.',
+          metadata: {
+            boosterId: effectiveBoosterId,
+            activePlanName: activePlan?.name ?? null,
+          },
+        });
         return jsonResponse(
           {
             success: false,
@@ -310,6 +336,19 @@ serve(async (req) => {
         }
 
         if (profile?.start_plan_consumed_at) {
+          await logSecurityEvent(supabaseAdmin, {
+            req,
+            attemptedRoute: '/functions/v1/create-preference',
+            attemptedAction: 'create_preference_signup_plan_reuse',
+            userId: user.id,
+            email: user.email ?? null,
+            severity: 'warning',
+            reason: 'Usuário tentou contratar novamente o plano disponível apenas no cadastro.',
+            metadata: {
+              planId,
+              planName: plan.name,
+            },
+          });
           return jsonResponse(
             {
               success: false,
@@ -388,9 +427,9 @@ serve(async (req) => {
       },
       external_reference: externalReference,
       back_urls: {
-        success: `${siteUrl}/#/minha-conta/financeiro?payment=success`,
-        failure: `${siteUrl}/#/minha-conta/financeiro?payment=failure`,
-        pending: `${siteUrl}/#/minha-conta/financeiro?payment=pending`,
+        success: `${siteUrl}/minha-conta/financeiro?payment=success`,
+        failure: `${siteUrl}/minha-conta/financeiro?payment=failure`,
+        pending: `${siteUrl}/minha-conta/financeiro?payment=pending`,
       },
       notification_url: `${projectFunctionsBaseUrl}/webhook-mercadopago`,
       metadata: {

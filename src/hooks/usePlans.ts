@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { PricingPlan } from '../../types'
+import { appError } from '../utils/appLogger'
 
 // Interface completa do plano (database)
 export interface Plan {
@@ -153,7 +154,7 @@ export const usePlans = () => {
           .eq('is_downgrade_plan', true);
 
         if (resetDowngradeError) {
-          console.error('Erro ao limpar plano de downgrade anterior:', resetDowngradeError);
+          appError('Erro ao limpar plano de downgrade anterior', resetDowngradeError, { planName: planData.name });
           return { error: resetDowngradeError.message, data: null };
         }
       }
@@ -174,7 +175,7 @@ export const usePlans = () => {
         .single();
 
       if (createError) {
-        console.error('Erro ao criar plano:', createError);
+        appError('Erro ao criar plano', createError, { planName: planData.name });
         return { error: createError.message, data: null };
       }
 
@@ -184,7 +185,7 @@ export const usePlans = () => {
           .single();
 
         if (switchDefaultError) {
-          console.error('Erro ao definir plano padrao no cadastro:', switchDefaultError);
+          appError('Erro ao definir plano padrao no cadastro', switchDefaultError, { planId: data.id });
           return { error: switchDefaultError.message, data: null };
         }
 
@@ -195,7 +196,7 @@ export const usePlans = () => {
       await fetchPlans();
       return { error: null, data };
     } catch (err) {
-      console.error('Erro inesperado ao criar plano:', err);
+      appError('Erro inesperado ao criar plano', err, { planName: planData.name });
       return { error: 'Erro ao criar plano', data: null };
     }
   };
@@ -224,7 +225,7 @@ export const usePlans = () => {
           .eq('is_downgrade_plan', true);
 
         if (resetDowngradeError) {
-          console.error('Erro ao limpar plano de downgrade anterior:', resetDowngradeError);
+          appError('Erro ao limpar plano de downgrade anterior', resetDowngradeError, { planId: id });
           return { error: resetDowngradeError.message, data: null };
         }
       }
@@ -246,7 +247,7 @@ export const usePlans = () => {
         .single();
 
       if (updateError) {
-        console.error('Erro ao atualizar plano:', updateError);
+        appError('Erro ao atualizar plano', updateError, { planId: id });
         return { error: updateError.message, data: null };
       }
 
@@ -256,7 +257,7 @@ export const usePlans = () => {
           .single();
 
         if (switchDefaultError) {
-          console.error('Erro ao trocar plano padrao do cadastro:', switchDefaultError);
+          appError('Erro ao trocar plano padrao do cadastro', switchDefaultError, { planId: id });
           return { error: switchDefaultError.message, data: null };
         }
 
@@ -267,7 +268,7 @@ export const usePlans = () => {
       await fetchPlans();
       return { error: null, data };
     } catch (err) {
-      console.error('Erro inesperado ao atualizar plano:', err);
+      appError('Erro inesperado ao atualizar plano', err, { planId: id });
       return { error: 'Erro ao atualizar plano', data: null };
     }
   };
@@ -287,7 +288,7 @@ export const usePlans = () => {
         .eq('id', id);
 
       if (deleteError) {
-        console.error('Erro ao deletar plano:', deleteError);
+        appError('Erro ao deletar plano', deleteError, { planId: id });
         return { error: deleteError.message };
       }
 
@@ -296,7 +297,7 @@ export const usePlans = () => {
 
       return { error: null };
     } catch (err) {
-      console.error('Erro inesperado ao deletar plano:', err);
+      appError('Erro inesperado ao deletar plano', err, { planId: id });
       return { error: 'Erro ao deletar plano' };
     }
   };

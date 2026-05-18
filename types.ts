@@ -504,6 +504,7 @@ export interface PaymentRecord {
   invoiceXmlStoragePath?: string | null;
   invoiceStatus: FiscalDocumentStatus;
   invoiceIssuedAt?: string | null;
+  invoiceIssuedOn?: string | null;
   invoiceNotes?: string | null;
   fiscalProvider?: string | null;
   fiscalExternalId?: string | null;
@@ -717,6 +718,7 @@ export interface LayoutSettings {
   sponsorHeroImageUrl?: string | null;
   sponsorHarvestImageUrl?: string | null;
   sponsorFieldImageUrl?: string | null;
+  sponsorFinalCtaImageUrl?: string | null;
   facebookUrl?: string | null;
   instagramUrl?: string | null;
   youtubeUrl?: string | null;

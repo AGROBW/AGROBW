@@ -11,6 +11,7 @@ import { detectUserState } from '../src/utils/geoLocation';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
+import { debugLog } from '../src/utils/debugLog';
 
 interface AdCardProps {
   ad: Ad;
@@ -233,7 +234,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
                       console.error('[Analytics] Erro ao registrar clique:', error.message);
                     }
                   } else {
-                    console.log('[Analytics] Clique registrado:', userState);
+        debugLog('[Analytics] Clique registrado:', userState);
                   }
                 });
               }

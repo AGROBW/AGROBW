@@ -13,6 +13,20 @@ const normalizeExternalUrl = (url?: string | null) => {
   return `https://${trimmed}`;
 };
 
+const normalizeWhatsAppUrl = (url?: string | null) => {
+  if (!url) return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  if (digitsOnly.length >= 10 && digitsOnly.length <= 15 && !/[a-z]/i.test(trimmed)) {
+    return `https://wa.me/${digitsOnly}`;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+};
+
 const Footer: React.FC = () => {
   const { settings } = useLayout();
   const [newsletterEmail, setNewsletterEmail] = useState('');
@@ -23,7 +37,7 @@ const Footer: React.FC = () => {
     { label: 'Instagram', href: normalizeExternalUrl(settings.instagramUrl), icon: Instagram },
     { label: 'YouTube', href: normalizeExternalUrl(settings.youtubeUrl), icon: Youtube },
     { label: 'LinkedIn', href: normalizeExternalUrl(settings.linkedinUrl), icon: Linkedin },
-    { label: 'WhatsApp', href: normalizeExternalUrl(settings.whatsappUrl), icon: MessageCircle },
+    { label: 'WhatsApp', href: normalizeWhatsAppUrl(settings.whatsappUrl), icon: MessageCircle },
     { label: 'TikTok', href: normalizeExternalUrl(settings.tiktokUrl), icon: Music2 },
   ].filter((item) => Boolean(item.href));
 

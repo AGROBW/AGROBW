@@ -14,8 +14,8 @@ create table if not exists public.site_sponsors (
     check (slot_position between 1 and 6),
   status text not null default 'active'
     check (status in ('active', 'paused', 'expired')),
-  starts_at timestamptz not null default timezone('utc', now()),
-  ends_at timestamptz null,
+  starts_on date not null default ((now() at time zone 'America/Sao_Paulo')::date),
+  ends_on date null,
   notes text null,
   created_by uuid null references public.users(id) on delete set null,
   created_at timestamptz not null default timezone('utc', now()),
@@ -23,7 +23,7 @@ create table if not exists public.site_sponsors (
 );
 
 create index if not exists idx_site_sponsors_status on public.site_sponsors(status);
-create index if not exists idx_site_sponsors_period on public.site_sponsors(starts_at, ends_at);
+create index if not exists idx_site_sponsors_period on public.site_sponsors(starts_on, ends_on);
 create index if not exists idx_site_sponsors_slot_position on public.site_sponsors(slot_position);
 create unique index if not exists idx_site_sponsors_active_slot_unique
   on public.site_sponsors(slot_position)
@@ -59,7 +59,7 @@ $$;
 
 drop trigger if exists trg_touch_site_sponsors_updated_at on public.site_sponsors;
 create trigger trg_touch_site_sponsors_updated_at
-before update on public.site_sponsors
+before insert or update on public.site_sponsors
 for each row
 execute function public.touch_site_sponsors_updated_at();
 
@@ -69,16 +69,17 @@ language plpgsql
 as $$
 declare
   v_active_count integer := 0;
+  v_today date := (now() at time zone 'America/Sao_Paulo')::date;
 begin
   if new.status = 'active'
-     and new.starts_at <= now()
-     and (new.ends_at is null or new.ends_at >= now()) then
+     and new.starts_on <= v_today
+     and (new.ends_on is null or new.ends_on >= v_today) then
     select count(*)
       into v_active_count
     from public.site_sponsors s
     where s.status = 'active'
-      and s.starts_at <= now()
-      and (s.ends_at is null or s.ends_at >= now())
+      and s.starts_on <= v_today
+      and (s.ends_on is null or s.ends_on >= v_today)
       and s.id <> coalesce(new.id, '00000000-0000-0000-0000-000000000000'::uuid);
 
     if v_active_count >= 6 then
@@ -116,8 +117,8 @@ as $$
     select count(*)::integer as active_count
     from public.site_sponsors s
     where s.status = 'active'
-      and s.starts_at <= now()
-      and (s.ends_at is null or s.ends_at >= now())
+      and s.starts_on <= ((now() at time zone 'America/Sao_Paulo')::date)
+      and (s.ends_on is null or s.ends_on >= ((now() at time zone 'America/Sao_Paulo')::date))
   ),
   announcement_counts as (
     select count(*)::integer as active_count

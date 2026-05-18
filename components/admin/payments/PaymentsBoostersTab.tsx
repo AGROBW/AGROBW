@@ -3,6 +3,7 @@ import { Plus, Save, Sparkles } from 'lucide-react';
 import { supabase } from '../../../src/lib/supabaseClient';
 import { toast } from 'sonner';
 import { HighlightBoosterPurchaseRecord, HighlightBoosterRecord } from '../../../types';
+import { appError } from '../../../src/utils/appLogger';
 
 type BoosterFormState = {
   id?: string;
@@ -98,7 +99,7 @@ const PaymentsBoostersTab: React.FC = () => {
     ]);
 
     if (boostersResult.error) {
-      console.error('[PaymentsBoostersTab] Erro ao carregar boosters:', boostersResult.error);
+      appError('[PaymentsBoostersTab] Erro ao carregar boosters', boostersResult.error);
       toast.error('Erro ao carregar boosters.');
       setBoosters([]);
     } else {
@@ -106,7 +107,7 @@ const PaymentsBoostersTab: React.FC = () => {
     }
 
     if (purchasesResult.error) {
-      console.error('[PaymentsBoostersTab] Erro ao carregar historico:', purchasesResult.error);
+      appError('[PaymentsBoostersTab] Erro ao carregar historico', purchasesResult.error);
       setPurchases([]);
     } else {
       setPurchases((purchasesResult.data || []).map(mapPurchase));
@@ -198,7 +199,7 @@ const PaymentsBoostersTab: React.FC = () => {
     const { error } = await request;
 
     if (error) {
-      console.error('[PaymentsBoostersTab] Erro ao salvar booster:', error);
+      appError('[PaymentsBoostersTab] Erro ao salvar booster', error, { boosterId: form.id || null });
       toast.error('Nao foi possivel salvar o booster.');
       setSaving(false);
       return;

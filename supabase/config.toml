@@ -1,16 +1,11 @@
-[functions.diag-mp-connection]
-enabled = true
-verify_jwt = false
-entrypoint = "./functions/diag-mp-connection/index.ts"
-
 [functions.test-mp-connection]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 entrypoint = "./functions/test-mp-connection/index.ts"
 
 [functions.create-preference]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 entrypoint = "./functions/create-preference/index.ts"
 
 [functions.webhook-mercadopago]
@@ -40,7 +35,7 @@ entrypoint = "./functions/generate-news-article/index.ts"
 
 [functions.delete-announcement]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 entrypoint = "./functions/delete-announcement/index.ts"
 
 [functions.notify-support-ticket-update]
@@ -70,7 +65,7 @@ entrypoint = "./functions/validate-meta-social-connection/index.ts"
 
 [functions.validate-document]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 entrypoint = "./functions/validate-document/index.ts"
 
 [functions.sync-sponsor-metric-emails]

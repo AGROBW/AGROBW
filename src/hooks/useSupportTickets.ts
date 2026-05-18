@@ -8,6 +8,7 @@ import {
   SupportTicketPriority,
   SupportTicketStatus,
 } from '../../types';
+import { appError } from '../utils/appLogger';
 
 type TicketScope = 'user' | 'admin';
 
@@ -83,7 +84,7 @@ export const useSupportTickets = (scope: TicketScope = 'user') => {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Erro ao buscar tickets:', error);
+      appError('Erro ao buscar tickets', error, { scope, userId: user.id });
       setTickets([]);
       setIsLoading(false);
       return;
@@ -107,7 +108,7 @@ export const useSupportTickets = (scope: TicketScope = 'user') => {
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('Erro ao buscar mensagens do ticket:', error);
+      appError('Erro ao buscar mensagens do ticket', error, { ticketId });
       setMessages([]);
       setIsMessagesLoading(false);
       return;
@@ -143,7 +144,7 @@ export const useSupportTickets = (scope: TicketScope = 'user') => {
       .single();
 
     if (ticketError || !ticketData) {
-      console.error('Erro ao criar ticket:', ticketError);
+      appError('Erro ao criar ticket', ticketError, { userId: user.id, category: input.category });
       return { success: false, message: 'Nao foi possivel abrir o ticket' };
     }
 
@@ -159,7 +160,7 @@ export const useSupportTickets = (scope: TicketScope = 'user') => {
       });
 
     if (messageError) {
-      console.error('Erro ao criar primeira mensagem do ticket:', messageError);
+      appError('Erro ao criar primeira mensagem do ticket', messageError, { ticketId: ticketData.id, userId: user.id });
       return { success: false, message: 'Ticket criado, mas a mensagem inicial falhou' };
     }
 
@@ -181,10 +182,10 @@ export const useSupportTickets = (scope: TicketScope = 'user') => {
       });
 
       if (error) {
-        console.error('Erro ao notificar atualizacao do ticket:', error);
+      appError('Erro ao notificar atualizacao do ticket', error, { ticketId });
       }
     } catch (error) {
-      console.error('Erro inesperado ao notificar atualizacao do ticket:', error);
+      appError('Erro inesperado ao notificar atualizacao do ticket', error, { ticketId });
     }
   }, []);
 
@@ -200,7 +201,7 @@ export const useSupportTickets = (scope: TicketScope = 'user') => {
       .maybeSingle();
 
     if (ticketError || !ticket) {
-      console.error('Erro ao validar ticket antes de responder:', ticketError);
+      appError('Erro ao validar ticket antes de responder', ticketError, { ticketId, userId: user.id });
       return { success: false, message: 'Nao foi possivel localizar o ticket' };
     }
 
@@ -232,7 +233,7 @@ export const useSupportTickets = (scope: TicketScope = 'user') => {
       .insert(payload);
 
     if (error) {
-      console.error('Erro ao responder ticket:', error);
+      appError('Erro ao responder ticket', error, { ticketId, userId: user.id });
       return { success: false, message: 'Nao foi possivel enviar a mensagem' };
     }
 
@@ -259,7 +260,7 @@ export const useSupportTickets = (scope: TicketScope = 'user') => {
       .eq('id', ticketId);
 
     if (error) {
-      console.error('Erro ao atualizar status do ticket:', error);
+      appError('Erro ao atualizar status do ticket', error, { ticketId, status, userId: user.id });
       return { success: false, message: 'Nao foi possivel atualizar o ticket' };
     }
 

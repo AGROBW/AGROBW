@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 
 export interface PaymentSettings {
   id: string;
-  mp_access_token: string | null;
+  mp_access_token_configured: boolean;
   mp_public_key: string | null;
-  mp_webhook_secret: string | null;
+  mp_webhook_secret_configured: boolean;
   is_production: boolean;
   last_updated_by: string | null;
   created_at: string;
@@ -25,13 +26,10 @@ interface UsePaymentSettingsReturn {
   error: string | null;
   fetchSettings: () => Promise<void>;
   updateSettings: (
-    updates: UpdatePaymentSettingsData,
-    userId: string
+    updates: UpdatePaymentSettingsData
   ) => Promise<{ error: string | null }>;
   testConnection: () => Promise<{ success: boolean; data?: any; error?: string }>;
 }
-
-const SINGLETON_ID = '00000000-0000-0000-0000-000000000005';
 
 const readFunctionErrorResponse = async (response?: Response): Promise<string | null> => {
   if (!response) {
@@ -49,7 +47,7 @@ const readFunctionErrorResponse = async (response?: Response): Promise<string | 
     const text = await response.clone().text();
     return text || null;
   } catch (parseError) {
-    console.error('Erro ao ler corpo da resposta da Edge Function:', parseError);
+      appError('Erro ao ler corpo da resposta da Edge Function', parseError);
     return null;
   }
 };
@@ -64,51 +62,53 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
       setIsLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('payment_settings')
-        .select('*')
-        .eq('id', SINGLETON_ID)
-        .single();
+      const { data, error: fetchError } = await supabase.rpc('get_payment_settings_admin_safe');
 
       if (fetchError) {
-        console.error('Erro ao buscar configuracoes:', fetchError);
+          appError('Erro ao buscar configuracoes', fetchError);
         setError(fetchError.message);
         return;
       }
 
-      setSettings(data);
+      setSettings((Array.isArray(data) ? data[0] : data) || null);
     } catch (err) {
-      console.error('Erro inesperado ao buscar configuracoes:', err);
+        appError('Erro inesperado ao buscar configuracoes', err);
       setError('Erro ao carregar configuracoes');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const updateSettings = async (
-    updates: UpdatePaymentSettingsData,
-    userId: string
-  ): Promise<{ error: string | null }> => {
+  const updateSettings = async (updates: UpdatePaymentSettingsData): Promise<{ error: string | null }> => {
     try {
-      const { data, error: updateError } = await supabase
-        .from('payment_settings')
-        .update({
-          ...updates,
-          last_updated_by: userId,
-        })
-        .eq('id', SINGLETON_ID)
-        .select()
-        .single();
+      const { data, error: updateError } = await supabase.rpc('update_payment_settings_admin_safe', {
+        p_mp_access_token:
+          typeof updates.mp_access_token === 'string' && updates.mp_access_token.trim() !== ''
+            ? updates.mp_access_token.trim()
+            : null,
+        p_mp_public_key:
+          typeof updates.mp_public_key === 'string'
+            ? updates.mp_public_key
+            : null,
+        p_mp_webhook_secret:
+          typeof updates.mp_webhook_secret === 'string' && updates.mp_webhook_secret.trim() !== ''
+            ? updates.mp_webhook_secret.trim()
+            : null,
+        p_is_production:
+          typeof updates.is_production === 'boolean'
+            ? updates.is_production
+            : null,
+      });
 
       if (updateError) {
-        console.error('Erro ao atualizar configuracoes:', updateError);
+          appError('Erro ao atualizar configuracoes', updateError);
         return { error: updateError.message };
       }
 
-      setSettings(data);
+      setSettings((Array.isArray(data) ? data[0] : data) || null);
       return { error: null };
     } catch (err) {
-      console.error('Erro inesperado ao atualizar configuracoes:', err);
+        appError('Erro inesperado ao atualizar configuracoes', err);
       return { error: 'Erro ao salvar configuracoes' };
     }
   };
@@ -120,12 +120,8 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
         error: sessionError,
       } = await supabase.auth.getSession();
 
-      console.log('[testConnection] Verificando sessao...');
-      console.log('Session:', session ? 'Presente' : 'AUSENTE');
-      console.log('Session error:', sessionError);
-
       if (sessionError) {
-        console.error('Erro ao obter sessao:', sessionError);
+          appError('Erro ao obter sessao', sessionError);
         return {
           success: false,
           error: `Erro de sessao: ${sessionError.message}`,
@@ -133,16 +129,12 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
       }
 
       if (!session?.access_token) {
-        console.error('Sessao nao encontrada');
+          appError('Sessao nao encontrada');
         return {
           success: false,
           error: 'Usuario nao autenticado. Faca login novamente.',
         };
       }
-
-      console.log('Sessao valida - User ID:', session.user.id);
-      console.log('Token (primeiros 50 chars):', `${session.access_token.substring(0, 50)}...`);
-      console.log('[testConnection] Supabase client usa VITE_SUPABASE_ANON_KEY');
 
       const { data, error: invokeError, response } = await supabase.functions.invoke(
         'test-mp-connection',
@@ -156,18 +148,10 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
         }
       );
 
-      console.log('[testConnection] Resposta da Edge Function:', {
-        status: response?.status,
-        ok: response?.ok,
-        data,
-        error: invokeError,
-      });
-
       if (invokeError) {
         const errorDetails = await readFunctionErrorResponse(response);
 
-        console.error('Erro ao chamar Edge Function:', invokeError);
-        console.error('Corpo da resposta da Edge Function:', errorDetails);
+        appError('Erro ao chamar Edge Function', invokeError, { errorDetails });
 
         return {
           success: false,
@@ -179,7 +163,7 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
       }
 
       if (!data) {
-        console.error('Resposta vazia da Edge Function');
+          appError('Resposta vazia da Edge Function');
         return {
           success: false,
           error: 'Resposta invalida do servidor',
@@ -204,7 +188,7 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
         error: data.error,
       };
     } catch (err) {
-      console.error('Erro inesperado ao testar conexao:', err);
+        appError('Erro inesperado ao testar conexao', err);
       return {
         success: false,
         error: err instanceof Error ? err.message : 'Erro ao testar conexao com Mercado Pago',
@@ -227,10 +211,10 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
 };
 
 export const PAYMENT_SETTINGS_FALLBACK: PaymentSettings = {
-  id: SINGLETON_ID,
-  mp_access_token: null,
+  id: '00000000-0000-0000-0000-000000000005',
+  mp_access_token_configured: false,
   mp_public_key: null,
-  mp_webhook_secret: null,
+  mp_webhook_secret_configured: false,
   is_production: false,
   last_updated_by: null,
   created_at: new Date().toISOString(),

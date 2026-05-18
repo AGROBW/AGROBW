@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { debugLog } from '../utils/debugLog';
 
 export interface AboutPageContent {
   id: string;
@@ -94,7 +95,7 @@ export const useAboutPage = (): UseAboutPageReturn => {
       if (fetchError) {
         // Se não existir, criar com valores padrão
         if (fetchError.code === 'PGRST116') {
-          console.log('[useAboutPage] Registro não encontrado, criando...');
+            debugLog('[useAboutPage] Registro não encontrado, criando...');
           return;
         }
         throw fetchError;

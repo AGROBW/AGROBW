@@ -28,6 +28,7 @@ const mapPaymentRecord = (row: any): PaymentRecord => ({
   invoiceXmlStoragePath: row.invoice_xml_storage_path ?? null,
   invoiceStatus: row.invoice_status ?? 'not_applicable',
   invoiceIssuedAt: row.invoice_issued_at ?? null,
+  invoiceIssuedOn: row.invoice_issued_on ?? null,
   invoiceNotes: row.invoice_notes ?? null,
   fiscalProvider: row.fiscal_provider ?? null,
   fiscalExternalId: row.fiscal_external_id ?? null,

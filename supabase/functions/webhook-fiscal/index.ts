@@ -46,6 +46,25 @@ const resolveXmlUrl = (body: any) =>
 const isIssuedStatus = (status: string) =>
   ['autorizado', 'authorized', 'issued', 'completed', 'success'].includes(status);
 
+const toSaoPauloDateOnly = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(parsed);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  return year && month && day ? `${year}-${month}-${day}` : null;
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return textResponse('ok');
@@ -143,6 +162,9 @@ serve(async (req) => {
         invoice_pdf_url: invoicePdfUrl || targetPayment.invoice_pdf_url,
         invoice_xml_url: invoiceXmlUrl || targetPayment.invoice_xml_url,
         invoice_issued_at: issued ? invoiceIssuedAt : targetPayment.invoice_issued_at,
+        invoice_issued_on: issued
+          ? toSaoPauloDateOnly(invoiceIssuedAt)
+          : targetPayment.invoice_issued_on,
         updated_at: nowIso,
         metadata: {
           ...(targetPayment.metadata || {}),
@@ -170,7 +192,7 @@ serve(async (req) => {
         type: 'SYSTEM',
         title: 'Nota fiscal disponivel',
         content: 'Sua NFS-e foi emitida e ja pode ser baixada na central financeira.',
-        link: '/#/minha-conta/financeiro',
+        link: '/minha-conta/financeiro',
       });
     }
 

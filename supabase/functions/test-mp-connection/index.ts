@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import { logSecurityEvent } from '../_shared/security.ts';
 
 interface TestConnectionResponse {
   success: boolean;
@@ -36,10 +37,6 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  console.log('=== test-mp-connection: nova requisicao ===');
-  console.log('Method:', req.method);
-  console.log('Headers:', Object.fromEntries(req.headers.entries()));
-
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
@@ -61,10 +58,15 @@ serve(async (req) => {
     const authHeader =
       req.headers.get('Authorization') || req.headers.get('authorization') || '';
 
-    console.log('Authorization header recebido:', authHeader ? 'presente' : 'ausente');
-
     if (!authHeader.startsWith('Bearer ')) {
       console.error('Authorization header ausente ou invalido');
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+      await logSecurityEvent(supabaseAdmin, {
+        req,
+        attemptedRoute: '/functions/v1/test-mp-connection',
+        attemptedAction: 'test_mp_connection_missing_bearer',
+        reason: 'Authorization header ausente ou sem Bearer token.',
+      });
       return jsonResponse(
         {
           success: false,
@@ -77,32 +79,17 @@ serve(async (req) => {
     }
 
     const token = authHeader.slice('Bearer '.length).trim();
-    console.log('Token extraido (50 chars):', `${token.slice(0, 50)}...`);
-    console.log('Token length:', token.length);
-
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
     const authClient = createClient(supabaseUrl, supabaseAnonKey);
 
     const anonAuthResult = await authClient.auth.getUser(token);
-
-    console.log('Resultado auth.getUser(token) com ANON_KEY:', {
-      hasUser: Boolean(anonAuthResult.data.user),
-      authError: anonAuthResult.error?.message ?? null,
-    });
 
     let user = anonAuthResult.data.user;
     let authValidationSource: 'anon' | 'service_role' = 'anon';
     let authError = anonAuthResult.error;
 
     if (authError || !user) {
-      console.warn('Falha ao validar JWT com ANON_KEY. Tentando novamente com SERVICE_ROLE_KEY...');
-
       const serviceAuthResult = await supabaseAdmin.auth.getUser(token);
-
-      console.log('Resultado auth.getUser(token) com SERVICE_ROLE_KEY:', {
-        hasUser: Boolean(serviceAuthResult.data.user),
-        authError: serviceAuthResult.error?.message ?? null,
-      });
 
       if (!serviceAuthResult.error && serviceAuthResult.data.user) {
         user = serviceAuthResult.data.user;
@@ -115,6 +102,12 @@ serve(async (req) => {
 
     if (authError) {
       console.error('Erro ao validar JWT:', authError);
+      await logSecurityEvent(supabaseAdmin, {
+        req,
+        attemptedRoute: '/functions/v1/test-mp-connection',
+        attemptedAction: 'test_mp_connection_invalid_jwt',
+        reason: authError.message,
+      });
       return jsonResponse(
         {
           success: false,
@@ -128,6 +121,12 @@ serve(async (req) => {
 
     if (!user) {
       console.error('Nenhum usuario encontrado no JWT');
+      await logSecurityEvent(supabaseAdmin, {
+        req,
+        attemptedRoute: '/functions/v1/test-mp-connection',
+        attemptedAction: 'test_mp_connection_user_missing',
+        reason: 'JWT validado sem usuário associado.',
+      });
       return jsonResponse(
         {
           success: false,
@@ -142,39 +141,28 @@ serve(async (req) => {
     const roleFromMetadata =
       typeof user.app_metadata?.role === 'string' ? user.app_metadata.role : null;
 
-    console.log('Usuario autenticado:', {
-      id: user.id,
-      email: user.email,
-      roleFromMetadata,
-      authValidationSource,
-    });
-
     const { data: userProfile, error: profileError } = await supabaseAdmin
       .from('users')
       .select('role')
       .eq('id', user.id)
       .maybeSingle();
 
-    console.log('Resultado lookup public.users:', {
-      hasProfile: Boolean(userProfile),
-      roleFromTable: userProfile?.role ?? null,
-      profileError: profileError?.message ?? null,
-    });
-
     const isAdmin =
       roleFromMetadata === 'admin' || (userProfile?.role ?? null) === 'admin';
-
-    console.log('Validacao admin:', {
-      roleFromMetadata,
-      roleFromTable: userProfile?.role ?? null,
-      isAdmin,
-    });
 
     if (profileError) {
       console.error('Erro ao consultar public.users:', profileError);
     }
 
     if (!isAdmin) {
+      await logSecurityEvent(supabaseAdmin, {
+        req,
+        attemptedRoute: '/functions/v1/test-mp-connection',
+        attemptedAction: 'test_mp_connection_forbidden',
+        userId: user.id,
+        email: user.email ?? null,
+        reason: `Usuario sem role admin tentou testar a conexão do Mercado Pago. role=${userProfile?.role ?? roleFromMetadata ?? 'null'}`,
+      });
       return jsonResponse(
         {
           success: false,
@@ -216,8 +204,6 @@ serve(async (req) => {
         400
       );
     }
-
-    console.log('Testing Mercado Pago connection...');
 
     const mpResponse = await fetch('https://api.mercadolibre.com/users/me', {
       method: 'GET',
@@ -267,12 +253,6 @@ serve(async (req) => {
     }
 
     const mpData = await mpResponse.json();
-
-    console.log('Mercado Pago connection successful:', {
-      id: mpData.id,
-      email: mpData.email,
-      country: mpData.site_id,
-    });
 
     await supabaseAdmin.from('admin_audit_logs').insert({
       admin_id: user.id,

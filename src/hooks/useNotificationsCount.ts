@@ -5,6 +5,7 @@ import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { subscribeToCountsRefresh } from '../lib/countSync'
 import { useAuth } from '../contexts/AuthContext'
 import { isSupabaseUnauthorizedError } from '../lib/supabaseAuthGuard'
+import { appError, appWarn } from '../utils/appLogger'
 
 interface NotificationCounts {
   messagesCount: number
@@ -66,13 +67,13 @@ export const useNotificationsCount = (): NotificationCounts => {
       clearRetry()
     } catch (error) {
       if (isSupabaseUnauthorizedError(error)) {
-        console.warn('[useNotificationsCount] Sessão expirada ao buscar contador de mensagens.')
+        appWarn('[useNotificationsCount] Sessão expirada ao buscar contador de mensagens', { userId: user.id })
         clearRetry()
         setMessagesCount(0)
         return
       }
 
-      console.error('Erro ao buscar contador de mensagens:', error)
+      appError('Erro ao buscar contador de mensagens', error, { userId: user.id })
       setMessagesCount(0)
       scheduleRetry()
     }
@@ -97,13 +98,13 @@ export const useNotificationsCount = (): NotificationCounts => {
       clearRetry()
     } catch (error) {
       if (isSupabaseUnauthorizedError(error)) {
-        console.warn('[useNotificationsCount] Sessão expirada ao buscar contador de notificações.')
+        appWarn('[useNotificationsCount] Sessão expirada ao buscar contador de notificações', { userId: user.id })
         clearRetry()
         setNotificationsCount(0)
         return
       }
 
-      console.error('Erro ao buscar contador de notificações:', error)
+      appError('Erro ao buscar contador de notificações', error, { userId: user.id })
       setNotificationsCount(0)
       scheduleRetry()
     }

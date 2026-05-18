@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { BarChart3, FileText, Receipt, RotateCcw } from 'lucide-react';
 import { AdminPaymentRecord } from './types';
+import { civilDateToLocalDate } from '../../../src/utils/brazilCivilDate';
 
 interface PaymentsOverviewTabProps {
   payments: AdminPaymentRecord[];
@@ -12,8 +13,9 @@ const PaymentsOverviewTab: React.FC<PaymentsOverviewTabProps> = ({ payments, for
     const grouped = new Map<string, { monthLabel: string; issued: number; pending: number; failed: number; refunded: number; totalAmount: number }>();
 
     payments.forEach((payment) => {
-      const baseDate = payment.invoice_issued_at || payment.paid_at || payment.created_at;
-      const date = new Date(baseDate);
+      const issuedDate = civilDateToLocalDate(payment.invoice_issued_on);
+      const fallbackDate = payment.invoice_issued_at || payment.paid_at || payment.created_at;
+      const date = issuedDate || new Date(fallbackDate);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
 

@@ -8,7 +8,7 @@ create table if not exists public.site_sponsor_impressions (
   user_city text null,
   user_state text null,
   device_type text null,
-  impression_date date not null default timezone('utc', now())::date,
+  impression_date date not null default ((now() AT TIME ZONE 'America/Sao_Paulo')::date),
   created_at timestamptz not null default timezone('utc', now())
 );
 
@@ -131,8 +131,8 @@ as $$
     s.slot_position
   from public.site_sponsors s
   where s.status = 'active'
-    and s.starts_at <= now()
-    and (s.ends_at is null or s.ends_at >= now())
+    and s.starts_on <= ((now() at time zone 'America/Sao_Paulo')::date)
+    and (s.ends_on is null or s.ends_on >= ((now() at time zone 'America/Sao_Paulo')::date))
   order by s.slot_position asc nulls last, s.created_at asc;
 $$;
 

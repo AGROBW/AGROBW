@@ -24,6 +24,7 @@ create table if not exists public.payments (
     invoice_status in ('pending', 'available', 'failed', 'not_applicable')
   ),
   invoice_issued_at timestamptz,
+  invoice_issued_on date,
   invoice_notes text,
   paid_at timestamptz,
   metadata jsonb not null default '{}'::jsonb,
@@ -38,7 +39,54 @@ alter table public.payments
   add column if not exists invoice_issued_at timestamptz;
 
 alter table public.payments
+  add column if not exists invoice_issued_on date;
+
+alter table public.payments
   add column if not exists invoice_notes text;
+
+create or replace function public.sync_payments_invoice_issued_on()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.invoice_issued_at is not null then
+      new.invoice_issued_on := (new.invoice_issued_at at time zone 'America/Sao_Paulo')::date;
+    elsif new.invoice_issued_on is not null then
+      new.invoice_issued_at := (new.invoice_issued_on::timestamp at time zone 'America/Sao_Paulo');
+    else
+      new.invoice_issued_at := null;
+      new.invoice_issued_on := null;
+    end if;
+  elsif new.invoice_issued_at is distinct from old.invoice_issued_at then
+    new.invoice_issued_on := case
+      when new.invoice_issued_at is null then null
+      else (new.invoice_issued_at at time zone 'America/Sao_Paulo')::date
+    end;
+  elsif new.invoice_issued_on is distinct from old.invoice_issued_on then
+    new.invoice_issued_at := case
+      when new.invoice_issued_on is null then null
+      else (new.invoice_issued_on::timestamp at time zone 'America/Sao_Paulo')
+    end;
+  elsif new.invoice_issued_at is not null then
+    new.invoice_issued_on := (new.invoice_issued_at at time zone 'America/Sao_Paulo')::date;
+  elsif new.invoice_issued_on is not null then
+    new.invoice_issued_at := (new.invoice_issued_on::timestamp at time zone 'America/Sao_Paulo');
+  else
+    new.invoice_issued_at := null;
+    new.invoice_issued_on := null;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_sync_payments_invoice_issued_on on public.payments;
+create trigger trg_sync_payments_invoice_issued_on
+before insert or update of invoice_issued_at, invoice_issued_on
+on public.payments
+for each row
+execute function public.sync_payments_invoice_issued_on();
 
 create index if not exists idx_payments_user_id_created_at
   on public.payments(user_id, created_at desc);

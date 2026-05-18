@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import { logSecurityEvent } from '../_shared/security.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -70,14 +71,20 @@ serve(async (req) => {
       return jsonResponse({ success: false, message: 'Missing OCR_SPACE_API_KEY secret' }, 500);
     }
 
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
     const authHeader = req.headers.get('Authorization') || '';
     if (!authHeader.startsWith('Bearer ')) {
+      await logSecurityEvent(supabaseAdmin, {
+        req,
+        attemptedRoute: '/functions/v1/validate-document',
+        attemptedAction: 'validate_document_missing_bearer',
+        reason: 'Authorization header ausente ou sem Bearer token.',
+      });
       return jsonResponse({ success: false, message: 'Unauthorized' }, 401);
     }
 
     const token = authHeader.slice(7).trim();
     const authClient = createClient(supabaseUrl, anonKey);
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     const {
       data: { user },
@@ -85,6 +92,12 @@ serve(async (req) => {
     } = await authClient.auth.getUser(token);
 
     if (authError || !user) {
+      await logSecurityEvent(supabaseAdmin, {
+        req,
+        attemptedRoute: '/functions/v1/validate-document',
+        attemptedAction: 'validate_document_invalid_jwt',
+        reason: authError?.message || 'JWT inválido na validação de documento.',
+      });
       return jsonResponse({ success: false, message: 'Invalid JWT' }, 401);
     }
 

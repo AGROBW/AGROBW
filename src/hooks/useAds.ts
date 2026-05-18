@@ -4,6 +4,179 @@ import { useAuth } from '../contexts/AuthContext'
 import { Ad } from '../../types'
 import { getCategoryGroupBySlug, getGroupCategorySlugs } from '../lib/categoryHierarchy'
 import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime'
+import { appError, appWarn } from '../utils/appLogger'
+
+const USER_ADS_SELECT = `
+  id,
+  title,
+  description,
+  price,
+  unit_price,
+  price_negotiable,
+  product_condition,
+  availability,
+  accepts_trade,
+  has_warranty,
+  warranty_details,
+  has_invoice,
+  city,
+  state,
+  cep,
+  category_id,
+  category_slug,
+  sub_category_id,
+  sub_category_label,
+  images,
+  video_url,
+  video_storage_path,
+  video_duration_seconds,
+  video_size_bytes,
+  user_id,
+  status,
+  views,
+  is_premium,
+  created_at,
+  expires_at,
+  expired_at,
+  rejected_at,
+  rejection_reason,
+  deletion_scheduled_at,
+  whatsapp,
+  highlight_category,
+  highlight_category_until,
+  highlight_home,
+  highlight_home_until
+`
+
+const PUBLIC_ADS_SELECT = `
+  id,
+  title,
+  description,
+  price,
+  unit_price,
+  price_negotiable,
+  product_condition,
+  availability,
+  accepts_trade,
+  has_warranty,
+  warranty_details,
+  has_invoice,
+  city,
+  state,
+  cep,
+  category_id,
+  category_slug,
+  sub_category_id,
+  sub_category_label,
+  images,
+  video_url,
+  video_storage_path,
+  video_duration_seconds,
+  video_size_bytes,
+  user_id,
+  status,
+  views,
+  is_premium,
+  created_at,
+  updated_at,
+  expires_at,
+  expired_at,
+  deletion_scheduled_at,
+  whatsapp,
+  highlight_category,
+  highlight_category_until,
+  highlight_home,
+  highlight_home_until,
+  community_reports_count,
+  community_reported_to_review_at,
+  community_report_reasons,
+  seller:vendedores_publicos!user_id (name, avatar, document_verified, cidade, estado)
+`
+
+const ADMIN_ADS_SELECT = `
+  id,
+  title,
+  description,
+  price,
+  unit_price,
+  price_negotiable,
+  product_condition,
+  availability,
+  accepts_trade,
+  has_warranty,
+  warranty_details,
+  has_invoice,
+  city,
+  state,
+  cep,
+  category_id,
+  category_slug,
+  sub_category_id,
+  sub_category_label,
+  images,
+  video_url,
+  video_storage_path,
+  video_duration_seconds,
+  video_size_bytes,
+  user_id,
+  status,
+  views,
+  is_premium,
+  created_at,
+  expires_at,
+  expired_at,
+  deletion_scheduled_at,
+  whatsapp,
+  highlight_category,
+  highlight_category_until,
+  highlight_home,
+  highlight_home_until
+`
+
+const SINGLE_AD_SELECT = `
+  id,
+  title,
+  description,
+  price,
+  unit_price,
+  price_negotiable,
+  product_condition,
+  availability,
+  accepts_trade,
+  has_warranty,
+  warranty_details,
+  has_invoice,
+  city,
+  state,
+  cep,
+  category_id,
+  category_slug,
+  sub_category_id,
+  sub_category_label,
+  images,
+  video_url,
+  video_storage_path,
+  video_duration_seconds,
+  video_size_bytes,
+  user_id,
+  status,
+  views,
+  is_premium,
+  created_at,
+  expires_at,
+  expired_at,
+  deletion_scheduled_at,
+  whatsapp,
+  health_score,
+  community_reports_count,
+  community_reported_to_review_at,
+  community_report_reasons,
+  highlight_category,
+  highlight_category_until,
+  highlight_home,
+  highlight_home_until,
+  announcement_technical_details (label, value, icon_name)
+`
 
 const getEffectiveAdStatus = (status: string, expiresAt?: string | null) => {
   if ((status === 'ACTIVE' || status === 'active') && isTimestampExpired(expiresAt)) {
@@ -95,10 +268,7 @@ export const useUserAds = () => {
       const [{ data, error }, { data: editRequests, error: pendingEditRequestsError }] = await Promise.all([
         supabase
           .from('announcements')
-          .select(`
-            *,
-            categories (name, slug)
-          `)
+          .select(USER_ADS_SELECT)
           .eq('user_id', user.id)
           .order('highlight_category', { ascending: false })
           .order('highlight_home', { ascending: false })
@@ -112,10 +282,10 @@ export const useUserAds = () => {
 
       if (error) {
         setError(error.message)
-        console.error('Erro ao buscar anuncios:', error)
+        appError('Erro ao buscar anuncios do usuário', error, { userId: user.id })
       } else {
         if (pendingEditRequestsError && pendingEditRequestsError.code !== 'PGRST205') {
-          console.error('Erro ao buscar edicoes pendentes do usuario:', pendingEditRequestsError)
+          appError('Erro ao buscar edicoes pendentes do usuario', pendingEditRequestsError, { userId: user.id })
         }
 
         const latestEditRequestByAnnouncement = new Map<string, { status: 'pending' | 'approved' | 'rejected'; rejection_reason?: string | null }>()
@@ -146,7 +316,7 @@ export const useUserAds = () => {
             cep: ad.cep
           },
           categoryId: ad.category_id,
-          categorySlug: ad.categories?.slug,
+          categorySlug: ad.category_slug,
           subCategoryId: ad.sub_category_id || undefined,
           subCategoryLabel: ad.sub_category_label || undefined,
           images: ad.images || [],
@@ -206,11 +376,7 @@ export const usePublicAds = (filters?: {
 
       let query = supabase
         .from('announcements')
-        .select(`
-          *,
-          categories (name, slug),
-          seller:vendedores_publicos!user_id (name, avatar, document_verified, cidade, estado)
-        `)
+        .select(PUBLIC_ADS_SELECT)
         .eq('status', 'ACTIVE')
 
       if (filters?.category) {
@@ -226,7 +392,7 @@ export const usePublicAds = (filters?: {
             .maybeSingle()
 
           if (categoryError) {
-            console.warn('[usePublicAds] Categoria nao encontrada para slug:', filters.category, categoryError)
+            appWarn('[usePublicAds] Categoria nao encontrada para slug', { categorySlug: filters.category, error: categoryError })
           }
 
           if (category) {
@@ -259,7 +425,7 @@ export const usePublicAds = (filters?: {
 
       if (error) {
         setError(error.message)
-        console.error('Erro ao buscar anuncios:', error)
+        appError('Erro ao buscar anuncios públicos', error, { filters })
       } else {
         const announcementIds = Array.from(new Set((data || []).map((ad: any) => ad.id).filter(Boolean)))
         const sellerIds = Array.from(new Set((data || []).map((ad: any) => ad.user_id).filter(Boolean)))
@@ -310,7 +476,7 @@ export const usePublicAds = (filters?: {
           ] = await Promise.all(requests)
 
           if (storesError) {
-            console.warn('[usePublicAds] Erro ao buscar lojas oficiais para listagem:', storesError)
+            appWarn('[usePublicAds] Erro ao buscar lojas oficiais para listagem', { error: storesError, announcementCount: announcementIds.length })
           } else {
             for (const store of storesData || []) {
               storeMap.set(store.user_id, {
@@ -323,7 +489,7 @@ export const usePublicAds = (filters?: {
           }
 
           if (planSignalsError) {
-            console.warn('[usePublicAds] Erro ao buscar sinais publicos de plano para ranking:', planSignalsError)
+            appWarn('[usePublicAds] Erro ao buscar sinais publicos de plano para ranking', { error: planSignalsError, announcementCount: announcementIds.length })
           } else {
             for (const signal of (planSignalsData as Array<any>) || []) {
               if (!signal?.user_id) continue
@@ -336,7 +502,7 @@ export const usePublicAds = (filters?: {
           }
 
           if (engagementSignalsError) {
-            console.warn('[usePublicAds] Erro ao buscar sinais publicos de engajamento recente para ranking:', engagementSignalsError)
+            appWarn('[usePublicAds] Erro ao buscar sinais publicos de engajamento recente para ranking', { error: engagementSignalsError, announcementCount: announcementIds.length })
           } else {
             for (const signal of (engagementSignalsData as Array<any>) || []) {
               if (!signal?.announcement_id) continue
@@ -375,7 +541,7 @@ export const usePublicAds = (filters?: {
             cep: ad.cep
           },
           categoryId: ad.category_id,
-          categorySlug: ad.categories?.slug,
+          categorySlug: ad.category_slug,
           subCategoryId: ad.sub_category_id || undefined,
           subCategoryLabel: ad.sub_category_label || undefined,
           images: ad.images || [],
@@ -437,7 +603,7 @@ export const useAllAds = () => {
       await syncTrustedTime()
       const { data, error } = await supabase
         .from('announcements')
-        .select('*')
+        .select(ADMIN_ADS_SELECT)
         .order('highlight_category', { ascending: false })
         .order('highlight_home', { ascending: false })
         .order('created_at', { ascending: false })
@@ -511,7 +677,7 @@ export const useAd = (adId: string | undefined) => {
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(adId)) {
-      console.error('[Views] ID invalido:', adId)
+      appWarn('[Views] ID invalido', { adId })
       setError('ID de anuncio invalido')
       setIsLoading(false)
       return
@@ -523,17 +689,13 @@ export const useAd = (adId: string | undefined) => {
 
       const { data: adData, error: adError } = await supabase
         .from('announcements')
-        .select(`
-          *,
-          categories (name, slug),
-          announcement_technical_details (label, value, icon_name)
-        `)
+        .select(SINGLE_AD_SELECT)
         .eq('id', adId)
         .maybeSingle()
 
       if (adError) {
         setError(adError.message)
-        console.error('Erro ao buscar anuncio:', adError)
+        appError('Erro ao buscar anuncio', adError, { adId })
         setIsLoading(false)
         return
       }
@@ -546,49 +708,41 @@ export const useAd = (adId: string | undefined) => {
       }
 
       let sellerData = null
-      if (adData?.user_id) {
-        console.log('[useAd] Buscando vendedor com ID:', adData.user_id)
-
-        const { data: sellerList, error: sellerError } = await supabase
-          .from('vendedores_publicos')
-          .select('name, avatar, document_verified, cidade, estado, business_description')
-          .eq('id', adData.user_id)
-
-        console.log('[useAd] Resultado da busca:', { sellerList, sellerError })
-
-        if (!sellerError && sellerList && sellerList.length > 0) {
-          sellerData = sellerList[0]
-          console.log('[useAd] Dados do vendedor encontrados:', sellerData)
-        } else if (sellerError) {
-          console.error('[useAd] Erro ao buscar vendedor:', sellerError)
-        } else {
-          console.warn('[useAd] Vendedor nao encontrado na view vendedores_publicos.')
-        }
-      }
-
       let sellerStoreData: { slug: string; store_name: string; logo_url?: string | null; is_verified?: boolean } | null = null
 
       if (adData?.user_id) {
-        const { data: storeRow, error: storeError } = await supabase
-          .from('seller_stores')
-          .select('slug, store_name, logo_url, is_verified')
-          .eq('user_id', adData.user_id)
-          .eq('is_active', true)
-          .eq('is_store_feature_enabled', true)
-          .eq('is_paused_due_to_plan', false)
-          .maybeSingle()
+        const [
+          { data: sellerList, error: sellerError },
+          { data: storeRow, error: storeError },
+        ] = await Promise.all([
+          supabase
+            .from('vendedores_publicos')
+            .select('name, avatar, document_verified, cidade, estado, business_description')
+            .eq('id', adData.user_id),
+          supabase
+            .from('seller_stores')
+            .select('slug, store_name, logo_url, is_verified')
+            .eq('user_id', adData.user_id)
+            .eq('is_active', true)
+            .eq('is_store_feature_enabled', true)
+            .eq('is_paused_due_to_plan', false)
+            .maybeSingle(),
+        ])
+
+        if (!sellerError && sellerList && sellerList.length > 0) {
+          sellerData = sellerList[0]
+        } else if (sellerError) {
+          appError('[useAd] Erro ao buscar vendedor', sellerError, { adId, sellerId: adData.user_id })
+        }
 
         if (!storeError && storeRow) {
           sellerStoreData = storeRow as { slug: string; store_name: string; logo_url?: string | null; is_verified?: boolean }
         } else if (storeError) {
-          console.warn('[useAd] Nao foi possivel buscar loja do vendedor:', storeError)
+          appWarn('[useAd] Nao foi possivel buscar loja do vendedor', { adId, sellerId: adData.user_id, error: storeError })
         }
       }
 
       const data = { ...adData, seller: sellerData, sellerStore: sellerStoreData }
-
-      console.log('[useAd] Dados retornados:', data)
-      console.log('[useAd] Seller:', data.seller)
 
       let technicalDetailsArray: any[] = []
       if (data.announcement_technical_details && Array.isArray(data.announcement_technical_details)) {
@@ -619,7 +773,7 @@ export const useAd = (adId: string | undefined) => {
           cep: data.cep
         },
         categoryId: data.category_id,
-        categorySlug: data.categories?.slug,
+        categorySlug: data.category_slug,
         subCategoryId: data.sub_category_id || undefined,
         subCategoryLabel: data.sub_category_label || undefined,
         images: data.images || [],
@@ -665,18 +819,13 @@ export const useAd = (adId: string | undefined) => {
       const hasViewed = sessionStorage.getItem(viewKey)
 
       if (!hasViewed) {
-        console.log('[Views] Incrementando visualizacao para:', adId)
-
         const { error: viewError } = await supabase.rpc('increment_ad_views', { ad_id: adId })
 
         if (viewError) {
-          console.error('[Views] Erro ao incrementar views:', viewError)
+          appError('[Views] Erro ao incrementar views', viewError, { adId })
         } else {
           sessionStorage.setItem(viewKey, 'true')
-          console.log('[Views] Visualizacao incrementada com sucesso')
         }
-      } else {
-        console.log('[Views] Anuncio ja visualizado nesta sessao')
       }
 
       setIsLoading(false)

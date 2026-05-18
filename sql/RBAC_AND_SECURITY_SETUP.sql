@@ -115,9 +115,10 @@ USING (
 );
 
 -- Política: Sistema pode INSERIR logs (via função SECURITY DEFINER)
-CREATE POLICY "System can insert audit logs"
+CREATE POLICY "Admins can insert audit logs"
 ON admin_audit_logs FOR INSERT
-WITH CHECK (true); -- Será controlado pela função SECURITY DEFINER
+TO authenticated
+WITH CHECK (public.is_admin() = true);
 
 -- Política: NENHUM UPDATE ou DELETE permitido (logs são imutáveis)
 -- Logs de auditoria NUNCA devem ser modificados ou deletados
@@ -210,12 +211,20 @@ BEGIN
   END IF;
   
   -- Verificar se é admin
-  SELECT email, name, role INTO v_admin_email, v_admin_name
+  SELECT email, name INTO v_admin_email, v_admin_name
   FROM users
   WHERE id = v_admin_id;
   
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Usuário não encontrado';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM users
+    WHERE id = v_admin_id
+      AND role = 'admin'
+  ) THEN
+    RAISE EXCEPTION 'Apenas administradores podem registrar auditoria';
   END IF;
   
   -- Inserir log de auditoria
