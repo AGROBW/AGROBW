@@ -104,6 +104,7 @@ const LayoutManagement: React.FC = () => {
     sponsorHarvestImageUrl: defaultSettings.sponsorHarvestImageUrl || '',
     sponsorFieldImageUrl: defaultSettings.sponsorFieldImageUrl || '',
     sponsorFinalCtaImageUrl: defaultSettings.sponsorFinalCtaImageUrl || '',
+    commercialIntelligenceEnabled: defaultSettings.commercialIntelligenceEnabled ?? false,
     facebookUrl: defaultSettings.facebookUrl || '',
     instagramUrl: defaultSettings.instagramUrl || '',
     youtubeUrl: defaultSettings.youtubeUrl || '',
@@ -147,6 +148,7 @@ const LayoutManagement: React.FC = () => {
       sponsorHarvestImageUrl: settings.sponsorHarvestImageUrl || '',
       sponsorFieldImageUrl: settings.sponsorFieldImageUrl || '',
       sponsorFinalCtaImageUrl: settings.sponsorFinalCtaImageUrl || '',
+      commercialIntelligenceEnabled: settings.commercialIntelligenceEnabled ?? false,
       facebookUrl: settings.facebookUrl || '',
       instagramUrl: settings.instagramUrl || '',
       youtubeUrl: settings.youtubeUrl || '',
@@ -168,6 +170,10 @@ const LayoutManagement: React.FC = () => {
   }, [settings, defaultSettings]);
 
   const handleChange = (field: keyof typeof formData, value: string) => {
+    setFormData((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleToggleChange = (field: keyof typeof formData, value: boolean) => {
     setFormData((current) => ({ ...current, [field]: value }));
   };
 
@@ -250,6 +256,7 @@ const LayoutManagement: React.FC = () => {
       sponsorHarvestImageUrl: formData.sponsorHarvestImageUrl || null,
       sponsorFieldImageUrl: formData.sponsorFieldImageUrl || null,
       sponsorFinalCtaImageUrl: formData.sponsorFinalCtaImageUrl || null,
+      commercialIntelligenceEnabled: formData.commercialIntelligenceEnabled,
       facebookUrl: normalizeOptionalUrl(formData.facebookUrl),
       instagramUrl: normalizeOptionalUrl(formData.instagramUrl),
       youtubeUrl: normalizeOptionalUrl(formData.youtubeUrl),
@@ -352,6 +359,34 @@ const LayoutManagement: React.FC = () => {
                 : null
             }
           />
+          <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Recursos do painel</p>
+                <h3 className="mt-2 text-lg font-semibold text-slate-900">Inteligência comercial</h3>
+                <p className="mt-1 max-w-2xl text-sm text-slate-500">
+                  Oculta ou reativa o menu e a rota do módulo no painel do usuário sem remover a implementação do projeto.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleToggleChange('commercialIntelligenceEnabled', !formData.commercialIntelligenceEnabled)}
+                className={`inline-flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors ${
+                  formData.commercialIntelligenceEnabled
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 bg-slate-50 text-slate-600'
+                }`}
+              >
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ${
+                    formData.commercialIntelligenceEnabled ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                />
+                {formData.commercialIntelligenceEnabled ? 'Menu ativo' : 'Menu oculto'}
+              </button>
+            </div>
+          </section>
           <LayoutIdentitySection
             formData={{
               siteTagline: formData.siteTagline,

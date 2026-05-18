@@ -106,6 +106,11 @@ const sanitizeAnnouncementPayload = (payload: Record<string, any> = {}) =>
     Object.entries(payload).filter(([key, value]) => EDITABLE_ANNOUNCEMENT_FIELDS.has(key) && value !== undefined)
   );
 
+const getOriginalAnnouncementStatusFromRequest = (request: PendingEditRequest) => {
+  const rawStatus = String(request.payload?.__original_announcement_status || request.announcement?.status || 'ACTIVE').trim().toUpperCase();
+  return rawStatus || 'ACTIVE';
+};
+
 const conditionLabels: Record<string, string> = {
   novo: 'Novo',
   seminovo: 'Seminovo',
@@ -321,6 +326,7 @@ const ModerationQueue: React.FC = () => {
       const { data: authData } = await supabase.auth.getUser();
       const reviewerId = authData.user?.id || null;
       const sanitizedPayload = sanitizeAnnouncementPayload(request.payload || {});
+      const originalAnnouncementStatus = getOriginalAnnouncementStatusFromRequest(request);
       let updatedAnnouncement: PendingAnnouncement | null = request.announcement;
 
       if (Object.keys(sanitizedPayload).length > 0) {
@@ -356,6 +362,30 @@ const ModerationQueue: React.FC = () => {
             });
         }
       }
+
+      const restoreApprovedAnnouncementPayload =
+        originalAnnouncementStatus === 'ACTIVE'
+          ? {
+              status: 'ACTIVE',
+              publication_review_admin_override: true,
+              publication_review_severity: null,
+              publication_review_reasons: [],
+              publication_review_checked_at: new Date().toISOString(),
+            }
+          : {
+              status: originalAnnouncementStatus,
+              publication_review_admin_override: false,
+              publication_review_severity: null,
+              publication_review_reasons: [],
+              publication_review_checked_at: new Date().toISOString(),
+            };
+
+      const { error: restoreApprovedStatusError } = await supabase
+        .from('announcements')
+        .update(restoreApprovedAnnouncementPayload)
+        .eq('id', request.announcement_id);
+
+      if (restoreApprovedStatusError) throw restoreApprovedStatusError;
 
       await supabase.from('announcement_technical_details').delete().eq('announcement_id', request.announcement_id);
       const details = (request.technical_details || []).map((detail) => ({ announcement_id: request.announcement_id, label: detail.label, value: detail.value, icon_name: detail.icon_name || 'Circle' }));
@@ -398,6 +428,31 @@ const ModerationQueue: React.FC = () => {
       if (selectedEditRequest) {
         const { data: authData } = await supabase.auth.getUser();
         const reviewerId = authData.user?.id || null;
+        const originalAnnouncementStatus = getOriginalAnnouncementStatusFromRequest(selectedEditRequest);
+        const restoreRejectedAnnouncementPayload =
+          originalAnnouncementStatus === 'ACTIVE'
+            ? {
+                status: 'ACTIVE',
+                publication_review_admin_override: true,
+                publication_review_severity: null,
+                publication_review_reasons: [],
+                publication_review_checked_at: new Date().toISOString(),
+              }
+            : {
+                status: originalAnnouncementStatus,
+                publication_review_admin_override: false,
+                publication_review_severity: null,
+                publication_review_reasons: [],
+                publication_review_checked_at: new Date().toISOString(),
+              };
+
+        const { error: restoreRejectedStatusError } = await supabase
+          .from('announcements')
+          .update(restoreRejectedAnnouncementPayload)
+          .eq('id', selectedEditRequest.announcement_id);
+
+        if (restoreRejectedStatusError) throw restoreRejectedStatusError;
+
         const { error } = await supabase.from('announcement_edit_requests').update({ status: 'rejected', rejection_reason: rejectionReason, reviewed_at: new Date().toISOString(), reviewed_by: reviewerId }).eq('id', selectedEditRequest.id);
         if (error) throw error;
         const { data: notificationRecord, error: notificationError } = await supabase.from('notifications').insert({

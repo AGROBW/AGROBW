@@ -2,7 +2,7 @@
 -- AGRO BW - Regras de publicacao e moderacao preventiva
 -- - Regras configuraveis pelo admin.
 -- - Trigger server-side para impedir bypass pelo frontend/API.
--- - Anuncios suspeitos saem como PENDING e aparecem na fila de moderacao.
+-- - Anuncios com padroes sensiveis sao enviados para analise em vez de seguir ativos.
 -- ============================================================================
 
 create table if not exists public.publication_moderation_rules (
@@ -229,15 +229,8 @@ begin
   new.publication_review_checked_at := now();
   new.publication_review_reasons := coalesce(v_result->'reasons', '[]'::jsonb);
 
-  if coalesce((v_result->>'blocked')::boolean, false) then
-    select string_agg(value->>'message', '; ')
-      into v_reason_text
-    from jsonb_array_elements(coalesce(v_result->'reasons', '[]'::jsonb)) as value;
-
-    raise exception 'Anuncio bloqueado pelas regras de publicacao: %', coalesce(v_reason_text, 'revise os dados do anuncio');
-  end if;
-
-  if coalesce((v_result->>'review_required')::boolean, false) then
+  if coalesce((v_result->>'blocked')::boolean, false)
+    or coalesce((v_result->>'review_required')::boolean, false) then
     new.status := 'PENDING';
     new.publication_review_severity := 'review';
     new.publication_review_admin_override := false;

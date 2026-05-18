@@ -127,6 +127,7 @@ const UserDashboardView: React.FC = () => {
   const normalizedPlanName = (subscription?.plans?.name || '').trim().toLowerCase();
   const hasPerformancePanelAccess = PERFORMANCE_PANEL_ALLOWED_PLANS.has(normalizedPlanName);
   const isDowngradedBasicPlan = normalizedPlanName === 'básico' || normalizedPlanName === 'basico';
+  const isCommercialIntelligenceEnabled = Boolean(settings.commercialIntelligenceEnabled);
   
   // Estados para upload
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -622,7 +623,9 @@ const UserDashboardView: React.FC = () => {
     { label: 'Leads', path: '/minha-conta/leads', icon: <Icons.Leads />, badge: newLeadsCount },
     { label: 'Favoritos', path: '/minha-conta/favoritos', icon: <Icons.Favorites />, badge: 0 },
     { label: 'Radar de Oportunidades', path: '/minha-conta/radar', icon: <Icons.Radar />, badge: 0 },
-    { label: 'Inteligência Comercial', path: '/minha-conta/inteligencia-comercial', icon: <Icons.Commercial />, badge: 0 },
+    ...(isCommercialIntelligenceEnabled
+      ? [{ label: 'Inteligência Comercial', path: '/minha-conta/inteligencia-comercial', icon: <Icons.Commercial />, badge: 0 }]
+      : []),
     { label: 'Financeiro', path: '/minha-conta/financeiro', icon: <Icons.Finance />, badge: 0 },
     { label: 'Central de Ajuda', path: '/minha-conta/ajuda', icon: <Icons.Help />, badge: 0 },
     { label: 'Perfil', path: '/minha-conta/perfil', icon: <Icons.Profile />, badge: 0 },
@@ -1023,7 +1026,7 @@ const UserDashboardView: React.FC = () => {
       const homeUntil = (ad as any).highlight_home_until || (ad as any).highlightHomeUntil;
       const parts: string[] = [];
 
-      if (categoryUntil) {
+      if (categoryUntil && isTimestampActive(categoryUntil)) {
         const categoryDate = new Date(categoryUntil);
         parts.push(
           Number.isNaN(categoryDate.getTime())
@@ -1032,13 +1035,55 @@ const UserDashboardView: React.FC = () => {
         );
       }
 
-      if (homeUntil) {
+      if (homeUntil && isTimestampActive(homeUntil)) {
         const homeDate = new Date(homeUntil);
         parts.push(
           Number.isNaN(homeDate.getTime())
             ? `Home até ${homeUntil}`
             : `Home até ${homeDate.toLocaleDateString('pt-BR')}`
         );
+      }
+
+      return parts.join(' | ');
+    };
+
+    const getHighlightCooldownDaysRemaining = (availableAfter?: string | null) => {
+      if (!availableAfter) {
+        return null;
+      }
+
+      const availableDate = new Date(availableAfter);
+      if (Number.isNaN(availableDate.getTime())) {
+        return null;
+      }
+
+      const remainingMs = availableDate.getTime() - Date.now();
+      if (remainingMs <= 0) {
+        return null;
+      }
+
+      return Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+    };
+
+    const getHighlightCooldownLabel = (ad: Ad) => {
+      const categoryUntil = (ad as any).highlight_category_until || (ad as any).highlightCategoryUntil;
+      const homeUntil = (ad as any).highlight_home_until || (ad as any).highlightHomeUntil;
+      const hasActiveCategoryHighlight = isTimestampActive(categoryUntil);
+      const hasActiveHomeHighlight = isTimestampActive(homeUntil);
+      const parts: string[] = [];
+
+      if (!hasActiveCategoryHighlight) {
+        const categoryDaysRemaining = getHighlightCooldownDaysRemaining(ad.highlightCategoryAvailableAfter);
+        if (categoryDaysRemaining) {
+          parts.push(`Categoria disponível novamente em ${categoryDaysRemaining} ${categoryDaysRemaining === 1 ? 'dia' : 'dias'}`);
+        }
+      }
+
+      if (!hasActiveHomeHighlight) {
+        const homeDaysRemaining = getHighlightCooldownDaysRemaining(ad.highlightHomeAvailableAfter);
+        if (homeDaysRemaining) {
+          parts.push(`Home disponível novamente em ${homeDaysRemaining} ${homeDaysRemaining === 1 ? 'dia' : 'dias'}`);
+        }
       }
 
       return parts.join(' | ');
@@ -1402,16 +1447,20 @@ const UserDashboardView: React.FC = () => {
                       {(() => {
                         const hasCategory = (ad as any).highlight_category || (ad as any).highlightCategory;
                         const hasHome = (ad as any).highlight_home || (ad as any).highlightHome;
+                        const categoryUntil = (ad as any).highlight_category_until || ad.highlightCategoryUntil;
+                        const homeUntil = (ad as any).highlight_home_until || ad.highlightHomeUntil;
+                        const hasActiveCategoryHighlight = hasCategory && isTimestampActive(categoryUntil);
+                        const hasActiveHomeHighlight = hasHome && isTimestampActive(homeUntil);
                         
                         return (
                           <>
-                            {hasCategory && (
+                            {hasActiveCategoryHighlight && (
                         <div className="flex-shrink-0 flex items-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2 py-0.5 shadow-sm" title="Destacado na categoria">
                                 <TrendingUp className="w-3 h-3 text-blue-600" strokeWidth={2} />
                                 <span className="text-[9px] font-bold text-blue-700 uppercase tracking-tight">Cat</span>
                               </div>
                             )}
-                            {hasHome && (
+                            {hasActiveHomeHighlight && (
                               <div className="flex-shrink-0 flex items-center gap-1 rounded-lg border border-amber-100 bg-amber-50 px-2 py-0.5 shadow-sm" title="Destacado na home">
                                 <Sparkles className="w-3 h-3 text-amber-600" strokeWidth={2} />
                                 <span className="text-[9px] font-bold text-amber-700 uppercase tracking-tight">Home</span>
@@ -1428,6 +1477,11 @@ const UserDashboardView: React.FC = () => {
                             Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {getAdStatusSupportingLabel(ad)}
                       {getHighlightLifetimeLabel(ad) ? ` | Destaque ${getHighlightLifetimeLabel(ad).replace('Categoria', 'categoria').replace('Home', 'home')}` : ''}
                     </p>
+                    {getHighlightCooldownLabel(ad) ? (
+                      <p className="text-[11px] font-medium text-amber-700 truncate">
+                        {getHighlightCooldownLabel(ad)}
+                      </p>
+                    ) : null}
                     <p className="text-xs text-slate-500">
                       Visitas: {ad.views} | Valor: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.price)}
                     </p>
@@ -1457,16 +1511,30 @@ const UserDashboardView: React.FC = () => {
                           const homeUntil = (ad as any).highlight_home_until || ad.highlightHomeUntil;
                           const hasActiveCategoryHighlight = hasCategoryHighlight && isTimestampActive(categoryUntil);
                           const hasActiveHomeHighlight = hasHomeHighlight && isTimestampActive(homeUntil);
-                          const categoryBlocked = hasHomeHighlight || hasActiveCategoryHighlight;
-                          const homeBlocked = hasCategoryHighlight || hasActiveHomeHighlight;
+                          const categoryCooldownLabel = !hasActiveCategoryHighlight ? getHighlightCooldownLabel({
+                            ...ad,
+                            highlightHomeAvailableAfter: null,
+                          }) : '';
+                          const homeCooldownLabel = !hasActiveHomeHighlight ? getHighlightCooldownLabel({
+                            ...ad,
+                            highlightCategoryAvailableAfter: null,
+                          }) : '';
+                          const isCategoryOnCooldown = Boolean(ad.highlightCategoryAvailableAfter && getHighlightCooldownDaysRemaining(ad.highlightCategoryAvailableAfter));
+                          const isHomeOnCooldown = Boolean(ad.highlightHomeAvailableAfter && getHighlightCooldownDaysRemaining(ad.highlightHomeAvailableAfter));
+                          const categoryBlocked = hasActiveHomeHighlight || hasActiveCategoryHighlight || isCategoryOnCooldown;
+                          const homeBlocked = hasActiveCategoryHighlight || hasActiveHomeHighlight || isHomeOnCooldown;
                           const categoryTitle = hasActiveCategoryHighlight
                             ? 'Este anúncio já está com destaque em Categoria ativo. Novo destaque em Categoria só fica disponível 15 dias após o vencimento.'
-                            : hasHomeHighlight
-                              ? 'Indisponível: este anúncio já está destacado na Home'
-                              : 'Destaque na categoria';
+                            : isCategoryOnCooldown
+                              ? categoryCooldownLabel
+                              : hasActiveHomeHighlight
+                                ? 'Indisponível: este anúncio já está destacado na Home'
+                                : 'Destaque na categoria';
                           const homeTitle = hasActiveHomeHighlight
                             ? 'Este anúncio já está com destaque na Home ativo. Novo destaque na Home só fica disponível 15 dias após o vencimento.'
-                            : hasCategoryHighlight
+                            : isHomeOnCooldown
+                              ? homeCooldownLabel
+                            : hasActiveCategoryHighlight
                               ? 'Indisponível: este anúncio já está destacado em Categoria'
                               : 'Destaque na home';
 
@@ -3346,7 +3414,7 @@ const UserDashboardView: React.FC = () => {
       },
       {
         id: 'verification' as const,
-        label: 'Verificação',
+        label: 'Selo verificado',
         description: 'Envio e acompanhamento documental.',
         icon: <FileText className="h-4 w-4" strokeWidth={1.5} />,
       },
@@ -3926,7 +3994,16 @@ const UserDashboardView: React.FC = () => {
           <Route path="/leads" element={<LeadsView />} />
           <Route path="/favoritos" element={<FavoritesView embedded />} />
           <Route path="/radar" element={<RadarView />} />
-          <Route path="/inteligencia-comercial" element={<CommercialIntelligenceDashboard />} />
+          <Route
+            path="/inteligencia-comercial"
+            element={
+              isCommercialIntelligenceEnabled ? (
+                <CommercialIntelligenceDashboard />
+              ) : (
+                <Navigate to="/minha-conta" replace />
+              )
+            }
+          />
           <Route path="/meu-plano" element={<MyPlanDashboard />} />
           <Route path="/financeiro" element={<FinanceDashboard />} />
           <Route

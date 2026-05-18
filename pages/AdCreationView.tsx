@@ -1762,18 +1762,15 @@ const AdCreationView: React.FC = () => {
         review_reason: string | null;
       }> | null)?.[0];
 
-      if (moderationResult?.blocked) {
-        toast.error('Anúncio bloqueado pelas regras de publicação.', {
-          description: formatPublicationModerationReasons(moderationResult.reasons),
-        });
-        return;
-      }
-
       const effectiveModerationResult = {
         blocked: Boolean(moderationResult?.blocked),
         reviewRequired: Boolean(moderationResult?.reviewRequired),
         reasons: moderationResult?.reasons ? [...moderationResult.reasons] : [],
       };
+
+      if (effectiveModerationResult.blocked) {
+        effectiveModerationResult.reviewRequired = true;
+      }
 
       if (similarityReviewSignal?.suspicious) {
         effectiveModerationResult.reviewRequired = true;
@@ -1788,6 +1785,21 @@ const AdCreationView: React.FC = () => {
       }
 
       if (isEditingExistingAd && editAdId) {
+        const { data: currentAnnouncement, error: currentAnnouncementError } = await supabase
+          .from('announcements')
+          .select('id,status')
+          .eq('id', editAdId)
+          .eq('user_id', userId)
+          .maybeSingle<{ id: string; status: string }>();
+
+        if (currentAnnouncementError) {
+          toast.error('Erro ao validar o status atual do anúncio.', {
+            description: currentAnnouncementError.message,
+          });
+          return;
+        }
+
+        const originalAnnouncementStatus = String(currentAnnouncement?.status || '').toUpperCase() || 'ACTIVE';
         const { data: existingRequest } = await supabase
           .from('announcement_edit_requests')
           .select('id')
@@ -1801,7 +1813,12 @@ const AdCreationView: React.FC = () => {
         const requestData = {
           announcement_id: editAdId,
           user_id: userId,
-          payload: editablePayload,
+          payload: {
+            ...editablePayload,
+            __original_announcement_status: originalAnnouncementStatus,
+            __publication_review_reasons: effectiveModerationResult.reasons,
+            __review_required: effectiveModerationResult.reviewRequired,
+          },
           technical_details: technicalDetailsPayload,
           status: 'pending' as const,
           rejection_reason: null,
@@ -1825,6 +1842,27 @@ const AdCreationView: React.FC = () => {
         if (requestResult.error) {
           toast.error('Erro ao enviar alteracoes para analise.', { description: requestResult.error.message });
           return;
+        }
+
+        if (effectiveModerationResult.reviewRequired && originalAnnouncementStatus === 'ACTIVE') {
+          const { error: statusUpdateError } = await supabase
+            .from('announcements')
+            .update({
+              status: AdStatus.PENDING,
+              publication_review_reasons: effectiveModerationResult.reasons,
+              publication_review_severity: 'review',
+              publication_review_checked_at: new Date().toISOString(),
+              publication_review_admin_override: false,
+            })
+            .eq('id', editAdId)
+            .eq('user_id', userId);
+
+          if (statusUpdateError) {
+            toast.error('As alterações foram enviadas, mas não foi possível retirar o anúncio da publicação agora.', {
+              description: statusUpdateError.message,
+            });
+            return;
+          }
         }
 
         hasPublishedSuccessfullyRef.current = true;

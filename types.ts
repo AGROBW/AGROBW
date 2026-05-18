@@ -77,8 +77,10 @@ export interface Ad {
   healthScore?: number; // 0-100
   highlightCategory?: boolean;
   highlightCategoryUntil?: string;
+  highlightCategoryAvailableAfter?: string | null;
   highlightHome?: boolean;
   highlightHomeUntil?: string;
+  highlightHomeAvailableAfter?: string | null;
   latestEditRequestStatus?: 'pending' | 'approved' | 'rejected' | null;
   latestEditRejectionReason?: string | null;
   sellerPlanMonthlyPrice?: number;
@@ -719,6 +721,7 @@ export interface LayoutSettings {
   sponsorHarvestImageUrl?: string | null;
   sponsorFieldImageUrl?: string | null;
   sponsorFinalCtaImageUrl?: string | null;
+  commercialIntelligenceEnabled: boolean;
   facebookUrl?: string | null;
   instagramUrl?: string | null;
   youtubeUrl?: string | null;

@@ -226,6 +226,26 @@ const getEffectiveAdStatus = (status: string, expiresAt?: string | null) => {
   return status;
 };
 
+const HIGHLIGHT_COOLDOWN_DAYS = 15;
+
+const getHighlightCooldownAvailableAfter = (highlight: { expires_at?: string | null; applied_at?: string | null }) => {
+  const baseValue = highlight.expires_at || highlight.applied_at;
+
+  if (!baseValue) {
+    return null;
+  }
+
+  const baseDate = new Date(baseValue);
+
+  if (Number.isNaN(baseDate.getTime())) {
+    return null;
+  }
+
+  const availableAfter = new Date(baseDate);
+  availableAfter.setDate(availableAfter.getDate() + HIGHLIGHT_COOLDOWN_DAYS);
+  return availableAfter.toISOString();
+};
+
 export const deleteAnnouncementWithRelations = async (announcementId: string) => {
   const { data, error } = await supabase.functions.invoke('delete-announcement', {
     method: 'POST',
@@ -352,6 +372,52 @@ export const useUserAds = () => {
         setError(error.message)
         appError('Erro ao buscar anuncios do usuário', error, { userId: user.id })
       } else {
+        const announcementIds = Array.from(new Set((data || []).map((ad: any) => ad.id).filter(Boolean)))
+        const latestHighlightHistoryByAnnouncement = new Map<string, {
+          categoryAvailableAfter?: string | null
+          homeAvailableAfter?: string | null
+        }>()
+
+        if (announcementIds.length > 0) {
+          const { data: highlightHistory, error: highlightHistoryError } = await supabase
+            .from('announcement_highlights_history')
+            .select('announcement_id,highlight_type,applied_at,expires_at')
+            .in('announcement_id', announcementIds)
+            .in('highlight_type', ['category', 'home'])
+            .order('applied_at', { ascending: false })
+
+          if (highlightHistoryError) {
+            appWarn('[useUserAds] Erro ao buscar historico de cooldown de destaques', {
+              userId: user.id,
+              error: highlightHistoryError,
+              announcementCount: announcementIds.length,
+            })
+          } else {
+            const seenHighlightKeys = new Set<string>()
+
+            for (const item of (highlightHistory || []) as any[]) {
+              if (!item?.announcement_id || !item?.highlight_type) continue
+
+              const historyKey = `${item.announcement_id}:${item.highlight_type}`
+              if (seenHighlightKeys.has(historyKey)) continue
+              seenHighlightKeys.add(historyKey)
+
+              const current = latestHighlightHistoryByAnnouncement.get(item.announcement_id) || {}
+              const availableAfter = getHighlightCooldownAvailableAfter(item)
+
+              if (item.highlight_type === 'category') {
+                current.categoryAvailableAfter = availableAfter
+              }
+
+              if (item.highlight_type === 'home') {
+                current.homeAvailableAfter = availableAfter
+              }
+
+              latestHighlightHistoryByAnnouncement.set(item.announcement_id, current)
+            }
+          }
+        }
+
         if (pendingEditRequestsError && pendingEditRequestsError.code !== 'PGRST205') {
           appError('Erro ao buscar edicoes pendentes do usuario', pendingEditRequestsError, { userId: user.id })
         }
@@ -366,7 +432,10 @@ export const useUserAds = () => {
           })
         }
 
-        const mappedAds: Ad[] = data.map(ad => ({
+        const mappedAds: Ad[] = data.map(ad => {
+          const latestHighlightState = latestHighlightHistoryByAnnouncement.get(ad.id)
+
+          return ({
           id: ad.id,
           title: ad.title,
           description: ad.description,
@@ -409,11 +478,13 @@ export const useUserAds = () => {
           whatsapp: ad.whatsapp,
           highlightCategory: ad.highlight_category || false,
           highlightCategoryUntil: ad.highlight_category_until,
+          highlightCategoryAvailableAfter: latestHighlightState?.categoryAvailableAfter || null,
           highlightHome: ad.highlight_home || false,
           highlightHomeUntil: ad.highlight_home_until,
+          highlightHomeAvailableAfter: latestHighlightState?.homeAvailableAfter || null,
           latestEditRequestStatus: latestEditRequestByAnnouncement.get(ad.id)?.status || null,
           latestEditRejectionReason: latestEditRequestByAnnouncement.get(ad.id)?.rejection_reason || null,
-        }))
+        })})
         setAds(mappedAds)
       }
       setIsLoading(false)

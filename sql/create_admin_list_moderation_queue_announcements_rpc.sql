@@ -103,6 +103,12 @@ begin
     coalesce(a.images, array[]::text[]) as images
   from public.announcements a
   where a.status in ('PENDING', 'UNDER_REVIEW')
+    and not exists (
+      select 1
+      from public.announcement_edit_requests aer
+      where aer.announcement_id = a.id
+        and aer.status = 'pending'
+    )
   order by a.created_at desc;
 end;
 $$;

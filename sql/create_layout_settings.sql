@@ -19,6 +19,7 @@ create table if not exists public.layout_settings (
   sponsor_harvest_image_url text,
   sponsor_field_image_url text,
   sponsor_final_cta_image_url text,
+  commercial_intelligence_enabled boolean not null default false,
   facebook_url text,
   instagram_url text,
   youtube_url text,

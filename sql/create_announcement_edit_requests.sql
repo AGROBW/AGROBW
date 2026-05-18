@@ -38,6 +38,67 @@ before update on public.announcement_edit_requests
 for each row
 execute function public.touch_announcement_edit_requests_updated_at();
 
+create or replace function public.enforce_announcement_edit_request_publication_rules()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_result jsonb;
+  v_original_status text;
+  v_images jsonb := case
+    when jsonb_typeof(coalesce(new.payload->'images', '[]'::jsonb)) = 'array' then coalesce(new.payload->'images', '[]'::jsonb)
+    else '[]'::jsonb
+  end;
+begin
+  select upper(coalesce(status, ''))
+    into v_original_status
+  from public.announcements
+  where id = new.announcement_id;
+
+  if coalesce(nullif(trim(coalesce(new.payload->>'__original_announcement_status', '')), ''), '') = '' and coalesce(v_original_status, '') <> '' then
+    new.payload := jsonb_set(
+      coalesce(new.payload, '{}'::jsonb),
+      '{__original_announcement_status}',
+      to_jsonb(v_original_status),
+      true
+    );
+  end if;
+
+  if new.status <> 'pending' then
+    return new;
+  end if;
+
+  v_result := public.evaluate_announcement_publication_rules(
+    coalesce(new.payload->>'title', ''),
+    coalesce(new.payload->>'description', ''),
+    coalesce(new.payload->>'category_slug', ''),
+    v_images
+  );
+
+  if coalesce((v_result->>'blocked')::boolean, false)
+    or coalesce((v_result->>'review_required')::boolean, false) then
+    update public.announcements
+    set
+      status = case when upper(coalesce(status, '')) = 'ACTIVE' then 'PENDING' else status end,
+      publication_review_severity = 'review',
+      publication_review_checked_at = now(),
+      publication_review_reasons = coalesce(v_result->'reasons', '[]'::jsonb),
+      publication_review_admin_override = false
+    where id = new.announcement_id;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists announcement_edit_requests_enforce_publication_rules on public.announcement_edit_requests;
+create trigger announcement_edit_requests_enforce_publication_rules
+before insert or update of payload, status on public.announcement_edit_requests
+for each row
+execute function public.enforce_announcement_edit_request_publication_rules();
+
 alter table public.announcement_edit_requests enable row level security;
 
 drop policy if exists "Users can view own announcement edit requests" on public.announcement_edit_requests;
