@@ -48,6 +48,46 @@ const USER_ADS_SELECT = `
   highlight_home_until
 `
 
+const USER_ADS_SELECT_FALLBACK = `
+  id,
+  title,
+  description,
+  price,
+  unit_price,
+  price_negotiable,
+  product_condition,
+  availability,
+  accepts_trade,
+  has_warranty,
+  warranty_details,
+  has_invoice,
+  city,
+  state,
+  cep,
+  category_id,
+  category_slug,
+  sub_category_id,
+  sub_category_label,
+  images,
+  video_url,
+  video_storage_path,
+  video_duration_seconds,
+  video_size_bytes,
+  user_id,
+  status,
+  views,
+  is_premium,
+  created_at,
+  expires_at,
+  expired_at,
+  deletion_scheduled_at,
+  whatsapp,
+  highlight_category,
+  highlight_category_until,
+  highlight_home,
+  highlight_home_until
+`
+
 const PUBLIC_ADS_SELECT = `
   id,
   title,
@@ -265,14 +305,42 @@ export const useUserAds = () => {
     const fetchAds = async () => {
       setIsLoading(true)
       await syncTrustedTime()
-      const [{ data, error }, { data: editRequests, error: pendingEditRequestsError }] = await Promise.all([
-        supabase
+      const fetchUserAnnouncements = async () => {
+        const primaryResult = await supabase
           .from('announcements')
           .select(USER_ADS_SELECT)
           .eq('user_id', user.id)
           .order('highlight_category', { ascending: false })
           .order('highlight_home', { ascending: false })
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+
+        if (!primaryResult.error) {
+          return primaryResult
+        }
+
+        const missingRejectedColumns =
+          /rejected_at|rejection_reason/i.test(primaryResult.error.message || '')
+
+        if (!missingRejectedColumns) {
+          return primaryResult
+        }
+
+        appWarn('[useUserAds] Consulta completa falhou; usando fallback compativel para anuncios do usuario', {
+          userId: user.id,
+          error: primaryResult.error,
+        })
+
+        return supabase
+          .from('announcements')
+          .select(USER_ADS_SELECT_FALLBACK)
+          .eq('user_id', user.id)
+          .order('highlight_category', { ascending: false })
+          .order('highlight_home', { ascending: false })
+          .order('created_at', { ascending: false })
+      }
+
+      const [{ data, error }, { data: editRequests, error: pendingEditRequestsError }] = await Promise.all([
+        fetchUserAnnouncements(),
         supabase
           .from('announcement_edit_requests')
           .select('announcement_id,status,rejection_reason,created_at')
@@ -335,8 +403,8 @@ export const useUserAds = () => {
           createdAt: ad.created_at,
           expiresAt: ad.expires_at,
           expiredAt: ad.expired_at,
-          rejectedAt: ad.rejected_at,
-          rejectionReason: ad.rejection_reason || null,
+          rejectedAt: (('rejected_at' in ad ? (ad as any).rejected_at : null) as string | null),
+          rejectionReason: ((('rejection_reason' in ad ? (ad as any).rejection_reason : null) || null) as string | null),
           deletionScheduledAt: ad.deletion_scheduled_at,
           whatsapp: ad.whatsapp,
           highlightCategory: ad.highlight_category || false,
