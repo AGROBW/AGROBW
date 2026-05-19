@@ -19,6 +19,22 @@ import SeoHead from '../components/SeoHead';
 
 type ProfileType = 'individual' | 'company' | null;
 
+interface InviteCampaignPreview {
+  id: string;
+  code: string;
+  captor_name: string;
+}
+
+const buildInviteSessionStorageKey = (code: string) => `bwagro:invite-session:${code.toUpperCase()}`;
+
+const createInviteSessionId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  return `invite-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 const RegisterView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,10 +68,14 @@ const RegisterView: React.FC = () => {
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const redirectTarget = searchParams.get('redirect') || '/minha-conta';
   const contactSellerIntent = searchParams.get('intent') === 'contact-seller';
+  const inviteCode = (searchParams.get('invite') || searchParams.get('ref') || '').trim().toUpperCase();
   const registerLoginLink = `/login${location.search}`;
   const registerHeroImage =
     settings.registerHeroImageUrl ||
     'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=1600&auto=format&fit=crop';
+  const [invitePreview, setInvitePreview] = useState<InviteCampaignPreview | null>(null);
+  const [isLoadingInvite, setIsLoadingInvite] = useState(false);
+  const [inviteLookupFailed, setInviteLookupFailed] = useState(false);
 
   const buildPostAuthRedirect = (fallbackPath: string) => {
     const baseTarget = redirectTarget || fallbackPath;
@@ -199,6 +219,74 @@ const RegisterView: React.FC = () => {
     }
   }, [location.search, navigate, user]);
 
+  useEffect(() => {
+    if (!inviteCode || typeof window === 'undefined') {
+      setInvitePreview(null);
+      setInviteLookupFailed(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncInvite = async () => {
+      setIsLoadingInvite(true);
+      setInviteLookupFailed(false);
+
+      try {
+        const { data, error } = await supabase.rpc('resolve_public_invite_campaign', {
+          p_code: inviteCode,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        const resolved = Array.isArray(data) ? data[0] : null;
+
+        if (!resolved) {
+          if (!cancelled) {
+            setInvitePreview(null);
+            setInviteLookupFailed(true);
+          }
+          return;
+        }
+
+        const storageKey = buildInviteSessionStorageKey(inviteCode);
+        const existingSessionId = window.localStorage.getItem(storageKey);
+        const inviteSessionId = existingSessionId || createInviteSessionId();
+
+        if (!existingSessionId) {
+          window.localStorage.setItem(storageKey, inviteSessionId);
+        }
+
+        await supabase.rpc('register_invite_visit', {
+          p_code: inviteCode,
+          p_session_id: inviteSessionId,
+          p_landing_path: '/cadastro',
+        });
+
+        if (!cancelled) {
+          setInvitePreview(resolved as InviteCampaignPreview);
+        }
+      } catch (_error) {
+        if (!cancelled) {
+          setInvitePreview(null);
+          setInviteLookupFailed(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingInvite(false);
+        }
+      }
+    };
+
+    void syncInvite();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteCode]);
+
   const handleCepBlur = async () => {
     const cepClean = formData.cep.replace(/\D/g, '');
     if (cepClean.length !== 8) {
@@ -292,6 +380,11 @@ const RegisterView: React.FC = () => {
 
     setLoading(true);
 
+    const inviteSessionId =
+      inviteCode && typeof window !== 'undefined'
+        ? window.localStorage.getItem(buildInviteSessionStorageKey(inviteCode)) || ''
+        : '';
+
     const { error } = await signUp(formData.email, formData.password, formData.name, onlyDigits(formData.phone), {
       document: documentDigits,
       birthDate: formData.birthDate,
@@ -303,6 +396,8 @@ const RegisterView: React.FC = () => {
       bairro: formData.bairro,
       cidade: formData.cidade,
       estado: formData.estado,
+      inviteCode: invitePreview?.code || inviteCode || undefined,
+      inviteSessionId: inviteSessionId || undefined,
       legalConsents: {
         acceptedTermsOfUse: acceptedTerms,
         acceptedPrivacyPolicy: acceptedTerms,
@@ -413,6 +508,23 @@ const RegisterView: React.FC = () => {
               </>
             )}
           </div>
+
+          {inviteCode ? (
+            <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-700">
+                Convite de captacao
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">
+                {isLoadingInvite
+                  ? 'Validando convite...'
+                  : invitePreview
+                    ? `Cadastro vinculado ao convite de ${invitePreview.captor_name}.`
+                    : inviteLookupFailed
+                      ? 'O link de convite nao esta mais ativo, mas voce pode seguir com o cadastro.'
+                      : 'Cadastro vinculado ao convite recebido.'}
+              </p>
+            </div>
+          ) : null}
 
           {!profileType ? (
             <div className="grid grid-cols-1 gap-4">

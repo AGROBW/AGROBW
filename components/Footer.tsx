@@ -32,6 +32,7 @@ const Footer: React.FC = () => {
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [isSubmittingNewsletter, setIsSubmittingNewsletter] = useState(false);
   const brandName = settings.footerBrandText || settings.siteName;
+
   const socialLinks = [
     { label: 'Facebook', href: normalizeExternalUrl(settings.facebookUrl), icon: Facebook },
     { label: 'Instagram', href: normalizeExternalUrl(settings.instagramUrl), icon: Instagram },
@@ -84,7 +85,7 @@ const Footer: React.FC = () => {
 
   return (
     <footer className="pb-8 text-slate-300" style={{ backgroundColor: settings.secondaryColor }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="border-t border-white/10 pt-12">
           <div className="mb-12 grid grid-cols-1 gap-8 md:grid-cols-4">
             <div className="col-span-1 md:col-span-1">
@@ -111,15 +112,16 @@ const Footer: React.FC = () => {
               </Link>
 
               <p className="mb-6 text-sm leading-relaxed">
-                {settings.siteTagline || 'Conectando o campo ao mercado com tecnologia, transparência e as melhores oportunidades para o produtor rural brasileiro.'}
+                {settings.siteTagline ||
+                  'Conectando o campo ao mercado com tecnologia, transparencia e as melhores oportunidades para o produtor rural brasileiro.'}
               </p>
 
-              {socialLinks.length > 0 && (
+              {socialLinks.length > 0 ? (
                 <div className="flex flex-wrap gap-3">
                   {socialLinks.map(({ label, href, icon: Icon }) => (
                     <a
                       key={label}
-                      href={href}
+                      href={href || undefined}
                       target="_blank"
                       rel="noreferrer"
                       className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-white/15"
@@ -130,26 +132,58 @@ const Footer: React.FC = () => {
                     </a>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
 
             <div>
               <h4 className="mb-4 font-semibold text-white">Plataforma</h4>
               <ul className="space-y-3 text-sm">
-                <li><Link to="/anuncios" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Todos os anúncios</Link></li>
-                <li><Link to="/categorias" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Categorias</Link></li>
-                <li><Link to="/anunciar" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Anunciar Grátis</Link></li>
-                <li><Link to="/planos" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Planos Premium</Link></li>
+                <li>
+                  <Link to="/categorias" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>
+                    Categorias
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/anunciar" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>
+                    Anunciar Gratis
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/planos" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>
+                    Planos Premium
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/anuncios" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>
+                    Todos os anuncios
+                  </Link>
+                </li>
               </ul>
             </div>
 
             <div>
               <h4 className="mb-4 font-semibold text-white">Institucional</h4>
               <ul className="space-y-3 text-sm">
-                <li><Link to="/quem-somos" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Quem Somos</Link></li>
-                <li><Link to="/termos-de-uso" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Termos de Uso</Link></li>
-                <li><Link to="/privacidade" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Privacidade</Link></li>
-                <li><Link to="/contato" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>Contato</Link></li>
+                <li>
+                  <Link to="/quem-somos" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>
+                    Quem Somos
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/termos-de-uso" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>
+                    Termos de Uso
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/privacidade" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>
+                    Privacidade
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/contato" className="transition-colors hover:opacity-80" style={{ color: settings.accentColor }}>
+                    Contato
+                  </Link>
+                </li>
               </ul>
             </div>
 
@@ -207,7 +241,11 @@ const Footer: React.FC = () => {
           <div className="flex gap-6 opacity-50 grayscale">
             <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" className="h-4" />
             <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-4" />
-            <img src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard_2019_logo.svg" alt="Mastercard" className="h-4" />
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard_2019_logo.svg"
+              alt="Mastercard"
+              className="h-4"
+            />
           </div>
         </div>
       </div>

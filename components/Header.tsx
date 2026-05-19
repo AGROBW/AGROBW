@@ -1,8 +1,6 @@
-
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, Menu, X, MessageCircle, Bell, Shield, LogOut, User as UserIcon } from 'lucide-react';
-import AdsSideDrawer from './AdsSideDrawer';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Bell, ChevronDown, LogOut, Menu, MessageCircle, Shield, User as UserIcon, X } from 'lucide-react';
 import NotificationsModal from './NotificationsModal';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useLayout } from '../src/contexts/LayoutContext';
@@ -11,16 +9,14 @@ import { UserRole } from '../types';
 
 const Header: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isAdsDrawerOpen, setIsAdsDrawerOpen] = useState(false);
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { settings } = useLayout();
-  const { messagesCount, notificationsCount, isLoading } = useNotificationsCount();
+  const { messagesCount, notificationsCount } = useNotificationsCount();
   const navigate = useNavigate();
   const profileDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Detectar clique fora do dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
@@ -37,7 +33,6 @@ const Header: React.FC = () => {
     };
   }, [isProfileDropdownOpen]);
 
-  // Verificar se usuário é admin
   const isAdmin = user?.isAdmin === true || user?.role === UserRole.ADMIN;
 
   const handleLogout = async () => {
@@ -48,21 +43,20 @@ const Header: React.FC = () => {
   const brandName = settings.headerBrandText || settings.siteName;
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-slate-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <div className="flex-shrink-0 flex items-center">
+    <header className="sticky top-0 z-50 border-b border-slate-100 bg-white">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between">
+          <div className="flex flex-shrink-0 items-center">
             <Link to="/" className="flex items-center gap-2">
               {settings.logoUrl ? (
                 <img src={settings.logoUrl} alt={brandName} className="h-9 w-auto max-w-[160px] object-contain" />
               ) : (
                 <>
                   <div
-                    className="w-9 h-9 rounded-lg flex items-center justify-center"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg"
                     style={{ backgroundColor: settings.primaryColor }}
                   >
-                    <span className="text-white text-xl font-semibold">
+                    <span className="text-xl font-semibold text-white">
                       {(settings.siteShortName || settings.siteName || 'B').charAt(0)}
                     </span>
                   </div>
@@ -74,286 +68,287 @@ const Header: React.FC = () => {
             </Link>
           </div>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-8">
-            <Link to="/" className="text-sm font-medium text-slate-600 hover:text-green-700 transition-colors">Início</Link>
-            <button 
-              onClick={() => setIsAdsDrawerOpen(true)}
-              className="text-sm font-medium text-slate-600 hover:text-green-700 transition-colors flex items-center gap-1"
-            >
-              Anúncios
-              <ChevronDown className="w-4 h-4" strokeWidth={1.5} />
-            </button>
-            <Link to="/categorias" className="text-sm font-medium text-slate-600 hover:text-green-700 transition-colors">Categorias</Link>
-            <Link to="/lojas-parceiras" className="text-sm font-medium text-slate-600 hover:text-green-700 transition-colors">Lojas Parceiras</Link>
-            <Link to="/patrocinador" className="text-sm font-medium text-slate-600 hover:text-green-700 transition-colors">Vitrine Premium</Link>
-            <Link to="/planos" className="text-sm font-medium text-slate-600 hover:text-green-700 transition-colors">Planos</Link>
+          <nav className="hidden items-center space-x-8 md:flex">
+            <Link to="/" className="text-sm font-medium text-slate-600 transition-colors hover:text-green-700">
+              Inicio
+            </Link>
+            <Link to="/categorias" className="text-sm font-medium text-slate-600 transition-colors hover:text-green-700">
+              Categorias
+            </Link>
+            <Link to="/lojas-parceiras" className="text-sm font-medium text-slate-600 transition-colors hover:text-green-700">
+              Lojas Parceiras
+            </Link>
+            <Link to="/patrocinador" className="text-sm font-medium text-slate-600 transition-colors hover:text-green-700">
+              Vitrine Premium
+            </Link>
+            <Link to="/planos" className="text-sm font-medium text-slate-600 transition-colors hover:text-green-700">
+              Planos
+            </Link>
           </nav>
 
-          {/* Auth & CTA */}
-          <div className="hidden md:flex items-center space-x-6">
+          <div className="hidden items-center space-x-6 md:flex">
             {user ? (
               <div className="flex items-center gap-4">
-                {/* Mensagens */}
-                <Link 
-                  to="/minha-conta/mensagens" 
-                  className="relative p-2 text-slate-600 hover:text-green-700 hover:bg-slate-50 rounded-lg transition-colors"
+                <Link
+                  to="/minha-conta/mensagens"
+                  className="relative rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-50 hover:text-green-700"
                 >
-                  <MessageCircle className="w-5 h-5" strokeWidth={1.5} />
-                  {messagesCount > 0 && (
-                    <span className="absolute -top-1 -right-1 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center" style={{ backgroundColor: settings.primaryColor }}>
+                  <MessageCircle className="h-5 w-5" strokeWidth={1.5} />
+                  {messagesCount > 0 ? (
+                    <span
+                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold text-white"
+                      style={{ backgroundColor: settings.primaryColor }}
+                    >
                       {messagesCount > 9 ? '9+' : messagesCount}
                     </span>
-                  )}
+                  ) : null}
                 </Link>
-                
-                {/* Notificações */}
-                <button 
+
+                <button
                   onClick={() => setIsNotificationsModalOpen(true)}
-                  className="relative p-2 text-slate-600 hover:text-green-700 hover:bg-slate-50 rounded-lg transition-colors"
+                  className="relative rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-50 hover:text-green-700"
                 >
-                  <Bell className="w-5 h-5" strokeWidth={1.5} />
-                  {notificationsCount > 0 && (
-                    <span className="absolute -top-1 -right-1 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center" style={{ backgroundColor: settings.primaryColor }}>
+                  <Bell className="h-5 w-5" strokeWidth={1.5} />
+                  {notificationsCount > 0 ? (
+                    <span
+                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold text-white"
+                      style={{ backgroundColor: settings.primaryColor }}
+                    >
                       {notificationsCount > 9 ? '9+' : notificationsCount}
                     </span>
-                  )}
+                  ) : null}
                 </button>
-                
-                {/* Perfil com Dropdown */}
+
                 <div className="relative" ref={profileDropdownRef}>
-                  <button 
+                  <button
                     onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                    className="flex items-center gap-3 border-r border-slate-100 pr-6 hover:bg-slate-50 transition-all p-1.5 rounded-lg"
+                    className="flex items-center gap-3 rounded-lg border-r border-slate-100 p-1.5 pr-6 transition-all hover:bg-slate-50"
                   >
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold relative" style={{ backgroundColor: settings.primaryColor, border: `1px solid color-mix(in srgb, ${settings.primaryColor} 18%, white)` }}>
+                    <div
+                      className="relative flex h-9 w-9 items-center justify-center rounded-full text-white font-bold"
+                      style={{
+                        backgroundColor: settings.primaryColor,
+                        border: `1px solid color-mix(in srgb, ${settings.primaryColor} 18%, white)`,
+                      }}
+                    >
                       {user.name?.charAt(0).toUpperCase() || 'U'}
-                      {isAdmin && (
-                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-white flex items-center justify-center">
-                          <Shield className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+                      {isAdmin ? (
+                        <div className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-amber-500">
+                          <Shield className="h-2.5 w-2.5 text-white" strokeWidth={3} />
                         </div>
-                      )}
+                      ) : null}
                     </div>
                     <div className="flex flex-col">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold text-slate-800 leading-tight truncate max-w-[80px]">
-                          {user.name?.split(' ')[0] || 'Usuário'}
+                        <span className="max-w-[80px] truncate text-xs font-semibold leading-tight text-slate-800">
+                          {user.name?.split(' ')[0] || 'Usuario'}
                         </span>
-                        {isAdmin && (
-                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-black uppercase rounded-full">
+                        {isAdmin ? (
+                          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700">
                             Admin
                           </span>
-                        )}
+                        ) : null}
                       </div>
-                      <span className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: settings.primaryColor }}>Painel</span>
+                      <span className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: settings.primaryColor }}>
+                        Painel
+                      </span>
                     </div>
-                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown
+                      className={`h-4 w-4 text-slate-400 transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`}
+                    />
                   </button>
 
-                  {/* Dropdown Menu */}
-                  {isProfileDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-50">
-                      <Link 
+                  {isProfileDropdownOpen ? (
+                    <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-slate-200 bg-white py-2 shadow-lg">
+                      <Link
                         to="/minha-conta"
                         onClick={() => setIsProfileDropdownOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-slate-50"
                       >
-                        <UserIcon className="w-4 h-4 text-slate-500" strokeWidth={2} />
-                        <span className="font-medium">Painel do Usuário</span>
+                        <UserIcon className="h-4 w-4 text-slate-500" strokeWidth={2} />
+                        <span className="font-medium">Painel do Usuario</span>
                       </Link>
 
-                      {isAdmin && (
+                      {isAdmin ? (
                         <>
-                          <div className="border-t border-slate-100 my-1"></div>
-                          <Link 
+                          <div className="my-1 border-t border-slate-100" />
+                          <Link
                             to="/admin"
                             onClick={() => setIsProfileDropdownOpen(false)}
-                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 transition-colors group"
+                            className="group flex items-center gap-3 px-4 py-2.5 text-sm text-amber-700 transition-colors hover:bg-amber-50"
                           >
-                            <Shield className="w-4 h-4 text-amber-600 group-hover:text-amber-700" strokeWidth={2} />
+                            <Shield className="h-4 w-4 text-amber-600 group-hover:text-amber-700" strokeWidth={2} />
                             <span className="font-semibold">Painel Administrativo</span>
                           </Link>
                         </>
-                      )}
+                      ) : null}
 
-                      <div className="border-t border-slate-100 my-1"></div>
-                      <button 
+                      <div className="my-1 border-t border-slate-100" />
+                      <button
                         onClick={() => {
                           setIsProfileDropdownOpen(false);
-                          handleLogout();
+                          void handleLogout();
                         }}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors w-full"
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50"
                       >
-                        <LogOut className="w-4 h-4" strokeWidth={2} />
+                        <LogOut className="h-4 w-4" strokeWidth={2} />
                         <span className="font-medium">Sair</span>
                       </button>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
             ) : (
-              <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-green-700 px-4 py-2 uppercase tracking-widest">Entrar</Link>
+              <Link to="/login" className="px-4 py-2 text-sm font-semibold uppercase tracking-widest text-slate-600 hover:text-green-700">
+                Entrar
+              </Link>
             )}
-            <Link 
-              to="/anunciar" 
-              className="text-white px-5 h-9 rounded-lg text-sm font-semibold transition-all flex items-center justify-center"
+
+            <Link
+              to="/anunciar"
+              className="flex h-9 items-center justify-center rounded-lg px-5 text-sm font-semibold text-white transition-all"
               style={{ backgroundColor: settings.primaryColor }}
             >
               Anunciar Agora
             </Link>
           </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
-            <button 
+          <div className="flex items-center md:hidden">
+            <button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-md text-slate-600 hover:text-green-700 hover:bg-gray-100 focus:outline-none"
+              className="rounded-md p-2 text-slate-600 hover:bg-gray-100 hover:text-green-700 focus:outline-none"
             >
-              {isOpen ? (
-                <X className="h-6 w-6" strokeWidth={1.5} />
-              ) : (
-                <Menu className="h-6 w-6" strokeWidth={1.5} />
-              )}
+              {isOpen ? <X className="h-6 w-6" strokeWidth={1.5} /> : <Menu className="h-6 w-6" strokeWidth={1.5} />}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      {isOpen && (
-        <div className="md:hidden bg-white border-t border-slate-100 py-4 px-4 space-y-1">
-          <Link 
-            to="/" 
+      {isOpen ? (
+        <div className="space-y-1 border-t border-slate-100 bg-white px-4 py-4 md:hidden">
+          <Link
+            to="/"
             onClick={() => setIsOpen(false)}
-            className="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
+            className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
           >
-            Início
+            Inicio
           </Link>
-          <button 
-            onClick={() => {
-              setIsOpen(false);
-              setIsAdsDrawerOpen(true);
-            }}
-            className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
-          >
-            Anúncios
-          </button>
-          <Link 
-            to="/categorias" 
+          <Link
+            to="/categorias"
             onClick={() => setIsOpen(false)}
-            className="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
+            className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
           >
             Categorias
           </Link>
-          <Link 
-            to="/lojas-parceiras" 
+          <Link
+            to="/lojas-parceiras"
             onClick={() => setIsOpen(false)}
-            className="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
+            className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
           >
             Lojas Parceiras
           </Link>
-          <Link 
-            to="/patrocinador" 
+          <Link
+            to="/patrocinador"
             onClick={() => setIsOpen(false)}
-            className="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
+            className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
           >
             Vitrine Premium
           </Link>
-          <Link 
-            to="/planos" 
+          <Link
+            to="/planos"
             onClick={() => setIsOpen(false)}
-            className="block px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
+            className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
           >
             Planos
           </Link>
-          <div className="pt-4 flex flex-col gap-2">
+
+          <div className="flex flex-col gap-2 pt-4">
             {user ? (
               <div className="space-y-2">
-                {/* Mensagens */}
-                <Link 
-                  to="/minha-conta/mensagens" 
+                <Link
+                  to="/minha-conta/mensagens"
                   onClick={() => setIsOpen(false)}
-                  className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
+                  className="flex items-center justify-between rounded-lg bg-slate-50 p-3"
                 >
                   <div className="flex items-center gap-3">
-                    <MessageCircle className="w-5 h-5 text-slate-600" strokeWidth={1.5} />
+                    <MessageCircle className="h-5 w-5 text-slate-600" strokeWidth={1.5} />
                     <span className="font-medium text-slate-800">Mensagens</span>
                   </div>
-                  {messagesCount > 0 && (
-                    <span className="text-white text-xs font-bold rounded-full px-2 py-0.5" style={{ backgroundColor: settings.primaryColor }}>
+                  {messagesCount > 0 ? (
+                    <span className="rounded-full px-2 py-0.5 text-xs font-bold text-white" style={{ backgroundColor: settings.primaryColor }}>
                       {messagesCount}
                     </span>
-                  )}
+                  ) : null}
                 </Link>
-                
-                {/* Painel */}
-                <div className="p-3 bg-slate-50 rounded-lg">
-                  <Link to="/minha-conta" onClick={() => setIsOpen(false)} className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold relative" style={{ backgroundColor: settings.primaryColor }}>
+
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <Link to="/minha-conta" onClick={() => setIsOpen(false)} className="mb-2 flex items-center gap-3">
+                    <div
+                      className="relative flex h-8 w-8 items-center justify-center rounded-full text-white font-bold"
+                      style={{ backgroundColor: settings.primaryColor }}
+                    >
                       {user.name?.charAt(0).toUpperCase() || 'U'}
-                      {isAdmin && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-white flex items-center justify-center">
-                          <Shield className="w-2 h-2 text-white" strokeWidth={3} />
+                      {isAdmin ? (
+                        <div className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-white bg-amber-500">
+                          <Shield className="h-2 w-2 text-white" strokeWidth={3} />
                         </div>
-                      )}
+                      ) : null}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-slate-800">{user.name?.split(' ')[0] || 'Usuário'}</span>
-                        {isAdmin && (
-                          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-black uppercase rounded-full">
+                        <span className="font-semibold text-slate-800">{user.name?.split(' ')[0] || 'Usuario'}</span>
+                        {isAdmin ? (
+                          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700">
                             Admin
                           </span>
-                        )}
+                        ) : null}
                       </div>
                       <span className="text-xs text-slate-500">Meu Painel</span>
                     </div>
                   </Link>
 
-                  {/* Link Admin (Condicional) */}
-                  {isAdmin && (
-                    <Link 
-                      to="/admin" 
-                      onClick={() => setIsOpen(false)} 
-                      className="flex items-center gap-3 p-2 bg-amber-50 border border-amber-200 rounded-lg mb-2 hover:bg-amber-100 transition-colors"
+                  {isAdmin ? (
+                    <Link
+                      to="/admin"
+                      onClick={() => setIsOpen(false)}
+                      className="mb-2 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-2 transition-colors hover:bg-amber-100"
                     >
-                      <Shield className="w-5 h-5 text-amber-600" strokeWidth={2} />
-                      <span className="font-semibold text-amber-700 text-sm">Painel Administrativo</span>
+                      <Shield className="h-5 w-5 text-amber-600" strokeWidth={2} />
+                      <span className="text-sm font-semibold text-amber-700">Painel Administrativo</span>
                     </Link>
-                  )}
+                  ) : null}
 
-                  {/* Botão Sair */}
-                  <button 
+                  <button
                     onClick={() => {
                       setIsOpen(false);
-                      handleLogout();
-                    }} 
-                    className="flex items-center gap-2 text-red-500 font-semibold text-sm w-full justify-center py-2 hover:bg-red-50 rounded-lg transition-colors"
+                      void handleLogout();
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold text-red-500 transition-colors hover:bg-red-50"
                   >
-                    <LogOut className="w-4 h-4" strokeWidth={2} />
+                    <LogOut className="h-4 w-4" strokeWidth={2} />
                     <span>Sair</span>
                   </button>
                 </div>
               </div>
             ) : (
-              <Link to="/login" onClick={() => setIsOpen(false)} className="w-full text-center py-3 text-slate-700 font-medium">Entrar</Link>
+              <Link to="/login" onClick={() => setIsOpen(false)} className="w-full py-3 text-center font-medium text-slate-700">
+                Entrar
+              </Link>
             )}
-            <Link to="/anunciar" onClick={() => setIsOpen(false)} className="w-full text-white h-10 rounded-lg font-semibold flex items-center justify-center" style={{ backgroundColor: settings.primaryColor }}>Anunciar Agora</Link>
+
+            <Link
+              to="/anunciar"
+              onClick={() => setIsOpen(false)}
+              className="flex h-10 w-full items-center justify-center rounded-lg font-semibold text-white"
+              style={{ backgroundColor: settings.primaryColor }}
+            >
+              Anunciar Agora
+            </Link>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Side Drawer for Ads */}
-      <AdsSideDrawer 
-        isOpen={isAdsDrawerOpen} 
-        onClose={() => setIsAdsDrawerOpen(false)} 
-      />
-
-      {/* Notifications Modal */}
-      <NotificationsModal
-        isOpen={isNotificationsModalOpen}
-        onClose={() => setIsNotificationsModalOpen(false)}
-      />
+      <NotificationsModal isOpen={isNotificationsModalOpen} onClose={() => setIsNotificationsModalOpen(false)} />
     </header>
   );
 };

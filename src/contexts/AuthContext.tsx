@@ -43,6 +43,8 @@ interface AuthContextType {
       bairro?: string;
       cidade?: string;
       estado?: string;
+      inviteCode?: string;
+      inviteSessionId?: string;
       legalConsents?: {
         acceptedTermsOfUse?: boolean;
         acceptedPrivacyPolicy?: boolean;
@@ -454,6 +456,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       bairro?: string;
       cidade?: string;
       estado?: string;
+      inviteCode?: string;
+      inviteSessionId?: string;
       legalConsents?: {
         acceptedTermsOfUse?: boolean;
         acceptedPrivacyPolicy?: boolean;
@@ -482,6 +486,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           bairro: additionalData?.bairro,
           cidade: additionalData?.cidade,
           estado: additionalData?.estado,
+          invite_code: additionalData?.inviteCode || undefined,
+          invite_session_id: additionalData?.inviteSessionId || undefined,
           accepted_terms_of_use: additionalData?.legalConsents?.acceptedTermsOfUse === true,
           accepted_privacy_policy: additionalData?.legalConsents?.acceptedPrivacyPolicy === true,
           legal_consent_source: 'register',

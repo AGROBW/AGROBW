@@ -41,6 +41,7 @@ const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminDashboardOverview = lazy(() => import('./pages/admin/AdminDashboardOverview'));
 const ModerationQueue = lazy(() => import('./pages/admin/ModerationQueue'));
 const AnnouncementReportsManagement = lazy(() => import('./pages/admin/AnnouncementReportsManagement'));
+const InviteCampaignsManagement = lazy(() => import('./pages/admin/InviteCampaignsManagement'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const VerificationRequestsManagement = lazy(() => import('./pages/admin/VerificationRequestsManagement'));
 const LegalConsentsManagement = lazy(() => import('./pages/admin/LegalConsentsManagement'));
@@ -53,6 +54,7 @@ const NewsletterSubscriptionsManagement = lazy(() => import('./pages/admin/Newsl
 const CampaignsManagement = lazy(() => import('./pages/admin/CampaignsManagement'));
 const SitePopupsManagement = lazy(() => import('./pages/admin/SitePopupsManagement'));
 const SponsorsManagement = lazy(() => import('./pages/admin/SponsorsManagement'));
+const SponsorTestimonialsManagement = lazy(() => import('./pages/admin/SponsorTestimonialsManagement'));
 const PromotionsManagement = lazy(() => import('./pages/admin/PromotionsManagement'));
 const PublicationRulesManagement = lazy(() => import('./pages/admin/PublicationRulesManagement'));
 const LayoutManagement = lazy(() => import('./pages/admin/LayoutManagement'));
@@ -264,6 +266,7 @@ const AppContent: React.FC = () => {
               <Route index element={<AdminDashboardOverview />} />
               <Route path="moderation" element={<ModerationQueue />} />
               <Route path="announcement-reports" element={<AnnouncementReportsManagement />} />
+              <Route path="invites" element={<InviteCampaignsManagement />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="verifications" element={<VerificationRequestsManagement />} />
               <Route path="legal-consents" element={<LegalConsentsManagement />} />
@@ -274,9 +277,10 @@ const AppContent: React.FC = () => {
               <Route path="news" element={<NewsManagement />} />
               <Route path="newsletter" element={<NewsletterSubscriptionsManagement />} />
               <Route path="campaigns" element={<CampaignsManagement />} />
-              <Route path="site-popups" element={<SitePopupsManagement />} />
-              <Route path="sponsors" element={<SponsorsManagement />} />
-              <Route path="promotions" element={<PromotionsManagement />} />
+                    <Route path="site-popups" element={<SitePopupsManagement />} />
+                    <Route path="sponsors" element={<SponsorsManagement />} />
+                    <Route path="sponsor-testimonials" element={<SponsorTestimonialsManagement />} />
+                    <Route path="promotions" element={<PromotionsManagement />} />
               <Route path="publication-rules" element={<PublicationRulesManagement />} />
               <Route path="layout" element={<LayoutManagement />} />
               <Route path="support" element={<SupportTicketsManagement />} />

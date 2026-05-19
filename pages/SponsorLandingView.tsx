@@ -94,6 +94,19 @@ interface SponsorLandingStats {
   generated_leads: number;
 }
 
+interface SponsorTestimonial {
+  id: string;
+  companyName: string;
+  contactName: string;
+  roleTitle?: string | null;
+  segment?: string | null;
+  locationLabel?: string | null;
+  text: string;
+  avatarUrl?: string | null;
+  highlightMetric?: string | null;
+  isFeatured?: boolean;
+}
+
 const defaultSponsorStats: SponsorLandingStats = {
   total_slots: VAGAS_TOTAL,
   occupied_slots: 0,
@@ -176,27 +189,40 @@ const steps = [
   { label: 'Resultados', text: 'Você acompanha métricas reais e converte o interesse em oportunidades.' },
 ];
 
-const testimonials = [
+const fallbackTestimonials: SponsorTestimonial[] = [
   {
-    name: 'Carlos Mendonça',
-    role: 'Diretor Comercial - Agro Máquinas Sul',
-    avatar: 'https://i.pravatar.cc/80?u=carlos_agro',
+    id: 'fallback-carlos',
+    companyName: 'Agro Maquinas Sul',
+    contactName: 'Carlos Mendonca',
+    roleTitle: 'Diretor Comercial',
+    segment: 'Maquinas agricolas',
+    locationLabel: 'Rio Verde/GO',
+    avatarUrl: 'https://i.pravatar.cc/80?u=carlos_agro',
     text: 'Em 30 dias na Vitrine Premium, recebemos mais de 40 contatos qualificados direto pelo WhatsApp. O ROI superou qualquer outra mídia digital que testamos no setor.',
-    stars: 5,
+    highlightMetric: '+40 contatos qualificados em 30 dias',
+    isFeatured: true,
   },
   {
-    name: 'Fernanda Oliveira',
-    role: 'Gerente de Marketing - InsumosPro',
-    avatar: 'https://i.pravatar.cc/80?u=fernanda_insumos',
+    id: 'fallback-fernanda',
+    companyName: 'InsumosPro',
+    contactName: 'Fernanda Oliveira',
+    roleTitle: 'Gerente de Marketing',
+    segment: 'Insumos',
+    locationLabel: 'Uberlandia/MG',
+    avatarUrl: 'https://i.pravatar.cc/80?u=fernanda_insumos',
     text: 'A exclusividade por nicho fez toda a diferença. Nosso banner não compete com concorrente direto, e isso se reflete no CTR muito acima da mídia que tínhamos em outras plataformas.',
-    stars: 5,
+    highlightMetric: 'CTR acima das campanhas anteriores',
   },
   {
-    name: 'Roberto Faria',
-    role: 'CEO - AgroTech Soluções',
-    avatar: 'https://i.pravatar.cc/80?u=roberto_agrotech',
+    id: 'fallback-roberto',
+    companyName: 'AgroTech Solucoes',
+    contactName: 'Roberto Faria',
+    roleTitle: 'CEO',
+    segment: 'Tecnologia para o agro',
+    locationLabel: 'Cuiaba/MT',
+    avatarUrl: 'https://i.pravatar.cc/80?u=roberto_agrotech',
     text: 'Estamos no segundo ciclo da Vitrine Premium. A visibilidade no topo do marketplace trouxe leads que já se tornaram clientes recorrentes. Vale muito o investimento.',
-    stars: 5,
+    highlightMetric: 'Leads que viraram clientes recorrentes',
   },
 ];
 
@@ -269,6 +295,7 @@ const SponsorLandingView: React.FC = () => {
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
   const [formSent, setFormSent] = useState(false);
   const [sponsorStats, setSponsorStats] = useState<SponsorLandingStats>(defaultSponsorStats);
+  const [sponsorTestimonials, setSponsorTestimonials] = useState<SponsorTestimonial[]>(fallbackTestimonials);
   const [form, setForm] = useState({
     companyName: '',
     contactName: '',
@@ -283,6 +310,15 @@ const SponsorLandingView: React.FC = () => {
   const totalSponsorSlots = sponsorStats.total_slots || VAGAS_TOTAL;
   const occupiedSponsorSlots = Math.min(sponsorStats.occupied_slots || 0, totalSponsorSlots);
   const vagasRestantes = Math.max(sponsorStats.available_slots ?? totalSponsorSlots - occupiedSponsorSlots, 0);
+  const featuredTestimonial = useMemo(
+    () => sponsorTestimonials.find((item) => item.isFeatured) || sponsorTestimonials[0] || null,
+    [sponsorTestimonials],
+  );
+  const secondaryTestimonials = useMemo(
+    () =>
+      sponsorTestimonials.filter((item) => item.id !== featuredTestimonial?.id).slice(0, 4),
+    [featuredTestimonial?.id, sponsorTestimonials],
+  );
 
   const contactMessage = useMemo(() => {
     return [
@@ -328,7 +364,44 @@ const SponsorLandingView: React.FC = () => {
       }
     };
 
+    const loadTestimonials = async () => {
+      const { data, error } = await supabase
+        .from('sponsor_testimonials')
+        .select(
+          'id, company_name, contact_name, role_title, segment, location_label, testimonial, avatar_url, highlight_metric, is_featured',
+        )
+        .eq('status', 'published')
+        .order('is_featured', { ascending: false })
+        .order('display_order', { ascending: true })
+        .limit(6);
+
+      if (error) {
+        console.error('[SponsorLandingView] Erro ao carregar relatos da Vitrine Premium:', error);
+        return;
+      }
+
+      if (!isMounted || !data || data.length === 0) {
+        return;
+      }
+
+      setSponsorTestimonials(
+        data.map((row) => ({
+          id: row.id,
+          companyName: row.company_name,
+          contactName: row.contact_name,
+          roleTitle: row.role_title,
+          segment: row.segment,
+          locationLabel: row.location_label,
+          text: row.testimonial,
+          avatarUrl: row.avatar_url,
+          highlightMetric: row.highlight_metric,
+          isFeatured: row.is_featured,
+        })),
+      );
+    };
+
     void loadSponsorStats();
+    void loadTestimonials();
 
     return () => {
       isMounted = false;
@@ -724,33 +797,112 @@ const SponsorLandingView: React.FC = () => {
           <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Quem já anunciou na vitrine</p>
           <h2 className="text-3xl md:text-5xl font-black text-slate-950">O que dizem nossos anunciantes</h2>
         </div>
-        <div className="grid gap-6 md:grid-cols-3">
-          {testimonials.map((t) => (
-            <div
-              key={t.name}
-              className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_8px_30px_-10px_rgba(15,23,42,0.12)] flex flex-col"
-            >
-              <Quote className="h-8 w-8 mb-5" style={{ color: settings.primaryColor }} />
-              <p className="text-base leading-8 text-slate-600 flex-1 mb-8">"{t.text}"</p>
-              <div className="flex items-center gap-4">
+        {featuredTestimonial ? (
+          <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+            <article className="rounded-[2.4rem] border border-slate-200 bg-white p-8 shadow-[0_16px_40px_-16px_rgba(15,23,42,0.14)]">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="inline-flex rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">
+                  Case real
+                </div>
+                <div
+                  className="inline-flex rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em]"
+                  style={{
+                    background: `color-mix(in srgb, ${settings.primaryColor} 10%, white)`,
+                    color: settings.primaryColor,
+                  }}
+                >
+                  Relato em destaque
+                </div>
+                {featuredTestimonial.highlightMetric ? (
+                  <div className="inline-flex rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">
+                    {featuredTestimonial.highlightMetric}
+                  </div>
+                ) : null}
+              </div>
+
+              <Quote className="mt-6 h-10 w-10" style={{ color: settings.primaryColor }} />
+              <p className="mt-6 text-lg leading-9 text-slate-700">"{featuredTestimonial.text}"</p>
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                {featuredTestimonial.segment ? (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    {featuredTestimonial.segment}
+                  </span>
+                ) : null}
+                {featuredTestimonial.locationLabel ? (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    {featuredTestimonial.locationLabel}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="mt-8 flex items-center gap-4 rounded-[1.8rem] border border-slate-100 bg-slate-50 px-5 py-4">
                 <img
-                  src={t.avatar}
-                  alt={t.name}
-                  className="h-12 w-12 rounded-full object-cover border-2 border-slate-100"
+                  src={featuredTestimonial.avatarUrl || 'https://i.pravatar.cc/80?u=bwagro-sponsor-testimonial'}
+                  alt={featuredTestimonial.contactName}
+                  className="h-14 w-14 rounded-full object-cover border-2 border-white shadow-sm"
                 />
                 <div>
-                  <p className="font-black text-slate-950">{t.name}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{t.role}</p>
+                  <p className="font-black text-slate-950">{featuredTestimonial.contactName}</p>
+                  <p className="text-sm text-slate-500">
+                    {[featuredTestimonial.roleTitle, featuredTestimonial.companyName].filter(Boolean).join(' - ')}
+                  </p>
                 </div>
-                <div className="ml-auto flex gap-0.5">
-                  {Array.from({ length: t.stars }).map((_, i) => (
-                    <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
+                <Star className="ml-auto h-4 w-4 fill-amber-400 text-amber-400" />
               </div>
+            </article>
+
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-1">
+              {secondaryTestimonials.map((t) => (
+                <article
+                  key={t.id}
+                  className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_8px_30px_-10px_rgba(15,23,42,0.12)]"
+                >
+                  <div className="mb-4 inline-flex rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">
+                    Case real
+                  </div>
+                  {t.highlightMetric ? (
+                    <div
+                      className="mb-4 ml-2 inline-flex w-fit rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em]"
+                      style={{
+                        background: `color-mix(in srgb, ${settings.primaryColor} 10%, white)`,
+                        color: settings.primaryColor,
+                      }}
+                    >
+                      {t.highlightMetric}
+                    </div>
+                  ) : null}
+                  <p className="text-sm leading-8 text-slate-600">"{t.text}"</p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {t.segment ? (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                        {t.segment}
+                      </span>
+                    ) : null}
+                    {t.locationLabel ? (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                        {t.locationLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-5 flex items-center gap-3">
+                    <img
+                      src={t.avatarUrl || 'https://i.pravatar.cc/80?u=bwagro-sponsor-testimonial'}
+                      alt={t.contactName}
+                      className="h-11 w-11 rounded-full object-cover border-2 border-slate-100"
+                    />
+                    <div>
+                      <p className="font-black text-slate-950">{t.contactName}</p>
+                      <p className="text-xs text-slate-400">
+                        {[t.roleTitle, t.companyName].filter(Boolean).join(' - ')}
+                      </p>
+                    </div>
+                  </div>
+                </article>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ) : null}
       </section>
 
       {/* -- FAQ ------------------------------------------------------------- */}
