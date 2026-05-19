@@ -40,10 +40,17 @@ using (public.is_admin() = true)
 with check (public.is_admin() = true);
 
 alter table public.announcements
+  add column if not exists rejection_reason text,
+  add column if not exists rejected_at timestamptz,
   add column if not exists publication_review_reasons jsonb not null default '[]'::jsonb,
   add column if not exists publication_review_severity text,
   add column if not exists publication_review_checked_at timestamptz,
-  add column if not exists publication_review_admin_override boolean not null default false;
+  add column if not exists publication_review_admin_override boolean not null default false,
+  add column if not exists reanalysis_available_at timestamptz;
+
+create index if not exists idx_announcements_reanalysis_available_at
+  on public.announcements (reanalysis_available_at)
+  where reanalysis_available_at is not null;
 
 create or replace function public.touch_publication_moderation_rules_updated_at()
 returns trigger

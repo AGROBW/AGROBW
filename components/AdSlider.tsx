@@ -86,12 +86,12 @@ const AdSlider: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="relative w-full h-[320px] md:h-[400px] bg-slate-100 animate-pulse"></div>
+      <div className="relative w-full overflow-hidden bg-slate-100 animate-pulse aspect-[3/1] min-h-[280px] md:min-h-0"></div>
     );
   }
 
   return (
-    <div className="relative w-full h-[320px] md:h-[400px] overflow-hidden">
+    <section className="relative w-full overflow-hidden bg-slate-950 aspect-[3/1] min-h-[280px] md:min-h-0">
       {/* Slides */}
       {banners.map((banner, index) => (
         <div
@@ -101,23 +101,28 @@ const AdSlider: React.FC = () => {
           }`}
         >
           {/* Background Image */}
-          <div 
-            className="absolute inset-0 bg-cover bg-center transition-transform duration-[10s] ease-linear transform scale-100 hover:scale-110"
-            style={{ backgroundImage: `url(${banner.image_url})` }}
-          >
+          <div className="absolute inset-0 overflow-hidden">
+            <img
+              src={banner.image_url}
+              alt={banner.title}
+              className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-[10s] ease-linear transform scale-100 hover:scale-110"
+              loading={index === 0 ? 'eager' : 'lazy'}
+              decoding="async"
+              fetchPriority={index === 0 ? 'high' : 'auto'}
+            />
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent"></div>
           </div>
 
           {/* Content */}
-          <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-center items-start text-white">
-            <div className={`transform transition-all duration-700 delay-300 ${index === current ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+          <div className="relative h-full max-w-7xl mx-auto px-6 md:px-10 lg:px-14 flex flex-col justify-center items-start text-white">
+            <div className={`max-w-[540px] lg:max-w-[620px] transform transition-all duration-700 delay-300 ${index === current ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
               <span className="inline-block px-3 py-1 bg-green-600 text-xs font-semibold tracking-widest uppercase rounded mb-3">
                 {banner.badge_text}
               </span>
-              <h2 className="text-xl font-semibold mb-3 leading-tight max-w-2xl">
+              <h2 className="text-xl md:text-2xl lg:text-[2rem] font-semibold mb-3 leading-tight">
                 {banner.title}
               </h2>
-              <p className="text-sm text-gray-200 mb-6 max-w-xl">
+              <p className="text-sm md:text-base text-gray-200 mb-6 max-w-xl">
                 {banner.subtitle}
               </p>
               <div className="flex gap-4">
@@ -166,7 +171,7 @@ const AdSlider: React.FC = () => {
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 };
 

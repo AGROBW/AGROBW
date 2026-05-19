@@ -3,7 +3,7 @@ import { appError, appWarn } from '../utils/appLogger';
 
 /**
  * Service para upload otimizado de imagens de banners
- * - Redimensiona automaticamente para 1600x600px
+ * - Redimensiona automaticamente para 1920x640px
  * - Converte para WebP
  * - Comprime para < 200kb
  */
@@ -25,8 +25,8 @@ const optimizeImage = async (file: File): Promise<Blob> => {
       
       img.onload = () => {
         // Dimensões alvo
-        const targetWidth = 1600;
-        const targetHeight = 600;
+        const targetWidth = 1920;
+        const targetHeight = 640;
         
         // Criar canvas
         const canvas = document.createElement('canvas');

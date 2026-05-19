@@ -71,6 +71,7 @@ export interface Ad {
   expiredAt?: string;
   rejectedAt?: string;
   rejectionReason?: string | null;
+  reanalysisAvailableAt?: string | null;
   deletionScheduledAt?: string;
   whatsapp: string;
   technicalDetails?: TechnicalDetail[];
@@ -83,6 +84,7 @@ export interface Ad {
   highlightHomeAvailableAfter?: string | null;
   latestEditRequestStatus?: 'pending' | 'approved' | 'rejected' | null;
   latestEditRejectionReason?: string | null;
+  latestEditReanalysisAvailableAt?: string | null;
   sellerPlanMonthlyPrice?: number;
   sellerPlanPosition?: number | null;
   sellerPlanName?: string | null;

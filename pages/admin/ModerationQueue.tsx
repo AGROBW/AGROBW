@@ -67,10 +67,21 @@ interface PendingEditRequest {
   current_technical_details?: PendingTechnicalDetail[];
 }
 
+interface PublicationModerationRuleRecord {
+  id: string;
+  name: string;
+  description?: string | null;
+  rule_kind: 'keyword' | 'regex' | 'category' | 'min_description_length' | 'contact_info' | 'external_link' | 'require_image';
+  action: 'review' | 'block';
+  target: 'title' | 'description' | 'both' | 'category' | 'images';
+  pattern?: string | null;
+  is_active: boolean;
+}
+
 type ModerationTab = 'announcements' | 'edits';
 const PAGE_SIZE = 20;
 const ANNOUNCEMENT_EDIT_SELECT =
-  'id,title,description,price,unit_price,quantity,unit,currency,category_id,category_slug,sub_category_id,sub_category_label,status,created_at,user_id,city,state,cep,product_condition,availability,accepts_trade,has_warranty,warranty_details,has_invoice,images,video_url,video_storage_path,video_duration_seconds,video_size_bytes,is_premium,whatsapp';
+  'id,title,description,price,unit_price,quantity,unit,currency,category_id,category_slug,sub_category_id,sub_category_label,status,created_at,user_id,city,state,cep,product_condition,availability,accepts_trade,has_warranty,warranty_details,has_invoice,images,video_url,video_storage_path,video_duration_seconds,video_size_bytes,is_premium,whatsapp,publication_review_reasons,publication_review_severity';
 const EDITABLE_ANNOUNCEMENT_FIELDS = new Set([
   'title',
   'description',
@@ -109,6 +120,96 @@ const sanitizeAnnouncementPayload = (payload: Record<string, any> = {}) =>
 const getOriginalAnnouncementStatusFromRequest = (request: PendingEditRequest) => {
   const rawStatus = String(request.payload?.__original_announcement_status || request.announcement?.status || 'ACTIVE').trim().toUpperCase();
   return rawStatus || 'ACTIVE';
+};
+
+const splitRulePatterns = (value?: string | null) =>
+  String(value || '')
+    .split(/[\n,;]+/)
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+
+const getRuleMessage = (rule: PublicationModerationRuleRecord) => rule.description?.trim() || rule.name;
+
+const getModerationRuleMatches = (
+  rules: PublicationModerationRuleRecord[],
+  content: {
+    title?: string | null;
+    description?: string | null;
+    categorySlug?: string | null;
+    images?: string[] | null;
+  }
+) => {
+  const title = String(content.title || '');
+  const description = String(content.description || '');
+  const categorySlug = String(content.categorySlug || '').trim().toLowerCase();
+  const images = Array.isArray(content.images) ? content.images : [];
+  const titleLower = title.toLowerCase();
+  const descriptionLower = description.toLowerCase();
+  const result = {
+    title: [] as string[],
+    description: [] as string[],
+    category: [] as string[],
+    images: [] as string[],
+  };
+
+  for (const rule of rules.filter((item) => item.is_active)) {
+    const patterns = splitRulePatterns(rule.pattern);
+    let matchedTitle = false;
+    let matchedDescription = false;
+    let matchedCategory = false;
+    let matchedImages = false;
+
+    if (rule.rule_kind === 'keyword' && patterns.length > 0) {
+      matchedTitle =
+        (rule.target === 'title' || rule.target === 'both') &&
+        patterns.some((pattern) => titleLower.includes(pattern));
+      matchedDescription =
+        (rule.target === 'description' || rule.target === 'both') &&
+        patterns.some((pattern) => descriptionLower.includes(pattern));
+    } else if (rule.rule_kind === 'regex' && patterns.length > 0) {
+      for (const pattern of patterns) {
+        try {
+          const regex = new RegExp(pattern, 'i');
+          if ((rule.target === 'title' || rule.target === 'both') && regex.test(title)) {
+            matchedTitle = true;
+          }
+          if ((rule.target === 'description' || rule.target === 'both') && regex.test(description)) {
+            matchedDescription = true;
+          }
+        } catch {
+          continue;
+        }
+      }
+    } else if (rule.rule_kind === 'category' && patterns.length > 0) {
+      matchedCategory = patterns.includes(categorySlug);
+    } else if (rule.rule_kind === 'min_description_length') {
+      const minLength = Number(String(rule.pattern || '').replace(/\D/g, '')) || 0;
+      matchedDescription = minLength > 0 && description.trim().length < minLength;
+    } else if (rule.rule_kind === 'contact_info') {
+      const regex = /(\+?\d[\d\s().-]{7,}\d|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})/i;
+      matchedTitle = regex.test(title);
+      matchedDescription = regex.test(description);
+    } else if (rule.rule_kind === 'external_link') {
+      const regex = /(https?:\/\/|www\.|\.com\b|\.com\.br\b|\.net\b|\.br\b)/i;
+      matchedTitle = regex.test(title);
+      matchedDescription = regex.test(description);
+    } else if (rule.rule_kind === 'require_image') {
+      matchedImages = images.length === 0;
+    }
+
+    const message = getRuleMessage(rule);
+    if (matchedTitle) result.title.push(message);
+    if (matchedDescription) result.description.push(message);
+    if (matchedCategory) result.category.push(message);
+    if (matchedImages) result.images.push(message);
+  }
+
+  result.title = Array.from(new Set(result.title));
+  result.description = Array.from(new Set(result.description));
+  result.category = Array.from(new Set(result.category));
+  result.images = Array.from(new Set(result.images));
+
+  return result;
 };
 
 const conditionLabels: Record<string, string> = {
@@ -180,9 +281,11 @@ const ModerationQueue: React.FC = () => {
   const [selectedEditRequest, setSelectedEditRequest] = useState<PendingEditRequest | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [publicationRules, setPublicationRules] = useState<PublicationModerationRuleRecord[]>([]);
 
   useEffect(() => setPage(0), [activeTab, filterCategory, searchTerm]);
   useEffect(() => { void (activeTab === 'announcements' ? loadPendingAnnouncements() : loadPendingEditRequests()); }, [activeTab, page, filterCategory, searchTerm]);
+  useEffect(() => { void loadPublicationRules(); }, []);
 
   const totalCount = activeTab === 'announcements' ? totalAnnouncementsCount : totalEditRequestsCount;
   const totalPages = Math.ceil(Math.max(totalCount, 1) / PAGE_SIZE);
@@ -261,6 +364,21 @@ const ModerationQueue: React.FC = () => {
       toast.error('Erro ao carregar anuncios pendentes');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPublicationRules = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('publication_moderation_rules')
+        .select('id,name,description,rule_kind,action,target,pattern,is_active')
+        .eq('is_active', true)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setPublicationRules((data || []) as PublicationModerationRuleRecord[]);
+    } catch (error) {
+      appWarn('[ModerationQueue] Nao foi possivel carregar regras de publicacao para destaque visual', { error });
     }
   };
 
@@ -372,6 +490,17 @@ const ModerationQueue: React.FC = () => {
               publication_review_reasons: [],
               publication_review_checked_at: new Date().toISOString(),
             }
+          : originalAnnouncementStatus === 'REJECTED'
+            ? {
+                status: 'ACTIVE',
+                publication_review_admin_override: true,
+                publication_review_severity: null,
+                publication_review_reasons: [],
+                publication_review_checked_at: new Date().toISOString(),
+                rejection_reason: null,
+                rejected_at: null,
+                reanalysis_available_at: null,
+              }
           : {
               status: originalAnnouncementStatus,
               publication_review_admin_override: false,
@@ -393,7 +522,13 @@ const ModerationQueue: React.FC = () => {
         const { error: detailsError } = await supabase.from('announcement_technical_details').insert(details);
         if (detailsError) throw detailsError;
       }
-      const { error: requestError } = await supabase.from('announcement_edit_requests').update({ status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: reviewerId, rejection_reason: null }).eq('id', request.id);
+      const { error: requestError } = await supabase.from('announcement_edit_requests').update({
+        status: 'approved',
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: reviewerId,
+        rejection_reason: null,
+        reanalysis_available_at: null,
+      }).eq('id', request.id);
       if (requestError) throw requestError;
       await logAction({
         action: ADMIN_ACTIONS.APPROVE_AD_EDIT,
@@ -425,6 +560,7 @@ const ModerationQueue: React.FC = () => {
   const handleReject = async () => {
     if (!rejectionReason.trim()) return toast.error('Informe o motivo da rejeicao');
     try {
+      const reanalysisAvailableAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       if (selectedEditRequest) {
         const { data: authData } = await supabase.auth.getUser();
         const reviewerId = authData.user?.id || null;
@@ -438,6 +574,17 @@ const ModerationQueue: React.FC = () => {
                 publication_review_reasons: [],
                 publication_review_checked_at: new Date().toISOString(),
               }
+            : originalAnnouncementStatus === 'REJECTED'
+              ? {
+                  status: 'REJECTED',
+                  publication_review_admin_override: false,
+                  publication_review_severity: null,
+                  publication_review_reasons: [],
+                  publication_review_checked_at: new Date().toISOString(),
+                  rejection_reason: rejectionReason,
+                  rejected_at: new Date().toISOString(),
+                  reanalysis_available_at: reanalysisAvailableAt,
+                }
             : {
                 status: originalAnnouncementStatus,
                 publication_review_admin_override: false,
@@ -453,7 +600,13 @@ const ModerationQueue: React.FC = () => {
 
         if (restoreRejectedStatusError) throw restoreRejectedStatusError;
 
-        const { error } = await supabase.from('announcement_edit_requests').update({ status: 'rejected', rejection_reason: rejectionReason, reviewed_at: new Date().toISOString(), reviewed_by: reviewerId }).eq('id', selectedEditRequest.id);
+        const { error } = await supabase.from('announcement_edit_requests').update({
+          status: 'rejected',
+          rejection_reason: rejectionReason,
+          reanalysis_available_at: reanalysisAvailableAt,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: reviewerId
+        }).eq('id', selectedEditRequest.id);
         if (error) throw error;
         const { data: notificationRecord, error: notificationError } = await supabase.from('notifications').insert({
           user_id: selectedEditRequest.user_id,
@@ -497,9 +650,14 @@ const ModerationQueue: React.FC = () => {
         await loadPendingEditRequests();
       } else if (selectedAnnouncement) {
         const rejectedAt = new Date().toISOString();
-        const { error } = await supabase.from('announcements').update({ status: 'REJECTED', rejection_reason: rejectionReason, rejected_at: rejectedAt }).eq('id', selectedAnnouncement.id);
+        const { error } = await supabase.from('announcements').update({
+          status: 'REJECTED',
+          rejection_reason: rejectionReason,
+          rejected_at: rejectedAt,
+          reanalysis_available_at: reanalysisAvailableAt,
+        }).eq('id', selectedAnnouncement.id);
         if (error) throw error;
-        await logAction({ action: ADMIN_ACTIONS.REJECT_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: selectedAnnouncement.id, oldValue: { status: selectedAnnouncement.status }, newValue: { status: 'REJECTED', rejection_reason: rejectionReason, rejected_at: rejectedAt }, reason: `Anuncio "${selectedAnnouncement.title}" rejeitado: ${rejectionReason}` });
+        await logAction({ action: ADMIN_ACTIONS.REJECT_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: selectedAnnouncement.id, oldValue: { status: selectedAnnouncement.status }, newValue: { status: 'REJECTED', rejection_reason: rejectionReason, rejected_at: rejectedAt, reanalysis_available_at: reanalysisAvailableAt }, reason: `Anuncio "${selectedAnnouncement.title}" rejeitado: ${rejectionReason}` });
         toast.success('Anuncio rejeitado');
         setSelectedAnnouncement(null);
         await loadPendingAnnouncements();
@@ -627,6 +785,35 @@ const ModerationQueue: React.FC = () => {
     return rows;
   };
 
+  const selectedAnnouncementRuleMatches = selectedAnnouncement
+    ? getModerationRuleMatches(publicationRules, {
+        title: selectedAnnouncement.title,
+        description: selectedAnnouncement.description,
+        categorySlug: selectedAnnouncement.category_slug,
+        images: selectedAnnouncement.images,
+      })
+    : null;
+
+  const selectedEditRequestCurrentRuleMatches = selectedEditRequest?.announcement
+    ? getModerationRuleMatches(publicationRules, {
+        title: selectedEditRequest.announcement.title,
+        description: selectedEditRequest.announcement.description,
+        categorySlug: selectedEditRequest.announcement.category_slug,
+        images: selectedEditRequest.announcement.images,
+      })
+    : null;
+
+  const selectedEditRequestProposedRuleMatches = selectedEditRequest
+    ? getModerationRuleMatches(publicationRules, {
+        title: selectedEditRequest.payload?.title || selectedEditRequest.announcement?.title,
+        description: selectedEditRequest.payload?.description || selectedEditRequest.announcement?.description,
+        categorySlug: selectedEditRequest.payload?.category_slug || selectedEditRequest.announcement?.category_slug,
+        images: Array.isArray(selectedEditRequest.payload?.images)
+          ? selectedEditRequest.payload.images
+          : selectedEditRequest.announcement?.images,
+      })
+    : null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -661,7 +848,7 @@ const ModerationQueue: React.FC = () => {
                     <td className="px-6 py-4"><span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">{getAnnouncementGroupLabel(announcement)}</span></td>
                     <td className="px-6 py-4"><div className="text-sm"><p className="font-semibold text-slate-900">{announcement.owner?.name}</p><p className="text-slate-500">{announcement.owner?.email}</p></div></td>
                     <td className="px-6 py-4 text-sm text-slate-500">{new Date(announcement.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-                    <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApprove(announcement)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedEditRequest(null); setSelectedAnnouncement(announcement); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar"><X className="h-5 w-5" /></button><button onClick={() => window.open(`/anuncio/${announcement.id}`, '_blank')} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Visualizar"><Eye className="h-5 w-5" /></button></div></td>
+                    <td className="px-6 py-4"><div className="flex items-center gap-2"><button onClick={() => void handleApprove(announcement)} className="rounded-lg p-2 text-green-600 hover:bg-green-50" title="Aprovar"><Check className="h-5 w-5" /></button><button onClick={() => { setSelectedEditRequest(null); setSelectedAnnouncement(announcement); setShowRejectModal(true); }} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Rejeitar"><X className="h-5 w-5" /></button><button onClick={() => { setSelectedEditRequest(null); setSelectedAnnouncement(announcement); }} className="rounded-lg p-2 text-slate-600 hover:bg-slate-50" title="Visualizar conteúdo moderado"><Eye className="h-5 w-5" /></button></div></td>
                   </tr>
                 ))}
               </tbody>
@@ -695,6 +882,146 @@ const ModerationQueue: React.FC = () => {
 
       {showRejectModal ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="w-full max-w-md rounded-2xl bg-white p-6"><h3 className="mb-4 text-xl font-bold text-slate-900">{selectedEditRequest ? 'Rejeitar Edicao' : 'Rejeitar Anuncio'}</h3><p className="mb-4 text-slate-600">Informe o motivo da rejeicao. Esta mensagem ficara registrada para a equipe.</p><textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} placeholder="Ex: descricao inconsistente, midia inadequada, categoria incorreta..." className="min-h-[120px] w-full rounded-lg border border-slate-200 p-3 focus:outline-none focus:ring-2 focus:ring-red-500" /><div className="mt-6 flex items-center gap-3"><button onClick={() => { setShowRejectModal(false); setRejectionReason(''); setSelectedAnnouncement(null); setSelectedEditRequest(null); }} className="flex-1 rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-50">Cancelar</button><button onClick={() => void handleReject()} disabled={!rejectionReason.trim()} className="flex-1 rounded-lg bg-red-500 px-4 py-2 font-semibold text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50">Confirmar rejeicao</button></div></div></div> : null}
 
+      {selectedAnnouncement && !selectedEditRequest && !showRejectModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Revisão de anúncio novo</p>
+                <h3 className="mt-1 text-2xl font-black text-slate-900">{selectedAnnouncement.title}</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Visualize o conteúdo que acionou a moderação antes de aprovar ou rejeitar.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedAnnouncement(null)}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                title="Fechar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">Motivo da análise</p>
+              <p className="mt-2 text-sm font-medium text-amber-900">
+                {getPublicationReviewLabel(selectedAnnouncement) || 'Regras de publicação acionadas. Revise os campos destacados abaixo.'}
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-[0.8fr,1.2fr]">
+              <div className="space-y-4">
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                  <div className="aspect-[4/3] bg-slate-100">
+                    {selectedAnnouncement.images?.[0] ? (
+                      <img src={selectedAnnouncement.images[0]} alt={selectedAnnouncement.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-slate-400">
+                        <AlertTriangle className="h-10 w-10" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="border-t border-slate-200 p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Resumo</p>
+                    <div className="mt-3 space-y-2 text-sm text-slate-600">
+                      <p><span className="font-semibold text-slate-900">Categoria:</span> {getAnnouncementGroupLabel(selectedAnnouncement)}</p>
+                      <p><span className="font-semibold text-slate-900">Anunciante:</span> {selectedAnnouncement.owner?.name || 'Não informado'}</p>
+                      <p><span className="font-semibold text-slate-900">Preço:</span> R$ {selectedAnnouncement.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                      <p><span className="font-semibold text-slate-900">Data:</span> {new Date(selectedAnnouncement.created_at).toLocaleString('pt-BR')}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className={`rounded-2xl border p-5 ${selectedAnnouncementRuleMatches?.title.length ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-white'}`}>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Título</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-900">{selectedAnnouncement.title || 'Não informado'}</p>
+                  {selectedAnnouncementRuleMatches?.title.length ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedAnnouncementRuleMatches.title.map((reason) => (
+                        <span key={`announcement-title-${reason}`} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                          {reason}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className={`rounded-2xl border p-5 ${selectedAnnouncementRuleMatches?.description.length ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-white'}`}>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Descrição</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{selectedAnnouncement.description || 'Não informado'}</p>
+                  {selectedAnnouncementRuleMatches?.description.length ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedAnnouncementRuleMatches.description.map((reason) => (
+                        <span key={`announcement-description-${reason}`} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                          {reason}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className={`rounded-2xl border p-5 ${selectedAnnouncementRuleMatches?.category.length ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-white'}`}>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Categoria</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{getAnnouncementGroupLabel(selectedAnnouncement)}</p>
+                    {selectedAnnouncementRuleMatches?.category.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedAnnouncementRuleMatches.category.map((reason) => (
+                          <span key={`announcement-category-${reason}`} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                            {reason}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className={`rounded-2xl border p-5 ${selectedAnnouncementRuleMatches?.images.length ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-white'}`}>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Mídia</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{Array.isArray(selectedAnnouncement.images) ? `${selectedAnnouncement.images.length} arquivo(s)` : '0 arquivo(s)'}</p>
+                    {selectedAnnouncementRuleMatches?.images.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedAnnouncementRuleMatches.images.map((reason) => (
+                          <span key={`announcement-images-${reason}`} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                            {reason}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedAnnouncement(null)}
+                className="rounded-lg border border-slate-200 px-4 py-2 font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRejectModal(true)}
+                className="rounded-lg bg-red-500 px-4 py-2 font-semibold text-white hover:bg-red-600"
+              >
+                Rejeitar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleApprove(selectedAnnouncement)}
+                className="rounded-lg bg-green-600 px-4 py-2 font-semibold text-white hover:bg-green-700"
+              >
+                Aprovar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {selectedEditRequest && !showRejectModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
@@ -716,6 +1043,13 @@ const ModerationQueue: React.FC = () => {
               </button>
             </div>
 
+            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">Motivo da análise</p>
+              <p className="mt-2 text-sm font-medium text-amber-900">
+                {getPublicationReviewLabel(selectedEditRequest.announcement || ({} as PendingAnnouncement)) || 'As regras de publicação foram acionadas. Revise os campos destacados na versão proposta.'}
+              </p>
+            </div>
+
             <div className="mt-6 grid gap-6 lg:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Versão atual</p>
@@ -723,10 +1057,24 @@ const ModerationQueue: React.FC = () => {
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Título</p>
                     <p className="mt-1 font-semibold text-slate-900">{selectedEditRequest.announcement?.title || 'Não informado'}</p>
+                    {selectedEditRequestCurrentRuleMatches?.title.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedEditRequestCurrentRuleMatches.title.map((reason) => (
+                          <span key={`current-title-${reason}`} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">{reason}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Descrição</p>
                     <p className="mt-1 whitespace-pre-wrap">{selectedEditRequest.announcement?.description || 'Não informado'}</p>
+                    {selectedEditRequestCurrentRuleMatches?.description.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedEditRequestCurrentRuleMatches.description.map((reason) => (
+                          <span key={`current-description-${reason}`} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">{reason}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Categoria e subcategoria</p>
@@ -738,6 +1086,13 @@ const ModerationQueue: React.FC = () => {
                         </div>
                       ))}
                     </div>
+                    {selectedEditRequestCurrentRuleMatches?.category.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedEditRequestCurrentRuleMatches.category.map((reason) => (
+                          <span key={`current-category-rule-${reason}`} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">{reason}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Informações comerciais da loja</p>
@@ -774,10 +1129,24 @@ const ModerationQueue: React.FC = () => {
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Título</p>
                     <p className="mt-1 font-semibold text-slate-900">{selectedEditRequest.payload?.title || selectedEditRequest.announcement?.title || 'Não informado'}</p>
+                    {selectedEditRequestProposedRuleMatches?.title.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedEditRequestProposedRuleMatches.title.map((reason) => (
+                          <span key={`proposed-title-${reason}`} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">{reason}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Descrição</p>
                     <p className="mt-1 whitespace-pre-wrap">{selectedEditRequest.payload?.description || selectedEditRequest.announcement?.description || 'Não informado'}</p>
+                    {selectedEditRequestProposedRuleMatches?.description.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedEditRequestProposedRuleMatches.description.map((reason) => (
+                          <span key={`proposed-description-${reason}`} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">{reason}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Categoria e subcategoria</p>
@@ -789,6 +1158,13 @@ const ModerationQueue: React.FC = () => {
                         </div>
                       ))}
                     </div>
+                    {selectedEditRequestProposedRuleMatches?.category.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedEditRequestProposedRuleMatches.category.map((reason) => (
+                          <span key={`proposed-category-rule-${reason}`} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">{reason}</span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Informações comerciais da loja</p>

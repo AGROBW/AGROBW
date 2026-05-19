@@ -1,3 +1,19 @@
+alter table public.announcements
+  add column if not exists rejection_reason text,
+  add column if not exists rejected_at timestamptz,
+  add column if not exists reanalysis_available_at timestamptz;
+
+create index if not exists idx_announcements_reanalysis_available_at
+  on public.announcements (reanalysis_available_at)
+  where reanalysis_available_at is not null;
+
+alter table public.announcement_edit_requests
+  add column if not exists reanalysis_available_at timestamptz;
+
+create index if not exists announcement_edit_requests_reanalysis_idx
+  on public.announcement_edit_requests (announcement_id, reanalysis_available_at desc)
+  where status = 'rejected' and reanalysis_available_at is not null;
+
 create or replace function public.enforce_announcement_publication_rules()
 returns trigger
 language plpgsql
@@ -184,13 +200,17 @@ as $$
 declare
   v_result jsonb;
   v_original_status text;
+  v_announcement_reanalysis_available_at timestamptz;
+  v_edit_reanalysis_available_at timestamptz;
   v_images jsonb := case
     when jsonb_typeof(coalesce(new.payload->'images', '[]'::jsonb)) = 'array' then coalesce(new.payload->'images', '[]'::jsonb)
     else '[]'::jsonb
   end;
 begin
-  select upper(coalesce(status, ''))
-    into v_original_status
+  select
+    upper(coalesce(status, '')),
+    reanalysis_available_at
+    into v_original_status, v_announcement_reanalysis_available_at
   from public.announcements
   where id = new.announcement_id;
 
@@ -205,6 +225,29 @@ begin
 
   if new.status <> 'pending' then
     return new;
+  end if;
+
+  if v_original_status = 'REJECTED'
+    and v_announcement_reanalysis_available_at is not null
+    and v_announcement_reanalysis_available_at > now() then
+    raise exception 'Este anúncio foi reprovado e só poderá ser reenviado para análise após %.',
+      to_char(v_announcement_reanalysis_available_at at time zone 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI');
+  end if;
+
+  select aer.reanalysis_available_at
+    into v_edit_reanalysis_available_at
+  from public.announcement_edit_requests aer
+  where aer.announcement_id = new.announcement_id
+    and aer.status = 'rejected'
+    and aer.reanalysis_available_at is not null
+    and aer.reanalysis_available_at > now()
+    and (tg_op <> 'UPDATE' or aer.id <> new.id)
+  order by aer.reanalysis_available_at desc
+  limit 1;
+
+  if v_edit_reanalysis_available_at is not null and v_edit_reanalysis_available_at > now() then
+    raise exception 'A última alteração deste anúncio foi rejeitada e só poderá ser reenviada para análise após %.',
+      to_char(v_edit_reanalysis_available_at at time zone 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI');
   end if;
 
   v_result := public.evaluate_announcement_publication_rules(

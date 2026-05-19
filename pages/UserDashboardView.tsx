@@ -1116,6 +1116,37 @@ const UserDashboardView: React.FC = () => {
       return `Anúncio reprovado em ${rejectedDate.toLocaleDateString('pt-BR')}`;
     };
 
+    const formatRetryDateTime = (value?: string | null) => {
+      if (!value) return '';
+
+      const retryDate = new Date(value);
+      if (Number.isNaN(retryDate.getTime())) {
+        return value;
+      }
+
+      return retryDate.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    };
+
+    const isReanalysisBlocked = (value?: string | null) => Boolean(value && isTimestampActive(value));
+
+    const getReanalysisBlockedLabel = (ad: Ad) => {
+      if (ad.status === AdStatus.REJECTED && isReanalysisBlocked(ad.reanalysisAvailableAt)) {
+        return `Novo envio disponível em ${formatRetryDateTime(ad.reanalysisAvailableAt)}`;
+      }
+
+      if (ad.latestEditRequestStatus === 'rejected' && isReanalysisBlocked(ad.latestEditReanalysisAvailableAt)) {
+        return `Nova alteração disponível em ${formatRetryDateTime(ad.latestEditReanalysisAvailableAt)}`;
+      }
+
+      return '';
+    };
+
     const getAdStatusSupportingLabel = (ad: Ad) => {
       if (ad.status === AdStatus.REJECTED) {
         return getRejectedStatusLabel(ad);
@@ -1494,6 +1525,11 @@ const UserDashboardView: React.FC = () => {
                         Ultima alteracao rejeitada: {ad.latestEditRejectionReason}
                       </p>
                     ) : null}
+                    {getReanalysisBlockedLabel(ad) ? (
+                      <p className="mt-1 text-xs font-medium text-amber-700">
+                        {getReanalysisBlockedLabel(ad)}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="flex items-center gap-4">
@@ -1578,17 +1614,37 @@ const UserDashboardView: React.FC = () => {
                         </>
                       )}
                       {/* Botão Editar */}
+                      {(() => {
+                        const editBlocked =
+                          (ad.status === AdStatus.REJECTED && isReanalysisBlocked(ad.reanalysisAvailableAt))
+                          || (ad.latestEditRequestStatus === 'rejected' && isReanalysisBlocked(ad.latestEditReanalysisAvailableAt));
+                        const editBlockedTitle = ad.status === AdStatus.REJECTED
+                          ? getReanalysisBlockedLabel(ad) || 'Novo envio temporariamente bloqueado'
+                          : getReanalysisBlockedLabel(ad) || 'Nova alteração temporariamente bloqueada';
+
+                        return (
                       <button
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
+                          if (editBlocked) {
+                            sonnerToast.error(editBlockedTitle);
+                            return;
+                          }
                           navigate(`/anunciar?edit=${ad.id}`);
                         }}
-                        className="p-2 rounded-lg hover:bg-slate-50 hover:text-green-700 transition-colors" 
-                        title="Editar anúncio"
+                        disabled={editBlocked}
+                        className={`p-2 rounded-lg transition-colors ${
+                          editBlocked
+                            ? 'cursor-not-allowed text-slate-300'
+                            : 'hover:bg-slate-50 hover:text-green-700'
+                        }`} 
+                        title={editBlocked ? editBlockedTitle : 'Editar anúncio'}
                       >
                         <Edit3 className="w-4 h-4" strokeWidth={1.5} />
                       </button>
+                        );
+                      })()}
                       {/* Botão Pausar/Reativar */}
                       {ad.status === AdStatus.EXPIRED ? (
                         <button 

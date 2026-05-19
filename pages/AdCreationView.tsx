@@ -367,6 +367,16 @@ const AdCreationView: React.FC = () => {
 
     return date.toLocaleString('pt-BR');
   };
+
+  const getReanalysisBlockedMessage = (value?: string | null, fallback?: string) => {
+    const formattedDate = formatCooldownReleaseDate(value);
+
+    if (formattedDate) {
+      return `${fallback || 'Você poderá reenviar para análise após'} ${formattedDate}.`;
+    }
+
+    return fallback || 'Este anúncio ainda está temporariamente bloqueado para novo envio à análise.';
+  };
   
   // A rota jÃ¡ Ã© protegida pelo RequireAuth no App.tsx.
   if (!user) return null;
@@ -1787,10 +1797,10 @@ const AdCreationView: React.FC = () => {
       if (isEditingExistingAd && editAdId) {
         const { data: currentAnnouncement, error: currentAnnouncementError } = await supabase
           .from('announcements')
-          .select('id,status')
+          .select('id,status,reanalysis_available_at')
           .eq('id', editAdId)
           .eq('user_id', userId)
-          .maybeSingle<{ id: string; status: string }>();
+          .maybeSingle<{ id: string; status: string; reanalysis_available_at?: string | null }>();
 
         if (currentAnnouncementError) {
           toast.error('Erro ao validar o status atual do anúncio.', {
@@ -1800,6 +1810,54 @@ const AdCreationView: React.FC = () => {
         }
 
         const originalAnnouncementStatus = String(currentAnnouncement?.status || '').toUpperCase() || 'ACTIVE';
+        const announcementReanalysisAvailableAt = currentAnnouncement?.reanalysis_available_at || null;
+
+        if (
+          originalAnnouncementStatus === AdStatus.REJECTED &&
+          announcementReanalysisAvailableAt &&
+          new Date(announcementReanalysisAvailableAt).getTime() > Date.now()
+        ) {
+          toast.error('Novo envio temporariamente bloqueado', {
+            description: getReanalysisBlockedMessage(
+              announcementReanalysisAvailableAt,
+              'Este anúncio foi reprovado e só poderá ser reenviado para análise após'
+            ),
+          });
+          return;
+        }
+
+        const { data: latestRejectedEditRequest, error: latestRejectedEditRequestError } = await supabase
+          .from('announcement_edit_requests')
+          .select('reanalysis_available_at')
+          .eq('announcement_id', editAdId)
+          .eq('user_id', userId)
+          .eq('status', 'rejected')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle<{ reanalysis_available_at?: string | null }>();
+
+        if (latestRejectedEditRequestError && latestRejectedEditRequestError.code !== 'PGRST116') {
+          toast.error('Erro ao validar o prazo para reenviar alterações.', {
+            description: latestRejectedEditRequestError.message,
+          });
+          return;
+        }
+
+        const latestEditReanalysisAvailableAt = latestRejectedEditRequest?.reanalysis_available_at || null;
+
+        if (
+          latestEditReanalysisAvailableAt &&
+          new Date(latestEditReanalysisAvailableAt).getTime() > Date.now()
+        ) {
+          toast.error('Reenvio de alteração temporariamente bloqueado', {
+            description: getReanalysisBlockedMessage(
+              latestEditReanalysisAvailableAt,
+              'A última alteração deste anúncio foi rejeitada e só poderá ser reenviada para análise após'
+            ),
+          });
+          return;
+        }
+
         const { data: existingRequest } = await supabase
           .from('announcement_edit_requests')
           .select('id')
@@ -1840,7 +1898,15 @@ const AdCreationView: React.FC = () => {
               .single();
 
         if (requestResult.error) {
-          toast.error('Erro ao enviar alteracoes para analise.', { description: requestResult.error.message });
+          const normalizedErrorMessage = String(requestResult.error.message || '');
+          const isReanalysisCooldownError =
+            normalizedErrorMessage.includes('só poderá ser reenviado para análise após')
+            || normalizedErrorMessage.includes('só poderá ser reenviada para análise após');
+
+          toast.error(
+            isReanalysisCooldownError ? 'Novo envio temporariamente bloqueado' : 'Erro ao enviar alteracoes para analise.',
+            { description: requestResult.error.message }
+          );
           return;
         }
 

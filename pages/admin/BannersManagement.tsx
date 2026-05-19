@@ -155,6 +155,9 @@ const BannersManagement: React.FC = () => {
           <p className="text-sm text-slate-600 mt-1">
             Gerencie os banners exibidos no slider principal
           </p>
+          <p className="text-xs text-slate-500 mt-2">
+            Padrão recomendado: <span className="font-semibold text-slate-700">1920x640 px</span> (proporção 3:1). Mantenha textos, logos e elementos principais na área central da arte para evitar cortes.
+          </p>
         </div>
         <button
           onClick={() => setShowForm(true)}
@@ -185,7 +188,7 @@ const BannersManagement: React.FC = () => {
                 </div>
 
                 {/* Miniatura */}
-                <div className="w-40 h-24 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                <div className="w-40 aspect-[3/1] rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
                   <img
                     src={banner.image_url}
                     alt={banner.title}
@@ -287,13 +290,16 @@ const BannersManagement: React.FC = () => {
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   Imagem do Banner
                 </label>
+                <p className="mb-3 text-xs text-slate-500">
+                  Arquivo oficial do carrossel: <span className="font-semibold text-slate-700">1920x640 px</span>. Posicione os elementos mais importantes no centro da arte para manter o enquadramento em telas menores.
+                </p>
                 
                 {imagePreview ? (
                   <div className="relative">
                     <img
                       src={imagePreview}
                       alt="Preview"
-                      className="w-full h-48 object-cover rounded-lg"
+                      className="w-full aspect-[3/1] object-cover rounded-lg bg-slate-100"
                     />
                     <button
                       type="button"
@@ -307,7 +313,7 @@ const BannersManagement: React.FC = () => {
                     </button>
                   </div>
                 ) : (
-                  <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-green-500 transition-colors bg-slate-50">
+                  <label className="flex flex-col items-center justify-center w-full aspect-[3/1] border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-green-500 transition-colors bg-slate-50">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                       {uploading ? (
                         <Loader2 className="w-10 h-10 text-green-600 animate-spin mb-2" />

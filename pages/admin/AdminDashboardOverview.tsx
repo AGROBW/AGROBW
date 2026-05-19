@@ -434,9 +434,16 @@ const AdminDashboardOverview: React.FC = () => {
     if (!reason) return;
 
     try {
+      const rejectedAt = new Date().toISOString();
+      const reanalysisAvailableAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       const { error } = await supabase
         .from('announcements')
-        .update({ status: 'REJECTED' })
+        .update({
+          status: 'REJECTED',
+          rejection_reason: reason,
+          rejected_at: rejectedAt,
+          reanalysis_available_at: reanalysisAvailableAt,
+        })
         .eq('id', adId);
 
       if (error) throw error;
@@ -447,7 +454,12 @@ const AdminDashboardOverview: React.FC = () => {
         resourceType: 'announcement',
         resourceId: adId,
         oldValue: { status: 'PENDING' },
-        newValue: { status: 'REJECTED' },
+        newValue: {
+          status: 'REJECTED',
+          rejection_reason: reason,
+          rejected_at: rejectedAt,
+          reanalysis_available_at: reanalysisAvailableAt,
+        },
         reason
       });
 

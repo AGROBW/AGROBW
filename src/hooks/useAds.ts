@@ -40,6 +40,7 @@ const USER_ADS_SELECT = `
   expired_at,
   rejected_at,
   rejection_reason,
+  reanalysis_available_at,
   deletion_scheduled_at,
   whatsapp,
   highlight_category,
@@ -228,6 +229,12 @@ const getEffectiveAdStatus = (status: string, expiresAt?: string | null) => {
 
 const HIGHLIGHT_COOLDOWN_DAYS = 15;
 
+const isFutureTimestamp = (value?: string | null) => {
+  if (!value) return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.getTime() > Date.now();
+};
+
 const getHighlightCooldownAvailableAfter = (highlight: { expires_at?: string | null; applied_at?: string | null }) => {
   const baseValue = highlight.expires_at || highlight.applied_at;
 
@@ -339,7 +346,7 @@ export const useUserAds = () => {
         }
 
         const missingRejectedColumns =
-          /rejected_at|rejection_reason/i.test(primaryResult.error.message || '')
+          /rejected_at|rejection_reason|reanalysis_available_at/i.test(primaryResult.error.message || '')
 
         if (!missingRejectedColumns) {
           return primaryResult
@@ -359,13 +366,37 @@ export const useUserAds = () => {
           .order('created_at', { ascending: false })
       }
 
-      const [{ data, error }, { data: editRequests, error: pendingEditRequestsError }] = await Promise.all([
-        fetchUserAnnouncements(),
-        supabase
+      const fetchUserEditRequests = async () => {
+        const primaryResult = await supabase
+          .from('announcement_edit_requests')
+          .select('announcement_id,status,rejection_reason,reanalysis_available_at,created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+
+        if (!primaryResult.error) {
+          return primaryResult
+        }
+
+        const missingReanalysisColumn = /reanalysis_available_at/i.test(primaryResult.error.message || '')
+        if (!missingReanalysisColumn) {
+          return primaryResult
+        }
+
+        appWarn('[useUserAds] Consulta de historico de edicoes falhou; usando fallback compativel', {
+          userId: user.id,
+          error: primaryResult.error,
+        })
+
+        return supabase
           .from('announcement_edit_requests')
           .select('announcement_id,status,rejection_reason,created_at')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
+      }
+
+      const [{ data, error }, { data: editRequests, error: pendingEditRequestsError }] = await Promise.all([
+        fetchUserAnnouncements(),
+        fetchUserEditRequests()
       ])
 
       if (error) {
@@ -422,13 +453,18 @@ export const useUserAds = () => {
           appError('Erro ao buscar edicoes pendentes do usuario', pendingEditRequestsError, { userId: user.id })
         }
 
-        const latestEditRequestByAnnouncement = new Map<string, { status: 'pending' | 'approved' | 'rejected'; rejection_reason?: string | null }>()
+        const latestEditRequestByAnnouncement = new Map<string, {
+          status: 'pending' | 'approved' | 'rejected'
+          rejection_reason?: string | null
+          reanalysis_available_at?: string | null
+        }>()
 
         for (const item of (editRequests || []) as any[]) {
           if (!item?.announcement_id || latestEditRequestByAnnouncement.has(item.announcement_id)) continue
           latestEditRequestByAnnouncement.set(item.announcement_id, {
             status: item.status,
             rejection_reason: item.rejection_reason || null,
+            reanalysis_available_at: item.reanalysis_available_at || null,
           })
         }
 
@@ -474,6 +510,9 @@ export const useUserAds = () => {
           expiredAt: ad.expired_at,
           rejectedAt: (('rejected_at' in ad ? (ad as any).rejected_at : null) as string | null),
           rejectionReason: ((('rejection_reason' in ad ? (ad as any).rejection_reason : null) || null) as string | null),
+          reanalysisAvailableAt: isFutureTimestamp((('reanalysis_available_at' in ad ? (ad as any).reanalysis_available_at : null) as string | null))
+            ? ((ad as any).reanalysis_available_at as string | null)
+            : ((('reanalysis_available_at' in ad ? (ad as any).reanalysis_available_at : null) || null) as string | null),
           deletionScheduledAt: ad.deletion_scheduled_at,
           whatsapp: ad.whatsapp,
           highlightCategory: ad.highlight_category || false,
@@ -484,6 +523,7 @@ export const useUserAds = () => {
           highlightHomeAvailableAfter: latestHighlightState?.homeAvailableAfter || null,
           latestEditRequestStatus: latestEditRequestByAnnouncement.get(ad.id)?.status || null,
           latestEditRejectionReason: latestEditRequestByAnnouncement.get(ad.id)?.rejection_reason || null,
+          latestEditReanalysisAvailableAt: latestEditRequestByAnnouncement.get(ad.id)?.reanalysis_available_at || null,
         })})
         setAds(mappedAds)
       }
