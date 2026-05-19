@@ -35,6 +35,7 @@ import { evaluatePublicationModeration, formatPublicationModerationReasons } fro
 import { updateAnnouncementCoordinates } from '../services/geoService';
 import imageCompression from 'browser-image-compression';
 import { compressAnnouncementVideo, formatVideoSize, VideoCompressionError } from '../src/utils/videoCompression';
+import { generateVideoThumbnail } from '../src/utils/videoThumbnail';
 import { motion } from 'framer-motion';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -58,6 +59,8 @@ type VideoItem = {
   previewUrl: string;
   publicUrl?: string;
   storagePath?: string;
+  thumbnailUrl?: string;
+  thumbnailStoragePath?: string;
   uploading: boolean;
   progress: number;
   durationSeconds?: number;
@@ -176,7 +179,8 @@ const PreviewAnnouncementModal: React.FC<{
 
   if (!isOpen) return null;
 
-  const mainImage = getPrimaryImageFromList(previewAd.images, defaultAdImageUrl);
+  const mainImage = getPrimaryImageFromList(previewAd.images, defaultAdImageUrl) || previewAd.videoThumbnailUrl || '';
+  const videoPoster = previewAd.videoThumbnailUrl || mainImage || '';
   const previewVideoUrl = previewAd.videoPreviewUrl || previewAd.videoUrl || '';
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -257,7 +261,7 @@ const PreviewAnnouncementModal: React.FC<{
                       controls
                       playsInline
                       preload="metadata"
-                      poster={mainImage || undefined}
+                      poster={videoPoster || undefined}
                       className="aspect-video w-full bg-slate-950 object-contain"
                     />
                   </div>
@@ -430,6 +434,8 @@ const AdCreationView: React.FC = () => {
     images: [],
     videoUrl: '',
     videoStoragePath: '',
+    videoThumbnailUrl: '',
+    videoThumbnailStoragePath: '',
     videoDurationSeconds: 0,
     videoSizeBytes: 0,
     isPremium: false
@@ -634,6 +640,8 @@ const AdCreationView: React.FC = () => {
           images: Array.isArray(requestPayload.images) ? requestPayload.images : Array.isArray(adData.images) ? adData.images : [],
           videoUrl: requestPayload.video_url || adData.video_url || '',
           videoStoragePath: requestPayload.video_storage_path || adData.video_storage_path || '',
+          videoThumbnailUrl: requestPayload.video_thumbnail_url || adData.video_thumbnail_url || '',
+          videoThumbnailStoragePath: requestPayload.video_thumbnail_storage_path || adData.video_thumbnail_storage_path || '',
           videoDurationSeconds: Number(requestPayload.video_duration_seconds ?? adData.video_duration_seconds ?? 0),
           videoSizeBytes: Number(requestPayload.video_size_bytes ?? adData.video_size_bytes ?? 0),
           isPremium: Boolean(requestPayload.is_premium ?? adData.is_premium)
@@ -656,6 +664,8 @@ const AdCreationView: React.FC = () => {
                 previewUrl: nextFormData.videoUrl,
                 publicUrl: nextFormData.videoUrl,
                 storagePath: nextFormData.videoStoragePath || undefined,
+                thumbnailUrl: nextFormData.videoThumbnailUrl || undefined,
+                thumbnailStoragePath: nextFormData.videoThumbnailStoragePath || undefined,
                 uploading: false,
                 progress: 100,
                 durationSeconds: Number(nextFormData.videoDurationSeconds || 0) || undefined,
@@ -947,13 +957,23 @@ const AdCreationView: React.FC = () => {
         previewUrl: formData.videoUrl,
         publicUrl: formData.videoUrl,
         storagePath: formData.videoStoragePath || undefined,
+        thumbnailUrl: formData.videoThumbnailUrl || undefined,
+        thumbnailStoragePath: formData.videoThumbnailStoragePath || undefined,
         uploading: false,
         progress: 100,
         durationSeconds: formData.videoDurationSeconds || undefined,
         sizeBytes: formData.videoSizeBytes || undefined,
       });
     }
-  }, [formData.videoDurationSeconds, formData.videoSizeBytes, formData.videoStoragePath, formData.videoUrl, videoItem]);
+  }, [
+    formData.videoDurationSeconds,
+    formData.videoSizeBytes,
+    formData.videoStoragePath,
+    formData.videoThumbnailStoragePath,
+    formData.videoThumbnailUrl,
+    formData.videoUrl,
+    videoItem,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1075,6 +1095,8 @@ const AdCreationView: React.FC = () => {
       images: string[];
       videoUrl: string | null;
       videoStoragePath: string | null;
+      videoThumbnailUrl: string | null;
+      videoThumbnailStoragePath: string | null;
       videoDurationSeconds: number | null;
       videoSizeBytes: number | null;
     }>
@@ -1082,6 +1104,9 @@ const AdCreationView: React.FC = () => {
     images: override?.images ?? (Array.isArray(formData.images) ? formData.images : []),
     videoUrl: override?.videoUrl ?? (hasStoreListingAccess ? formData.videoUrl || null : null),
     videoStoragePath: override?.videoStoragePath ?? (hasStoreListingAccess ? formData.videoStoragePath || null : null),
+    videoThumbnailUrl: override?.videoThumbnailUrl ?? (hasStoreListingAccess ? formData.videoThumbnailUrl || null : null),
+    videoThumbnailStoragePath:
+      override?.videoThumbnailStoragePath ?? (hasStoreListingAccess ? formData.videoThumbnailStoragePath || null : null),
     videoDurationSeconds:
       override?.videoDurationSeconds ?? (hasStoreListingAccess ? (formData.videoDurationSeconds || null) : null),
     videoSizeBytes: override?.videoSizeBytes ?? (hasStoreListingAccess ? (formData.videoSizeBytes || null) : null),
@@ -1155,6 +1180,8 @@ const AdCreationView: React.FC = () => {
       images: media.images,
       video_url: media.videoUrl,
       video_storage_path: media.videoStoragePath,
+      video_thumbnail_url: media.videoThumbnailUrl,
+      video_thumbnail_storage_path: media.videoThumbnailStoragePath,
       video_duration_seconds: media.videoDurationSeconds,
       video_size_bytes: media.videoSizeBytes,
       user_id: user.id,
@@ -1219,6 +1246,32 @@ const AdCreationView: React.FC = () => {
     return publicUrl.substring(index + marker.length);
   };
 
+  const uploadVideoThumbnail = async (videoFile: File, basePath: string) => {
+    const thumbnail = await generateVideoThumbnail(videoFile);
+    const thumbnailPath = basePath.replace(/\.[^/.]+$/, '') + '-thumbnail.jpg';
+
+    const { error: uploadError } = await supabase.storage
+      .from('announcement-videos')
+      .upload(thumbnailPath, thumbnail.file, { upsert: false, contentType: thumbnail.file.type });
+
+    if (uploadError) {
+      throw new Error(uploadError.message);
+    }
+
+    const { data } = supabase.storage
+      .from('announcement-videos')
+      .getPublicUrl(thumbnailPath);
+
+    if (!data?.publicUrl) {
+      throw new Error('Nao foi possivel obter a URL publica da capa automatica do video.');
+    }
+
+    return {
+      publicUrl: data.publicUrl,
+      storagePath: thumbnailPath,
+    };
+  };
+
   const syncDraftMedia = async (media: ReturnType<typeof buildCurrentDraftMedia>) => {
     if (isEditingExistingAd) return;
     const currentDraftId = await ensureDraftAd(media);
@@ -1240,6 +1293,8 @@ const AdCreationView: React.FC = () => {
       .update({
         video_url: media.videoUrl,
         video_storage_path: media.videoStoragePath,
+        video_thumbnail_url: media.videoThumbnailUrl,
+        video_thumbnail_storage_path: media.videoThumbnailStoragePath,
         video_duration_seconds: media.videoDurationSeconds,
         video_size_bytes: media.videoSizeBytes,
       })
@@ -1415,6 +1470,8 @@ const AdCreationView: React.FC = () => {
 
     const previewUrl = URL.createObjectURL(file);
     const localVideoId = `${Date.now()}-video-${Math.random().toString(36).slice(2, 7)}`;
+    let uploadedVideoPath: string | null = null;
+    let uploadedThumbnailPath: string | null = null;
 
     setVideoItem({
       id: localVideoId,
@@ -1449,6 +1506,7 @@ const AdCreationView: React.FC = () => {
       if (uploadError) {
         throw new Error(uploadError.message);
       }
+      uploadedVideoPath = filePath;
 
       const { data } = supabase.storage
         .from('announcement-videos')
@@ -1458,13 +1516,27 @@ const AdCreationView: React.FC = () => {
         throw new Error('Nao foi possivel obter a URL publica do video.');
       }
 
+      setVideoItem((current) =>
+        current
+          ? {
+              ...current,
+              progress: 65,
+            }
+          : current
+      );
+
+      const thumbnailUpload = await uploadVideoThumbnail(compressed.file, filePath);
+      uploadedThumbnailPath = thumbnailUpload.storagePath;
       const previousVideoPath = formData.videoStoragePath || videoItem?.storagePath;
+      const previousThumbnailPath = formData.videoThumbnailStoragePath || videoItem?.thumbnailStoragePath;
 
       setVideoItem({
         id: localVideoId,
         previewUrl: data.publicUrl,
         publicUrl: data.publicUrl,
         storagePath: filePath,
+        thumbnailUrl: thumbnailUpload.publicUrl,
+        thumbnailStoragePath: thumbnailUpload.storagePath,
         uploading: false,
         progress: 100,
         durationSeconds: compressed.durationSeconds,
@@ -1476,6 +1548,8 @@ const AdCreationView: React.FC = () => {
           ...prev,
           videoUrl: data.publicUrl,
           videoStoragePath: filePath,
+          videoThumbnailUrl: thumbnailUpload.publicUrl,
+          videoThumbnailStoragePath: thumbnailUpload.storagePath,
           videoDurationSeconds: compressed.durationSeconds,
           videoSizeBytes: compressed.sizeBytes,
         };
@@ -1485,6 +1559,8 @@ const AdCreationView: React.FC = () => {
             images: Array.isArray(nextFormData.images) ? nextFormData.images : [],
             videoUrl: nextFormData.videoUrl,
             videoStoragePath: nextFormData.videoStoragePath,
+            videoThumbnailUrl: nextFormData.videoThumbnailUrl,
+            videoThumbnailStoragePath: nextFormData.videoThumbnailStoragePath,
             videoDurationSeconds: nextFormData.videoDurationSeconds,
             videoSizeBytes: nextFormData.videoSizeBytes,
           })
@@ -1496,6 +1572,9 @@ const AdCreationView: React.FC = () => {
       if (previousVideoPath && previousVideoPath !== filePath) {
         await supabase.storage.from('announcement-videos').remove([previousVideoPath]);
       }
+      if (previousThumbnailPath && previousThumbnailPath !== thumbnailUpload.storagePath) {
+        await supabase.storage.from('announcement-videos').remove([previousThumbnailPath]);
+      }
 
       if (compressed.sizeBytes > 12 * 1024 * 1024) {
         toast.success('Video enviado com sucesso.', {
@@ -1505,6 +1584,11 @@ const AdCreationView: React.FC = () => {
         toast.success('Video otimizado e enviado com sucesso.');
       }
     } catch (error: any) {
+      const uploadedPaths = [uploadedVideoPath, uploadedThumbnailPath].filter(Boolean) as string[];
+      if (uploadedPaths.length > 0) {
+        await supabase.storage.from('announcement-videos').remove(uploadedPaths);
+      }
+
       if (previewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(previewUrl);
       }
@@ -1531,6 +1615,8 @@ const AdCreationView: React.FC = () => {
     }
 
     const storagePath = videoItem?.storagePath || (formData.videoUrl ? extractVideoStoragePath(formData.videoUrl) : null);
+    const thumbnailStoragePath =
+      videoItem?.thumbnailStoragePath || (formData.videoThumbnailUrl ? extractVideoStoragePath(formData.videoThumbnailUrl) : null);
     setVideoItem(null);
 
     setFormData((prev: any) => {
@@ -1538,6 +1624,8 @@ const AdCreationView: React.FC = () => {
         ...prev,
         videoUrl: '',
         videoStoragePath: '',
+        videoThumbnailUrl: '',
+        videoThumbnailStoragePath: '',
         videoDurationSeconds: 0,
         videoSizeBytes: 0,
       };
@@ -1547,6 +1635,8 @@ const AdCreationView: React.FC = () => {
           images: Array.isArray(nextFormData.images) ? nextFormData.images : [],
           videoUrl: null,
           videoStoragePath: null,
+          videoThumbnailUrl: null,
+          videoThumbnailStoragePath: null,
           videoDurationSeconds: null,
           videoSizeBytes: null,
         })
@@ -1555,8 +1645,9 @@ const AdCreationView: React.FC = () => {
       return nextFormData;
     });
 
-    if (storagePath) {
-      const { error } = await supabase.storage.from('announcement-videos').remove([storagePath]);
+    const pathsToRemove = [storagePath, thumbnailStoragePath].filter(Boolean) as string[];
+    if (pathsToRemove.length > 0) {
+      const { error } = await supabase.storage.from('announcement-videos').remove(pathsToRemove);
       if (error) {
         appError('[Ads] Erro ao remover video', error, { draftId: draftIdRef.current || null });
       }
@@ -1693,6 +1784,8 @@ const AdCreationView: React.FC = () => {
         images: Array.isArray(formData.images) ? formData.images : [],
         video_url: hasStoreListingAccess ? (formData.videoUrl || null) : null,
         video_storage_path: hasStoreListingAccess ? (formData.videoStoragePath || null) : null,
+        video_thumbnail_url: hasStoreListingAccess ? (formData.videoThumbnailUrl || null) : null,
+        video_thumbnail_storage_path: hasStoreListingAccess ? (formData.videoThumbnailStoragePath || null) : null,
         video_duration_seconds: hasStoreListingAccess ? (formData.videoDurationSeconds || null) : null,
         video_size_bytes: hasStoreListingAccess ? (formData.videoSizeBytes || null) : null,
         is_premium: !!formData.isPremium,
@@ -2467,7 +2560,7 @@ const AdCreationView: React.FC = () => {
                         controls={!videoItem.uploading}
                         muted={videoItem.uploading}
                         className="aspect-video w-full bg-slate-950 object-contain"
-                        poster={formData.images?.[0] || undefined}
+                        poster={videoItem.thumbnailUrl || formData.videoThumbnailUrl || formData.images?.[0] || undefined}
                       />
                       {videoItem.uploading && (
                         <div className="absolute inset-0 flex items-center justify-center bg-slate-950/55">
@@ -2626,6 +2719,7 @@ const AdCreationView: React.FC = () => {
           whatsapp: '11999999999',
           location: { city: formData.location.city || 'Cidade', state: formData.location.state || 'UF' },
           videoPreviewUrl: videoItem?.previewUrl || formData.videoUrl || '',
+          videoThumbnailUrl: videoItem?.thumbnailUrl || formData.videoThumbnailUrl || '',
           videoDurationSeconds: videoItem?.durationSeconds || formData.videoDurationSeconds || 0,
         };
         return (
@@ -2761,7 +2855,7 @@ const AdCreationView: React.FC = () => {
             <p className="text-slate-500 text-lg mb-12">Seu anúncio já está no ar e visível para milhares de produtores rurais.</p>
             <div className="flex flex-col gap-4">
                <button onClick={() => navigate('/anuncios')} className="w-full py-5 bg-green-700 text-white rounded-2xl font-black shadow-lg">Ver Meus Anúncios</button>
-               <button onClick={() => { setFormData({title: '', description: '', price: 0, location: {cep:'', city:'', state:''}, images:[], videoUrl:'', videoStoragePath:'', videoDurationSeconds:0, videoSizeBytes:0}); setVideoItem(null); setCurrentStep('CATEGORY'); }} className="w-full py-5 border-2 border-slate-100 text-slate-600 rounded-2xl font-black">Anunciar Outro Produto</button>
+               <button onClick={() => { setFormData({title: '', description: '', price: 0, location: {cep:'', city:'', state:''}, images:[], videoUrl:'', videoStoragePath:'', videoThumbnailUrl:'', videoThumbnailStoragePath:'', videoDurationSeconds:0, videoSizeBytes:0}); setVideoItem(null); setCurrentStep('CATEGORY'); }} className="w-full py-5 border-2 border-slate-100 text-slate-600 rounded-2xl font-black">Anunciar Outro Produto</button>
             </div>
           </div>
         );

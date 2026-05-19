@@ -35,6 +35,8 @@ interface PendingAnnouncement {
   has_invoice?: boolean | null;
   video_url?: string | null;
   video_storage_path?: string | null;
+  video_thumbnail_url?: string | null;
+  video_thumbnail_storage_path?: string | null;
   video_duration_seconds?: number | null;
   video_size_bytes?: number | null;
   is_premium?: boolean | null;
@@ -81,7 +83,7 @@ interface PublicationModerationRuleRecord {
 type ModerationTab = 'announcements' | 'edits';
 const PAGE_SIZE = 20;
 const ANNOUNCEMENT_EDIT_SELECT =
-  'id,title,description,price,unit_price,quantity,unit,currency,category_id,category_slug,sub_category_id,sub_category_label,status,created_at,user_id,city,state,cep,product_condition,availability,accepts_trade,has_warranty,warranty_details,has_invoice,images,video_url,video_storage_path,video_duration_seconds,video_size_bytes,is_premium,whatsapp,publication_review_reasons,publication_review_severity';
+  'id,title,description,price,unit_price,quantity,unit,currency,category_id,category_slug,sub_category_id,sub_category_label,status,created_at,user_id,city,state,cep,product_condition,availability,accepts_trade,has_warranty,warranty_details,has_invoice,images,video_url,video_storage_path,video_thumbnail_url,video_thumbnail_storage_path,video_duration_seconds,video_size_bytes,is_premium,whatsapp,publication_review_reasons,publication_review_severity';
 const EDITABLE_ANNOUNCEMENT_FIELDS = new Set([
   'title',
   'description',
@@ -106,6 +108,8 @@ const EDITABLE_ANNOUNCEMENT_FIELDS = new Set([
   'images',
   'video_url',
   'video_storage_path',
+  'video_thumbnail_url',
+  'video_thumbnail_storage_path',
   'video_duration_seconds',
   'video_size_bytes',
   'is_premium',
@@ -238,6 +242,14 @@ const formatCondition = (value: unknown) => {
 const formatAvailability = (value: unknown) => {
   const normalized = String(value ?? '').trim();
   return availabilityLabels[normalized] || getValueOrFallback(normalized);
+};
+
+const formatVideoDuration = (value: unknown) => {
+  const totalSeconds = Number(value || 0);
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return 'Duracao nao informada';
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return minutes > 0 ? `${minutes}min ${String(seconds).padStart(2, '0')}s` : `${seconds}s`;
 };
 
 const formatCommunityReportSummary = (value: unknown) => {
@@ -737,6 +749,44 @@ const ModerationQueue: React.FC = () => {
     ];
   };
 
+  const buildAnnouncementOverviewRows = (announcement?: PendingAnnouncement | null) => {
+    if (!announcement) return [];
+
+    return [
+      { label: 'Categoria', value: getAnnouncementGroupLabel(announcement) },
+      { label: 'Subcategoria', value: getValueOrFallback(announcement.sub_category_label) },
+      { label: 'Cidade', value: getValueOrFallback(announcement.city) },
+      { label: 'Estado', value: getValueOrFallback(announcement.state) },
+      { label: 'CEP', value: getValueOrFallback(announcement.cep) },
+      { label: 'Quantidade', value: getValueOrFallback(announcement.quantity) },
+      { label: 'Unidade', value: getValueOrFallback(announcement.unit) },
+      { label: 'Preco unitario', value: `R$ ${Number(announcement.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+      { label: 'Preco total', value: `R$ ${Number(announcement.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` },
+      { label: 'Moeda', value: getValueOrFallback(announcement.currency) },
+      { label: 'Anunciante', value: getValueOrFallback(announcement.owner?.name) },
+      { label: 'Email', value: getValueOrFallback(announcement.owner?.email) },
+      { label: 'WhatsApp comercial', value: getValueOrFallback(announcement.whatsapp) },
+      { label: 'Data de envio', value: getValueOrFallback(new Date(announcement.created_at).toLocaleString('pt-BR')) },
+    ];
+  };
+
+  const getAnnouncementMediaPoster = (announcement?: PendingAnnouncement | null) =>
+    announcement?.video_thumbnail_url || announcement?.images?.[0] || undefined;
+
+  const getRequestMedia = (request: PendingEditRequest, variant: 'current' | 'proposed') => {
+    const value = (field: string) =>
+      variant === 'current'
+        ? request.announcement?.[field as keyof PendingAnnouncement]
+        : getProposedValue(request, field);
+
+    return {
+      images: Array.isArray(value('images')) ? (value('images') as string[]) : [],
+      videoUrl: String(value('video_url') || '').trim(),
+      videoThumbnailUrl: String(value('video_thumbnail_url') || '').trim(),
+      videoDurationSeconds: Number(value('video_duration_seconds') || 0),
+    };
+  };
+
   const buildEditComparisonRows = (request: PendingEditRequest) => {
     const current = request.announcement;
     if (!current) return [];
@@ -914,8 +964,8 @@ const ModerationQueue: React.FC = () => {
               <div className="space-y-4">
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                   <div className="aspect-[4/3] bg-slate-100">
-                    {selectedAnnouncement.images?.[0] ? (
-                      <img src={selectedAnnouncement.images[0]} alt={selectedAnnouncement.title} className="h-full w-full object-cover" />
+                    {getAnnouncementMediaPoster(selectedAnnouncement) ? (
+                      <img src={getAnnouncementMediaPoster(selectedAnnouncement)} alt={selectedAnnouncement.title} className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full items-center justify-center text-slate-400">
                         <AlertTriangle className="h-10 w-10" />
@@ -924,7 +974,7 @@ const ModerationQueue: React.FC = () => {
                   </div>
                   <div className="border-t border-slate-200 p-4">
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Resumo</p>
-                    <div className="mt-3 space-y-2 text-sm text-slate-600">
+                    <div className="mt-3 grid gap-2 text-sm text-slate-600">
                       <p><span className="font-semibold text-slate-900">Categoria:</span> {getAnnouncementGroupLabel(selectedAnnouncement)}</p>
                       <p><span className="font-semibold text-slate-900">Anunciante:</span> {selectedAnnouncement.owner?.name || 'Não informado'}</p>
                       <p><span className="font-semibold text-slate-900">Preço:</span> R$ {selectedAnnouncement.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
@@ -935,6 +985,27 @@ const ModerationQueue: React.FC = () => {
               </div>
 
               <div className="space-y-4">
+                {selectedAnnouncement.video_url ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Video enviado</p>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-600">
+                        {formatVideoDuration(selectedAnnouncement.video_duration_seconds)}
+                      </span>
+                    </div>
+                    <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
+                      <video
+                        src={selectedAnnouncement.video_url}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        poster={getAnnouncementMediaPoster(selectedAnnouncement)}
+                        className="aspect-video w-full bg-slate-950 object-contain"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className={`rounded-2xl border p-5 ${selectedAnnouncementRuleMatches?.title.length ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 bg-white'}`}>
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Título</p>
                   <p className="mt-2 text-lg font-semibold text-slate-900">{selectedAnnouncement.title || 'Não informado'}</p>
@@ -990,6 +1061,49 @@ const ModerationQueue: React.FC = () => {
                         ))}
                       </div>
                     ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Detalhes completos do anuncio</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {buildAnnouncementOverviewRows(selectedAnnouncement).map((item) => (
+                      <div key={`announcement-overview-${item.label}`} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                        <p className="text-xs font-semibold text-slate-400">{item.label}</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{item.value}</p>
+                      </div>
+                    ))}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-400">Condicao do item</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{formatCondition(selectedAnnouncement.product_condition)}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-400">Disponibilidade</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{formatAvailability(selectedAnnouncement.availability)}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-400">Aceita troca</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{getValueOrFallback(Boolean(selectedAnnouncement.accepts_trade))}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-400">Possui garantia</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{getValueOrFallback(Boolean(selectedAnnouncement.has_warranty))}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 sm:col-span-2">
+                      <p className="text-xs font-semibold text-slate-400">Detalhes da garantia</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{getValueOrFallback(selectedAnnouncement.warranty_details)}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-400">Emite nota fiscal</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{getValueOrFallback(Boolean(selectedAnnouncement.has_invoice))}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-400">Midia enviada</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {Array.isArray(selectedAnnouncement.images) ? `${selectedAnnouncement.images.length} imagem(ns)` : '0 imagem(ns)'}
+                        {selectedAnnouncement.video_url ? ' + 1 video' : ''}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1054,6 +1168,25 @@ const ModerationQueue: React.FC = () => {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Versão atual</p>
                 <div className="mt-4 space-y-3 text-sm text-slate-700">
+                  {(() => {
+                    const currentMedia = getRequestMedia(selectedEditRequest, 'current');
+                    return currentMedia.videoUrl ? (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Video atual</p>
+                        <div className="mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
+                          <video
+                            src={currentMedia.videoUrl}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            poster={currentMedia.videoThumbnailUrl || currentMedia.images[0] || undefined}
+                            className="aspect-video w-full bg-slate-950 object-contain"
+                          />
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">{formatVideoDuration(currentMedia.videoDurationSeconds)}</p>
+                      </div>
+                    ) : null;
+                  })()}
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Título</p>
                     <p className="mt-1 font-semibold text-slate-900">{selectedEditRequest.announcement?.title || 'Não informado'}</p>
@@ -1126,6 +1259,25 @@ const ModerationQueue: React.FC = () => {
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Versão proposta</p>
                 <div className="mt-4 space-y-3 text-sm text-slate-700">
+                  {(() => {
+                    const proposedMedia = getRequestMedia(selectedEditRequest, 'proposed');
+                    return proposedMedia.videoUrl ? (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Video proposto</p>
+                        <div className="mt-2 overflow-hidden rounded-2xl border border-emerald-200 bg-slate-950">
+                          <video
+                            src={proposedMedia.videoUrl}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            poster={proposedMedia.videoThumbnailUrl || proposedMedia.images[0] || undefined}
+                            className="aspect-video w-full bg-slate-950 object-contain"
+                          />
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">{formatVideoDuration(proposedMedia.videoDurationSeconds)}</p>
+                      </div>
+                    ) : null;
+                  })()}
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Título</p>
                     <p className="mt-1 font-semibold text-slate-900">{selectedEditRequest.payload?.title || selectedEditRequest.announcement?.title || 'Não informado'}</p>

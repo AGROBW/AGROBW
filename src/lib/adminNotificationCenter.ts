@@ -30,15 +30,41 @@ export const fetchAdminNotificationItems = async (): Promise<AdminNotificationIt
       latestPendingAnnouncementResult,
       pendingEditRequestsResult,
       latestPendingEditRequestResult,
+      reportedAnnouncementsResult,
+      latestReportedAnnouncementResult,
       openSupportTicketsResult,
       latestOpenSupportTicketResult,
       urgentSupportTicketsResult,
       latestUrgentSupportTicketResult,
     ] = await Promise.all([
-      supabase.from('announcements').select('id', { count: 'exact', head: true }).in('status', ['PENDING', 'UNDER_REVIEW']),
-      supabase.from('announcements').select('created_at').in('status', ['PENDING', 'UNDER_REVIEW']).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase
+        .from('announcements')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['PENDING', 'UNDER_REVIEW'])
+        .is('community_reported_to_review_at', null),
+      supabase
+        .from('announcements')
+        .select('created_at')
+        .in('status', ['PENDING', 'UNDER_REVIEW'])
+        .is('community_reported_to_review_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
       supabase.from('announcement_edit_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       supabase.from('announcement_edit_requests').select('created_at').eq('status', 'pending').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase
+        .from('announcements')
+        .select('id', { count: 'exact', head: true })
+        .not('community_reported_to_review_at', 'is', null)
+        .gte('community_reports_count', 10),
+      supabase
+        .from('announcements')
+        .select('community_reported_to_review_at')
+        .not('community_reported_to_review_at', 'is', null)
+        .gte('community_reports_count', 10)
+        .order('community_reported_to_review_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
       supabase.from('support_tickets').select('id', { count: 'exact', head: true }).in('status', ['open', 'in_progress']),
       supabase.from('support_tickets').select('last_message_at').in('status', ['open', 'in_progress']).order('last_message_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('support_tickets').select('id', { count: 'exact', head: true }).eq('priority', 'urgent').in('status', ['open', 'in_progress']),
@@ -85,6 +111,26 @@ export const fetchAdminNotificationItems = async (): Promise<AdminNotificationIt
         count: pendingEditRequestsCount,
         timestamp: latestPendingEditRequestResult.data?.created_at || new Date().toISOString(),
         priority: 'default',
+      });
+    }
+
+    if (reportedAnnouncementsResult.error) {
+      throw reportedAnnouncementsResult.error;
+    }
+
+    const reportedAnnouncementsCount = reportedAnnouncementsResult.count || 0;
+    if (reportedAnnouncementsCount > 0) {
+      items.push({
+        id: 'reported-announcements',
+        category: 'moderation',
+        title: `${reportedAnnouncementsCount} anuncio(s) denunciado(s) aguardando validacao`,
+        content: 'A comunidade atingiu o limite de denuncias em anuncios que precisam de decisao administrativa.',
+        link: '/admin/announcement-reports',
+        count: reportedAnnouncementsCount,
+        timestamp:
+          (latestReportedAnnouncementResult.data as { community_reported_to_review_at?: string } | null)
+            ?.community_reported_to_review_at || new Date().toISOString(),
+        priority: 'high',
       });
     }
 
@@ -159,6 +205,15 @@ export const subscribeToAdminNotificationEvents = (onChange: () => void) => {
         event: '*',
         schema: 'public',
         table: 'announcements',
+      },
+      debouncedRefresh,
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'announcement_reports',
       },
       debouncedRefresh,
     )

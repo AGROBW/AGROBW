@@ -303,7 +303,7 @@ const AdDetailView: React.FC = () => {
                   controls
                   playsInline
                   preload="metadata"
-                  poster={primaryImage || undefined}
+                  poster={ad.videoThumbnailUrl || primaryImage || undefined}
                   className="aspect-video w-full bg-slate-950 object-contain"
                 />
               </div>

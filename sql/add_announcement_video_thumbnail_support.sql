@@ -1,3 +1,13 @@
+alter table public.announcements
+  add column if not exists video_thumbnail_url text,
+  add column if not exists video_thumbnail_storage_path text;
+
+comment on column public.announcements.video_thumbnail_url is
+  'URL publica da capa automatica gerada a partir do video do anuncio.';
+
+comment on column public.announcements.video_thumbnail_storage_path is
+  'Caminho interno no storage da capa automatica gerada para o video do anuncio.';
+
 drop function if exists public.admin_list_moderation_queue_announcements();
 
 create or replace function public.admin_list_moderation_queue_announcements()

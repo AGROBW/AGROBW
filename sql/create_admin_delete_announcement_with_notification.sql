@@ -13,7 +13,17 @@ end $$;
 
 alter table public.plan_alert_email_jobs
   add constraint plan_alert_email_jobs_alert_kind_check
-  check (alert_kind in ('conversion', 'renewal', 'edit_rejected', 'ad_paused', 'ad_resumed', 'ad_deleted'));
+  check (
+    alert_kind in (
+      'conversion',
+      'renewal',
+      'edit_rejected',
+      'ad_paused',
+      'ad_resumed',
+      'ad_deleted',
+      'announcement_reported_to_review'
+    )
+  );
 
 create or replace function public.admin_delete_announcement_with_notification(
   p_announcement_id uuid,

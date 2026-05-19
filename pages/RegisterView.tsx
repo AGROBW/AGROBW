@@ -53,6 +53,9 @@ const RegisterView: React.FC = () => {
   const redirectTarget = searchParams.get('redirect') || '/minha-conta';
   const contactSellerIntent = searchParams.get('intent') === 'contact-seller';
   const registerLoginLink = `/login${location.search}`;
+  const registerHeroImage =
+    settings.registerHeroImageUrl ||
+    'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=1600&auto=format&fit=crop';
 
   const buildPostAuthRedirect = (fallbackPath: string) => {
     const baseTarget = redirectTarget || fallbackPath;
@@ -345,7 +348,7 @@ const RegisterView: React.FC = () => {
       />
       <div className="hidden lg:block lg:w-[45%] sticky top-0 h-screen relative">
         <img
-          src="https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=1600&auto=format&fit=crop"
+          src={registerHeroImage}
           alt="Inovação no campo"
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -371,13 +374,21 @@ const RegisterView: React.FC = () => {
         <div className="max-w-md w-full animate-in fade-in slide-in-from-right duration-500">
           <div className="mb-10 text-center md:text-left">
             <Link to="/" className="inline-flex items-center gap-2 mb-8 group">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md"
-                style={{ backgroundColor: settings.primaryColor }}
-              >
-                <span className="text-white text-2xl font-black">T</span>
-              </div>
-              <span className="text-xl font-black text-slate-800">{settings.siteName}</span>
+              {settings.logoUrl ? (
+                <img src={settings.logoUrl} alt={settings.siteName} className="h-12 w-auto max-w-[220px] object-contain" />
+              ) : (
+                <>
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md"
+                    style={{ backgroundColor: settings.primaryColor }}
+                  >
+                    <span className="text-white text-2xl font-black">
+                      {(settings.siteShortName || settings.siteName || 'B').charAt(0)}
+                    </span>
+                  </div>
+                  <span className="text-xl font-black text-slate-800">{settings.siteName}</span>
+                </>
+              )}
             </Link>
 
             {!profileType ? (

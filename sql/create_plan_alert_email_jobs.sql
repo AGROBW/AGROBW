@@ -4,7 +4,17 @@ create table if not exists public.plan_alert_email_jobs (
   user_id uuid not null references public.users(id) on delete cascade,
   recipient_email text,
   recipient_name text,
-  alert_kind text not null check (alert_kind in ('conversion', 'renewal')),
+  alert_kind text not null check (
+    alert_kind in (
+      'conversion',
+      'renewal',
+      'edit_rejected',
+      'ad_paused',
+      'ad_resumed',
+      'ad_deleted',
+      'announcement_reported_to_review'
+    )
+  ),
   notification_title text not null,
   notification_content text not null,
   link text,

@@ -26,7 +26,7 @@ declare
   v_reason text := nullif(trim(coalesce(p_reason, '')), '');
 begin
   if p_status not in ('PAUSED', 'ACTIVE') then
-    raise exception 'Status inválido para operação administrativa: %', p_status;
+    raise exception 'Status invalido para operacao administrativa: %', p_status;
   end if;
 
   select exists (
@@ -40,11 +40,30 @@ begin
   ) into v_is_admin;
 
   if not v_is_admin then
-    raise exception 'Acesso negado. Apenas administradores podem alterar o status do anúncio.';
+    raise exception 'Acesso negado. Apenas administradores podem alterar o status do anuncio.';
   end if;
 
   if p_status = 'PAUSED' and v_reason is null then
-    raise exception 'Informe o motivo da pausa do anúncio.';
+    raise exception 'Informe o motivo da pausa do anuncio.';
+  end if;
+
+  select
+    a.id,
+    a.title,
+    a.status,
+    a.user_id,
+    a.community_reported_to_review_at
+  into v_announcement
+  from public.announcements a
+  where a.id = p_announcement_id
+  limit 1;
+
+  if v_announcement.id is null then
+    raise exception 'Anuncio nao encontrado ou sem permissao para atualizacao.';
+  end if;
+
+  if p_status = 'ACTIVE' and v_announcement.community_reported_to_review_at is not null then
+    raise exception 'Use a fila de denuncias para aprovar este anuncio antes de reativa-lo.';
   end if;
 
   update public.announcements
@@ -58,25 +77,21 @@ begin
   returning announcements.id, announcements.title, announcements.status, announcements.user_id
   into v_announcement;
 
-  if v_announcement.id is null then
-    raise exception 'Anúncio não encontrado ou sem permissão para atualização.';
-  end if;
-
   v_notification_title := case
-    when p_status = 'PAUSED' then 'Seu anúncio foi pausado pela equipe'
-    else 'Seu anúncio foi reativado pela equipe'
+    when p_status = 'PAUSED' then 'Seu anuncio foi pausado pela equipe'
+    else 'Seu anuncio foi reativado pela equipe'
   end;
 
   v_notification_content := case
     when p_status = 'PAUSED' then
       format(
-        'O anúncio "%s" foi pausado temporariamente pela equipe AGRO BW. Motivo: %s',
+        'O anuncio "%s" foi pausado temporariamente pela equipe AGRO BW. Motivo: %s',
         v_announcement.title,
         v_reason
       )
     else
       format(
-        'O anúncio "%s" foi reativado pela equipe AGRO BW e voltou a ficar disponível na plataforma.',
+        'O anuncio "%s" foi reativado pela equipe AGRO BW e voltou a ficar disponivel na plataforma.',
         v_announcement.title
       )
   end;

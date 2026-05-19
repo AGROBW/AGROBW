@@ -200,6 +200,15 @@ declare
   v_reason_text text;
   v_content_changed boolean := false;
 begin
+  if tg_op = 'UPDATE'
+    and old.community_reported_to_review_at is not null
+    and upper(coalesce(old.status, '')) in ('PENDING', 'UNDER_REVIEW', 'PAUSED')
+    and upper(coalesce(new.status, '')) = 'ACTIVE'
+    and coalesce(new.publication_review_admin_override, false) = false
+    and not public.is_admin() then
+    raise exception 'Este anuncio esta em analise por denuncias da comunidade e so pode ser reativado pela equipe administrativa.';
+  end if;
+
   if tg_op = 'UPDATE' then
     v_content_changed :=
       coalesce(new.title, '') is distinct from coalesce(old.title, '')

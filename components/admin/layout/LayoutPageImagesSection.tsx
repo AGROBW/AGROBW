@@ -2,6 +2,8 @@ import React from 'react';
 import { ImageIcon, Loader2, UploadCloud } from 'lucide-react';
 
 export type PageImageField =
+  | 'loginHeroImageUrl'
+  | 'registerHeroImageUrl'
   | 'pricingHeroImageUrl'
   | 'pricingStoreImageUrl'
   | 'pricingFieldImageUrl'
@@ -11,6 +13,8 @@ export type PageImageField =
   | 'sponsorFinalCtaImageUrl';
 
 type PageImagesFormData = {
+  loginHeroImageUrl: string;
+  registerHeroImageUrl: string;
   pricingHeroImageUrl: string;
   pricingStoreImageUrl: string;
   pricingFieldImageUrl: string;
@@ -27,21 +31,34 @@ interface LayoutPageImagesSectionProps {
   uploadingField: PageImageField | null;
 }
 
+const AUTH_IMAGES: Array<{ field: PageImageField; label: string; helper: string }> = [
+  {
+    field: 'registerHeroImageUrl',
+    label: 'Cadastro',
+    helper: 'Imagem lateral da tela de cadastro, incluindo a arte do celular com QR Code. Resolucao recomendada: 1600 x 2000 px.',
+  },
+  {
+    field: 'loginHeroImageUrl',
+    label: 'Login',
+    helper: 'Imagem lateral principal da tela de login. Resolucao recomendada: 1600 x 2000 px.',
+  },
+];
+
 const PRICING_IMAGES: Array<{ field: PageImageField; label: string; helper: string }> = [
   {
     field: 'pricingHeroImageUrl',
     label: 'Hero (fundo principal)',
-    helper: 'Imagem de fundo da seção topo da página de Planos.',
+    helper: 'Imagem de fundo da secao topo da pagina de Planos.',
   },
   {
     field: 'pricingStoreImageUrl',
     label: 'Loja Parceira',
-    helper: 'Foto da seção "Sua marca em uma vitrine própria".',
+    helper: 'Foto da secao "Sua marca em uma vitrine propria".',
   },
   {
     field: 'pricingFieldImageUrl',
     label: 'CTA Final',
-    helper: 'Imagem de fundo da seção de chamada final da página de Planos.',
+    helper: 'Imagem de fundo da secao de chamada final da pagina de Planos.',
   },
 ];
 
@@ -49,22 +66,22 @@ const SPONSOR_IMAGES: Array<{ field: PageImageField; label: string; helper: stri
   {
     field: 'sponsorHeroImageUrl',
     label: 'Hero (fundo principal)',
-    helper: 'Imagem de fundo do topo da página de Patrocinadores.',
+    helper: 'Imagem de fundo do topo da pagina de Patrocinadores.',
   },
   {
     field: 'sponsorHarvestImageUrl',
-    label: 'Seção Diferenciais',
+    label: 'Secao Diferenciais',
     helper: 'Foto do bloco de diferenciais/colheitadeira.',
   },
   {
     field: 'sponsorFieldImageUrl',
-    label: 'Formulário / CTA',
-    helper: 'Imagem de fundo do formulário de reserva de patrocínio.',
+    label: 'Formulario / CTA',
+    helper: 'Imagem de fundo do formulario de reserva de patrocinio.',
   },
   {
     field: 'sponsorFinalCtaImageUrl',
     label: 'CTA final',
-    helper: 'Imagem de fundo da última chamada da página de Patrocinadores.',
+    helper: 'Imagem de fundo da ultima chamada da pagina de Patrocinadores.',
   },
 ];
 
@@ -98,12 +115,15 @@ const LayoutPageImagesSection: React.FC<LayoutPageImagesSectionProps> = ({
           )}
         </div>
 
-        {/* Upload */}
         <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-600 transition hover:border-green-400 hover:bg-green-50 hover:text-green-700">
           {isUploading ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> Enviando...</>
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Enviando...
+            </>
           ) : (
-            <><UploadCloud className="h-4 w-4" /> Enviar imagem</>
+            <>
+              <UploadCloud className="h-4 w-4" /> Enviar imagem
+            </>
           )}
           <input
             type="file"
@@ -118,7 +138,6 @@ const LayoutPageImagesSection: React.FC<LayoutPageImagesSectionProps> = ({
           />
         </label>
 
-        {/* URL manual */}
         <input
           type="url"
           placeholder="Ou cole uma URL de imagem..."
@@ -147,16 +166,30 @@ const LayoutPageImagesSection: React.FC<LayoutPageImagesSectionProps> = ({
           <ImageIcon className="h-4 w-4" />
         </div>
         <div>
-          <h3 className="text-base font-black text-slate-900">Imagens das páginas</h3>
-          <p className="text-xs text-slate-500">Personalize as fotos de fundo e seções de Planos e Patrocinadores.</p>
+          <h3 className="text-base font-black text-slate-900">Imagens das paginas</h3>
+          <p className="text-xs text-slate-500">Personalize as imagens das telas de acesso, Planos e Patrocinadores.</p>
         </div>
       </div>
 
-      {/* Pricing */}
       <div className="mb-5">
         <div className="mb-3 flex items-center gap-2">
           <div className="h-px flex-1 bg-slate-100" />
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Página de Planos</span>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Login e Cadastro</span>
+          <div className="h-px flex-1 bg-slate-100" />
+        </div>
+        <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+          Gere as artes em <span className="font-black">1600 x 2000 px</span> para manter o enquadramento consistente.
+          Deixe textos, logos, QR Code e elementos principais dentro da area central para evitar cortes no desktop.
+        </div>
+        <div className="space-y-3">
+          {AUTH_IMAGES.map(({ field, label, helper }) => renderCard(field, label, helper))}
+        </div>
+      </div>
+
+      <div className="mb-5">
+        <div className="mb-3 flex items-center gap-2">
+          <div className="h-px flex-1 bg-slate-100" />
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Pagina de Planos</span>
           <div className="h-px flex-1 bg-slate-100" />
         </div>
         <div className="space-y-3">
@@ -164,11 +197,10 @@ const LayoutPageImagesSection: React.FC<LayoutPageImagesSectionProps> = ({
         </div>
       </div>
 
-      {/* Sponsor */}
       <div>
         <div className="mb-3 flex items-center gap-2">
           <div className="h-px flex-1 bg-slate-100" />
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Página de Patrocinadores</span>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Pagina de Patrocinadores</span>
           <div className="h-px flex-1 bg-slate-100" />
         </div>
         <div className="space-y-3">

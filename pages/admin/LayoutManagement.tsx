@@ -97,6 +97,8 @@ const LayoutManagement: React.FC = () => {
     logoDarkUrl: defaultSettings.logoDarkUrl || '',
     faviconUrl: defaultSettings.faviconUrl || '',
     defaultAdImageUrl: defaultSettings.defaultAdImageUrl || '',
+    loginHeroImageUrl: defaultSettings.loginHeroImageUrl || '',
+    registerHeroImageUrl: defaultSettings.registerHeroImageUrl || '',
     pricingHeroImageUrl: defaultSettings.pricingHeroImageUrl || '',
     pricingStoreImageUrl: defaultSettings.pricingStoreImageUrl || '',
     pricingFieldImageUrl: defaultSettings.pricingFieldImageUrl || '',
@@ -141,6 +143,8 @@ const LayoutManagement: React.FC = () => {
       logoDarkUrl: settings.logoDarkUrl || '',
       faviconUrl: settings.faviconUrl || '',
       defaultAdImageUrl: settings.defaultAdImageUrl || '',
+      loginHeroImageUrl: settings.loginHeroImageUrl || '',
+      registerHeroImageUrl: settings.registerHeroImageUrl || '',
       pricingHeroImageUrl: settings.pricingHeroImageUrl || '',
       pricingStoreImageUrl: settings.pricingStoreImageUrl || '',
       pricingFieldImageUrl: settings.pricingFieldImageUrl || '',
@@ -249,6 +253,8 @@ const LayoutManagement: React.FC = () => {
       logoDarkUrl: formData.logoDarkUrl || null,
       faviconUrl: formData.faviconUrl || null,
       defaultAdImageUrl: formData.defaultAdImageUrl || null,
+      loginHeroImageUrl: formData.loginHeroImageUrl || null,
+      registerHeroImageUrl: formData.registerHeroImageUrl || null,
       pricingHeroImageUrl: formData.pricingHeroImageUrl || null,
       pricingStoreImageUrl: formData.pricingStoreImageUrl || null,
       pricingFieldImageUrl: formData.pricingFieldImageUrl || null,
@@ -337,6 +343,8 @@ const LayoutManagement: React.FC = () => {
           />
           <LayoutPageImagesSection
             formData={{
+              loginHeroImageUrl: formData.loginHeroImageUrl,
+              registerHeroImageUrl: formData.registerHeroImageUrl,
               pricingHeroImageUrl: formData.pricingHeroImageUrl,
               pricingStoreImageUrl: formData.pricingStoreImageUrl,
               pricingFieldImageUrl: formData.pricingFieldImageUrl,
@@ -348,6 +356,8 @@ const LayoutManagement: React.FC = () => {
             onChange={handleChange}
             onUpload={handleAssetUpload}
             uploadingField={
+              uploadingField === 'loginHeroImageUrl' ||
+              uploadingField === 'registerHeroImageUrl' ||
               uploadingField === 'pricingHeroImageUrl' ||
               uploadingField === 'pricingStoreImageUrl' ||
               uploadingField === 'pricingFieldImageUrl' ||

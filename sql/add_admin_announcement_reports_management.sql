@@ -1,32 +1,29 @@
-create table if not exists public.announcement_reports (
-  id uuid primary key default gen_random_uuid(),
-  announcement_id uuid not null references public.announcements(id) on delete cascade,
-  reporter_user_id uuid not null references public.users(id) on delete cascade,
-  reason text not null check (
-    reason in (
-      'inappropriate_content',
-      'wrong_category',
-      'fraud_or_scam',
-      'false_information',
-      'prohibited_item',
-      'duplicate_or_spam',
-      'other'
+do $$
+begin
+  if exists (
+    select 1
+    from pg_constraint
+    where conname = 'plan_alert_email_jobs_alert_kind_check'
+      and conrelid = 'public.plan_alert_email_jobs'::regclass
+  ) then
+    alter table public.plan_alert_email_jobs
+      drop constraint plan_alert_email_jobs_alert_kind_check;
+  end if;
+end $$;
+
+alter table public.plan_alert_email_jobs
+  add constraint plan_alert_email_jobs_alert_kind_check
+  check (
+    alert_kind in (
+      'conversion',
+      'renewal',
+      'edit_rejected',
+      'ad_paused',
+      'ad_resumed',
+      'ad_deleted',
+      'announcement_reported_to_review'
     )
-  ),
-  details text,
-  status text not null default 'valid' check (status in ('valid', 'dismissed')),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create unique index if not exists announcement_reports_unique_user_idx
-  on public.announcement_reports (announcement_id, reporter_user_id);
-
-create index if not exists announcement_reports_announcement_idx
-  on public.announcement_reports (announcement_id, status, created_at desc);
-
-create index if not exists announcement_reports_reporter_idx
-  on public.announcement_reports (reporter_user_id, created_at desc);
+  );
 
 alter table public.announcement_reports enable row level security;
 
@@ -45,32 +42,9 @@ to authenticated
 using (public.is_admin() = true)
 with check (public.is_admin() = true);
 
-alter table public.announcements
-  add column if not exists community_reports_count integer not null default 0,
-  add column if not exists community_reported_to_review_at timestamptz,
-  add column if not exists community_last_reported_at timestamptz,
-  add column if not exists community_report_reasons jsonb not null default '[]'::jsonb;
-
 create index if not exists idx_announcements_community_report_queue
   on public.announcements (community_reported_to_review_at desc)
   where community_reported_to_review_at is not null;
-
-create or replace function public.touch_announcement_reports_updated_at()
-returns trigger
-language plpgsql
-set search_path = public
-as $$
-begin
-  new.updated_at := now();
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_touch_announcement_reports_updated_at on public.announcement_reports;
-create trigger trg_touch_announcement_reports_updated_at
-before update on public.announcement_reports
-for each row
-execute function public.touch_announcement_reports_updated_at();
 
 create or replace function public.strip_community_report_review_reasons(p_reasons jsonb)
 returns jsonb
@@ -214,197 +188,193 @@ begin
 end;
 $$;
 
-create or replace function public.get_announcement_report_snapshot(
-  p_announcement_id uuid
-)
-returns jsonb
+create or replace function public.enforce_announcement_publication_rules()
+returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_user_id uuid := auth.uid();
-  v_count integer := 0;
-  v_threshold integer := 10;
-  v_user_has_reported boolean := false;
+  v_result jsonb;
+  v_reason_text text;
+  v_content_changed boolean := false;
 begin
-  if p_announcement_id is null then
-    raise exception 'Anuncio obrigatorio';
+  if tg_op = 'UPDATE'
+    and old.community_reported_to_review_at is not null
+    and upper(coalesce(old.status, '')) in ('PENDING', 'UNDER_REVIEW', 'PAUSED')
+    and upper(coalesce(new.status, '')) = 'ACTIVE'
+    and coalesce(new.publication_review_admin_override, false) = false
+    and not public.is_admin() then
+    raise exception 'Este anuncio esta em analise por denuncias da comunidade e so pode ser reativado pela equipe administrativa.';
   end if;
 
-  select coalesce(a.community_reports_count, 0)
-    into v_count
-  from public.announcements a
-  where a.id = p_announcement_id;
-
-  if not found then
-    raise exception 'Anuncio nao encontrado';
+  if tg_op = 'UPDATE' then
+    v_content_changed :=
+      coalesce(new.title, '') is distinct from coalesce(old.title, '')
+      or coalesce(new.description, '') is distinct from coalesce(old.description, '')
+      or coalesce(new.category_slug, '') is distinct from coalesce(old.category_slug, '')
+      or coalesce(new.images, array[]::text[]) is distinct from coalesce(old.images, array[]::text[]);
   end if;
 
-  if v_user_id is not null then
-    select exists (
-      select 1
-      from public.announcement_reports ar
-      where ar.announcement_id = p_announcement_id
-        and ar.reporter_user_id = v_user_id
-        and ar.status = 'valid'
-    ) into v_user_has_reported;
+  if tg_op = 'UPDATE'
+    and upper(coalesce(new.status, '')) = 'ACTIVE'
+    and coalesce(new.publication_review_admin_override, false) = true
+    and not v_content_changed then
+    new.publication_review_checked_at := now();
+    new.publication_review_severity := null;
+    new.publication_review_reasons := '[]'::jsonb;
+    return new;
   end if;
 
-  return jsonb_build_object(
-    'report_count', v_count,
-    'threshold', v_threshold,
-    'user_has_reported', v_user_has_reported,
-    'reports_remaining', greatest(v_threshold - v_count, 0)
+  if v_content_changed then
+    new.publication_review_admin_override := false;
+  end if;
+
+  if upper(coalesce(new.status, '')) not in ('ACTIVE') then
+    return new;
+  end if;
+
+  v_result := public.evaluate_announcement_publication_rules(
+    new.title,
+    new.description,
+    new.category_slug,
+    to_jsonb(coalesce(new.images, array[]::text[]))
   );
+
+  new.publication_review_checked_at := now();
+  new.publication_review_reasons := coalesce(v_result->'reasons', '[]'::jsonb);
+
+  if coalesce((v_result->>'blocked')::boolean, false)
+    or coalesce((v_result->>'review_required')::boolean, false) then
+    new.status := 'PENDING';
+    new.publication_review_severity := 'review';
+    new.publication_review_admin_override := false;
+  else
+    new.publication_review_severity := null;
+    new.publication_review_reasons := '[]'::jsonb;
+  end if;
+
+  return new;
 end;
 $$;
 
-create or replace function public.submit_announcement_report(
-  p_announcement_id uuid,
-  p_reason text,
-  p_details text default null
+drop function if exists public.admin_list_moderation_queue_announcements();
+
+create or replace function public.admin_list_moderation_queue_announcements()
+returns table (
+  id uuid,
+  title text,
+  description text,
+  category text,
+  category_id uuid,
+  category_slug text,
+  sub_category_id text,
+  sub_category_label text,
+  price numeric,
+  unit_price numeric,
+  quantity numeric,
+  unit text,
+  currency text,
+  status text,
+  created_at timestamptz,
+  user_id uuid,
+  city text,
+  state text,
+  cep text,
+  product_condition text,
+  availability text,
+  accepts_trade boolean,
+  has_warranty boolean,
+  warranty_details text,
+  has_invoice boolean,
+  video_url text,
+  video_storage_path text,
+  video_thumbnail_url text,
+  video_thumbnail_storage_path text,
+  video_duration_seconds integer,
+  video_size_bytes bigint,
+  is_premium boolean,
+  whatsapp text,
+  publication_review_reasons jsonb,
+  publication_review_severity text,
+  community_reports_count integer,
+  community_report_reasons jsonb,
+  community_reported_to_review_at timestamptz,
+  images text[]
 )
-returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_user_id uuid := auth.uid();
-  v_announcement record;
-  v_report_state record;
-  v_notification_id uuid;
-  v_recipient_email text;
-  v_recipient_name text;
+  v_actor_id uuid := auth.uid();
+  v_is_admin boolean := false;
 begin
-  if v_user_id is null then
-    raise exception 'Usuario nao autenticado'
-      using errcode = 'P0001';
+  select exists (
+    select 1
+    from public.users
+    where users.id = v_actor_id
+      and (
+        users.is_admin = true
+        or upper(coalesce(users.role, '')) = 'ADMIN'
+      )
+  ) into v_is_admin;
+
+  if not v_is_admin then
+    raise exception 'Acesso negado. Apenas administradores podem listar a fila de moderacao.';
   end if;
 
-  if p_announcement_id is null then
-    raise exception 'Anuncio obrigatorio'
-      using errcode = 'P0001';
-  end if;
-
-  if coalesce(trim(p_reason), '') = '' then
-    raise exception 'Motivo da denuncia obrigatorio'
-      using errcode = 'P0001';
-  end if;
-
+  return query
   select
     a.id,
     a.title,
+    a.description,
+    null::text as category,
+    a.category_id,
+    a.category_slug,
+    a.sub_category_id,
+    a.sub_category_label,
+    a.price,
+    a.unit_price,
+    a.quantity,
+    a.unit,
+    a.currency,
+    a.status,
+    a.created_at,
     a.user_id,
-    a.status
-  into v_announcement
+    a.city,
+    a.state,
+    a.cep,
+    a.product_condition,
+    a.availability,
+    coalesce(a.accepts_trade, false) as accepts_trade,
+    coalesce(a.has_warranty, false) as has_warranty,
+    a.warranty_details,
+    coalesce(a.has_invoice, false) as has_invoice,
+    a.video_url,
+    a.video_storage_path,
+    a.video_thumbnail_url,
+    a.video_thumbnail_storage_path,
+    a.video_duration_seconds,
+    a.video_size_bytes,
+    coalesce(a.is_premium, false) as is_premium,
+    a.whatsapp,
+    coalesce(a.publication_review_reasons, '[]'::jsonb) as publication_review_reasons,
+    a.publication_review_severity,
+    coalesce(a.community_reports_count, 0) as community_reports_count,
+    coalesce(a.community_report_reasons, '[]'::jsonb) as community_report_reasons,
+    a.community_reported_to_review_at,
+    coalesce(a.images, array[]::text[]) as images
   from public.announcements a
-  where a.id = p_announcement_id;
-
-  if not found then
-    raise exception 'Anuncio nao encontrado'
-      using errcode = 'P0001';
-  end if;
-
-  if v_announcement.user_id = v_user_id then
-    raise exception 'Voce nao pode denunciar o proprio anuncio.'
-      using errcode = 'P0001';
-  end if;
-
-  if coalesce(v_announcement.status, '') <> 'ACTIVE' then
-    raise exception 'Somente anuncios ativos podem ser denunciados.'
-      using errcode = 'P0001';
-  end if;
-
-  begin
-    insert into public.announcement_reports (
-      announcement_id,
-      reporter_user_id,
-      reason,
-      details
-    ) values (
-      p_announcement_id,
-      v_user_id,
-      p_reason,
-      nullif(trim(coalesce(p_details, '')), '')
-    );
-  exception
-    when unique_violation then
-      raise exception 'Voce ja denunciou este anuncio.'
-        using errcode = 'P0001';
-  end;
-
-  select *
-    into v_report_state
-  from public.refresh_announcement_report_state(p_announcement_id);
-
-  if coalesce(v_report_state.sent_to_review, false) then
-    insert into public.notifications (
-      user_id,
-      type,
-      title,
-      content,
-      link,
-      is_read
-    ) values (
-      v_announcement.user_id,
-      'announcement_reported_to_review',
-      'Seu anuncio entrou em analise',
-      format(
-        'O anuncio "%s" recebeu %s denuncias de usuarios unicos e foi encaminhado para analise da equipe.',
-        v_announcement.title,
-        v_report_state.report_count
-      ),
-      '/minha-conta/anuncios',
-      false
+  where a.status in ('PENDING', 'UNDER_REVIEW')
+    and a.community_reported_to_review_at is null
+    and not exists (
+      select 1
+      from public.announcement_edit_requests aer
+      where aer.announcement_id = a.id
+        and aer.status = 'pending'
     )
-    returning id into v_notification_id;
-
-    select
-      nullif(trim(coalesce(u.email, '')), ''),
-      coalesce(nullif(trim(coalesce(u.name, '')), ''), 'Cliente')
-    into
-      v_recipient_email,
-      v_recipient_name
-    from public.users u
-    where u.id = v_announcement.user_id;
-
-    insert into public.plan_alert_email_jobs (
-      notification_id,
-      user_id,
-      recipient_email,
-      recipient_name,
-      alert_kind,
-      notification_title,
-      notification_content,
-      link,
-      status,
-      last_error
-    ) values (
-      v_notification_id,
-      v_announcement.user_id,
-      v_recipient_email,
-      v_recipient_name,
-      'announcement_reported_to_review',
-      'Seu anuncio entrou em analise',
-      format(
-        'O anuncio "%s" recebeu %s denuncias de usuarios unicos e foi encaminhado para analise da equipe.',
-        v_announcement.title,
-        v_report_state.report_count
-      ),
-      '/minha-conta/anuncios',
-      case when v_recipient_email is not null then 'pending' else 'skipped' end,
-      case when v_recipient_email is not null then null else 'Usuario sem e-mail valido' end
-    );
-  end if;
-
-  return jsonb_build_object(
-    'success', true,
-    'report_count', coalesce(v_report_state.report_count, 0),
-    'threshold', coalesce(v_report_state.threshold, 10),
-    'sent_to_review', coalesce(v_report_state.sent_to_review, false)
-  );
+  order by a.created_at desc;
 end;
 $$;
 
@@ -667,10 +637,168 @@ begin
 end;
 $$;
 
-grant execute on function public.refresh_announcement_report_state(uuid) to authenticated;
-grant execute on function public.get_announcement_report_snapshot(uuid) to authenticated;
-grant execute on function public.submit_announcement_report(uuid, text, text) to authenticated;
+create or replace function public.admin_set_announcement_status(
+  p_announcement_id uuid,
+  p_status text,
+  p_reason text default null
+)
+returns table (
+  announcement_id uuid,
+  title text,
+  status text,
+  user_id uuid,
+  notification_id uuid
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_actor_id uuid := auth.uid();
+  v_is_admin boolean := false;
+  v_announcement record;
+  v_notification_id uuid;
+  v_notification_title text;
+  v_notification_content text;
+  v_recipient_email text;
+  v_recipient_name text;
+  v_reason text := nullif(trim(coalesce(p_reason, '')), '');
+begin
+  if p_status not in ('PAUSED', 'ACTIVE') then
+    raise exception 'Status invalido para operacao administrativa: %', p_status;
+  end if;
+
+  select exists (
+    select 1
+    from public.users
+    where id = v_actor_id
+      and (
+        is_admin = true
+        or upper(coalesce(role, '')) = 'ADMIN'
+      )
+  ) into v_is_admin;
+
+  if not v_is_admin then
+    raise exception 'Acesso negado. Apenas administradores podem alterar o status do anuncio.';
+  end if;
+
+  if p_status = 'PAUSED' and v_reason is null then
+    raise exception 'Informe o motivo da pausa do anuncio.';
+  end if;
+
+  select
+    a.id,
+    a.title,
+    a.status,
+    a.user_id,
+    a.community_reported_to_review_at
+  into v_announcement
+  from public.announcements a
+  where a.id = p_announcement_id
+  limit 1;
+
+  if v_announcement.id is null then
+    raise exception 'Anuncio nao encontrado ou sem permissao para atualizacao.';
+  end if;
+
+  if p_status = 'ACTIVE' and v_announcement.community_reported_to_review_at is not null then
+    raise exception 'Use a fila de denuncias para aprovar este anuncio antes de reativa-lo.';
+  end if;
+
+  update public.announcements
+  set
+    status = p_status,
+    publication_review_admin_override = case when p_status = 'ACTIVE' then true else coalesce(publication_review_admin_override, false) end,
+    publication_review_severity = case when p_status = 'ACTIVE' then null else publication_review_severity end,
+    publication_review_reasons = case when p_status = 'ACTIVE' then '[]'::jsonb else publication_review_reasons end,
+    publication_review_checked_at = case when p_status = 'ACTIVE' then now() else publication_review_checked_at end
+  where id = p_announcement_id
+  returning announcements.id, announcements.title, announcements.status, announcements.user_id
+  into v_announcement;
+
+  v_notification_title := case
+    when p_status = 'PAUSED' then 'Seu anuncio foi pausado pela equipe'
+    else 'Seu anuncio foi reativado pela equipe'
+  end;
+
+  v_notification_content := case
+    when p_status = 'PAUSED' then
+      format(
+        'O anuncio "%s" foi pausado temporariamente pela equipe AGRO BW. Motivo: %s',
+        v_announcement.title,
+        v_reason
+      )
+    else
+      format(
+        'O anuncio "%s" foi reativado pela equipe AGRO BW e voltou a ficar disponivel na plataforma.',
+        v_announcement.title
+      )
+  end;
+
+  insert into public.notifications (
+    user_id,
+    type,
+    title,
+    content,
+    link,
+    is_read
+  )
+  values (
+    v_announcement.user_id,
+    'system',
+    v_notification_title,
+    v_notification_content,
+    '/minha-conta/anuncios',
+    false
+  )
+  returning id into v_notification_id;
+
+  select
+    nullif(trim(email), ''),
+    coalesce(nullif(trim(name), ''), 'Cliente')
+  into v_recipient_email, v_recipient_name
+  from public.users
+  where id = v_announcement.user_id;
+
+  insert into public.plan_alert_email_jobs (
+    notification_id,
+    user_id,
+    recipient_email,
+    recipient_name,
+    alert_kind,
+    notification_title,
+    notification_content,
+    link,
+    status,
+    last_error
+  )
+  values (
+    v_notification_id,
+    v_announcement.user_id,
+    v_recipient_email,
+    v_recipient_name,
+    case when p_status = 'PAUSED' then 'ad_paused' else 'ad_resumed' end,
+    v_notification_title,
+    v_notification_content,
+    '/minha-conta/anuncios',
+    case when v_recipient_email is not null then 'pending' else 'skipped' end,
+    case when v_recipient_email is not null then null else 'Usuario sem e-mail valido' end
+  );
+
+  return query
+  select
+    v_announcement.id,
+    v_announcement.title,
+    v_announcement.status,
+    v_announcement.user_id,
+    v_notification_id;
+end;
+$$;
+
 grant execute on function public.strip_community_report_review_reasons(jsonb) to authenticated, service_role;
+grant execute on function public.refresh_announcement_report_state(uuid) to authenticated;
+grant execute on function public.admin_list_moderation_queue_announcements() to authenticated;
 grant execute on function public.admin_list_reported_announcements() to authenticated;
 grant execute on function public.admin_get_reported_announcement_details(uuid) to authenticated;
 grant execute on function public.admin_approve_reported_announcement(uuid, text) to authenticated;
+grant execute on function public.admin_set_announcement_status(uuid, text, text) to authenticated;

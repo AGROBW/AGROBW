@@ -40,6 +40,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminDashboardOverview = lazy(() => import('./pages/admin/AdminDashboardOverview'));
 const ModerationQueue = lazy(() => import('./pages/admin/ModerationQueue'));
+const AnnouncementReportsManagement = lazy(() => import('./pages/admin/AnnouncementReportsManagement'));
 const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
 const VerificationRequestsManagement = lazy(() => import('./pages/admin/VerificationRequestsManagement'));
 const LegalConsentsManagement = lazy(() => import('./pages/admin/LegalConsentsManagement'));
@@ -262,6 +263,7 @@ const AppContent: React.FC = () => {
             >
               <Route index element={<AdminDashboardOverview />} />
               <Route path="moderation" element={<ModerationQueue />} />
+              <Route path="announcement-reports" element={<AnnouncementReportsManagement />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="verifications" element={<VerificationRequestsManagement />} />
               <Route path="legal-consents" element={<LegalConsentsManagement />} />

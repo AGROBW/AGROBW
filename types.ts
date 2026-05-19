@@ -42,6 +42,8 @@ export interface Ad {
   priceNegotiable?: boolean;
   videoUrl?: string;
   videoStoragePath?: string;
+  videoThumbnailUrl?: string;
+  videoThumbnailStoragePath?: string;
   videoDurationSeconds?: number;
   videoSizeBytes?: number;
   productCondition?: 'novo' | 'seminovo' | 'usado';
@@ -716,6 +718,8 @@ export interface LayoutSettings {
   logoDarkUrl?: string | null;
   faviconUrl?: string | null;
   defaultAdImageUrl?: string | null;
+  loginHeroImageUrl?: string | null;
+  registerHeroImageUrl?: string | null;
   pricingHeroImageUrl?: string | null;
   pricingStoreImageUrl?: string | null;
   pricingFieldImageUrl?: string | null;

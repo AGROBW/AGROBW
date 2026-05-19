@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Activity,
+  AlertTriangle,
   BarChart3,
   BadgeCheck,
   Bell,
@@ -79,6 +80,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             icon: FileCheck,
             badge: moderationBadgeCount > 0 ? moderationBadgeCount : undefined,
           },
+          { label: 'Denuncias de anuncios', path: '/admin/announcement-reports', icon: AlertTriangle },
           { label: 'Monitoramento', path: '/admin/monitoring', icon: BarChart3 },
           { label: 'Estatisticas', path: '/admin/statistics', icon: Activity },
           { label: 'Financeiro', path: '/admin/payments', icon: Receipt },

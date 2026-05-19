@@ -31,6 +31,9 @@ const LoginView: React.FC = () => {
   const redirectTarget = searchParams.get('redirect') || from;
   const contactSellerIntent = searchParams.get('intent') === 'contact-seller';
   const registerLink = `/cadastro${location.search}`;
+  const loginHeroImage =
+    settings.loginHeroImageUrl ||
+    'https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?q=80&w=1600&auto=format&fit=crop';
 
   const buildPostAuthRedirect = () => {
     if (!contactSellerIntent) {
@@ -130,7 +133,7 @@ const LoginView: React.FC = () => {
       />
       <div className="hidden md:flex md:w-[60%] relative h-screen">
         <img
-          src="https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?q=80&w=1600&auto=format&fit=crop"
+          src={loginHeroImage}
           alt="Agronegócio de alta performance"
           className="absolute inset-0 w-full h-full object-cover"
         />

@@ -1160,6 +1160,11 @@ const UserDashboardView: React.FC = () => {
     };
 
     const handleTogglePause = async (ad: Ad) => {
+      if (ad.communityReportedToReviewAt) {
+        sonnerToast.error('Este anúncio está em análise por denúncias da comunidade e só pode ser liberado pela equipe administrativa.');
+        return;
+      }
+
       const newStatus = ad.status === AdStatus.ACTIVE ? AdStatus.PAUSED : AdStatus.ACTIVE;
       const pausedAdReactivationMessage =
         adLimitMessage ||
@@ -1659,21 +1664,33 @@ const UserDashboardView: React.FC = () => {
                           <CreditCard className="w-4 h-4" strokeWidth={1.5} />
                         </button>
                       ) : ad.status !== AdStatus.REJECTED ? (
+                      (() => {
+                        const moderationLockedByCommunityReports = Boolean(ad.communityReportedToReviewAt);
+                        const moderationLockedTitle = moderationLockedByCommunityReports
+                          ? 'Este anúncio está em análise por denúncias da comunidade e só pode ser liberado pela equipe administrativa.'
+                          : (ad.status === AdStatus.PAUSED ? 'Reativar' : 'Pausar');
+
+                        return (
                       <button 
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           handleTogglePause(ad);
                         }}
+                        disabled={moderationLockedByCommunityReports}
                         className={`p-2 rounded-lg transition-colors ${
-                          ad.status === AdStatus.PAUSED 
-                            ? 'hover:bg-green-50 hover:text-green-700' 
-                            : 'hover:bg-slate-50 hover:text-slate-700'
+                          moderationLockedByCommunityReports
+                            ? 'cursor-not-allowed text-slate-300'
+                            : ad.status === AdStatus.PAUSED 
+                              ? 'hover:bg-green-50 hover:text-green-700' 
+                              : 'hover:bg-slate-50 hover:text-slate-700'
                         }`}
-                        title={ad.status === AdStatus.PAUSED ? 'Reativar' : 'Pausar'}
+                        title={moderationLockedTitle}
                       >
                         <PauseCircle className="w-4 h-4" strokeWidth={1.5} />
                       </button>
+                        );
+                      })()
                       ) : null}
                       {/* Botão Excluir */}
                       <button 
