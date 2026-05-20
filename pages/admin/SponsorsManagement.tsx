@@ -127,7 +127,7 @@ const emptyForm = {
   logoUrl: '',
   bannerUrl: '',
   showOnHomeCarousel: false,
-  homeBadgeText: 'Patrocinador AGRO BW',
+  homeBadgeText: 'Vitrine Premium AGRO BW',
   homeTitle: '',
   homeSubtitle: '',
   homeButtonText: 'Conhecer patrocinador',
@@ -365,7 +365,7 @@ const SponsorsManagement: React.FC = () => {
       logoUrl: sponsor.logo_url || '',
       bannerUrl: sponsor.banner_url || '',
       showOnHomeCarousel: Boolean(sponsor.show_on_home_carousel),
-      homeBadgeText: sponsor.home_badge_text || 'Patrocinador AGRO BW',
+      homeBadgeText: sponsor.home_badge_text || 'Vitrine Premium AGRO BW',
       homeTitle: sponsor.home_title || '',
       homeSubtitle: sponsor.home_subtitle || '',
       homeButtonText: sponsor.home_button_text || 'Conhecer patrocinador',
@@ -386,7 +386,7 @@ const SponsorsManagement: React.FC = () => {
 
   const saveSponsor = async () => {
     if (!form.companyName.trim() || !form.segment.trim()) {
-      toast.error('Preencha o nome da empresa e o segmento do patrocinador.');
+      toast.error('Preencha o nome da empresa e o segmento da Vitrine Premium.');
       return;
     }
 
@@ -401,17 +401,17 @@ const SponsorsManagement: React.FC = () => {
     }
 
     if (form.showOnHomeCarousel && !form.bannerUrl.trim()) {
-      toast.error('Informe o banner do patrocinador para exibir este parceiro no carrossel da home.');
+      toast.error('Informe o banner da Vitrine Premium para exibir este parceiro no carrossel da home.');
       return;
     }
 
     if (form.showOnHomeCarousel && !form.targetUrl.trim()) {
-      toast.error('Informe o link de destino do patrocinador antes de ativar a exibição na home.');
+      toast.error('Informe o link de destino da Vitrine Premium antes de ativar a exibição na home.');
       return;
     }
 
     if (!form.id && form.status === 'active' && activeSponsors.length >= 6) {
-      toast.error('As 6 vagas atuais já estão ocupadas. Pause ou encerre um patrocinador antes de ativar outro.');
+      toast.error('As 6 vagas atuais já estão ocupadas. Pause ou encerre uma Vitrine Premium antes de ativar outra.');
       return;
     }
 
@@ -454,12 +454,12 @@ const SponsorsManagement: React.FC = () => {
 
       if (result.error) throw result.error;
 
-      toast.success(form.id ? 'Patrocinador atualizado com sucesso.' : 'Patrocinador cadastrado com sucesso.');
+      toast.success(form.id ? 'Vitrine Premium atualizada com sucesso.' : 'Vitrine Premium cadastrada com sucesso.');
       resetForm();
       await loadSponsors();
     } catch (error) {
       appError('[SponsorsManagement] Erro ao salvar patrocinador', error, { sponsorId: form.id || null });
-      const message = error instanceof Error ? error.message : 'Não foi possível salvar o patrocinador.';
+      const message = error instanceof Error ? error.message : 'Não foi possível salvar a Vitrine Premium.';
       toast.error(message);
     } finally {
       setSaving(false);
@@ -486,7 +486,7 @@ const SponsorsManagement: React.FC = () => {
         .single();
 
       if (error) throw error;
-      toast.success(status === 'active' ? 'Patrocinador ativado.' : 'Vaga liberada com sucesso.');
+      toast.success(status === 'active' ? 'Vitrine Premium ativada.' : 'Vaga liberada com sucesso.');
       await loadSponsors();
     } catch (error) {
       appError('[SponsorsManagement] Erro ao alterar status', error, { sponsorId: sponsor.id, status });
@@ -496,17 +496,17 @@ const SponsorsManagement: React.FC = () => {
   };
 
   const removeSponsor = async (sponsor: SiteSponsor) => {
-    const confirmed = window.confirm(`Remover definitivamente o patrocinador ${sponsor.company_name}?`);
+    const confirmed = window.confirm(`Remover definitivamente a Vitrine Premium ${sponsor.company_name}?`);
     if (!confirmed) return;
 
     try {
       const { error } = await supabase.from('site_sponsors').delete().eq('id', sponsor.id);
       if (error) throw error;
-      toast.success('Patrocinador removido com sucesso.');
+      toast.success('Vitrine Premium removida com sucesso.');
       await loadSponsors();
     } catch (error) {
       appError('[SponsorsManagement] Erro ao remover patrocinador', error, { sponsorId: sponsor.id });
-      toast.error('Não foi possível remover o patrocinador.');
+      toast.error('Não foi possível remover a Vitrine Premium.');
     }
   };
 
@@ -539,7 +539,7 @@ const SponsorsManagement: React.FC = () => {
     const periodEnd = civilDateToSaoPauloEndOfDayIso(reportPeriodEnd);
 
     if (!reportSponsorId) {
-      toast.error('Selecione um patrocinador antes de gerar o relatório.');
+      toast.error('Selecione uma Vitrine Premium antes de gerar o relatório.');
       return;
     }
 
@@ -584,7 +584,7 @@ const SponsorsManagement: React.FC = () => {
       toast.success('Relatório gerado com sucesso.');
     } catch (error) {
       appError('[SponsorsManagement] Erro ao gerar relatório de métricas', error, { sponsorId: reportSponsorId });
-      toast.error('Não foi possível gerar o relatório do patrocinador.');
+      toast.error('Não foi possível gerar o relatório da Vitrine Premium.');
     } finally {
       setReportLoading(false);
     }
@@ -692,11 +692,11 @@ const SponsorsManagement: React.FC = () => {
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-emerald-700">
               <Handshake className="h-3.5 w-3.5" />
-              Patrocinadores
+              Vitrine Premium
             </div>
-            <h1 className="text-2xl font-black text-slate-950">Gestão de vagas do Patrocinador</h1>
+            <h1 className="text-2xl font-black text-slate-950">Gestão de vagas da Vitrine Premium</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Cadastre, pause ou encerre patrocinadores. A página pública usa estes dados para exibir vagas disponíveis em tempo real.
+              Cadastre, pause ou encerre vitrines premium. A página pública usa estes dados para exibir vagas disponíveis em tempo real.
             </p>
           </div>
           <button
@@ -714,7 +714,7 @@ const SponsorsManagement: React.FC = () => {
             { label: 'Vagas totais', value: stats?.total_slots ?? 6 },
             { label: 'Ocupadas agora', value: stats?.occupied_slots ?? activeSponsors.length },
             { label: 'Disponíveis agora', value: stats?.available_slots ?? Math.max(6 - activeSponsors.length, 0) },
-            { label: 'Patrocinadores ativos', value: stats?.active_sponsors ?? activeSponsors.length },
+            { label: 'Vitrines ativas', value: stats?.active_sponsors ?? activeSponsors.length },
           ].map((item) => (
             <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{item.label}</p>
@@ -730,7 +730,7 @@ const SponsorsManagement: React.FC = () => {
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Cadastro</p>
               <h2 className="mt-1 text-lg font-black text-slate-950">
-                {form.id ? 'Editar patrocinador' : 'Novo patrocinador'}
+                {form.id ? 'Editar Vitrine Premium' : 'Nova Vitrine Premium'}
               </h2>
             </div>
             {form.id && (
@@ -819,7 +819,7 @@ const SponsorsManagement: React.FC = () => {
                 placeholder="email@empresa.com.br&#10;marketing@empresa.com.br"
               />
               <p className="text-xs text-slate-400">
-                Salve aqui os e-mails padrão que devem receber os relatórios de métricas deste patrocinador.
+                Salve aqui os e-mails padrão que devem receber os relatórios de métricas desta Vitrine Premium.
               </p>
             </label>
 
@@ -1076,7 +1076,7 @@ const SponsorsManagement: React.FC = () => {
                 <div>
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Banner da Home</p>
                   <p className="mt-1 text-sm text-slate-600">
-                    Quando ativado, este patrocinador entra automaticamente no carrossel principal da home usando o banner informado acima.
+                    Quando ativado, este parceiro entra automaticamente no carrossel principal da home usando o banner informado acima.
                   </p>
                 </div>
                 <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
@@ -1097,7 +1097,7 @@ const SponsorsManagement: React.FC = () => {
                     value={form.homeBadgeText}
                     onChange={(event) => setForm((current) => ({ ...current, homeBadgeText: event.target.value }))}
                     className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 disabled:opacity-60"
-                    placeholder="Patrocinador AGRO BW"
+                    placeholder="Vitrine Premium AGRO BW"
                     disabled={!form.showOnHomeCarousel}
                   />
                 </label>
@@ -1143,7 +1143,7 @@ const SponsorsManagement: React.FC = () => {
                   />
                 </label>
                 <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">
-                  Use esta área para patrocinadores que também devem aparecer no slider principal. Os banners comuns da home continuam sendo geridos separadamente em <span className="font-bold">Banners Home</span>.
+                  Use esta área para vitrines premium que também devem aparecer no slider principal. Os banners comuns da home continuam sendo geridos separadamente em <span className="font-bold">Banners Home</span>.
                 </div>
               </div>
             </div>
@@ -1165,7 +1165,7 @@ const SponsorsManagement: React.FC = () => {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Salvar patrocinador
+              Salvar Vitrine Premium
             </button>
           </div>
         </div>
@@ -1174,7 +1174,7 @@ const SponsorsManagement: React.FC = () => {
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Lista</p>
-              <h2 className="mt-1 text-lg font-black text-slate-950">Patrocinadores cadastrados</h2>
+              <h2 className="mt-1 text-lg font-black text-slate-950">Vitrines cadastradas</h2>
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
               {sponsors.length} registro(s)
@@ -1183,12 +1183,12 @@ const SponsorsManagement: React.FC = () => {
 
           {loading ? (
             <div className="flex min-h-[220px] items-center justify-center text-sm font-bold text-slate-400">
-              Carregando patrocinadores...
+              Carregando vitrines premium...
             </div>
           ) : sponsors.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-              <p className="font-black text-slate-900">Nenhum patrocinador cadastrado.</p>
-              <p className="mt-2 text-sm text-slate-500">Cadastre o primeiro patrocinador para ocupar uma vaga pública.</p>
+              <p className="font-black text-slate-900">Nenhuma Vitrine Premium cadastrada.</p>
+              <p className="mt-2 text-sm text-slate-500">Cadastre a primeira Vitrine Premium para ocupar uma vaga pública.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -1338,7 +1338,7 @@ const SponsorsManagement: React.FC = () => {
             <table className="w-full min-w-[980px]">
               <thead className="border-b border-slate-200 bg-slate-50">
                 <tr>
-                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Patrocinador</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Vitrine Premium</th>
                   <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Período</th>
                   <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Destinatário</th>
                   <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Status</th>
@@ -1356,7 +1356,7 @@ const SponsorsManagement: React.FC = () => {
                 ) : metricHistory.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-14 text-center text-slate-500">
-                      Nenhum relatório de patrocinador foi gerado ainda para este filtro.
+                      Nenhum relatório de Vitrine Premium foi gerado ainda para este filtro.
                     </td>
                   </tr>
                 ) : (
@@ -1416,9 +1416,9 @@ const SponsorsManagement: React.FC = () => {
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Leads da landing</p>
-            <h2 className="mt-1 text-lg font-black text-slate-950">Interessados em patrocínio</h2>
+            <h2 className="mt-1 text-lg font-black text-slate-950">Interessados na Vitrine Premium</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Todos os envios feitos na se??o ?Fale com a equipe? da p?gina Patrocinador ficam organizados aqui para acompanhamento comercial.
+              Todos os envios feitos na seção “Fale com a equipe” da página Vitrine Premium ficam organizados aqui para acompanhamento comercial.
             </p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
@@ -1450,7 +1450,7 @@ const SponsorsManagement: React.FC = () => {
                 ) : sponsorLeads.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-6 py-14 text-center text-slate-500">
-                      Nenhum lead de patrocinador foi recebido ainda.
+                      Nenhum lead de Vitrine Premium foi recebido ainda.
                     </td>
                   </tr>
                 ) : (
@@ -1516,19 +1516,19 @@ const SponsorsManagement: React.FC = () => {
         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Relatórios de métricas</p>
-            <h2 className="mt-1 text-lg font-black text-slate-950">Gerador manual para patrocinadores</h2>
+            <h2 className="mt-1 text-lg font-black text-slate-950">Gerador manual da Vitrine Premium</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-              Gere o resumo de impressões, cliques, CTR e região principal com base exclusivamente no banner do patrocinador exibido no carrossel principal da home.
+              Gere o resumo de impressões, cliques, CTR e região principal com base exclusivamente no banner da Vitrine Premium exibido no carrossel principal da home.
             </p>
           </div>
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">
-            Admin-only: as métricas não ficam visíveis para o patrocinador na plataforma.
+            Admin-only: as métricas não ficam visíveis para o parceiro na plataforma.
           </div>
         </div>
 
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
           <div className="text-sm text-slate-600">
-            Use este botão para processar os relatórios automáticos que estiverem vencidos hoje, com base nas configurações salvas em cada patrocinador.
+            Use este botão para processar os relatórios automáticos que estiverem vencidos hoje, com base nas configurações salvas em cada Vitrine Premium.
           </div>
           <button
             type="button"
@@ -1545,7 +1545,7 @@ const SponsorsManagement: React.FC = () => {
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
             <div className="grid gap-4">
               <label className="space-y-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Patrocinador</span>
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Vitrine Premium</span>
                 <select
                   value={reportSponsorId}
                   onChange={(event) => {
@@ -1602,7 +1602,7 @@ const SponsorsManagement: React.FC = () => {
                 <p className="text-xs text-slate-400">
                   Você pode separar por vírgula, ponto e vírgula ou quebra de linha.
                   {selectedReportSponsor?.metric_recipient_emails?.length
-                    ? ' Estes destinatários já estão salvos no patrocinador selecionado.'
+                    ? ' Estes destinatários já estão salvos na Vitrine Premium selecionada.'
                     : ''}
                 </p>
               </label>
@@ -1635,7 +1635,7 @@ const SponsorsManagement: React.FC = () => {
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Prévia do relatório</p>
                 <h3 className="mt-1 text-base font-black text-slate-950">
-                  {reportData?.sponsor_name || 'Selecione um patrocinador e gere a análise'}
+                  {reportData?.sponsor_name || 'Selecione uma Vitrine Premium e gere a análise'}
                 </h3>
               </div>
               {reportData ? (
@@ -1649,7 +1649,7 @@ const SponsorsManagement: React.FC = () => {
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                 <p className="font-black text-slate-900">Nenhum relatório gerado ainda.</p>
                 <p className="mt-2 text-sm text-slate-500">
-                  Escolha um patrocinador, defina o período e gere a prévia antes do envio.
+                  Escolha uma Vitrine Premium, defina o período e gere a prévia antes do envio.
                 </p>
               </div>
             ) : (

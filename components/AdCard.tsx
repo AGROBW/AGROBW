@@ -129,15 +129,6 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
         ? 'border-2 shadow-lg' 
         : 'border border-slate-100'
     }`} style={cardStyle}>
-      <div className="absolute top-4 left-4 z-10 flex max-w-[calc(100%-4rem)] flex-col gap-2">
-        {hasOfficialStore && (
-          <div className="flex items-center gap-1 text-[9px] font-extrabold uppercase tracking-[0.18em] px-2.5 py-1 rounded-full shadow-md w-fit bg-gradient-to-r from-emerald-100 to-teal-50 text-emerald-800">
-            <Store className="w-2.5 h-2.5" strokeWidth={2.3} />
-            LOJA PARCEIRA
-          </div>
-        )}
-      </div>
-      
       {ad.isPremium && !hasActiveHighlight && (
         <div className="absolute top-4 left-4 z-10 bg-yellow-400 text-yellow-900 text-[10px] font-black uppercase px-2 py-1 rounded shadow-sm">
           Premium
@@ -172,15 +163,9 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-white text-xs font-semibold flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5" strokeWidth={1.5} style={{ color: settings.primaryColor }} />
-            {ad.location.city} - {ad.location.state}
+              <MapPin className="w-3.5 h-3.5" strokeWidth={1.5} style={{ color: settings.primaryColor }} />
+              {ad.location.city} - {ad.location.state}
             </p>
-            {ad.acceptsTrade && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/70 bg-amber-50/95 px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.14em] text-amber-800 shadow-sm">
-                <Sparkles className="w-2.5 h-2.5" strokeWidth={2.3} />
-                Aceita troca
-              </span>
-            )}
           </div>
         </div>
       </div>
@@ -191,10 +176,21 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
           {ad.title}
         </h3>
         
-        {/* Vendedor Verificado */}
-        {ad.seller?.document_verified && (
-          <div className="flex items-center gap-1.5 mb-3">
-            <VerifiedBadge variant="small" />
+        {(ad.seller?.document_verified || hasOfficialStore || ad.acceptsTrade) && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {ad.seller?.document_verified && <VerifiedBadge variant="small" />}
+            {hasOfficialStore && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                <Store className="h-3.5 w-3.5" strokeWidth={1.8} />
+                Loja Parceira
+              </span>
+            )}
+            {ad.acceptsTrade && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                <Sparkles className="h-3.5 w-3.5" strokeWidth={1.8} />
+                Aceita troca
+              </span>
+            )}
           </div>
         )}
 

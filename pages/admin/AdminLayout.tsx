@@ -106,7 +106,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           { label: 'Newsletter', path: '/admin/newsletter', icon: Mail },
           { label: 'Campanhas', path: '/admin/campaigns', icon: Megaphone },
           { label: 'Pop-ups do site', path: '/admin/site-popups', icon: Bell },
-          { label: 'Patrocinadores', path: '/admin/sponsors', icon: Handshake },
+          { label: 'Vitrine Premium', path: '/admin/sponsors', icon: Handshake },
           { label: 'Relatos Vitrine Premium', path: '/admin/sponsor-testimonials', icon: MessageCircle },
           { label: 'Promocoes', path: '/admin/promotions', icon: Gift },
         ],
