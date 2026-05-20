@@ -792,117 +792,169 @@ const SponsorLandingView: React.FC = () => {
       </section>
 
       {/* -- DEPOIMENTOS ----------------------------------------------------- */}
-      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-24">
-        <div className="text-center mb-14">
-          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">Quem já anunciou na vitrine</p>
-          <h2 className="text-3xl md:text-5xl font-black text-slate-950">O que dizem nossos anunciantes</h2>
-        </div>
-        {featuredTestimonial ? (
-          <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-            <article className="rounded-[2.4rem] border border-slate-200 bg-white p-8 shadow-[0_16px_40px_-16px_rgba(15,23,42,0.14)]">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="inline-flex rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">
-                  Case real
-                </div>
-                <div
-                  className="inline-flex rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em]"
-                  style={{
-                    background: `color-mix(in srgb, ${settings.primaryColor} 10%, white)`,
-                    color: settings.primaryColor,
-                  }}
-                >
-                  Relato em destaque
-                </div>
-                {featuredTestimonial.highlightMetric ? (
-                  <div className="inline-flex rounded-full bg-amber-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">
-                    {featuredTestimonial.highlightMetric}
-                  </div>
-                ) : null}
-              </div>
-
-              <Quote className="mt-6 h-10 w-10" style={{ color: settings.primaryColor }} />
-              <p className="mt-6 text-lg leading-9 text-slate-700">"{featuredTestimonial.text}"</p>
-
-              <div className="mt-6 flex flex-wrap gap-2">
-                {featuredTestimonial.segment ? (
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-                    {featuredTestimonial.segment}
-                  </span>
-                ) : null}
-                {featuredTestimonial.locationLabel ? (
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-                    {featuredTestimonial.locationLabel}
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="mt-8 flex items-center gap-4 rounded-[1.8rem] border border-slate-100 bg-slate-50 px-5 py-4">
-                <img
-                  src={featuredTestimonial.avatarUrl || 'https://i.pravatar.cc/80?u=bwagro-sponsor-testimonial'}
-                  alt={featuredTestimonial.contactName}
-                  className="h-14 w-14 rounded-full object-cover border-2 border-white shadow-sm"
-                />
-                <div>
-                  <p className="font-black text-slate-950">{featuredTestimonial.contactName}</p>
-                  <p className="text-sm text-slate-500">
-                    {[featuredTestimonial.roleTitle, featuredTestimonial.companyName].filter(Boolean).join(' - ')}
-                  </p>
-                </div>
-                <Star className="ml-auto h-4 w-4 fill-amber-400 text-amber-400" />
-              </div>
-            </article>
-
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-1">
-              {secondaryTestimonials.map((t) => (
+      <section className="bg-[#070d1d] py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-14">
+            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">
+              Quem ja anunciou na vitrine
+            </p>
+            <h2 className="text-3xl md:text-5xl font-black text-white">O que dizem nossos anunciantes</h2>
+          </div>
+          {featuredTestimonial ? (
+            <div className="grid gap-8 lg:grid-cols-[0.92fr_1.12fr_0.92fr] lg:items-stretch">
+              {secondaryTestimonials.slice(0, 1).map((t) => (
                 <article
                   key={t.id}
-                  className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_8px_30px_-10px_rgba(15,23,42,0.12)]"
+                  className="group flex h-full flex-col rounded-[2rem] border border-white/8 bg-[#121a2f] p-8 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.65)] transition-all duration-300 hover:-translate-y-1 hover:border-white/14"
                 >
-                  <div className="mb-4 inline-flex rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-600">
-                    Case real
-                  </div>
-                  {t.highlightMetric ? (
-                    <div
-                      className="mb-4 ml-2 inline-flex w-fit rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em]"
-                      style={{
-                        background: `color-mix(in srgb, ${settings.primaryColor} 10%, white)`,
-                        color: settings.primaryColor,
-                      }}
-                    >
-                      {t.highlightMetric}
+                  <div className="mb-6 flex items-start justify-between gap-4">
+                    <div className="flex gap-1.5">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <Star key={index} className="h-4 w-4 fill-amber-400 text-amber-400" />
+                      ))}
                     </div>
-                  ) : null}
-                  <p className="text-sm leading-8 text-slate-600">"{t.text}"</p>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {t.segment ? (
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-                        {t.segment}
-                      </span>
-                    ) : null}
-                    {t.locationLabel ? (
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-                        {t.locationLabel}
-                      </span>
-                    ) : null}
+                    <Quote className="h-9 w-9 text-slate-700" />
                   </div>
-                  <div className="mt-5 flex items-center gap-3">
-                    <img
-                      src={t.avatarUrl || 'https://i.pravatar.cc/80?u=bwagro-sponsor-testimonial'}
-                      alt={t.contactName}
-                      className="h-11 w-11 rounded-full object-cover border-2 border-slate-100"
-                    />
-                    <div>
-                      <p className="font-black text-slate-950">{t.contactName}</p>
-                      <p className="text-xs text-slate-400">
-                        {[t.roleTitle, t.companyName].filter(Boolean).join(' - ')}
-                      </p>
+
+                  <p className="flex-1 text-[1.05rem] italic leading-9 text-slate-200/92">"{t.text}"</p>
+
+                  <div className="mt-8 border-t border-white/8 pt-8">
+                    <div className="flex items-center gap-4">
+                      <img
+                        src={t.avatarUrl || 'https://i.pravatar.cc/80?u=bwagro-sponsor-testimonial'}
+                        alt={t.contactName}
+                        className="h-12 w-12 rounded-full border-2 border-slate-600 object-cover"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-lg font-black text-white">{t.contactName}</p>
+                        <p className="truncate text-sm text-slate-400">
+                          {[t.roleTitle, t.companyName].filter(Boolean).join(', ')}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </article>
               ))}
+
+              <article
+                className="relative flex h-full flex-col rounded-[2.25rem] border border-indigo-400/75 bg-[radial-gradient(circle_at_top,_rgba(76,92,255,0.22),_rgba(25,31,58,0.96)_40%,_rgba(14,18,36,1)_100%)] p-10 shadow-[0_30px_70px_-28px_rgba(76,92,255,0.55)]"
+                style={{
+                  boxShadow: `0 30px 70px -28px color-mix(in srgb, ${settings.primaryColor} 45%, rgba(76,92,255,0.55))`,
+                }}
+              >
+                <div className="mb-8 flex items-start justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex gap-1.5">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <Star key={index} className="h-5 w-5 fill-amber-400 text-amber-400" />
+                      ))}
+                    </div>
+                    <div className="rounded-full border border-indigo-300/18 bg-indigo-400/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-indigo-100">
+                      Destaque
+                    </div>
+                  </div>
+                  <Quote className="h-12 w-12 text-indigo-300/45" />
+                </div>
+
+                <p className="text-[1.08rem] font-semibold leading-[2.15rem] text-white/96 md:text-[1.16rem]">
+                  "{featuredTestimonial.text}"
+                </p>
+
+                <div className="mt-7 space-y-3">
+                  {featuredTestimonial.highlightMetric ? (
+                    <div className="inline-flex w-fit rounded-full border border-emerald-400/15 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-300">
+                      {featuredTestimonial.highlightMetric}
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    {featuredTestimonial.segment ? (
+                      <div className="inline-flex w-fit rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-indigo-100/90">
+                        {featuredTestimonial.segment}
+                      </div>
+                    ) : null}
+                    {featuredTestimonial.locationLabel ? (
+                      <div className="inline-flex w-fit rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-indigo-100/90">
+                        {featuredTestimonial.locationLabel}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-auto border-t border-white/8 pt-8">
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={featuredTestimonial.avatarUrl || 'https://i.pravatar.cc/80?u=bwagro-sponsor-testimonial'}
+                      alt={featuredTestimonial.contactName}
+                      className="h-14 w-14 rounded-full border-2 border-indigo-300/55 object-cover"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-[1.35rem] font-black text-white">{featuredTestimonial.contactName}</p>
+                      <p className="truncate text-sm text-indigo-100/72">
+                        {[featuredTestimonial.roleTitle, featuredTestimonial.companyName].filter(Boolean).join(', ')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <div className="grid gap-8">
+                {secondaryTestimonials.slice(1, 3).map((t) => (
+                  <article
+                    key={t.id}
+                    className="group flex h-full flex-col rounded-[2rem] border border-white/8 bg-[#121a2f] p-8 shadow-[0_20px_50px_-30px_rgba(0,0,0,0.65)] transition-all duration-300 hover:-translate-y-1 hover:border-white/14"
+                  >
+                    <div className="mb-6 flex items-start justify-between gap-4">
+                      <div className="flex gap-1.5">
+                        {Array.from({ length: 5 }).map((_, index) => (
+                          <Star key={index} className="h-4 w-4 fill-amber-400 text-amber-400" />
+                        ))}
+                      </div>
+                      <Quote className="h-9 w-9 text-slate-700" />
+                    </div>
+
+                    <p className="flex-1 text-[1.05rem] italic leading-9 text-slate-200/92">"{t.text}"</p>
+
+                    <div className="mt-6 space-y-3">
+                      {t.highlightMetric ? (
+                        <div className="inline-flex w-fit rounded-full border border-emerald-400/12 bg-emerald-400/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-300">
+                          {t.highlightMetric}
+                        </div>
+                      ) : null}
+                      <div className="flex flex-wrap gap-2">
+                        {t.segment ? (
+                          <div className="inline-flex rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">
+                            {t.segment}
+                          </div>
+                        ) : null}
+                        {t.locationLabel ? (
+                          <div className="inline-flex rounded-full border border-white/8 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">
+                            {t.locationLabel}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="mt-8 border-t border-white/8 pt-8">
+                      <div className="flex items-center gap-4">
+                        <img
+                          src={t.avatarUrl || 'https://i.pravatar.cc/80?u=bwagro-sponsor-testimonial'}
+                          alt={t.contactName}
+                          className="h-12 w-12 rounded-full border-2 border-slate-600 object-cover"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-lg font-black text-white">{t.contactName}</p>
+                          <p className="truncate text-sm text-slate-400">
+                            {[t.roleTitle, t.companyName].filter(Boolean).join(', ')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </section>
 
       {/* -- FAQ ------------------------------------------------------------- */}

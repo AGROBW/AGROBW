@@ -912,9 +912,11 @@ const UserDashboardView: React.FC = () => {
     const [itemsPerPage, setItemsPerPage] = usePersistentState('user-dashboard:ads-items-per-page', 10);
     const [isBoosterExpanded, setIsBoosterExpanded] = usePersistentState('user-dashboard:ads-booster-expanded', false);
     const [removedAdIds, setRemovedAdIds] = useState<string[]>([]);
-    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-    const [adToDelete, setAdToDelete] = useState<Ad | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
+      const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+      const [adToDelete, setAdToDelete] = useState<Ad | null>(null);
+      const [adForModerationDetails, setAdForModerationDetails] = useState<Ad | null>(null);
+      const [expandedModerationSections, setExpandedModerationSections] = useState<Record<string, boolean>>({});
+      const [isDeleting, setIsDeleting] = useState(false);
     const [highlightModalOpen, setHighlightModalOpen] = useState(false);
     const [adForHighlight, setAdForHighlight] = useState<{
       id: string;
@@ -1147,17 +1149,161 @@ const UserDashboardView: React.FC = () => {
       return '';
     };
 
-    const getAdStatusSupportingLabel = (ad: Ad) => {
-      if (ad.status === AdStatus.REJECTED) {
-        return getRejectedStatusLabel(ad);
+      const getAdStatusSupportingLabel = (ad: Ad) => {
+        if (ad.status === AdStatus.REJECTED) {
+          return getRejectedStatusLabel(ad);
       }
 
       if (ad.status === AdStatus.EXPIRED) {
         return getExpiredRetentionLabel(ad);
       }
 
-      return `Anúncio ${getAdLifetimeLabel(ad).toLowerCase()}`;
-    };
+        return `Anúncio ${getAdLifetimeLabel(ad).toLowerCase()}`;
+      };
+
+      const getModerationSummaryLabel = (ad: Ad) => {
+        if (ad.status === AdStatus.REJECTED) {
+          return 'Ver motivo da reprovação';
+        }
+
+        if (ad.latestEditRequestStatus === 'rejected') {
+          return 'Ver detalhes da última alteração rejeitada';
+        }
+
+        if (ad.communityReportedToReviewAt) {
+          return 'Ver detalhes da análise por denúncias';
+        }
+
+        return '';
+      };
+
+      const hasModerationDetails = (ad: Ad) =>
+        Boolean(
+          ad.status === AdStatus.REJECTED ||
+          ad.latestEditRequestStatus === 'rejected' ||
+          ad.communityReportedToReviewAt ||
+          ad.rejectionReason ||
+          ad.latestEditRejectionReason
+        );
+
+      useEffect(() => {
+        if (!adForModerationDetails) {
+          setExpandedModerationSections({});
+          return;
+        }
+
+        setExpandedModerationSections({
+          rejection: Boolean(adForModerationDetails.status === AdStatus.REJECTED && adForModerationDetails.rejectionReason),
+          lastEdit: Boolean(adForModerationDetails.latestEditRequestStatus === 'rejected' && adForModerationDetails.latestEditRejectionReason),
+          community: Boolean(adForModerationDetails.communityReportedToReviewAt),
+          retry: Boolean(getReanalysisBlockedLabel(adForModerationDetails)),
+        });
+      }, [adForModerationDetails]);
+
+      const toggleModerationSection = (sectionKey: string) => {
+        setExpandedModerationSections((current) => ({
+          ...current,
+          [sectionKey]: !current[sectionKey],
+        }));
+      };
+
+      const getModerationSections = (ad: Ad) => {
+        const sections: Array<{
+          key: string;
+          title: string;
+          summary: string;
+          accent: string;
+          accentText: string;
+          content: React.ReactNode;
+        }> = [];
+
+        const retryLabel = getReanalysisBlockedLabel(ad);
+
+        if (ad.status === AdStatus.REJECTED && ad.rejectionReason) {
+          sections.push({
+            key: 'rejection',
+            title: 'Motivo da reprovação',
+            summary: 'Entenda por que o anúncio foi reprovado pela moderação.',
+            accent: 'border-rose-200 bg-rose-50',
+            accentText: 'text-rose-700',
+            content: (
+              <div className="space-y-4">
+                <p className="text-sm leading-6 text-rose-900">{ad.rejectionReason}</p>
+                {retryLabel ? (
+                  <div className="rounded-xl border border-rose-200/80 bg-white/70 px-3 py-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-700">Novo envio disponível</p>
+                    <p className="mt-2 flex items-start gap-2 text-sm leading-6 text-rose-900">
+                      <Clock3 className="mt-0.5 h-4 w-4 flex-shrink-0" strokeWidth={1.8} />
+                      <span>{retryLabel}</span>
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ),
+          });
+        }
+
+        if (ad.latestEditRequestStatus === 'rejected' && ad.latestEditRejectionReason) {
+          sections.push({
+            key: 'lastEdit',
+            title: 'Última alteração rejeitada',
+            summary: 'Mostra o motivo aplicado na última edição enviada.',
+            accent: 'border-amber-200 bg-amber-50',
+            accentText: 'text-amber-700',
+            content: (
+              <div className="space-y-4">
+                <p className="text-sm leading-6 text-amber-900">{ad.latestEditRejectionReason}</p>
+                {retryLabel ? (
+                  <div className="rounded-xl border border-amber-200/80 bg-white/70 px-3 py-3">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">Nova alteração disponível</p>
+                    <p className="mt-2 flex items-start gap-2 text-sm leading-6 text-amber-900">
+                      <Clock3 className="mt-0.5 h-4 w-4 flex-shrink-0" strokeWidth={1.8} />
+                      <span>{retryLabel}</span>
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ),
+          });
+        }
+
+        if (ad.communityReportedToReviewAt) {
+          sections.push({
+            key: 'community',
+            title: 'Análise por denúncias',
+            summary: 'O anúncio entrou em revisão após denúncias da comunidade.',
+            accent: 'border-sky-200 bg-sky-50',
+            accentText: 'text-sky-700',
+            content: (
+              <p className="text-sm leading-6 text-sky-900">
+                Este anúncio está em análise por denúncias da comunidade e só pode ser liberado pela equipe administrativa.
+              </p>
+            ),
+          });
+        }
+
+        if (
+          retryLabel &&
+          !(ad.status === AdStatus.REJECTED && ad.rejectionReason) &&
+          !(ad.latestEditRequestStatus === 'rejected' && ad.latestEditRejectionReason)
+        ) {
+          sections.push({
+            key: 'retry',
+            title: 'Prazo para novo envio',
+            summary: 'Indica quando um novo envio ou alteração será liberado.',
+            accent: 'border-amber-200 bg-amber-50/70',
+            accentText: 'text-amber-700',
+            content: (
+              <p className="flex items-start gap-2 text-sm leading-6 text-amber-900">
+                <Clock3 className="mt-0.5 h-4 w-4 flex-shrink-0" strokeWidth={1.8} />
+                <span>{retryLabel}</span>
+              </p>
+            ),
+          });
+        }
+
+        return sections;
+      };
 
     const handleTogglePause = async (ad: Ad) => {
       if (ad.communityReportedToReviewAt) {
@@ -1521,20 +1667,6 @@ const UserDashboardView: React.FC = () => {
                     <p className="text-xs text-slate-500">
                       Visitas: {ad.views} | Valor: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.price)}
                     </p>
-                    {ad.status === AdStatus.REJECTED && ad.rejectionReason ? (
-                      <p className="mt-1 text-xs font-medium text-rose-700">
-                        Motivo da reprovação: {ad.rejectionReason}
-                      </p>
-                    ) : ad.latestEditRequestStatus === 'rejected' && ad.latestEditRejectionReason ? (
-                      <p className="mt-1 text-xs font-medium text-amber-700">
-                        Ultima alteracao rejeitada: {ad.latestEditRejectionReason}
-                      </p>
-                    ) : null}
-                    {getReanalysisBlockedLabel(ad) ? (
-                      <p className="mt-1 text-xs font-medium text-amber-700">
-                        {getReanalysisBlockedLabel(ad)}
-                      </p>
-                    ) : null}
                   </div>
 
                   <div className="flex items-center gap-4">
@@ -1650,6 +1782,19 @@ const UserDashboardView: React.FC = () => {
                       </button>
                         );
                       })()}
+                      {hasModerationDetails(ad) ? (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setAdForModerationDetails(ad);
+                          }}
+                          className="p-2 rounded-lg transition-colors hover:bg-slate-50 hover:text-slate-700"
+                          title={getModerationSummaryLabel(ad) || 'Ver detalhes da moderação'}
+                        >
+                          <AlertCircle className="w-4 h-4" strokeWidth={1.5} />
+                        </button>
+                      ) : null}
                       {/* Botão Pausar/Reativar */}
                       {ad.status === AdStatus.EXPIRED ? (
                         <button 
@@ -1745,6 +1890,89 @@ const UserDashboardView: React.FC = () => {
                   ) : (
                             'Confirmar Exclusão'
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {adForModerationDetails && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 backdrop-blur-sm p-4">
+            <div className="w-full max-w-lg rounded-[26px] border border-slate-200 bg-white shadow-[0_32px_80px_-40px_rgba(15,23,42,0.55)]">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Detalhes da moderação</p>
+                  <h3 className="mt-2 truncate text-lg font-black text-slate-950">{adForModerationDetails.title}</h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {statusLabel[adForModerationDetails.status] || 'Status'} • Código {adForModerationDetails.id}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      {getModerationSections(adForModerationDetails).length} item(ns)
+                    </span>
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] ${
+                      adForModerationDetails.status === AdStatus.REJECTED
+                        ? 'border-rose-200 bg-rose-50 text-rose-700'
+                        : adForModerationDetails.communityReportedToReviewAt
+                          ? 'border-sky-200 bg-sky-50 text-sky-700'
+                          : 'border-amber-200 bg-amber-50 text-amber-700'
+                    }`}>
+                      {statusLabel[adForModerationDetails.status] || 'Status'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdForModerationDetails(null)}
+                  className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                  title="Fechar"
+                >
+                  <span className="sr-only">Fechar</span>
+                  <span className="block text-xl leading-none">×</span>
+                </button>
+              </div>
+
+              <div className="max-h-[min(62vh,520px)] overflow-y-auto px-6 py-5">
+                <div className="space-y-3">
+                  {getModerationSections(adForModerationDetails).map((section) => {
+                    const isExpanded = Boolean(expandedModerationSections[section.key]);
+
+                    return (
+                      <div key={section.key} className={`overflow-hidden rounded-2xl border ${section.accent}`}>
+                        <button
+                          type="button"
+                          onClick={() => toggleModerationSection(section.key)}
+                          className="flex w-full items-start justify-between gap-4 px-4 py-4 text-left"
+                        >
+                          <div className="min-w-0">
+                            <p className={`text-[11px] font-black uppercase tracking-[0.18em] ${section.accentText}`}>
+                              {section.title}
+                            </p>
+                            <p className="mt-2 text-sm text-slate-600">{section.summary}</p>
+                          </div>
+                          <span className={`mt-0.5 text-lg font-bold transition-transform ${section.accentText} ${isExpanded ? 'rotate-180' : ''}`}>
+                            ⌃
+                          </span>
+                        </button>
+
+                        {isExpanded ? (
+                          <div className="border-t border-black/5 px-4 py-4">
+                            {section.content}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex justify-end border-t border-slate-100 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setAdForModerationDetails(null)}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Fechar
                 </button>
               </div>
             </div>

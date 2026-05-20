@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3,
   ExternalLink,
@@ -11,6 +11,8 @@ import {
   Save,
   Send,
   Trash2,
+  Upload,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
@@ -38,6 +40,12 @@ interface SiteSponsor {
   segment: string;
   logo_url: string | null;
   banner_url: string | null;
+  show_on_home_carousel: boolean;
+  home_badge_text: string | null;
+  home_title: string | null;
+  home_subtitle: string | null;
+  home_button_text: string | null;
+  home_carousel_sort_order: number | null;
   target_type: SponsorTargetType;
   target_url: string | null;
   slot_position: number | null;
@@ -118,6 +126,12 @@ const emptyForm = {
   segment: '',
   logoUrl: '',
   bannerUrl: '',
+  showOnHomeCarousel: false,
+  homeBadgeText: 'Patrocinador AGRO BW',
+  homeTitle: '',
+  homeSubtitle: '',
+  homeButtonText: 'Conhecer patrocinador',
+  homeCarouselSortOrder: '',
   targetType: 'site' as SponsorTargetType,
   targetUrl: '',
   slotPosition: '',
@@ -157,11 +171,11 @@ const autoSendFrequencyLabelMap: Record<'weekly' | 'monthly', string> = {
 
 const weeklyDayOptions = [
   { value: '1', label: 'Segunda-feira' },
-  { value: '2', label: 'TerÃ§a-feira' },
+  { value: '2', label: 'Terça-feira' },
   { value: '3', label: 'Quarta-feira' },
   { value: '4', label: 'Quinta-feira' },
   { value: '5', label: 'Sexta-feira' },
-  { value: '6', label: 'SÃ¡bado' },
+  { value: '6', label: 'Sábado' },
   { value: '7', label: 'Domingo' },
 ];
 
@@ -209,6 +223,7 @@ const SponsorsManagement: React.FC = () => {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportSending, setReportSending] = useState(false);
   const [automationRunning, setAutomationRunning] = useState(false);
+  const [uploadingAsset, setUploadingAsset] = useState<'logo' | 'banner' | null>(null);
 
   const activeSponsors = useMemo(
     () =>
@@ -265,7 +280,7 @@ const SponsorsManagement: React.FC = () => {
       setStats(rows[0] || null);
     } catch (error) {
       appError('[SponsorsManagement] Erro ao carregar patrocinadores', error);
-      toast.error('NÃ£o foi possÃ­vel carregar patrocinadores agora.');
+      toast.error('Não foi possível carregar patrocinadores agora.');
     } finally {
       setLoading(false);
     }
@@ -299,6 +314,46 @@ const SponsorsManagement: React.FC = () => {
     setForm({ ...emptyForm, startsAt: getTodaySaoPauloDateOnly() });
   };
 
+  const handleAssetUpload = async (field: 'logoUrl' | 'bannerUrl', file: File) => {
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Selecione uma imagem JPG, PNG ou WEBP.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A imagem deve ter no m?ximo 5MB.');
+      return;
+    }
+
+    const uploadKind = field === 'logoUrl' ? 'logo' : 'banner';
+
+    try {
+      setUploadingAsset(uploadKind);
+      const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const filePath = `site-sponsors/${uploadKind}-${Date.now()}.${extension}`;
+
+      const { error: uploadError } = await supabase.storage.from('layout_assets').upload(filePath, file, {
+        upsert: true,
+        contentType: file.type,
+        cacheControl: '3600',
+      });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('layout_assets').getPublicUrl(filePath);
+      setForm((current) => ({ ...current, [field]: data.publicUrl }));
+      toast.success(`${uploadKind === 'logo' ? 'Logo' : 'Banner'} enviado com sucesso.`);
+    } catch (error) {
+      appError('[SponsorsManagement] Erro ao enviar m?dia do patrocinador', error, {
+        field,
+      });
+      toast.error('N?o foi poss?vel enviar a imagem agora.');
+    } finally {
+      setUploadingAsset(null);
+    }
+  };
+
   const fillForm = (sponsor: SiteSponsor) => {
     setForm({
       id: sponsor.id,
@@ -309,6 +364,12 @@ const SponsorsManagement: React.FC = () => {
       segment: sponsor.segment,
       logoUrl: sponsor.logo_url || '',
       bannerUrl: sponsor.banner_url || '',
+      showOnHomeCarousel: Boolean(sponsor.show_on_home_carousel),
+      homeBadgeText: sponsor.home_badge_text || 'Patrocinador AGRO BW',
+      homeTitle: sponsor.home_title || '',
+      homeSubtitle: sponsor.home_subtitle || '',
+      homeButtonText: sponsor.home_button_text || 'Conhecer patrocinador',
+      homeCarouselSortOrder: sponsor.home_carousel_sort_order ? String(sponsor.home_carousel_sort_order) : '',
       targetType: sponsor.target_type,
       targetUrl: sponsor.target_url || '',
       slotPosition: sponsor.slot_position ? String(sponsor.slot_position) : '',
@@ -330,17 +391,27 @@ const SponsorsManagement: React.FC = () => {
     }
 
     if (!form.startsAt) {
-      toast.error('Informe uma data de inÃ­cio vÃ¡lida.');
+      toast.error('Informe uma data de início válida.');
       return;
     }
 
     if (form.endsAt && form.endsAt <= form.startsAt) {
-      toast.error('A data de fim precisa ser maior que a data de inÃ­cio.');
+      toast.error('A data de fim precisa ser maior que a data de início.');
+      return;
+    }
+
+    if (form.showOnHomeCarousel && !form.bannerUrl.trim()) {
+      toast.error('Informe o banner do patrocinador para exibir este parceiro no carrossel da home.');
+      return;
+    }
+
+    if (form.showOnHomeCarousel && !form.targetUrl.trim()) {
+      toast.error('Informe o link de destino do patrocinador antes de ativar a exibição na home.');
       return;
     }
 
     if (!form.id && form.status === 'active' && activeSponsors.length >= 6) {
-      toast.error('As 6 vagas atuais jÃ¡ estÃ£o ocupadas. Pause ou encerre um patrocinador antes de ativar outro.');
+      toast.error('As 6 vagas atuais já estão ocupadas. Pause ou encerre um patrocinador antes de ativar outro.');
       return;
     }
 
@@ -354,6 +425,12 @@ const SponsorsManagement: React.FC = () => {
         segment: form.segment.trim(),
         logo_url: form.logoUrl.trim() || null,
         banner_url: form.bannerUrl.trim() || null,
+        show_on_home_carousel: form.showOnHomeCarousel,
+        home_badge_text: form.showOnHomeCarousel ? (form.homeBadgeText.trim() || null) : null,
+        home_title: form.showOnHomeCarousel ? (form.homeTitle.trim() || null) : null,
+        home_subtitle: form.showOnHomeCarousel ? (form.homeSubtitle.trim() || null) : null,
+        home_button_text: form.showOnHomeCarousel ? (form.homeButtonText.trim() || null) : null,
+        home_carousel_sort_order: form.showOnHomeCarousel && form.homeCarouselSortOrder ? Number(form.homeCarouselSortOrder) : null,
         target_type: form.targetType,
         target_url: form.targetUrl.trim() || null,
         slot_position: form.slotPosition ? Number(form.slotPosition) : null,
@@ -382,7 +459,7 @@ const SponsorsManagement: React.FC = () => {
       await loadSponsors();
     } catch (error) {
       appError('[SponsorsManagement] Erro ao salvar patrocinador', error, { sponsorId: form.id || null });
-      const message = error instanceof Error ? error.message : 'NÃ£o foi possÃ­vel salvar o patrocinador.';
+      const message = error instanceof Error ? error.message : 'Não foi possível salvar o patrocinador.';
       toast.error(message);
     } finally {
       setSaving(false);
@@ -413,7 +490,7 @@ const SponsorsManagement: React.FC = () => {
       await loadSponsors();
     } catch (error) {
       appError('[SponsorsManagement] Erro ao alterar status', error, { sponsorId: sponsor.id, status });
-      const message = error instanceof Error ? error.message : 'NÃ£o foi possÃ­vel alterar o status.';
+      const message = error instanceof Error ? error.message : 'Não foi possível alterar o status.';
       toast.error(message);
     }
   };
@@ -429,7 +506,7 @@ const SponsorsManagement: React.FC = () => {
       await loadSponsors();
     } catch (error) {
       appError('[SponsorsManagement] Erro ao remover patrocinador', error, { sponsorId: sponsor.id });
-      toast.error('NÃ£o foi possÃ­vel remover o patrocinador.');
+      toast.error('Não foi possível remover o patrocinador.');
     }
   };
 
@@ -451,7 +528,7 @@ const SponsorsManagement: React.FC = () => {
       toast.success('Status do lead atualizado com sucesso.');
     } catch (error) {
       appError('[SponsorsManagement] Erro ao atualizar lead de patrocinador', error, { leadId, status });
-      toast.error('NÃ£o foi possÃ­vel atualizar o status do lead.');
+      toast.error('Não foi possível atualizar o status do lead.');
     } finally {
       setUpdatingLeadId(null);
     }
@@ -462,12 +539,12 @@ const SponsorsManagement: React.FC = () => {
     const periodEnd = civilDateToSaoPauloEndOfDayIso(reportPeriodEnd);
 
     if (!reportSponsorId) {
-      toast.error('Selecione um patrocinador antes de gerar o relatÃ³rio.');
+      toast.error('Selecione um patrocinador antes de gerar o relatório.');
       return;
     }
 
     if (!periodStart || !periodEnd) {
-      toast.error('Informe um perÃ­odo vÃ¡lido para gerar o relatÃ³rio.');
+      toast.error('Informe um período válido para gerar o relatório.');
       return;
     }
 
@@ -488,7 +565,7 @@ const SponsorsManagement: React.FC = () => {
 
       const row = Array.isArray(data) ? data[0] : data;
       if (!row) {
-        toast.error('NÃ£o foi possÃ­vel gerar o relatÃ³rio agora.');
+        toast.error('Não foi possível gerar o relatório agora.');
         return;
       }
 
@@ -500,14 +577,14 @@ const SponsorsManagement: React.FC = () => {
         impressions: Number(row.impressions ?? 0),
         clicks: Number(row.clicks ?? 0),
         ctr: Number(row.ctr ?? 0),
-        primary_region: row.primary_region ?? 'RegiÃ£o nÃ£o identificada',
+        primary_region: row.primary_region ?? 'Região não identificada',
         top_regions: Array.isArray(row.top_regions) ? row.top_regions : [],
       });
 
-      toast.success('RelatÃ³rio gerado com sucesso.');
+      toast.success('Relatório gerado com sucesso.');
     } catch (error) {
-      appError('[SponsorsManagement] Erro ao gerar relatÃ³rio de mÃ©tricas', error, { sponsorId: reportSponsorId });
-      toast.error('NÃ£o foi possÃ­vel gerar o relatÃ³rio do patrocinador.');
+      appError('[SponsorsManagement] Erro ao gerar relatório de métricas', error, { sponsorId: reportSponsorId });
+      toast.error('Não foi possível gerar o relatório do patrocinador.');
     } finally {
       setReportLoading(false);
     }
@@ -515,13 +592,13 @@ const SponsorsManagement: React.FC = () => {
 
   const sendMetricsReport = async () => {
     if (!reportData) {
-      toast.error('Gere o relatÃ³rio antes de enviar por e-mail.');
+      toast.error('Gere o relatório antes de enviar por e-mail.');
       return;
     }
 
     const recipients = parseRecipients(reportRecipients);
     if (!recipients.length) {
-      toast.error('Informe pelo menos um e-mail vÃ¡lido para envio.');
+      toast.error('Informe pelo menos um e-mail válido para envio.');
       return;
     }
 
@@ -552,7 +629,7 @@ const SponsorsManagement: React.FC = () => {
       });
 
       if (dispatchError) {
-        toast.success('RelatÃ³rio enfileirado com sucesso. O envio serÃ¡ concluÃ­do assim que o processador estiver disponÃ­vel.');
+        toast.success('Relatório enfileirado com sucesso. O envio será concluído assim que o processador estiver disponível.');
         await loadSponsors();
         return;
       }
@@ -561,18 +638,18 @@ const SponsorsManagement: React.FC = () => {
       const failedCount = Number(dispatchData?.failedCount ?? 0);
       toast.success(
         sentCount > 0
-          ? `RelatÃ³rio enviado com sucesso para ${sentCount} destinatÃ¡rio(s).`
+          ? `Relatório enviado com sucesso para ${sentCount} destinatário(s).`
           : failedCount > 0
-            ? 'O relatÃ³rio foi enfileirado, mas houve falhas no envio. Revise o monitoramento de e-mails.'
-            : 'RelatÃ³rio processado com sucesso.',
+            ? 'O relatório foi enfileirado, mas houve falhas no envio. Revise o monitoramento de e-mails.'
+            : 'Relatório processado com sucesso.',
       );
       await loadSponsors();
     } catch (error) {
-      appError('[SponsorsManagement] Erro ao enviar relatÃ³rio de mÃ©tricas', error, {
+      appError('[SponsorsManagement] Erro ao enviar relatório de métricas', error, {
         sponsorId: reportData?.sponsor_id || null,
         recipients,
       });
-      toast.error('NÃ£o foi possÃ­vel enviar o relatÃ³rio agora.');
+      toast.error('Não foi possível enviar o relatório agora.');
     } finally {
       setReportSending(false);
     }
@@ -594,15 +671,15 @@ const SponsorsManagement: React.FC = () => {
       const sentCount = Number(data?.sentCount ?? 0);
 
       if (queuedCount === 0 && sentCount === 0) {
-        toast.success('Nenhum relatÃ³rio automÃ¡tico estava vencido para processamento agora.');
+        toast.success('Nenhum relatório automático estava vencido para processamento agora.');
       } else {
-        toast.success(`AutomaÃ§Ã£o processada: ${queuedCount} relatÃ³rio(s) enfileirado(s) e ${sentCount} envio(s) concluÃ­do(s).`);
+        toast.success(`Automação processada: ${queuedCount} relatório(s) enfileirado(s) e ${sentCount} envio(s) concluído(s).`);
       }
 
       await loadSponsors();
     } catch (error) {
-      appError('[SponsorsManagement] Erro ao processar automaÃ§Ã£o de relatÃ³rios', error);
-      toast.error('NÃ£o foi possÃ­vel processar a automaÃ§Ã£o dos relatÃ³rios agora.');
+      appError('[SponsorsManagement] Erro ao processar automação de relatórios', error);
+      toast.error('Não foi possível processar a automação dos relatórios agora.');
     } finally {
       setAutomationRunning(false);
     }
@@ -617,9 +694,9 @@ const SponsorsManagement: React.FC = () => {
               <Handshake className="h-3.5 w-3.5" />
               Patrocinadores
             </div>
-            <h1 className="text-2xl font-black text-slate-950">GestÃ£o de vagas do Patrocinador</h1>
+            <h1 className="text-2xl font-black text-slate-950">Gestão de vagas do Patrocinador</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Cadastre, pause ou encerre patrocinadores. A pÃ¡gina pÃºblica usa estes dados para exibir vagas disponÃ­veis em tempo real.
+              Cadastre, pause ou encerre patrocinadores. A página pública usa estes dados para exibir vagas disponíveis em tempo real.
             </p>
           </div>
           <button
@@ -636,7 +713,7 @@ const SponsorsManagement: React.FC = () => {
           {[
             { label: 'Vagas totais', value: stats?.total_slots ?? 6 },
             { label: 'Ocupadas agora', value: stats?.occupied_slots ?? activeSponsors.length },
-            { label: 'DisponÃ­veis agora', value: stats?.available_slots ?? Math.max(6 - activeSponsors.length, 0) },
+            { label: 'Disponíveis agora', value: stats?.available_slots ?? Math.max(6 - activeSponsors.length, 0) },
             { label: 'Patrocinadores ativos', value: stats?.active_sponsors ?? activeSponsors.length },
           ].map((item) => (
             <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -684,13 +761,13 @@ const SponsorsManagement: React.FC = () => {
                 value={form.segment}
                 onChange={(event) => setForm((current) => ({ ...current, segment: event.target.value }))}
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500"
-                placeholder="Ex.: MÃ¡quinas agrÃ­colas"
+                placeholder="Ex.: Máquinas agrícolas"
               />
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">ResponsÃ¡vel</span>
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Responsável</span>
                 <input
                   value={form.contactName}
                   onChange={(event) => setForm((current) => ({ ...current, contactName: event.target.value }))}
@@ -734,7 +811,7 @@ const SponsorsManagement: React.FC = () => {
             </div>
 
             <label className="space-y-2">
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">DestinatÃ¡rios dos relatÃ³rios</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Destinatários dos relatórios</span>
               <textarea
                 value={form.metricRecipientEmails}
                 onChange={(event) => setForm((current) => ({ ...current, metricRecipientEmails: event.target.value }))}
@@ -742,16 +819,16 @@ const SponsorsManagement: React.FC = () => {
                 placeholder="email@empresa.com.br&#10;marketing@empresa.com.br"
               />
               <p className="text-xs text-slate-400">
-                Salve aqui os e-mails padrÃ£o que devem receber os relatÃ³rios de mÃ©tricas deste patrocinador.
+                Salve aqui os e-mails padrão que devem receber os relatórios de métricas deste patrocinador.
               </p>
             </label>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">AutomaÃ§Ã£o dos relatÃ³rios</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Automação dos relatórios</p>
                   <p className="mt-1 text-sm text-slate-600">
-                    Configure o envio automÃ¡tico semanal ou mensal usando os destinatÃ¡rios salvos acima.
+                    Configure o envio automático semanal ou mensal usando os destinatários salvos acima.
                   </p>
                 </div>
                 <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
@@ -761,13 +838,13 @@ const SponsorsManagement: React.FC = () => {
                     onChange={(event) => setForm((current) => ({ ...current, metricAutoSendEnabled: event.target.checked }))}
                     className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                   />
-                  Ativar automaÃ§Ã£o
+                  Ativar automação
                 </label>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">FrequÃªncia</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Frequência</span>
                   <select
                     value={form.metricAutoSendFrequency}
                     onChange={(event) =>
@@ -790,7 +867,7 @@ const SponsorsManagement: React.FC = () => {
 
                 <label className="space-y-2">
                   <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-                    {form.metricAutoSendFrequency === 'weekly' ? 'Dia da semana' : 'Dia do mÃªs'}
+                    {form.metricAutoSendFrequency === 'weekly' ? 'Dia da semana' : 'Dia do mês'}
                   </span>
                   <select
                     value={form.metricAutoSendDay}
@@ -816,7 +893,7 @@ const SponsorsManagement: React.FC = () => {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">InÃ­cio</span>
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Início</span>
                 <input
                   type="date"
                   value={form.startsAt}
@@ -843,7 +920,7 @@ const SponsorsManagement: React.FC = () => {
                   onChange={(event) => setForm((current) => ({ ...current, slotPosition: event.target.value }))}
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500"
                 >
-                  <option value="">AutomÃ¡tica</option>
+                  <option value="">Automática</option>
                   {Array.from({ length: 6 }).map((_, index) => (
                     <option key={index + 1} value={index + 1}>
                       Vaga {index + 1}
@@ -874,33 +951,210 @@ const SponsorsManagement: React.FC = () => {
               />
             </label>
 
-            <label className="space-y-2">
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Logo</span>
-              <input
-                value={form.logoUrl}
-                onChange={(event) => setForm((current) => ({ ...current, logoUrl: event.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500"
-                placeholder="URL da logo"
-              />
-            </label>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Logo</span>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-start gap-4">
+                    <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                      {form.logoUrl ? (
+                        <img src={form.logoUrl} alt="Preview da logo" className="h-full w-full object-contain p-2" />
+                      ) : (
+                        <Handshake className="h-6 w-6 text-slate-300" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">
+                          {uploadingAsset === 'logo' ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4" />
+                          )}
+                          Enviar logo
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                            className="hidden"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) {
+                                void handleAssetUpload('logoUrl', file);
+                              }
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </label>
+                        {form.logoUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setForm((current) => ({ ...current, logoUrl: '' }))}
+                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50"
+                          >
+                            <X className="h-4 w-4" />
+                            Remover
+                          </button>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Voc? pode enviar a imagem direto aqui ou colar uma URL manualmente abaixo.
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    value={form.logoUrl}
+                    onChange={(event) => setForm((current) => ({ ...current, logoUrl: event.target.value }))}
+                    className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500"
+                    placeholder="URL da logo"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Banner</span>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-start gap-4">
+                    <div className="flex h-20 w-32 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                      {form.bannerUrl ? (
+                        <img src={form.bannerUrl} alt="Preview do banner" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="px-3 text-center text-xs font-bold uppercase tracking-[0.14em] text-slate-300">
+                          Preview do banner
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">
+                          {uploadingAsset === 'banner' ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4" />
+                          )}
+                          Enviar banner
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                            className="hidden"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) {
+                                void handleAssetUpload('bannerUrl', file);
+                              }
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </label>
+                        {form.bannerUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setForm((current) => ({ ...current, bannerUrl: '' }))}
+                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50"
+                          >
+                            <X className="h-4 w-4" />
+                            Remover
+                          </button>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Para o carrossel da home, prefira artes em 1920x640 px para evitar cortes.
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    value={form.bannerUrl}
+                    onChange={(event) => setForm((current) => ({ ...current, bannerUrl: event.target.value }))}
+                    className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500"
+                    placeholder="URL do banner"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Banner da Home</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Quando ativado, este patrocinador entra automaticamente no carrossel principal da home usando o banner informado acima.
+                  </p>
+                </div>
+                <label className="inline-flex items-center gap-2 text-sm font-bold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.showOnHomeCarousel}
+                    onChange={(event) => setForm((current) => ({ ...current, showOnHomeCarousel: event.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  Exibir na home
+                </label>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Badge</span>
+                  <input
+                    value={form.homeBadgeText}
+                    onChange={(event) => setForm((current) => ({ ...current, homeBadgeText: event.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 disabled:opacity-60"
+                    placeholder="Patrocinador AGRO BW"
+                    disabled={!form.showOnHomeCarousel}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Ordem no carrossel</span>
+                  <input
+                    type="number"
+                    value={form.homeCarouselSortOrder}
+                    onChange={(event) => setForm((current) => ({ ...current, homeCarouselSortOrder: event.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 disabled:opacity-60"
+                    placeholder="Ex.: 1"
+                    disabled={!form.showOnHomeCarousel}
+                  />
+                </label>
+                <label className="space-y-2 sm:col-span-2">
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Título do slide</span>
+                  <input
+                    value={form.homeTitle}
+                    onChange={(event) => setForm((current) => ({ ...current, homeTitle: event.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 disabled:opacity-60"
+                    placeholder="Se vazio, usamos o nome da empresa"
+                    disabled={!form.showOnHomeCarousel}
+                  />
+                </label>
+                <label className="space-y-2 sm:col-span-2">
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Subtítulo do slide</span>
+                  <textarea
+                    value={form.homeSubtitle}
+                    onChange={(event) => setForm((current) => ({ ...current, homeSubtitle: event.target.value }))}
+                    className="min-h-[88px] w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 disabled:opacity-60"
+                    placeholder="Se vazio, usamos um subtítulo automático com o segmento"
+                    disabled={!form.showOnHomeCarousel}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">CTA do slide</span>
+                  <input
+                    value={form.homeButtonText}
+                    onChange={(event) => setForm((current) => ({ ...current, homeButtonText: event.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500 disabled:opacity-60"
+                    placeholder="Conhecer patrocinador"
+                    disabled={!form.showOnHomeCarousel}
+                  />
+                </label>
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-800">
+                  Use esta área para patrocinadores que também devem aparecer no slider principal. Os banners comuns da home continuam sendo geridos separadamente em <span className="font-bold">Banners Home</span>.
+                </div>
+              </div>
+            </div>
 
             <label className="space-y-2">
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Banner</span>
-              <input
-                value={form.bannerUrl}
-                onChange={(event) => setForm((current) => ({ ...current, bannerUrl: event.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500"
-                placeholder="URL do banner"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">ObservaÃ§Ãµes internas</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Observações internas</span>
               <textarea
                 value={form.notes}
                 onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
                 className="min-h-[90px] w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500"
-                placeholder="AnotaÃ§Ãµes visÃ­veis apenas para o admin"
+                placeholder="Anotações visíveis apenas para o admin"
               />
             </label>
 
@@ -934,7 +1188,7 @@ const SponsorsManagement: React.FC = () => {
           ) : sponsors.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
               <p className="font-black text-slate-900">Nenhum patrocinador cadastrado.</p>
-              <p className="mt-2 text-sm text-slate-500">Cadastre o primeiro patrocinador para ocupar uma vaga pÃºblica.</p>
+              <p className="mt-2 text-sm text-slate-500">Cadastre o primeiro patrocinador para ocupar uma vaga pública.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -974,8 +1228,13 @@ const SponsorsManagement: React.FC = () => {
                         </div>
                         <p className="mt-1 text-sm text-slate-500">{sponsor.segment}</p>
                         <p className="mt-1 text-xs text-slate-400">
-                          {formatDate(sponsor.starts_on)} atÃ© {formatDate(sponsor.ends_on)}
+                          {formatDate(sponsor.starts_on)} até {formatDate(sponsor.ends_on)}
                         </p>
+                        {sponsor.show_on_home_carousel ? (
+                          <p className="mt-2 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                            No carrossel da home
+                          </p>
+                        ) : null}
                         <p className="mt-1 text-xs text-slate-400">
                           Destino: {targetTypeLabelMap[sponsor.target_type]}
                           {sponsor.target_url && (
@@ -992,16 +1251,16 @@ const SponsorsManagement: React.FC = () => {
                         </p>
                         {(sponsor.metric_recipient_emails || []).length > 0 ? (
                           <p className="mt-1 text-xs text-slate-400">
-                            RelatÃ³rios: {(sponsor.metric_recipient_emails || []).length} destinatÃ¡rio(s) salvo(s)
+                            Relatórios: {(sponsor.metric_recipient_emails || []).length} destinatário(s) salvo(s)
                           </p>
                         ) : null}
                         {sponsor.metric_auto_send_enabled ? (
                           <p className="mt-1 text-xs text-slate-400">
-                            AutomaÃ§Ã£o: {autoSendFrequencyLabelMap[sponsor.metric_auto_send_frequency]} Â·{' '}
+                            Automação: {autoSendFrequencyLabelMap[sponsor.metric_auto_send_frequency]} ·{' '}
                             {sponsor.metric_auto_send_frequency === 'weekly'
                               ? weeklyDayOptions.find((item) => item.value === String(sponsor.metric_auto_send_day))?.label || `Dia ${sponsor.metric_auto_send_day}`
-                              : `dia ${sponsor.metric_auto_send_day} do mÃªs`}
-                            {sponsor.metric_auto_last_queued_at ? ` Â· Ãºltima fila em ${formatDateTime(sponsor.metric_auto_last_queued_at)}` : ''}
+                              : `dia ${sponsor.metric_auto_send_day} do mês`}
+                            {sponsor.metric_auto_last_queued_at ? ` · última fila em ${formatDateTime(sponsor.metric_auto_last_queued_at)}` : ''}
                           </p>
                         ) : null}
                       </div>
@@ -1061,12 +1320,12 @@ const SponsorsManagement: React.FC = () => {
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">HistÃ³rico de relatÃ³rios</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Histórico de relatórios</p>
             <h2 className="mt-1 text-lg font-black text-slate-950">
-              {selectedReportSponsor ? `Envios de ${selectedReportSponsor.company_name}` : 'Ãšltimos relatÃ³rios enviados'}
+              {selectedReportSponsor ? `Envios de ${selectedReportSponsor.company_name}` : '?ltimos relat?rios enviados'}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-              Acompanhe quem recebeu o relatÃ³rio, o perÃ­odo analisado e o status mais recente do envio.
+              Acompanhe quem recebeu o relatório, o período analisado e o status mais recente do envio.
             </p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
@@ -1080,11 +1339,11 @@ const SponsorsManagement: React.FC = () => {
               <thead className="border-b border-slate-200 bg-slate-50">
                 <tr>
                   <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Patrocinador</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">PerÃ­odo</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">DestinatÃ¡rio</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Período</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Destinatário</th>
                   <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Status</th>
                   <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Envio</th>
-                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">ObservaÃ§Ãµes</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Observações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -1097,7 +1356,7 @@ const SponsorsManagement: React.FC = () => {
                 ) : metricHistory.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-14 text-center text-slate-500">
-                      Nenhum relatÃ³rio de patrocinador foi gerado ainda para este filtro.
+                      Nenhum relatório de patrocinador foi gerado ainda para este filtro.
                     </td>
                   </tr>
                 ) : (
@@ -1107,10 +1366,10 @@ const SponsorsManagement: React.FC = () => {
                         <p className="font-bold text-slate-950">{job.sponsor_name}</p>
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-600">
-                        {formatDateTime(job.period_start)} atÃ© {formatDateTime(job.period_end)}
+                        {formatDateTime(job.period_start)} até {formatDateTime(job.period_end)}
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-600">
-                        <p className="font-semibold text-slate-900">{job.recipient_name || 'DestinatÃ¡rio manual'}</p>
+                        <p className="font-semibold text-slate-900">{job.recipient_name || 'Destinatário manual'}</p>
                         <p>{job.recipient_email}</p>
                       </td>
                       <td className="px-5 py-4">
@@ -1157,9 +1416,9 @@ const SponsorsManagement: React.FC = () => {
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Leads da landing</p>
-            <h2 className="mt-1 text-lg font-black text-slate-950">Interessados em patrocÃ­nio</h2>
+            <h2 className="mt-1 text-lg font-black text-slate-950">Interessados em patrocínio</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Todos os envios feitos na seÃ§Ã£o â€œFale com a equipeâ€ da pÃ¡gina Patrocinador ficam organizados aqui para acompanhamento comercial.
+              Todos os envios feitos na se??o ?Fale com a equipe? da p?gina Patrocinador ficam organizados aqui para acompanhamento comercial.
             </p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
@@ -1256,20 +1515,20 @@ const SponsorsManagement: React.FC = () => {
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">RelatÃ³rios de mÃ©tricas</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Relatórios de métricas</p>
             <h2 className="mt-1 text-lg font-black text-slate-950">Gerador manual para patrocinadores</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-              Gere o resumo de impressÃµes, cliques, CTR e regiÃ£o principal do pÃºblico interessado para cada patrocinador e envie manualmente por e-mail quando solicitado.
+              Gere o resumo de impressões, cliques, CTR e região principal com base exclusivamente no banner do patrocinador exibido no carrossel principal da home.
             </p>
           </div>
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">
-            Admin-only: as mÃ©tricas nÃ£o ficam visÃ­veis para o patrocinador na plataforma.
+            Admin-only: as métricas não ficam visíveis para o patrocinador na plataforma.
           </div>
         </div>
 
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
           <div className="text-sm text-slate-600">
-            Use este botÃ£o para processar os relatÃ³rios automÃ¡ticos que estiverem vencidos hoje, com base nas configuraÃ§Ãµes salvas em cada patrocinador.
+            Use este botão para processar os relatórios automáticos que estiverem vencidos hoje, com base nas configurações salvas em cada patrocinador.
           </div>
           <button
             type="button"
@@ -1278,7 +1537,7 @@ const SponsorsManagement: React.FC = () => {
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {automationRunning ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Processar automaÃ§Ã£o de hoje
+            Processar automação de hoje
           </button>
         </div>
 
@@ -1313,7 +1572,7 @@ const SponsorsManagement: React.FC = () => {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">InÃ­cio do perÃ­odo</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Início do período</span>
                   <input
                     type="date"
                     value={reportPeriodStart}
@@ -1322,7 +1581,7 @@ const SponsorsManagement: React.FC = () => {
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Fim do perÃ­odo</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Fim do período</span>
                   <input
                     type="date"
                     value={reportPeriodEnd}
@@ -1333,7 +1592,7 @@ const SponsorsManagement: React.FC = () => {
               </div>
 
               <label className="space-y-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">DestinatÃ¡rios</span>
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Destinatários</span>
                 <textarea
                   value={reportRecipients}
                   onChange={(event) => setReportRecipients(event.target.value)}
@@ -1341,9 +1600,9 @@ const SponsorsManagement: React.FC = () => {
                   placeholder="email@empresa.com.br&#10;marketing@empresa.com.br"
                 />
                 <p className="text-xs text-slate-400">
-                  VocÃª pode separar por vÃ­rgula, ponto e vÃ­rgula ou quebra de linha.
+                  Você pode separar por vírgula, ponto e vírgula ou quebra de linha.
                   {selectedReportSponsor?.metric_recipient_emails?.length
-                    ? ' Estes destinatÃ¡rios jÃ¡ estÃ£o salvos no patrocinador selecionado.'
+                    ? ' Estes destinatários já estão salvos no patrocinador selecionado.'
                     : ''}
                 </p>
               </label>
@@ -1356,7 +1615,7 @@ const SponsorsManagement: React.FC = () => {
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {reportLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <BarChart3 className="h-4 w-4" />}
-                  Gerar relatÃ³rio
+                  Gerar relatório
                 </button>
                 <button
                   type="button"
@@ -1374,30 +1633,30 @@ const SponsorsManagement: React.FC = () => {
           <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">PrÃ©via do relatÃ³rio</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Prévia do relatório</p>
                 <h3 className="mt-1 text-base font-black text-slate-950">
-                  {reportData?.sponsor_name || 'Selecione um patrocinador e gere a anÃ¡lise'}
+                  {reportData?.sponsor_name || 'Selecione um patrocinador e gere a análise'}
                 </h3>
               </div>
               {reportData ? (
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-slate-500">
-                  {formatDateTime(reportData.period_start)} atÃ© {formatDateTime(reportData.period_end)}
+                  {formatDateTime(reportData.period_start)} até {formatDateTime(reportData.period_end)}
                 </span>
               ) : null}
             </div>
 
             {!reportData ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                <p className="font-black text-slate-900">Nenhum relatÃ³rio gerado ainda.</p>
+                <p className="font-black text-slate-900">Nenhum relatório gerado ainda.</p>
                 <p className="mt-2 text-sm text-slate-500">
-                  Escolha um patrocinador, defina o perÃ­odo e gere a prÃ©via antes do envio.
+                  Escolha um patrocinador, defina o período e gere a prévia antes do envio.
                 </p>
               </div>
             ) : (
               <div className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">ImpressÃµes</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Impressões</p>
                     <p className="mt-2 text-3xl font-black text-slate-950">{reportData.impressions}</p>
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1409,14 +1668,14 @@ const SponsorsManagement: React.FC = () => {
                     <p className="mt-2 text-3xl font-black text-emerald-800">{reportData.ctr.toFixed(2).replace('.', ',')}%</p>
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">RegiÃ£o principal</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Região principal</p>
                     <p className="mt-2 text-lg font-black text-slate-950">{reportData.primary_region}</p>
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-white">
                   <div className="border-b border-slate-200 px-4 py-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Top regiÃµes por clique</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Top regiões por clique</p>
                   </div>
                   {reportData.top_regions && reportData.top_regions.length > 0 ? (
                     <div className="divide-y divide-slate-200">
@@ -1429,7 +1688,7 @@ const SponsorsManagement: React.FC = () => {
                     </div>
                   ) : (
                     <div className="px-4 py-6 text-sm text-slate-500">
-                      Ainda nÃ£o houve cliques suficientes no perÃ­odo para compor um ranking regional.
+                      Ainda não houve cliques suficientes no período para compor um ranking regional.
                     </div>
                   )}
                 </div>
@@ -1443,4 +1702,3 @@ const SponsorsManagement: React.FC = () => {
 };
 
 export default SponsorsManagement;
-

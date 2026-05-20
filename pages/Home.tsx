@@ -8,7 +8,6 @@ import QuotationTicker from '../components/QuotationTicker';
 import NewsGrid from '../components/NewsGrid';
 import HomeAdsCarousel from '../components/HomeAdsCarousel';
 import HomeStoresCarousel from '../components/HomeStoresCarousel';
-import SiteSponsorShowcase from '../components/SiteSponsorShowcase';
 import SeoHead from '../components/SeoHead';
 import StructuredData from '../components/StructuredData';
 import { CATEGORIES } from '../constants';
@@ -244,7 +243,6 @@ const Home: React.FC = () => {
       <QuotationTicker />
       <AdSlider />
       <HeroSearch />
-      <SiteSponsorShowcase />
 
       <section className="py-16 max-w-7xl mx-auto px-4 w-full">
         <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">

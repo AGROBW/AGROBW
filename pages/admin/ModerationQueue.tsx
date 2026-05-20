@@ -605,12 +605,17 @@ const ModerationQueue: React.FC = () => {
                 publication_review_checked_at: new Date().toISOString(),
               };
 
-        const { error: restoreRejectedStatusError } = await supabase
+        const { data: restoredAnnouncement, error: restoreRejectedStatusError } = await supabase
           .from('announcements')
           .update(restoreRejectedAnnouncementPayload)
-          .eq('id', selectedEditRequest.announcement_id);
+          .eq('id', selectedEditRequest.announcement_id)
+          .select('id,status,rejection_reason,rejected_at,reanalysis_available_at')
+          .maybeSingle();
 
         if (restoreRejectedStatusError) throw restoreRejectedStatusError;
+        if (!restoredAnnouncement) {
+          throw new Error('O anuncio original nao confirmou a atualizacao apos rejeitar a edicao.');
+        }
 
         const { error } = await supabase.from('announcement_edit_requests').update({
           status: 'rejected',
@@ -661,15 +666,17 @@ const ModerationQueue: React.FC = () => {
         setSelectedEditRequest(null);
         await loadPendingEditRequests();
       } else if (selectedAnnouncement) {
-        const rejectedAt = new Date().toISOString();
-        const { error } = await supabase.from('announcements').update({
-          status: 'REJECTED',
-          rejection_reason: rejectionReason,
-          rejected_at: rejectedAt,
-          reanalysis_available_at: reanalysisAvailableAt,
-        }).eq('id', selectedAnnouncement.id);
+        const { data: rpcResult, error } = await supabase.rpc('admin_reject_announcement', {
+          p_announcement_id: selectedAnnouncement.id,
+          p_reason: rejectionReason,
+        });
         if (error) throw error;
-        await logAction({ action: ADMIN_ACTIONS.REJECT_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: selectedAnnouncement.id, oldValue: { status: selectedAnnouncement.status }, newValue: { status: 'REJECTED', rejection_reason: rejectionReason, rejected_at: rejectedAt, reanalysis_available_at: reanalysisAvailableAt }, reason: `Anuncio "${selectedAnnouncement.title}" rejeitado: ${rejectionReason}` });
+
+        const rejectedAnnouncement = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+        if (!rejectedAnnouncement || rejectedAnnouncement.status !== 'REJECTED') {
+          throw new Error('O banco nao confirmou a rejeicao do anuncio.');
+        }
+        await logAction({ action: ADMIN_ACTIONS.REJECT_AD, resourceType: RESOURCE_TYPES.ANNOUNCEMENT, resourceId: selectedAnnouncement.id, oldValue: { status: selectedAnnouncement.status }, newValue: { status: 'REJECTED', rejection_reason: rejectionReason, rejected_at: rejectedAnnouncement.rejected_at, reanalysis_available_at: rejectedAnnouncement.reanalysis_available_at }, reason: `Anuncio "${selectedAnnouncement.title}" rejeitado: ${rejectionReason}` });
         toast.success('Anuncio rejeitado');
         setSelectedAnnouncement(null);
         await loadPendingAnnouncements();
@@ -677,13 +684,19 @@ const ModerationQueue: React.FC = () => {
       setShowRejectModal(false);
       setRejectionReason('');
       } catch (error) {
-      appError('[ModerationQueue] Erro ao rejeitar', error, {
+        appError('[ModerationQueue] Erro ao rejeitar', error, {
         requestId: selectedEditRequest?.id || null,
-        announcementId: selectedEditRequest?.announcement_id || null,
-      });
-      toast.error('Erro ao rejeitar item');
-    }
-  };
+          announcementId: selectedEditRequest?.announcement_id || selectedAnnouncement?.id || null,
+        });
+        const message =
+          error instanceof Error
+            ? error.message
+            : typeof error === 'object' && error && 'message' in error
+              ? String((error as { message?: unknown }).message || 'Erro ao rejeitar item')
+              : 'Erro ao rejeitar item';
+        toast.error(message);
+      }
+    };
 
   const getAnnouncementGroupLabel = (announcement: PendingAnnouncement) => getCategoryGroupBySlug(announcement.category_slug)?.name || announcement.category || announcement.category_slug || 'Categoria';
   const getPublicationReviewLabel = (announcement: PendingAnnouncement) => {

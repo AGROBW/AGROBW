@@ -345,7 +345,7 @@ const SponsorTestimonialsManagement: React.FC = () => {
         </div>
       </section>
 
-      <div className="grid gap-8 xl:grid-cols-[1.05fr_1.35fr]">
+      <div className="grid gap-8 xl:grid-cols-[0.95fr_1.05fr]">
         <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_20px_60px_-45px_rgba(15,23,42,0.35)]">
           <div className="mb-6 flex items-center justify-between gap-3">
             <div>
@@ -367,87 +367,99 @@ const SponsorTestimonialsManagement: React.FC = () => {
             ) : null}
           </div>
 
-          <form className="space-y-4" onSubmit={handleSave}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Empresa *</span>
-                <input
-                  type="text"
-                  value={form.companyName}
-                  onChange={(event) => setForm((current) => ({ ...current, companyName: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white"
-                  placeholder="Agro Maquinas Sul"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Contato *</span>
-                <input
-                  type="text"
-                  value={form.contactName}
-                  onChange={(event) => setForm((current) => ({ ...current, contactName: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white"
-                  placeholder="Carlos Mendonca"
-                />
-              </label>
+          <form className="space-y-5" onSubmit={handleSave}>
+            <div className="space-y-4 rounded-[1.75rem] border border-slate-200 bg-slate-50/70 p-5">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Identificacao</p>
+                <h3 className="mt-1 text-base font-black text-slate-900">Quem esta dando o relato</h3>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Empresa *</span>
+                  <input
+                    type="text"
+                    value={form.companyName}
+                    onChange={(event) => setForm((current) => ({ ...current, companyName: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300"
+                    placeholder="Agro Maquinas Sul"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Contato *</span>
+                  <input
+                    type="text"
+                    value={form.contactName}
+                    onChange={(event) => setForm((current) => ({ ...current, contactName: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300"
+                    placeholder="Carlos Mendonca"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Cargo</span>
+                  <input
+                    type="text"
+                    value={form.roleTitle}
+                    onChange={(event) => setForm((current) => ({ ...current, roleTitle: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300"
+                    placeholder="Diretor Comercial"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Segmento</span>
+                  <input
+                    type="text"
+                    value={form.segment}
+                    onChange={(event) => setForm((current) => ({ ...current, segment: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300"
+                    placeholder="Maquinas agricolas"
+                  />
+                </label>
+              </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Cargo</span>
-                <input
-                  type="text"
-                  value={form.roleTitle}
-                  onChange={(event) => setForm((current) => ({ ...current, roleTitle: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white"
-                  placeholder="Diretor Comercial"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Segmento</span>
-                <input
-                  type="text"
-                  value={form.segment}
-                  onChange={(event) => setForm((current) => ({ ...current, segment: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white"
-                  placeholder="Maquinas agricolas"
-                />
-              </label>
+            <div className="space-y-4 rounded-[1.75rem] border border-slate-200 bg-slate-50/70 p-5">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Contexto do case</p>
+                <h3 className="mt-1 text-base font-black text-slate-900">O que reforca a credibilidade</h3>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Cidade / Estado</span>
+                  <input
+                    type="text"
+                    value={form.locationLabel}
+                    onChange={(event) => setForm((current) => ({ ...current, locationLabel: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300"
+                    placeholder="Rio Verde/GO"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Metrica destaque</span>
+                  <input
+                    type="text"
+                    value={form.highlightMetric}
+                    onChange={(event) => setForm((current) => ({ ...current, highlightMetric: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300"
+                    placeholder="+42 contatos em 30 dias"
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Use um ganho objetivo e direto.</span>
+                    <span className={highlightMetricLength > HIGHLIGHT_METRIC_MAX_LENGTH ? 'font-black text-rose-600' : ''}>
+                      {highlightMetricLength}/{HIGHLIGHT_METRIC_MAX_LENGTH}
+                    </span>
+                  </div>
+                </label>
+              </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Cidade / Estado</span>
-                <input
-                  type="text"
-                  value={form.locationLabel}
-                  onChange={(event) => setForm((current) => ({ ...current, locationLabel: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white"
-                  placeholder="Rio Verde/GO"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Metrica destaque</span>
-                <input
-                  type="text"
-                  value={form.highlightMetric}
-                  onChange={(event) => setForm((current) => ({ ...current, highlightMetric: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white"
-                  placeholder="+42 contatos em 30 dias"
-                />
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Use um ganho objetivo e direto.</span>
-                  <span className={highlightMetricLength > HIGHLIGHT_METRIC_MAX_LENGTH ? 'font-black text-rose-600' : ''}>
-                    {highlightMetricLength}/{HIGHLIGHT_METRIC_MAX_LENGTH}
-                  </span>
-                </div>
-              </label>
-            </div>
-
-            <label className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Foto / logo</span>
-              <div className="rounded-[1.6rem] border border-slate-200 bg-slate-50 p-4">
+            <div className="space-y-4 rounded-[1.75rem] border border-slate-200 bg-slate-50/70 p-5">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Midia</p>
+                <h3 className="mt-1 text-base font-black text-slate-900">Foto ou logo do anunciante</h3>
+              </div>
+              <div className="rounded-[1.6rem] border border-slate-200 bg-white p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                     {form.avatarUrl ? (
                       <img src={form.avatarUrl} alt="Preview do relato" className="h-full w-full object-cover" />
                     ) : (
@@ -494,75 +506,89 @@ const SponsorTestimonialsManagement: React.FC = () => {
                   type="url"
                   value={form.avatarUrl}
                   onChange={(event) => setForm((current) => ({ ...current, avatarUrl: event.target.value }))}
-                  className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300"
+                  className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white"
                   placeholder="https://..."
                 />
               </div>
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Depoimento *</span>
-              <textarea
-                value={form.testimonial}
-                onChange={(event) => setForm((current) => ({ ...current, testimonial: event.target.value }))}
-                rows={6}
-                className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white"
-                placeholder="Conte o resultado real obtido com a Vitrine Premium."
-              />
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Melhor performance com textos curtos, especificos e com resultado verificavel.</span>
-                <span className={testimonialLength > TESTIMONIAL_MAX_LENGTH ? 'font-black text-rose-600' : ''}>
-                  {testimonialLength}/{TESTIMONIAL_MAX_LENGTH}
-                </span>
-              </div>
-            </label>
-
-            <div className="grid gap-4 md:grid-cols-[0.7fr_0.7fr_1fr]">
-              <label className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Status</span>
-                <select
-                  value={form.status}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      status: event.target.value as SponsorTestimonialStatus,
-                    }))
-                  }
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white"
-                >
-                  <option value="draft">Rascunho</option>
-                  <option value="published">Publicado</option>
-                </select>
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Ordem</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.displayOrder}
-                  onChange={(event) => setForm((current) => ({ ...current, displayOrder: event.target.value }))}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300 focus:bg-white"
-                />
-              </label>
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5">
-                <input
-                  type="checkbox"
-                  checked={form.isFeatured}
-                  onChange={(event) => setForm((current) => ({ ...current, isFeatured: event.target.checked }))}
-                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                />
-                <span className="text-sm font-black text-slate-700">Marcar como destaque</span>
-              </label>
             </div>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 text-sm font-black text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {form.id ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-              {saving ? 'Salvando...' : form.id ? 'Salvar alteracoes' : 'Cadastrar relato'}
-            </button>
+            <div className="space-y-4 rounded-[1.75rem] border border-slate-200 bg-slate-50/70 p-5">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Conteudo e publicacao</p>
+                <h3 className="mt-1 text-base font-black text-slate-900">Texto, status e exibicao</h3>
+              </div>
+
+              <label className="space-y-2">
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Depoimento *</span>
+                <textarea
+                  value={form.testimonial}
+                  onChange={(event) => setForm((current) => ({ ...current, testimonial: event.target.value }))}
+                  rows={6}
+                  className="w-full rounded-3xl border border-slate-200 bg-white px-4 py-4 text-sm leading-7 text-slate-700 outline-none transition-colors focus:border-emerald-300"
+                  placeholder="Conte o resultado real obtido com a Vitrine Premium."
+                />
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Melhor performance com textos curtos, especificos e com resultado verificavel.</span>
+                  <span className={testimonialLength > TESTIMONIAL_MAX_LENGTH ? 'font-black text-rose-600' : ''}>
+                    {testimonialLength}/{TESTIMONIAL_MAX_LENGTH}
+                  </span>
+                </div>
+              </label>
+
+              <div className="grid gap-4 md:grid-cols-[0.8fr_0.8fr_1fr]">
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Status</span>
+                  <select
+                    value={form.status}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        status: event.target.value as SponsorTestimonialStatus,
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300"
+                  >
+                    <option value="draft">Rascunho</option>
+                    <option value="published">Publicado</option>
+                  </select>
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Ordem</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.displayOrder}
+                    onChange={(event) => setForm((current) => ({ ...current, displayOrder: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition-colors focus:border-emerald-300"
+                  />
+                </label>
+                <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+                  <input
+                    type="checkbox"
+                    checked={form.isFeatured}
+                    onChange={(event) => setForm((current) => ({ ...current, isFeatured: event.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-sm font-black text-slate-700">Marcar como destaque</span>
+                </label>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 text-sm font-black text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {form.id ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  {saving ? 'Salvando...' : form.id ? 'Salvar alteracoes' : 'Cadastrar relato'}
+                </button>
+                {form.id ? (
+                  <span className="text-xs font-semibold text-slate-400">
+                    Editando um relato ja existente.
+                  </span>
+                ) : null}
+              </div>
+            </div>
           </form>
 
           <div className="mt-8 rounded-[1.8rem] border border-slate-200 bg-slate-50 p-5">
@@ -659,43 +685,87 @@ const SponsorTestimonialsManagement: React.FC = () => {
                   key={testimonial.id}
                   className="rounded-[1.8rem] border border-slate-200 bg-slate-50 p-5"
                 >
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <GripVertical className="h-4 w-4 text-slate-300" />
-                        <span className="text-lg font-black text-slate-950">{testimonial.company_name}</span>
-                        <span
-                          className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${
-                            testimonial.status === 'published'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-slate-200 text-slate-600'
-                          }`}
-                        >
-                          {statusLabelMap[testimonial.status]}
-                        </span>
-                        {testimonial.is_featured ? (
-                          <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">
-                            Destaque
+                  <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <GripVertical className="h-4 w-4 text-slate-300" />
+                          <span className="text-lg font-black text-slate-950">{testimonial.company_name}</span>
+                          <span
+                            className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] ${
+                              testimonial.status === 'published'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {statusLabelMap[testimonial.status]}
                           </span>
-                        ) : null}
+                          {testimonial.is_featured ? (
+                            <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">
+                              Destaque
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+                          <span>{testimonial.contact_name}</span>
+                          {testimonial.role_title ? <span>- {testimonial.role_title}</span> : null}
+                          {testimonial.segment ? <span>- {testimonial.segment}</span> : null}
+                          {testimonial.location_label ? <span>- {testimonial.location_label}</span> : null}
+                        </div>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
-                        <span>{testimonial.contact_name}</span>
-                        {testimonial.role_title ? <span>- {testimonial.role_title}</span> : null}
-                        {testimonial.segment ? <span>- {testimonial.segment}</span> : null}
-                        {testimonial.location_label ? <span>- {testimonial.location_label}</span> : null}
+                      <div className="grid gap-2 sm:grid-cols-2 xl:w-[248px]">
+                        <button
+                          type="button"
+                          onClick={() => void handleMove(testimonial, 'up')}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition-colors hover:bg-slate-100"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                          Subir
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleMove(testimonial, 'down')}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition-colors hover:bg-slate-100"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                          Descer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => fillForm(testimonial)}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition-colors hover:bg-slate-100"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(testimonial)}
+                          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition-colors hover:bg-slate-100"
+                        >
+                          {testimonial.status === 'published' ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                          {testimonial.status === 'published' ? 'Despublicar' : 'Publicar'}
+                        </button>
                       </div>
+                    </div>
 
+                    <div className="rounded-[1.4rem] border border-slate-200 bg-white px-4 py-4">
                       {testimonial.highlight_metric ? (
-                        <div className="mt-4 inline-flex rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                        <div className="mb-3 inline-flex rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700">
                           {testimonial.highlight_metric}
                         </div>
                       ) : null}
+                      <p className="text-sm leading-7 text-slate-600">"{testimonial.testimonial}"</p>
+                    </div>
 
-                      <p className="mt-4 text-sm leading-7 text-slate-600">"{testimonial.testimonial}"</p>
-
-                      <div className="mt-4 grid gap-3 text-xs text-slate-400 sm:grid-cols-3">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                      <div className="grid gap-3 text-xs text-slate-400 sm:grid-cols-3">
                         <div>
                           <p className="font-black uppercase tracking-[0.14em] text-slate-400">Ordem</p>
                           <p className="mt-1 text-sm font-semibold text-slate-600">{testimonial.display_order}</p>
@@ -709,50 +779,12 @@ const SponsorTestimonialsManagement: React.FC = () => {
                           <p className="mt-1 text-sm font-semibold text-slate-600">{formatDateTime(testimonial.updated_at)}</p>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex flex-wrap gap-2 xl:w-[240px] xl:justify-end">
-                      <button
-                        type="button"
-                        onClick={() => void handleMove(testimonial, 'up')}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition-colors hover:bg-slate-100"
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                        Subir
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleMove(testimonial, 'down')}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition-colors hover:bg-slate-100"
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                        Descer
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => fillForm(testimonial)}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition-colors hover:bg-slate-100"
-                      >
-                        <Edit3 className="h-4 w-4" />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(testimonial)}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition-colors hover:bg-slate-100"
-                      >
-                        {testimonial.status === 'published' ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                        {testimonial.status === 'published' ? 'Despublicar' : 'Publicar'}
-                      </button>
                       <button
                         type="button"
                         onClick={() => void handleDelete(testimonial)}
                         disabled={deletingId === testimonial.id}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-black text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-black text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Trash2 className="h-4 w-4" />
                         {deletingId === testimonial.id ? 'Excluindo...' : 'Excluir'}

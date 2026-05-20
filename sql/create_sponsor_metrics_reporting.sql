@@ -1,6 +1,7 @@
 create table if not exists public.site_sponsor_impressions (
   id uuid primary key default gen_random_uuid(),
   sponsor_id uuid not null references public.site_sponsors(id) on delete cascade,
+  placement_key text not null default 'legacy',
   session_id text not null,
   user_id uuid null references public.users(id) on delete set null,
   page_path text not null default '/',
@@ -13,7 +14,7 @@ create table if not exists public.site_sponsor_impressions (
 );
 
 create unique index if not exists idx_site_sponsor_impressions_unique_daily
-  on public.site_sponsor_impressions (sponsor_id, session_id, page_path, impression_date, coalesce(slot_position, 0));
+  on public.site_sponsor_impressions (sponsor_id, placement_key, session_id, page_path, impression_date, coalesce(slot_position, 0));
 
 create index if not exists idx_site_sponsor_impressions_sponsor_created_at
   on public.site_sponsor_impressions (sponsor_id, created_at desc);
@@ -21,6 +22,7 @@ create index if not exists idx_site_sponsor_impressions_sponsor_created_at
 create table if not exists public.site_sponsor_clicks (
   id uuid primary key default gen_random_uuid(),
   sponsor_id uuid not null references public.site_sponsors(id) on delete cascade,
+  placement_key text not null default 'legacy',
   session_id text not null,
   user_id uuid null references public.users(id) on delete set null,
   page_path text not null default '/',
@@ -144,7 +146,8 @@ create or replace function public.record_site_sponsor_impression(
   p_user_id uuid default null,
   p_user_city text default null,
   p_user_state text default null,
-  p_device_type text default null
+  p_device_type text default null,
+  p_placement_key text default 'legacy'
 )
 returns void
 language plpgsql
@@ -158,6 +161,7 @@ begin
 
   insert into public.site_sponsor_impressions (
     sponsor_id,
+    placement_key,
     session_id,
     user_id,
     page_path,
@@ -168,6 +172,7 @@ begin
   )
   values (
     p_sponsor_id,
+    coalesce(nullif(trim(coalesce(p_placement_key, '')), ''), 'legacy'),
     trim(p_session_id),
     p_user_id,
     coalesce(nullif(trim(coalesce(p_page_path, '')), ''), '/'),
@@ -188,7 +193,8 @@ create or replace function public.record_site_sponsor_click(
   p_user_id uuid default null,
   p_user_city text default null,
   p_user_state text default null,
-  p_device_type text default null
+  p_device_type text default null,
+  p_placement_key text default 'legacy'
 )
 returns void
 language plpgsql
@@ -202,6 +208,7 @@ begin
 
   insert into public.site_sponsor_clicks (
     sponsor_id,
+    placement_key,
     session_id,
     user_id,
     page_path,
@@ -212,6 +219,7 @@ begin
   )
   values (
     p_sponsor_id,
+    coalesce(nullif(trim(coalesce(p_placement_key, '')), ''), 'legacy'),
     trim(p_session_id),
     p_user_id,
     coalesce(nullif(trim(coalesce(p_page_path, '')), ''), '/'),
@@ -252,6 +260,7 @@ as $$
     select count(*)::integer as total
     from public.site_sponsor_impressions i
     where i.sponsor_id = p_sponsor_id
+      and i.placement_key = 'home_carousel'
       and i.created_at >= p_period_start
       and i.created_at <= p_period_end
   ),
@@ -259,6 +268,7 @@ as $$
     select count(*)::integer as total
     from public.site_sponsor_clicks c
     where c.sponsor_id = p_sponsor_id
+      and c.placement_key = 'home_carousel'
       and c.created_at >= p_period_start
       and c.created_at <= p_period_end
   ),
@@ -274,6 +284,7 @@ as $$
       count(*)::integer as clicks
     from public.site_sponsor_clicks c
     where c.sponsor_id = p_sponsor_id
+      and c.placement_key = 'home_carousel'
       and c.created_at >= p_period_start
       and c.created_at <= p_period_end
     group by 1
@@ -354,8 +365,8 @@ using (public.is_admin_user())
 with check (public.is_admin_user());
 
 grant execute on function public.get_public_active_site_sponsors() to anon, authenticated;
-grant execute on function public.record_site_sponsor_impression(uuid, text, text, integer, uuid, text, text, text) to anon, authenticated;
-grant execute on function public.record_site_sponsor_click(uuid, text, text, integer, uuid, text, text, text) to anon, authenticated;
+grant execute on function public.record_site_sponsor_impression(uuid, text, text, integer, uuid, text, text, text, text) to anon, authenticated;
+grant execute on function public.record_site_sponsor_click(uuid, text, text, integer, uuid, text, text, text, text) to anon, authenticated;
 grant execute on function public.get_site_sponsor_metrics_report(uuid, timestamptz, timestamptz) to authenticated;
 
 comment on table public.site_sponsor_impressions is

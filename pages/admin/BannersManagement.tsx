@@ -158,6 +158,9 @@ const BannersManagement: React.FC = () => {
           <p className="text-xs text-slate-500 mt-2">
             Padrão recomendado: <span className="font-semibold text-slate-700">1920x640 px</span> (proporção 3:1). Mantenha textos, logos e elementos principais na área central da arte para evitar cortes.
           </p>
+          <p className="text-xs text-slate-500 mt-2">
+            Patrocinadores que tambÃ©m devem aparecer na home agora podem ser ativados direto em <span className="font-semibold text-slate-700">Patrocinadores</span>. Use esta tela para banners institucionais e campanhas gerais.
+          </p>
         </div>
         <button
           onClick={() => setShowForm(true)}
