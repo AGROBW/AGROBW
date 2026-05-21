@@ -1,215 +1,260 @@
 import React, { useState } from 'react';
-import { Check, Clock, Mail, MapPin, MessageCircle, Loader2 } from 'lucide-react';
+import { Check, Clock, Loader2, Mail, MapPin, MessageCircle } from 'lucide-react';
 import { useContactPage, CONTACT_PAGE_FALLBACK } from '../src/hooks/useContactPage';
+import { supabase } from '../src/lib/supabaseClient';
 
 const ContactView: React.FC = () => {
   const { content, isLoading } = useContactPage();
   const data = content || CONTACT_PAGE_FALLBACK;
 
   const [formStatus, setFormStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [formError, setFormError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     subject: '',
-    message: ''
+    message: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormStatus('sending');
+    setFormError(null);
 
-    // Simulação de envio
-    setTimeout(() => {
+    try {
+      const { data: messageId, error } = await supabase.rpc('submit_contact_message', {
+        p_name: formData.name,
+        p_email: formData.email,
+        p_phone: formData.phone,
+        p_subject: formData.subject || null,
+        p_message: formData.message,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (messageId) {
+        void supabase.functions
+          .invoke('send-contact-form-emails', {
+            body: { messageId },
+          })
+          .catch((dispatchError) => {
+            console.error('[ContactView] Falha ao disparar e-mail do contato:', dispatchError);
+          });
+      }
+
       setFormStatus('success');
       setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
-      setTimeout(() => setFormStatus('idle'), 5000);
-    }, 1500);
+      window.setTimeout(() => setFormStatus('idle'), 5000);
+    } catch (error: any) {
+      console.error('[ContactView] Erro ao enviar mensagem:', error);
+      setFormStatus('error');
+      setFormError(error?.message || 'Nao foi possivel enviar sua mensagem agora. Tente novamente em instantes.');
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="bg-gray-50 min-h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-green-600 animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <Loader2 className="h-12 w-12 animate-spin text-green-600" />
       </div>
     );
   }
 
+  const subjectOptions = (data.form_subject_options ||
+    'Suporte Tecnico\nDuvidas sobre Planos\nParcerias Comerciais\nSugestoes e Elogios\nDenunciar Anuncio')
+    .split('\n')
+    .filter((option) => option.trim());
+
   return (
-    <div className="bg-gray-50 min-h-screen">
-      {/* Hero Section */}
-      <section className="bg-slate-900 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <h1 className="text-xl font-semibold mb-3">{data.page_title}</h1>
-          <p className="text-slate-400 text-sm max-w-2xl mx-auto">
-            {data.page_subtitle}
-          </p>
+    <div className="min-h-screen bg-gray-50">
+      <section className="bg-slate-900 py-16 text-white">
+        <div className="mx-auto max-w-7xl px-4 text-center">
+          <h1 className="mb-3 text-xl font-semibold">{data.page_title}</h1>
+          <p className="mx-auto max-w-2xl text-sm text-slate-400">{data.page_subtitle}</p>
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 -mt-8 mb-16">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* Coluna 1: Informações de Contato */}
-          <div className="lg:col-span-5 space-y-4">
-            <div className="bg-white rounded-xl p-5 border border-slate-100">
-              <h2 className="text-xl font-semibold text-slate-900 mb-5">Canais de Atendimento</h2>
-              
+      <section className="-mt-8 mb-16 px-4">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="space-y-4 lg:col-span-5">
+            <div className="rounded-xl border border-slate-100 bg-white p-5">
+              <h2 className="mb-5 text-xl font-semibold text-slate-900">Canais de Atendimento</h2>
+
               <div className="space-y-5">
-                {/* WhatsApp */}
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-green-50 text-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <MessageCircle className="w-5 h-5" strokeWidth={1.5} />
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600">
+                    <MessageCircle className="h-5 w-5" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">{data.whatsapp_label}</p>
-                    <a href={`https://wa.me/${data.whatsapp_number.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-slate-800 hover:text-green-600 transition-colors">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-400">{data.whatsapp_label}</p>
+                    <a
+                      href={`https://wa.me/${data.whatsapp_number.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-semibold text-slate-800 transition-colors hover:text-green-600"
+                    >
                       {data.whatsapp_number}
                     </a>
                   </div>
                 </div>
 
-                {/* Email */}
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-green-50 text-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Mail className="w-5 h-5" strokeWidth={1.5} />
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600">
+                    <Mail className="h-5 w-5" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">{data.email_label}</p>
-                    <a href={`mailto:${data.email_address}`} className="text-sm font-semibold text-slate-800 hover:text-green-600 transition-colors">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-400">{data.email_label}</p>
+                    <a
+                      href={`mailto:${data.email_address}`}
+                      className="text-sm font-semibold text-slate-800 transition-colors hover:text-green-600"
+                    >
                       {data.email_address}
                     </a>
                   </div>
                 </div>
 
-                {/* Endereço */}
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-green-50 text-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-5 h-5" strokeWidth={1.5} />
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600">
+                    <MapPin className="h-5 w-5" strokeWidth={1.5} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">{data.address_label}</p>
-                    <p className="text-sm font-semibold text-slate-800 leading-tight">
-                      {data.address_full}
-                    </p>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-400">{data.address_label}</p>
+                    <p className="text-sm font-semibold leading-tight text-slate-800">{data.address_full}</p>
                   </div>
                 </div>
 
-                {/* Horário */}
-                <div className="pt-5 border-t border-slate-100 flex items-center gap-3 text-slate-500">
-                  <Clock className="w-5 h-5 text-green-600" strokeWidth={1.5} />
+                <div className="flex items-center gap-3 border-t border-slate-100 pt-5 text-slate-500">
+                  <Clock className="h-5 w-5 text-green-600" strokeWidth={1.5} />
                   <p className="text-sm font-semibold">{data.schedule_text}</p>
                 </div>
               </div>
             </div>
 
-            {/* Google Map Placeholder */}
-            <div className="bg-white rounded-xl p-2 border border-slate-100 overflow-hidden h-56">
-              <iframe 
+            <div className="h-56 overflow-hidden rounded-xl border border-slate-100 bg-white p-2">
+              <iframe
                 src={data.maps_embed_url}
-                width="100%" 
-                height="100%" 
-                style={{ border: 0, borderRadius: '0.75rem' }} 
-                allowFullScreen={true} 
-                loading="lazy" 
+                width="100%"
+                height="100%"
+                style={{ border: 0, borderRadius: '0.75rem' }}
+                allowFullScreen
+                loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
-              ></iframe>
+              />
             </div>
           </div>
 
-          {/* Coluna 2: Formulário */}
           <div className="lg:col-span-7">
-            <div className="bg-white rounded-xl p-6 border border-slate-100">
-              <h2 className="text-xl font-semibold text-slate-900 mb-6">{data.form_title}</h2>
-              
+            <div className="rounded-xl border border-slate-100 bg-white p-6">
+              <h2 className="mb-6 text-xl font-semibold text-slate-900">{data.form_title}</h2>
+
               {formStatus === 'success' ? (
-                <div className="py-12 text-center animate-in fade-in zoom-in duration-500">
-                  <div className="w-14 h-14 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mx-auto mb-4">
-                    <Check className="w-7 h-7" strokeWidth={1.5} />
+                <div className="animate-in fade-in zoom-in py-12 text-center duration-500">
+                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-green-100 text-green-600">
+                    <Check className="h-7 w-7" strokeWidth={1.5} />
                   </div>
-                  <h3 className="text-xl font-semibold text-slate-900 mb-2">Mensagem Enviada!</h3>
-                  <p className="text-slate-500 text-sm">Agradecemos seu contato. Nossa equipe responderá em breve.</p>
+                  <h3 className="mb-2 text-xl font-semibold text-slate-900">Mensagem Enviada!</h3>
+                  <p className="text-sm text-slate-500">Agradecemos seu contato. Nossa equipe respondera em breve.</p>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {formStatus === 'error' && formError ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {formError}
+                    </div>
+                  ) : null}
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2 ml-1">Nome Completo</label>
-                      <input 
-                        type="text" 
+                      <label className="mb-2 ml-1 block text-xs font-semibold uppercase tracking-widest text-slate-400">
+                        Nome Completo
+                      </label>
+                      <input
+                        type="text"
                         required
                         value={formData.name}
-                        onChange={e => setFormData({...formData, name: e.target.value})}
-                        className="w-full bg-slate-50 border-none rounded-lg px-4 h-10 focus:ring-2 focus:ring-green-500 outline-none transition-all"
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="h-10 w-full rounded-lg border-none bg-slate-50 px-4 outline-none transition-all focus:ring-2 focus:ring-green-500"
                         placeholder={data.form_name_placeholder}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2 ml-1">E-mail</label>
-                      <input 
-                        type="email" 
+                      <label className="mb-2 ml-1 block text-xs font-semibold uppercase tracking-widest text-slate-400">
+                        E-mail
+                      </label>
+                      <input
+                        type="email"
                         required
                         value={formData.email}
-                        onChange={e => setFormData({...formData, email: e.target.value})}
-                        className="w-full bg-slate-50 border-none rounded-lg px-4 h-10 focus:ring-2 focus:ring-green-500 outline-none transition-all"
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="h-10 w-full rounded-lg border-none bg-slate-50 px-4 outline-none transition-all focus:ring-2 focus:ring-green-500"
                         placeholder={data.form_email_placeholder}
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2 ml-1">Telefone</label>
-                      <input 
-                        type="tel" 
+                      <label className="mb-2 ml-1 block text-xs font-semibold uppercase tracking-widest text-slate-400">
+                        Telefone
+                      </label>
+                      <input
+                        type="tel"
                         required
                         value={formData.phone}
-                        onChange={e => setFormData({...formData, phone: e.target.value})}
-                        className="w-full bg-slate-50 border-none rounded-lg px-4 h-10 focus:ring-2 focus:ring-green-500 outline-none transition-all"
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        className="h-10 w-full rounded-lg border-none bg-slate-50 px-4 outline-none transition-all focus:ring-2 focus:ring-green-500"
                         placeholder={data.form_phone_placeholder}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2 ml-1">Assunto</label>
-                      <select 
+                      <label className="mb-2 ml-1 block text-xs font-semibold uppercase tracking-widest text-slate-400">
+                        Assunto
+                      </label>
+                      <select
                         value={formData.subject}
-                        onChange={e => setFormData({...formData, subject: e.target.value})}
-                        className="w-full bg-slate-50 border-none rounded-lg px-4 h-10 focus:ring-2 focus:ring-green-500 outline-none transition-all"
+                        onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                        className="h-10 w-full rounded-lg border-none bg-slate-50 px-4 outline-none transition-all focus:ring-2 focus:ring-green-500"
                       >
                         <option value="">{data.form_subject_placeholder || 'Selecione o assunto'}</option>
-                        {(data.form_subject_options || 'Suporte Técnico\nDúvidas sobre Planos\nParcerias Comerciais\nSugestões e Elogios\nDenunciar Anúncio')
-                          .split('\n')
-                          .filter(opt => opt.trim())
-                          .map((option, index) => (
-                            <option key={index} value={option.trim()}>{option.trim()}</option>
-                          ))}
+                        {subjectOptions.map((option, index) => (
+                          <option key={`${option}-${index}`} value={option.trim()}>
+                            {option.trim()}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2 ml-1">Mensagem</label>
-                    <textarea 
+                    <label className="mb-2 ml-1 block text-xs font-semibold uppercase tracking-widest text-slate-400">
+                      Mensagem
+                    </label>
+                    <textarea
                       required
                       rows={5}
                       value={formData.message}
-                      onChange={e => setFormData({...formData, message: e.target.value})}
-                      className="w-full bg-slate-50 border-none rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 outline-none transition-all resize-none"
+                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                      className="w-full resize-none rounded-lg border-none bg-slate-50 px-4 py-3 outline-none transition-all focus:ring-2 focus:ring-green-500"
                       placeholder={data.form_message_placeholder}
-                    ></textarea>
+                    />
                   </div>
 
-                  <button 
+                  <button
                     type="submit"
                     disabled={formStatus === 'sending'}
-                    className="w-full bg-green-700 text-white h-10 rounded-lg font-semibold text-sm hover:bg-green-800 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                    className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-green-700 text-sm font-semibold text-white transition-all hover:bg-green-800 disabled:opacity-70"
                   >
                     {formStatus === 'sending' ? (
                       <>
-                        <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin"></div>
+                        <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-t-2 border-white" />
                         Enviando Mensagem...
                       </>
-                    ) : data.form_button_text}
+                    ) : (
+                      data.form_button_text
+                    )}
                   </button>
                 </form>
               )}
