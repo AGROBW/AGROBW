@@ -238,14 +238,30 @@ const Footer: React.FC = () => {
           <p className="text-xs text-slate-500">
             &copy; 2024 {brandName}. Todos os direitos reservados. CNPJ: 00.000.000/0001-00
           </p>
-          <div className="flex gap-6 opacity-50 grayscale">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" className="h-4" />
-            <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-4" />
-            <img
-              src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard_2019_logo.svg"
-              alt="Mastercard"
-              className="h-4"
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex h-9 items-center rounded-full border border-white/10 bg-white/5 px-3">
+              <span className="text-sm font-black italic tracking-tight text-[#1A1F71]">VISA</span>
+            </div>
+
+            <div className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3">
+              <div className="relative h-4 w-7">
+                <span className="absolute left-0 top-0 h-4 w-4 rounded-full bg-[#EB001B] opacity-95" />
+                <span className="absolute right-0 top-0 h-4 w-4 rounded-full bg-[#F79E1B] opacity-95" />
+              </div>
+              <span className="text-sm font-black tracking-tight text-white">mastercard</span>
+            </div>
+
+            <div className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3">
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 text-[#32BCAD]" fill="none">
+                <path
+                  d="M9.2 3.8 12 6.6l2.8-2.8a2.2 2.2 0 0 1 3.1 0l2.3 2.3a2.2 2.2 0 0 1 0 3.1L17.4 12l2.8 2.8a2.2 2.2 0 0 1 0 3.1l-2.3 2.3a2.2 2.2 0 0 1-3.1 0L12 17.4l-2.8 2.8a2.2 2.2 0 0 1-3.1 0l-2.3-2.3a2.2 2.2 0 0 1 0-3.1L6.6 12 3.8 9.2a2.2 2.2 0 0 1 0-3.1l2.3-2.3a2.2 2.2 0 0 1 3.1 0Z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="text-sm font-black tracking-tight text-[#32BCAD]">Pix</span>
+            </div>
           </div>
         </div>
       </div>

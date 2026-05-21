@@ -34,11 +34,18 @@ const Header: React.FC = () => {
   }, [isProfileDropdownOpen]);
 
   const isAdmin = user?.isAdmin === true || user?.role === UserRole.ADMIN;
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [user?.avatar]);
 
   const handleLogout = async () => {
     await signOut();
     navigate('/');
   };
+
+  const hasUserAvatar = Boolean(user?.avatar) && !avatarLoadFailed;
 
   const brandName = settings.headerBrandText || settings.siteName;
 
@@ -131,7 +138,16 @@ const Header: React.FC = () => {
                         border: `1px solid color-mix(in srgb, ${settings.primaryColor} 18%, white)`,
                       }}
                     >
-                      {user.name?.charAt(0).toUpperCase() || 'U'}
+                      {hasUserAvatar ? (
+                        <img
+                          src={user?.avatar || ''}
+                          alt={user?.name || 'Usuário'}
+                          className="h-full w-full rounded-full object-cover"
+                          onError={() => setAvatarLoadFailed(true)}
+                        />
+                      ) : (
+                        user.name?.charAt(0).toUpperCase() || 'U'
+                      )}
                       {isAdmin ? (
                         <div className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-amber-500">
                           <Shield className="h-2.5 w-2.5 text-white" strokeWidth={3} />
@@ -287,7 +303,16 @@ const Header: React.FC = () => {
                       className="relative flex h-8 w-8 items-center justify-center rounded-full text-white font-bold"
                       style={{ backgroundColor: settings.primaryColor }}
                     >
-                      {user.name?.charAt(0).toUpperCase() || 'U'}
+                      {hasUserAvatar ? (
+                        <img
+                          src={user?.avatar || ''}
+                          alt={user?.name || 'Usuário'}
+                          className="h-full w-full rounded-full object-cover"
+                          onError={() => setAvatarLoadFailed(true)}
+                        />
+                      ) : (
+                        user.name?.charAt(0).toUpperCase() || 'U'
+                      )}
                       {isAdmin ? (
                         <div className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-white bg-amber-500">
                           <Shield className="h-2 w-2 text-white" strokeWidth={3} />

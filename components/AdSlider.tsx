@@ -271,11 +271,11 @@ const AdSlider: React.FC = () => {
   };
 
   if (isLoading) {
-    return <div className="relative w-full overflow-hidden bg-slate-100 animate-pulse aspect-[3/1] min-h-[280px] md:min-h-0" />;
+    return <div className="relative w-full overflow-hidden bg-slate-100 animate-pulse aspect-[3.5/1] min-h-[240px] md:min-h-0" />;
   }
 
   return (
-    <section className="relative w-full overflow-hidden bg-slate-950 aspect-[3/1] min-h-[280px] md:min-h-0">
+    <section className="relative w-full overflow-hidden bg-slate-950 aspect-[3.5/1] min-h-[240px] md:min-h-0">
       {slides.map((slide, index) => (
         <div
           key={slide.id}
