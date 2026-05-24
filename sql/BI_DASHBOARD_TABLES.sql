@@ -572,6 +572,91 @@ ON lead_conversions FOR SELECT
 USING ((SELECT is_admin FROM users WHERE id = auth.uid()) = true);
 
 -- ==========================================
+-- 9. VIEWS COMPLEMENTARES DO DASHBOARD FINAL
+-- ==========================================
+
+CREATE OR REPLACE VIEW v_registration_conversion_30d AS
+WITH recent_signups AS (
+  SELECT COUNT(*)::BIGINT AS new_users_30d
+  FROM users
+  WHERE created_at >= NOW() - INTERVAL '30 days'
+),
+recent_visitors AS (
+  SELECT COALESCE(SUM(unique_visitors), 0)::BIGINT AS unique_visitors_30d
+  FROM website_visits
+  WHERE visit_date >= (CURRENT_DATE - INTERVAL '29 days')::DATE
+)
+SELECT
+  rs.new_users_30d,
+  rv.unique_visitors_30d,
+  ROUND(
+    rs.new_users_30d * 100.0 / NULLIF(rv.unique_visitors_30d, 0),
+    2
+  ) AS registration_rate_percentage
+FROM recent_signups rs
+CROSS JOIN recent_visitors rv;
+
+COMMENT ON VIEW v_registration_conversion_30d IS 'Taxa de cadastro dos ultimos 30 dias';
+
+CREATE OR REPLACE VIEW v_paid_conversion_30d AS
+WITH recent_signups AS (
+  SELECT COUNT(*)::BIGINT AS new_users_30d
+  FROM users
+  WHERE created_at >= NOW() - INTERVAL '30 days'
+),
+recent_paid_customers AS (
+  SELECT COUNT(DISTINCT sh.user_id)::BIGINT AS new_paid_customers_30d
+  FROM subscription_history sh
+  WHERE sh.event_type IN ('created', 'trial_converted')
+    AND COALESCE(sh.plan_monthly_price, 0) > 0
+    AND sh.created_at >= NOW() - INTERVAL '30 days'
+)
+SELECT
+  rs.new_users_30d,
+  rpc.new_paid_customers_30d,
+  ROUND(
+    rpc.new_paid_customers_30d * 100.0 / NULLIF(rs.new_users_30d, 0),
+    2
+  ) AS conversion_rate_percentage
+FROM recent_signups rs
+CROSS JOIN recent_paid_customers rpc;
+
+COMMENT ON VIEW v_paid_conversion_30d IS 'Taxa de conversao de usuario para cliente pago nos ultimos 30 dias';
+
+CREATE OR REPLACE VIEW v_customer_churn_30d AS
+WITH params AS (
+  SELECT NOW() - INTERVAL '30 days' AS period_start
+),
+starting_base AS (
+  SELECT COUNT(DISTINCT sh.user_id)::BIGINT AS active_customers_at_period_start
+  FROM subscription_history sh
+  CROSS JOIN params p
+  WHERE COALESCE(sh.plan_monthly_price, 0) > 0
+    AND sh.period_start <= p.period_start
+    AND sh.period_end >= p.period_start
+    AND sh.status IN ('active', 'trialing', 'past_due')
+),
+churned_customers AS (
+  SELECT COUNT(DISTINCT sh.user_id)::BIGINT AS churned_customers_30d
+  FROM subscription_history sh
+  CROSS JOIN params p
+  WHERE sh.event_type IN ('canceled', 'expired')
+    AND COALESCE(sh.plan_monthly_price, 0) > 0
+    AND sh.created_at >= p.period_start
+)
+SELECT
+  sb.active_customers_at_period_start,
+  cc.churned_customers_30d,
+  ROUND(
+    cc.churned_customers_30d * 100.0 / NULLIF(sb.active_customers_at_period_start, 0),
+    2
+  ) AS customer_churn_percentage
+FROM starting_base sb
+CROSS JOIN churned_customers cc;
+
+COMMENT ON VIEW v_customer_churn_30d IS 'Taxa de churn de clientes dos ultimos 30 dias';
+
+-- ==========================================
 -- SUCESSO
 -- ==========================================
 

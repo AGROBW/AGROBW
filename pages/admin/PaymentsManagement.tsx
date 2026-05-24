@@ -49,7 +49,12 @@ const PaymentsManagement: React.FC = () => {
         id,
         user_id,
         plan_id,
+        provider,
         provider_payment_id,
+        provider_customer_id,
+        provider_subscription_id,
+        provider_invoice_id,
+        provider_checkout_session_id,
         amount,
         currency,
         status,
@@ -69,6 +74,7 @@ const PaymentsManagement: React.FC = () => {
         fiscal_status,
         fiscal_last_attempt_at,
         fiscal_error_message,
+        metadata,
         users(name, email),
         plans(name)
       `)
@@ -122,7 +128,12 @@ const PaymentsManagement: React.FC = () => {
       const haystack = [
         payment.users?.name,
         payment.users?.email,
+        payment.provider,
         payment.provider_payment_id,
+        payment.provider_customer_id,
+        payment.provider_subscription_id,
+        payment.provider_invoice_id,
+        payment.provider_checkout_session_id,
         payment.invoice_number,
         payment.plans?.name,
       ]

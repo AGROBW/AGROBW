@@ -4,9 +4,11 @@ import { appError } from '../utils/appLogger';
 
 export interface PaymentSettings {
   id: string;
-  mp_access_token_configured: boolean;
-  mp_public_key: string | null;
-  mp_webhook_secret_configured: boolean;
+  stripe_secret_key_configured: boolean;
+  stripe_publishable_key: string | null;
+  stripe_webhook_secret_configured: boolean;
+  preferred_checkout_provider: 'stripe';
+  stripe_rollout_mode: 'all_customers' | 'new_customers';
   is_production: boolean;
   last_updated_by: string | null;
   created_at: string;
@@ -14,9 +16,9 @@ export interface PaymentSettings {
 }
 
 export interface UpdatePaymentSettingsData {
-  mp_access_token?: string | null;
-  mp_public_key?: string | null;
-  mp_webhook_secret?: string | null;
+  stripe_secret_key?: string | null;
+  stripe_publishable_key?: string | null;
+  stripe_webhook_secret?: string | null;
   is_production?: boolean;
 }
 
@@ -28,29 +30,7 @@ interface UsePaymentSettingsReturn {
   updateSettings: (
     updates: UpdatePaymentSettingsData
   ) => Promise<{ error: string | null }>;
-  testConnection: () => Promise<{ success: boolean; data?: any; error?: string }>;
 }
-
-const readFunctionErrorResponse = async (response?: Response): Promise<string | null> => {
-  if (!response) {
-    return null;
-  }
-
-  try {
-    const contentType = response.headers.get('content-type') || '';
-
-    if (contentType.includes('application/json')) {
-      const payload = await response.clone().json();
-      return payload?.details || payload?.error || payload?.message || JSON.stringify(payload);
-    }
-
-    const text = await response.clone().text();
-    return text || null;
-  } catch (parseError) {
-      appError('Erro ao ler corpo da resposta da Edge Function', parseError);
-    return null;
-  }
-};
 
 export const usePaymentSettings = (): UsePaymentSettingsReturn => {
   const [settings, setSettings] = useState<PaymentSettings | null>(null);
@@ -82,17 +62,17 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
   const updateSettings = async (updates: UpdatePaymentSettingsData): Promise<{ error: string | null }> => {
     try {
       const { data, error: updateError } = await supabase.rpc('update_payment_settings_admin_safe', {
-        p_mp_access_token:
-          typeof updates.mp_access_token === 'string' && updates.mp_access_token.trim() !== ''
-            ? updates.mp_access_token.trim()
+        p_stripe_secret_key:
+          typeof updates.stripe_secret_key === 'string' && updates.stripe_secret_key.trim() !== ''
+            ? updates.stripe_secret_key.trim()
             : null,
-        p_mp_public_key:
-          typeof updates.mp_public_key === 'string'
-            ? updates.mp_public_key
+        p_stripe_publishable_key:
+          typeof updates.stripe_publishable_key === 'string'
+            ? updates.stripe_publishable_key
             : null,
-        p_mp_webhook_secret:
-          typeof updates.mp_webhook_secret === 'string' && updates.mp_webhook_secret.trim() !== ''
-            ? updates.mp_webhook_secret.trim()
+        p_stripe_webhook_secret:
+          typeof updates.stripe_webhook_secret === 'string' && updates.stripe_webhook_secret.trim() !== ''
+            ? updates.stripe_webhook_secret.trim()
             : null,
         p_is_production:
           typeof updates.is_production === 'boolean'
@@ -113,89 +93,6 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
     }
   };
 
-  const testConnection = async (): Promise<{ success: boolean; data?: any; error?: string }> => {
-    try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError) {
-          appError('Erro ao obter sessao', sessionError);
-        return {
-          success: false,
-          error: `Erro de sessao: ${sessionError.message}`,
-        };
-      }
-
-      if (!session?.access_token) {
-          appError('Sessao nao encontrada');
-        return {
-          success: false,
-          error: 'Usuario nao autenticado. Faca login novamente.',
-        };
-      }
-
-      const { data, error: invokeError, response } = await supabase.functions.invoke(
-        'test-mp-connection',
-        {
-          method: 'POST',
-          body: {},
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      );
-
-      if (invokeError) {
-        const errorDetails = await readFunctionErrorResponse(response);
-
-        appError('Erro ao chamar Edge Function', invokeError, { errorDetails });
-
-        return {
-          success: false,
-          error:
-            errorDetails ||
-            invokeError.message ||
-            `Erro ao testar conexao${response?.status ? ` (HTTP ${response.status})` : ''}`,
-        };
-      }
-
-      if (!data) {
-          appError('Resposta vazia da Edge Function');
-        return {
-          success: false,
-          error: 'Resposta invalida do servidor',
-        };
-      }
-
-      if (!data.success) {
-        const detailedError = [data.error, data.message, data.details]
-          .filter((value): value is string => Boolean(value && String(value).trim()))
-          .join(' | ');
-
-        return {
-          success: false,
-          data: data.data,
-          error: detailedError || 'Erro ao testar conexao com Mercado Pago',
-        };
-      }
-
-      return {
-        success: data.success,
-        data: data.data,
-        error: data.error,
-      };
-    } catch (err) {
-        appError('Erro inesperado ao testar conexao', err);
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Erro ao testar conexao com Mercado Pago',
-      };
-    }
-  };
-
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -206,15 +103,16 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
     error,
     fetchSettings,
     updateSettings,
-    testConnection,
   };
 };
 
 export const PAYMENT_SETTINGS_FALLBACK: PaymentSettings = {
   id: '00000000-0000-0000-0000-000000000005',
-  mp_access_token_configured: false,
-  mp_public_key: null,
-  mp_webhook_secret_configured: false,
+  stripe_secret_key_configured: false,
+  stripe_publishable_key: null,
+  stripe_webhook_secret_configured: false,
+  preferred_checkout_provider: 'stripe',
+  stripe_rollout_mode: 'all_customers',
   is_production: false,
   last_updated_by: null,
   created_at: new Date().toISOString(),

@@ -188,6 +188,62 @@ begin
 end;
 $$;
 
+create or replace function public.insert_notification_compat(
+  p_user_id uuid,
+  p_type text,
+  p_title text,
+  p_content text,
+  p_link text default null,
+  p_is_read boolean default false
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_notification_id uuid;
+  v_has_notification_content boolean := false;
+  v_has_notification_message boolean := false;
+begin
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'notifications'
+      and column_name = 'content'
+  ) into v_has_notification_content;
+
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'notifications'
+      and column_name = 'message'
+  ) into v_has_notification_message;
+
+  if v_has_notification_content then
+    execute
+      'insert into public.notifications (user_id, type, title, content, link, is_read)
+       values ($1, $2, $3, $4, $5, $6)
+       returning id'
+    into v_notification_id
+    using p_user_id, p_type, p_title, p_content, p_link, p_is_read;
+  elsif v_has_notification_message then
+    execute
+      'insert into public.notifications (user_id, type, title, message, link, is_read)
+       values ($1, $2, $3, $4, $5, $6)
+       returning id'
+    into v_notification_id
+    using p_user_id, p_type, p_title, p_content, p_link, p_is_read;
+  else
+    raise exception 'Tabela notifications sem coluna content ou message para registrar a notificacao.';
+  end if;
+
+  return v_notification_id;
+end;
+$$;
+
 create or replace function public.enforce_announcement_publication_rules()
 returns trigger
 language plpgsql
@@ -437,7 +493,6 @@ begin
   join public.users u
     on u.id = a.user_id
   where a.community_reported_to_review_at is not null
-    and coalesce(a.community_reports_count, 0) >= 10
   order by a.community_reported_to_review_at desc, a.created_at desc;
 end;
 $$;
@@ -607,16 +662,9 @@ begin
     publication_review_reasons = v_remaining_reasons
   where id = p_announcement_id;
 
-  insert into public.notifications (
-    user_id,
-    type,
-    title,
-    content,
-    link,
-    is_read
-  ) values (
+  v_notification_id := public.insert_notification_compat(
     v_announcement.user_id,
-    'announcement_reports_reviewed',
+    'system',
     'Seu anuncio foi liberado pela equipe',
     format(
       'O anuncio "%s" foi revisado pela equipe AGRO BW e voltou a ficar visivel.%s',
@@ -625,8 +673,7 @@ begin
     ),
     '/minha-conta/anuncios',
     false
-  )
-  returning id into v_notification_id;
+  );
 
   return jsonb_build_object(
     'success', true,
@@ -802,3 +849,4 @@ grant execute on function public.admin_list_reported_announcements() to authenti
 grant execute on function public.admin_get_reported_announcement_details(uuid) to authenticated;
 grant execute on function public.admin_approve_reported_announcement(uuid, text) to authenticated;
 grant execute on function public.admin_set_announcement_status(uuid, text, text) to authenticated;
+grant execute on function public.insert_notification_compat(uuid, text, text, text, text, boolean) to authenticated, service_role;

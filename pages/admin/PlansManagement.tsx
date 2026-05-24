@@ -79,6 +79,8 @@ const makeEmptyForm = (position: number): UpdatePlanData => ({
   show_footer_card: true,
   monthly_price: 0,
   yearly_price: 0,
+  stripe_monthly_price_id: '',
+  stripe_yearly_price_id: '',
   button_text: 'Escolher Plano',
   position,
   is_active: true,
@@ -118,6 +120,8 @@ const mapPlanToForm = (plan: Plan): UpdatePlanData => ({
   show_footer_card: plan.show_footer_card ?? true,
   monthly_price: plan.monthly_price,
   yearly_price: plan.yearly_price,
+  stripe_monthly_price_id: plan.stripe_monthly_price_id || '',
+  stripe_yearly_price_id: plan.stripe_yearly_price_id || '',
   button_text: plan.button_text,
   position: plan.position,
   is_active: plan.is_active,
@@ -392,6 +396,12 @@ const PlansManagement: React.FC = () => {
               </FieldShell>
               <FieldShell label="Preco Anual (R$)">
                 <input type="number" value={formData.yearly_price ?? 0} onChange={(e) => handleChange('yearly_price', parseFloat(e.target.value) || 0)} placeholder="0,00" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              </FieldShell>
+              <FieldShell label="Stripe Price ID - Mensal" hint="Obrigatorio quando o checkout Stripe estiver ativo para este plano.">
+                <input value={formData.stripe_monthly_price_id || ''} onChange={(e) => handleChange('stripe_monthly_price_id', e.target.value)} placeholder="price_..." className="w-full rounded-lg border border-gray-300 px-4 py-2 font-mono text-sm" />
+              </FieldShell>
+              <FieldShell label="Stripe Price ID - Anual" hint="Use o price anual correspondente na Stripe.">
+                <input value={formData.stripe_yearly_price_id || ''} onChange={(e) => handleChange('stripe_yearly_price_id', e.target.value)} placeholder="price_..." className="w-full rounded-lg border border-gray-300 px-4 py-2 font-mono text-sm" />
               </FieldShell>
               <FieldShell label="Texto do Botao">
                 <input value={formData.button_text || ''} onChange={(e) => handleChange('button_text', e.target.value)} placeholder="Ex.: Assinar agora" className="w-full rounded-lg border border-gray-300 px-4 py-2" />

@@ -32,6 +32,7 @@ import { useDashboardStats } from '../src/hooks/useDashboardStats';
 import { useRadar } from '../src/hooks/useRadar';
 import { usePersistentState } from '../src/hooks/usePersistentState';
 import { updateUserCoordinates } from '../services/geoService';
+import { openStripeCustomerPortal } from '../services/paymentCheckoutService';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { appError, appWarn } from '../src/utils/appLogger';
@@ -43,7 +44,7 @@ import {
   PriceIntelligenceModule, 
   PlanModule 
 } from '../components/DashboardModules';
-import { initiateBoosterCheckout } from '../services/mercadoPagoService';
+import { initiateBoosterCheckout } from '../services/paymentCheckoutService';
 import SellerStoreDashboard from '../components/dashboard/SellerStoreDashboard';
 import CommercialIntelligenceDashboard from '../components/dashboard/CommercialIntelligenceDashboard';
 
@@ -2004,6 +2005,7 @@ const UserDashboardView: React.FC = () => {
 
   const LegacyFinanceDashboard = () => {
     const { invoices, isLoading: invoicesLoading } = useInvoices();
+    const [openingStripePortal, setOpeningStripePortal] = useState(false);
     const nextInvoice = invoices.find((inv) => inv.status !== 'PAID') || invoices[0];
     
     // Buscar nome do plano da assinatura
@@ -2020,6 +2022,7 @@ const UserDashboardView: React.FC = () => {
     
     // Verificar se Ã© plano Impulso para mostrar banner de upgrade
     const isBoostPlan = subscription?.plans?.name?.toLowerCase().includes('impulso');
+    const canManageStripeBilling = subscription?.provider === 'stripe' && !!subscription?.provider_customer_id;
 
     const statusBadge = (status: string) => {
       if (status === 'PAID') return 'bg-green-100 text-green-700';
@@ -2036,6 +2039,15 @@ const UserDashboardView: React.FC = () => {
     const handleManagePlan = () => {
       // Redirecionar para pÃ¡gina de planos com ID do plano atual
       navigate(`/planos?current=${subscription?.plan_id || ''}`);
+    };
+
+    const handleOpenStripePortal = async () => {
+      setOpeningStripePortal(true);
+      const result = await openStripeCustomerPortal('/minha-conta/financeiro');
+      if (!result.success) {
+        toast.error(result.error || 'Nao foi possivel abrir o portal Stripe.');
+      }
+      setOpeningStripePortal(false);
     };
 
     return (
@@ -2095,9 +2107,15 @@ const UserDashboardView: React.FC = () => {
               <p className="text-sm text-slate-500">Acompanhe seu plano, altere forma de pagamento e visualize benefÃ­cios.</p>
             </div>
             <div className="flex gap-2">
-              <button className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Atualizar Pagamento
-              </button>
+              {canManageStripeBilling && (
+                <button
+                  onClick={handleOpenStripePortal}
+                  disabled={openingStripePortal}
+                  className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {openingStripePortal ? 'Abrindo portal...' : 'Portal de cobranca'}
+                </button>
+              )}
               <button 
                 onClick={handleManagePlan}
                 className="h-9 px-4 rounded-lg bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
@@ -2611,6 +2629,7 @@ const UserDashboardView: React.FC = () => {
   const FinanceDashboard = () => {
     const { plansRaw } = usePlans();
     const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+    const [openingStripePortal, setOpeningStripePortal] = useState(false);
     const searchParams = useMemo(() => {
       const candidates = [location.search];
       const hashQuery = window.location.hash.includes('?')
@@ -2714,6 +2733,16 @@ const UserDashboardView: React.FC = () => {
     const handleManagePlan = () => {
       navigate(`/planos?current=${subscription?.plan_id || ''}`);
     };
+    const canManageStripeBilling = subscription?.provider === 'stripe' && !!subscription?.provider_customer_id;
+
+    const handleOpenStripePortal = async () => {
+      setOpeningStripePortal(true);
+      const result = await openStripeCustomerPortal('/minha-conta/financeiro');
+      if (!result.success) {
+        toast.error(result.error || 'Nao foi possivel abrir o portal Stripe.');
+      }
+      setOpeningStripePortal(false);
+    };
 
     const getUpgradeHighlights = () => {
       if (!nextRecommendedPlan) return [];
@@ -2786,7 +2815,7 @@ const UserDashboardView: React.FC = () => {
         <tr><td>Item</td><td>${payment.itemName || payment.planName || payment.description || 'Assinatura BWAGRO'}</td></tr>
         <tr><td>Valor</td><td>${formatCurrency(payment.amount, payment.currency)}</td></tr>
         <tr><td>Ciclo</td><td>${payment.itemType === 'booster' ? 'Compra avulsa' : payment.billingCycle === 'yearly' ? 'Anual' : 'Mensal'}</td></tr>
-        <tr><td>Forma de pagamento</td><td>${payment.paymentMethod || 'Mercado Pago'}</td></tr>
+        <tr><td>Forma de pagamento</td><td>${payment.paymentMethod || (payment.provider === 'stripe' ? 'Stripe' : 'Gateway externo')}</td></tr>
         <tr><td>ID da transacao</td><td>${payment.providerPaymentId}</td></tr>
         <tr><td>Data de aprovacao</td><td>${formatDateTime(payment.paidAt || payment.createdAt)}</td></tr>
         <tr><td>Referencia</td><td>${payment.externalReference || 'Nao informada'}</td></tr>
@@ -2856,7 +2885,7 @@ const UserDashboardView: React.FC = () => {
             <div>
               <h3 className="text-lg font-semibold text-slate-900">Pagamento em processamento</h3>
               <p className="text-sm text-slate-600">
-                Assim que o Mercado Pago confirmar a cobranca, o comprovante e a renovacao do plano serao atualizados aqui.
+                Assim que o gateway confirmar a cobranca, o comprovante e a renovacao do plano serao atualizados aqui.
               </p>
             </div>
           </div>
@@ -2950,6 +2979,15 @@ const UserDashboardView: React.FC = () => {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                {canManageStripeBilling && (
+                  <button
+                    onClick={handleOpenStripePortal}
+                    disabled={openingStripePortal}
+                    className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {openingStripePortal ? 'Abrindo portal...' : 'Portal Stripe'}
+                  </button>
+                )}
                 <button
                   onClick={handleManagePlan}
                   className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
@@ -3005,7 +3043,7 @@ const UserDashboardView: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Metodo</p>
-                      <p className="mt-1 font-semibold text-slate-900">{latestPayment.paymentMethod || 'Mercado Pago'}</p>
+                      <p className="mt-1 font-semibold text-slate-900">{latestPayment.paymentMethod || (latestPayment.provider === 'stripe' ? 'Stripe' : 'Gateway externo')}</p>
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">ID da transacao</p>

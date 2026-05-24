@@ -87,7 +87,6 @@ const loadReportedAnnouncementsFallback = async (): Promise<ReportedAnnouncement
     .from('announcements')
     .select('id,title,description,category_slug,price,status,created_at,user_id,images,community_reports_count,community_report_reasons,community_reported_to_review_at')
     .not('community_reported_to_review_at', 'is', null)
-    .gte('community_reports_count', 10)
     .order('community_reported_to_review_at', { ascending: false });
 
   if (error) throw error;

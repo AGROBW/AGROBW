@@ -5,7 +5,12 @@ export interface AdminPaymentRecord {
   id: string;
   user_id: string;
   plan_id: string | null;
+  provider: string;
   provider_payment_id: string;
+  provider_customer_id: string | null;
+  provider_subscription_id: string | null;
+  provider_invoice_id: string | null;
+  provider_checkout_session_id: string | null;
   amount: number;
   currency: string;
   status: string;
@@ -25,6 +30,7 @@ export interface AdminPaymentRecord {
   fiscal_status: FiscalAutomationStatus;
   fiscal_last_attempt_at: string | null;
   fiscal_error_message: string | null;
+  metadata?: Record<string, any> | null;
   users: {
     name: string;
     email: string;

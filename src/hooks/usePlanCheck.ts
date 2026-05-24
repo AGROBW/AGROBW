@@ -7,7 +7,7 @@ import { getEffectiveLeadContactLimitDays, getSubscriptionUsageWindow } from '..
 
 type SubscriptionRow = {
   id: string
-  status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired'
+  status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'cancelled' | 'expired'
   current_period_start: string
   current_period_end: string
   cancel_at_period_end: boolean

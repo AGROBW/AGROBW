@@ -24,6 +24,15 @@ const DEFAULT_SNAPSHOT: AnnouncementReportSnapshot = {
   userHasReported: false,
 };
 
+const getReportErrorMessage = (error: unknown) => {
+  if (error && typeof error === 'object') {
+    const candidate = error as { message?: string; details?: string; hint?: string };
+    return candidate.message || candidate.details || candidate.hint || 'Nao foi possivel registrar a denuncia.';
+  }
+
+  return 'Nao foi possivel registrar a denuncia.';
+};
+
 export const useAnnouncementReports = (announcementId?: string) => {
   const [snapshot, setSnapshot] = useState<AnnouncementReportSnapshot>(DEFAULT_SNAPSHOT);
   const [isLoading, setIsLoading] = useState(false);
@@ -75,7 +84,9 @@ export const useAnnouncementReports = (announcementId?: string) => {
           p_details: details?.trim() ? details.trim() : null,
         });
 
-        if (error) throw error;
+        if (error) {
+          throw new Error(getReportErrorMessage(error));
+        }
 
         setSnapshot((previous) => {
           const reportCount = Number(data?.report_count ?? previous.reportCount);
@@ -93,6 +104,8 @@ export const useAnnouncementReports = (announcementId?: string) => {
           threshold: Number(data?.threshold || 10),
           sentToReview: Boolean(data?.sent_to_review),
         };
+      } catch (error) {
+        throw new Error(getReportErrorMessage(error));
       } finally {
         setIsSubmitting(false);
       }

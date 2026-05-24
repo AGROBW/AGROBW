@@ -55,13 +55,11 @@ export const fetchAdminNotificationItems = async (): Promise<AdminNotificationIt
       supabase
         .from('announcements')
         .select('id', { count: 'exact', head: true })
-        .not('community_reported_to_review_at', 'is', null)
-        .gte('community_reports_count', 10),
+        .not('community_reported_to_review_at', 'is', null),
       supabase
         .from('announcements')
         .select('community_reported_to_review_at')
         .not('community_reported_to_review_at', 'is', null)
-        .gte('community_reports_count', 10)
         .order('community_reported_to_review_at', { ascending: false })
         .limit(1)
         .maybeSingle(),

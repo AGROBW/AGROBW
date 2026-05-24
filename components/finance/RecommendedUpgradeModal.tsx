@@ -6,9 +6,9 @@ import {
   calculateYearlySavings,
   calculateYearlyTotal,
   getCustomPlanContactLink,
-  initiateCheckout,
   isCustomPlan,
-} from '../../services/mercadoPagoService';
+} from '../../services/paymentUtils';
+import { initiatePlatformPlanCheckout } from '../../services/paymentCheckoutService';
 import toast from 'react-hot-toast';
 
 type BillingCycle = 'monthly' | 'yearly';
@@ -118,7 +118,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
           ? nextPlan.monthly_price
           : calculateYearlyTotal(nextPlan.monthly_price, nextPlan.yearly_price);
 
-      const result = await initiateCheckout({
+      const result = await initiatePlatformPlanCheckout({
         planId: nextPlan.id,
         planName: nextPlan.name,
         planDescription: nextPlan.description || `Plano ${nextPlan.name}`,
@@ -134,7 +134,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
         return;
       }
 
-      toast.success(`Checkout ${getBillingCycleLabel(billingCycle).toLowerCase()} aberto em uma nova aba.`);
+      toast.success(`Checkout Stripe ${getBillingCycleLabel(billingCycle).toLowerCase()} aberto em uma nova aba.`);
       onClose();
     } catch (error) {
       console.error('Erro ao iniciar upgrade:', error);

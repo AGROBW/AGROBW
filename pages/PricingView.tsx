@@ -3,7 +3,8 @@ import { ArrowRight, Award, BarChart3, Check, ChevronDown, Loader2, MapPin, Mega
 import { PRICING_FAQ } from '../constants';
 import { usePlans } from '../src/hooks/usePlans';
 import { useAuth } from '../src/contexts/AuthContext';
-import { calculateYearlySavings, calculateYearlyTotal, getCustomPlanContactLink, initiateBoosterCheckout, initiateCheckout, isCustomPlan } from '../services/mercadoPagoService';
+import { calculateYearlySavings, calculateYearlyTotal, getCustomPlanContactLink, isCustomPlan } from '../services/paymentUtils';
+import { initiateBoosterCheckout, initiatePlatformPlanCheckout } from '../services/paymentCheckoutService';
 import toast from 'react-hot-toast';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { Plan } from '../src/hooks/usePlans';
@@ -175,9 +176,11 @@ const PricingView: React.FC = () => {
     setLoadingPlanId(planId);
     toast.loading('Preparando checkout...', { id: 'checkout-loading' });
     try {
-      const result = await initiateCheckout({ planId, planName, planDescription: description || `Plano ${planName}`, billingCycle, amount, userId: user.id });
+      const result = await initiatePlatformPlanCheckout({ planId, planName, planDescription: description || `Plano ${planName}`, billingCycle, amount, userId: user.id });
       toast.dismiss('checkout-loading');
-      result.success ? toast.success(`Redirecionando para checkout ${getBillingCycleLabel(billingCycle).toLowerCase()}...`) : toast.error(result.error || 'Erro ao processar checkout.');
+      result.success
+        ? toast.success('Redirecionando para checkout Stripe...')
+        : toast.error(result.error || 'Erro ao processar checkout.');
     } catch (err) {
       toast.dismiss('checkout-loading');
       appError('Erro ao iniciar checkout', err, { planId, billingCycle });

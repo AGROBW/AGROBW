@@ -494,6 +494,10 @@ export interface PaymentRecord {
   provider: string;
   providerPaymentId: string;
   providerPreferenceId?: string | null;
+  providerCustomerId?: string | null;
+  providerSubscriptionId?: string | null;
+  providerInvoiceId?: string | null;
+  providerCheckoutSessionId?: string | null;
   externalReference?: string | null;
   billingCycle?: 'monthly' | 'yearly' | null;
   description?: string | null;
@@ -531,6 +535,7 @@ export interface HighlightBoosterRecord {
   name: string;
   description?: string | null;
   monthlyPrice: number;
+  stripePriceId?: string | null;
   categoryCredits: number;
   homeCredits: number;
   categoryHighlightDays: number;

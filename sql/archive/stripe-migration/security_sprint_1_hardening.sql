@@ -104,12 +104,18 @@ create policy "Admins can insert audit logs"
 -- 3. Funcoes seguras para payment_settings no admin
 -- --------------------------------------------------
 
-create or replace function public.get_payment_settings_admin_safe()
+drop function if exists public.get_payment_settings_admin_safe();
+
+create function public.get_payment_settings_admin_safe()
 returns table (
   id uuid,
   mp_access_token_configured boolean,
   mp_public_key text,
   mp_webhook_secret_configured boolean,
+  stripe_secret_key_configured boolean,
+  stripe_publishable_key text,
+  stripe_webhook_secret_configured boolean,
+  preferred_checkout_provider text,
   is_production boolean,
   last_updated_by uuid,
   created_at timestamptz,
@@ -130,6 +136,10 @@ begin
     coalesce(nullif(trim(ps.mp_access_token), '') is not null, false) as mp_access_token_configured,
     ps.mp_public_key,
     coalesce(nullif(trim(ps.mp_webhook_secret), '') is not null, false) as mp_webhook_secret_configured,
+    coalesce(nullif(trim(ps.stripe_secret_key), '') is not null, false) as stripe_secret_key_configured,
+    ps.stripe_publishable_key,
+    coalesce(nullif(trim(ps.stripe_webhook_secret), '') is not null, false) as stripe_webhook_secret_configured,
+    coalesce(nullif(trim(ps.preferred_checkout_provider), ''), 'mercadopago') as preferred_checkout_provider,
     ps.is_production,
     ps.last_updated_by,
     ps.created_at,
@@ -139,10 +149,17 @@ begin
 end;
 $$;
 
-create or replace function public.update_payment_settings_admin_safe(
+drop function if exists public.update_payment_settings_admin_safe(text, text, text, boolean);
+drop function if exists public.update_payment_settings_admin_safe(text, text, text, text, text, text, text, boolean);
+
+create function public.update_payment_settings_admin_safe(
   p_mp_access_token text default null,
   p_mp_public_key text default null,
   p_mp_webhook_secret text default null,
+  p_stripe_secret_key text default null,
+  p_stripe_publishable_key text default null,
+  p_stripe_webhook_secret text default null,
+  p_preferred_checkout_provider text default null,
   p_is_production boolean default null
 )
 returns table (
@@ -150,6 +167,10 @@ returns table (
   mp_access_token_configured boolean,
   mp_public_key text,
   mp_webhook_secret_configured boolean,
+  stripe_secret_key_configured boolean,
+  stripe_publishable_key text,
+  stripe_webhook_secret_configured boolean,
+  preferred_checkout_provider text,
   is_production boolean,
   last_updated_by uuid,
   created_at timestamptz,
@@ -166,6 +187,12 @@ begin
     raise exception 'Unauthorized';
   end if;
 
+  if p_preferred_checkout_provider is not null
+     and trim(p_preferred_checkout_provider) <> ''
+     and trim(p_preferred_checkout_provider) not in ('mercadopago', 'stripe') then
+    raise exception 'preferred_checkout_provider invalido';
+  end if;
+
   update public.payment_settings
   set
     mp_access_token = case
@@ -180,6 +207,22 @@ begin
       when p_mp_webhook_secret is null or trim(p_mp_webhook_secret) = '' then mp_webhook_secret
       else trim(p_mp_webhook_secret)
     end,
+    stripe_secret_key = case
+      when p_stripe_secret_key is null or trim(p_stripe_secret_key) = '' then stripe_secret_key
+      else trim(p_stripe_secret_key)
+    end,
+    stripe_publishable_key = case
+      when p_stripe_publishable_key is null then stripe_publishable_key
+      else nullif(trim(p_stripe_publishable_key), '')
+    end,
+    stripe_webhook_secret = case
+      when p_stripe_webhook_secret is null or trim(p_stripe_webhook_secret) = '' then stripe_webhook_secret
+      else trim(p_stripe_webhook_secret)
+    end,
+    preferred_checkout_provider = case
+      when p_preferred_checkout_provider is null or trim(p_preferred_checkout_provider) = '' then preferred_checkout_provider
+      else trim(p_preferred_checkout_provider)
+    end,
     is_production = coalesce(p_is_production, is_production),
     last_updated_by = v_user_id,
     updated_at = now()
@@ -192,7 +235,7 @@ end;
 $$;
 
 grant execute on function public.get_payment_settings_admin_safe() to authenticated;
-grant execute on function public.update_payment_settings_admin_safe(text, text, text, boolean) to authenticated;
+grant execute on function public.update_payment_settings_admin_safe(text, text, text, text, text, text, text, boolean) to authenticated;
 
 -- --------------------------------------------------
 -- 4. Corrigir auditoria administrativa

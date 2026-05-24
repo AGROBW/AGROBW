@@ -3,6 +3,7 @@ create table if not exists public.highlight_boosters (
   name text not null,
   description text null,
   monthly_price numeric(10,2) not null default 0,
+  stripe_price_id text null,
   category_credits integer not null default 0,
   home_credits integer not null default 0,
   category_highlight_days integer not null default 30,

@@ -267,7 +267,7 @@ const FiscalSettingsManagement: React.FC = () => {
               <li>1. Preencher empresa emissora, codigo do servico e item da lista</li>
               <li>2. Configurar `FISCAL_PROVIDER_API_KEY` com o token da Focus nas secrets</li>
               <li>3. Configurar `INTERNAL_AUTOMATION_SECRET` nas secrets das functions</li>
-              <li>4. Publicar `issue-nfse`, `webhook-fiscal` e `webhook-mercadopago`</li>
+              <li>4. Publicar `issue-nfse` e `webhook-fiscal`</li>
               <li>5. Criar um gatilho na Focus apontando para o webhook fiscal com o mesmo token</li>
             </ul>
           </div>

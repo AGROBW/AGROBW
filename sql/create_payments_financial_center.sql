@@ -3,9 +3,13 @@ create table if not exists public.payments (
   user_id uuid not null references public.users(id) on delete cascade,
   subscription_id uuid references public.user_subscriptions(id) on delete set null,
   plan_id uuid references public.plans(id) on delete set null,
-  provider text not null default 'mercadopago',
+  provider text not null default 'stripe',
   provider_payment_id text not null unique,
   provider_preference_id text,
+  provider_customer_id text,
+  provider_subscription_id text,
+  provider_invoice_id text,
+  provider_checkout_session_id text,
   external_reference text,
   billing_cycle text check (billing_cycle in ('monthly', 'yearly')),
   description text,
@@ -96,6 +100,22 @@ create index if not exists idx_payments_status
 
 create index if not exists idx_payments_plan_id
   on public.payments(plan_id);
+
+create index if not exists idx_payments_provider_customer_id
+  on public.payments(provider, provider_customer_id)
+  where provider_customer_id is not null;
+
+create index if not exists idx_payments_provider_subscription_id
+  on public.payments(provider, provider_subscription_id)
+  where provider_subscription_id is not null;
+
+create index if not exists idx_payments_provider_invoice_id
+  on public.payments(provider, provider_invoice_id)
+  where provider_invoice_id is not null;
+
+create index if not exists idx_payments_provider_checkout_session_id
+  on public.payments(provider, provider_checkout_session_id)
+  where provider_checkout_session_id is not null;
 
 alter table public.payments enable row level security;
 

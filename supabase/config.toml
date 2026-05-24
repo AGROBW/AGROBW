@@ -1,18 +1,3 @@
-[functions.test-mp-connection]
-enabled = true
-verify_jwt = true
-entrypoint = "./functions/test-mp-connection/index.ts"
-
-[functions.create-preference]
-enabled = true
-verify_jwt = true
-entrypoint = "./functions/create-preference/index.ts"
-
-[functions.webhook-mercadopago]
-enabled = true
-verify_jwt = false
-entrypoint = "./functions/webhook-mercadopago/index.ts"
-
 [functions.issue-nfse]
 enabled = true
 verify_jwt = false

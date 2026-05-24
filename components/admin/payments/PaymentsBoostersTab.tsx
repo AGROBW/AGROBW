@@ -10,6 +10,7 @@ type BoosterFormState = {
   name: string;
   description: string;
   monthlyPrice: string;
+  stripePriceId: string;
   categoryCredits: string;
   homeCredits: string;
   categoryHighlightDays: string;
@@ -24,6 +25,7 @@ const emptyForm: BoosterFormState = {
   name: '',
   description: '',
   monthlyPrice: '249',
+  stripePriceId: '',
   categoryCredits: '5',
   homeCredits: '5',
   categoryHighlightDays: '30',
@@ -39,6 +41,7 @@ const mapBooster = (row: any): HighlightBoosterRecord => ({
   name: row.name,
   description: row.description ?? null,
   monthlyPrice: Number(row.monthly_price ?? 0),
+  stripePriceId: row.stripe_price_id ?? null,
   categoryCredits: Number(row.category_credits ?? 0),
   homeCredits: Number(row.home_credits ?? 0),
   categoryHighlightDays: Number(row.category_highlight_days ?? 30),
@@ -126,6 +129,7 @@ const PaymentsBoostersTab: React.FC = () => {
       name: booster.name,
       description: booster.description || '',
       monthlyPrice: String(booster.monthlyPrice),
+      stripePriceId: booster.stripePriceId || '',
       categoryCredits: String(booster.categoryCredits),
       homeCredits: String(booster.homeCredits),
       categoryHighlightDays: String(booster.categoryHighlightDays),
@@ -181,6 +185,7 @@ const PaymentsBoostersTab: React.FC = () => {
       name: form.name.trim(),
       description: form.description.trim() || null,
       monthly_price: monthlyPrice,
+      stripe_price_id: form.stripePriceId.trim() || null,
       category_credits: categoryCredits,
       home_credits: homeCredits,
       category_highlight_days: categoryHighlightDays,
@@ -246,6 +251,15 @@ const PaymentsBoostersTab: React.FC = () => {
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700">Preco</span>
               <input value={form.monthlyPrice} onChange={(e) => setForm((current) => ({ ...current, monthlyPrice: e.target.value }))} className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm" />
+            </label>
+            <label className="space-y-2 sm:col-span-2">
+              <span className="text-sm font-medium text-slate-700">Stripe Price ID</span>
+              <input
+                value={form.stripePriceId}
+                onChange={(e) => setForm((current) => ({ ...current, stripePriceId: e.target.value }))}
+                placeholder="price_123..."
+                className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm"
+              />
             </label>
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700">Creditos categoria</span>
@@ -341,6 +355,7 @@ const PaymentsBoostersTab: React.FC = () => {
                     </div>
                     <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-600">
                       <span>R$ {booster.monthlyPrice.toFixed(2)}</span>
+                      {booster.stripePriceId ? <span>Stripe ativo</span> : <span>Sem Stripe</span>}
                       <span>+{booster.categoryCredits} categoria</span>
                       <span>+{booster.homeCredits} home</span>
                       <span>{booster.categoryHighlightDays} dias categoria</span>

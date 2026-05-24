@@ -260,6 +260,62 @@ begin
 end;
 $$;
 
+create or replace function public.insert_notification_compat(
+  p_user_id uuid,
+  p_type text,
+  p_title text,
+  p_content text,
+  p_link text default null,
+  p_is_read boolean default false
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_notification_id uuid;
+  v_has_notification_content boolean := false;
+  v_has_notification_message boolean := false;
+begin
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'notifications'
+      and column_name = 'content'
+  ) into v_has_notification_content;
+
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'notifications'
+      and column_name = 'message'
+  ) into v_has_notification_message;
+
+  if v_has_notification_content then
+    execute
+      'insert into public.notifications (user_id, type, title, content, link, is_read)
+       values ($1, $2, $3, $4, $5, $6)
+       returning id'
+    into v_notification_id
+    using p_user_id, p_type, p_title, p_content, p_link, p_is_read;
+  elsif v_has_notification_message then
+    execute
+      'insert into public.notifications (user_id, type, title, message, link, is_read)
+       values ($1, $2, $3, $4, $5, $6)
+       returning id'
+    into v_notification_id
+    using p_user_id, p_type, p_title, p_content, p_link, p_is_read;
+  else
+    raise exception 'Tabela notifications sem coluna content ou message para registrar a notificacao.';
+  end if;
+
+  return v_notification_id;
+end;
+$$;
+
 create or replace function public.submit_announcement_report(
   p_announcement_id uuid,
   p_reason text,
@@ -297,7 +353,8 @@ begin
     a.id,
     a.title,
     a.user_id,
-    a.status
+    a.status,
+    a.community_reported_to_review_at
   into v_announcement
   from public.announcements a
   where a.id = p_announcement_id;
@@ -313,6 +370,11 @@ begin
   end if;
 
   if coalesce(v_announcement.status, '') <> 'ACTIVE' then
+    if v_announcement.community_reported_to_review_at is not null then
+      raise exception 'Este anuncio ja saiu de exibicao e esta em analise da equipe.'
+        using errcode = 'P0001';
+    end if;
+
     raise exception 'Somente anuncios ativos podem ser denunciados.'
       using errcode = 'P0001';
   end if;
@@ -340,26 +402,23 @@ begin
   from public.refresh_announcement_report_state(p_announcement_id);
 
   if coalesce(v_report_state.sent_to_review, false) then
-    insert into public.notifications (
-      user_id,
-      type,
-      title,
-      content,
-      link,
-      is_read
-    ) values (
-      v_announcement.user_id,
-      'announcement_reported_to_review',
-      'Seu anuncio entrou em analise',
-      format(
-        'O anuncio "%s" recebeu %s denuncias de usuarios unicos e foi encaminhado para analise da equipe.',
-        v_announcement.title,
-        v_report_state.report_count
-      ),
-      '/minha-conta/anuncios',
-      false
-    )
-    returning id into v_notification_id;
+    begin
+      v_notification_id := public.insert_notification_compat(
+        v_announcement.user_id,
+        'system',
+        'Seu anuncio entrou em analise',
+        format(
+          'O anuncio "%s" recebeu %s denuncias de usuarios unicos e foi encaminhado para analise da equipe.',
+          v_announcement.title,
+          v_report_state.report_count
+        ),
+        '/minha-conta/anuncios',
+        false
+      );
+    exception
+      when others then
+        v_notification_id := null;
+    end;
 
     select
       nullif(trim(coalesce(u.email, '')), ''),
@@ -370,33 +429,40 @@ begin
     from public.users u
     where u.id = v_announcement.user_id;
 
-    insert into public.plan_alert_email_jobs (
-      notification_id,
-      user_id,
-      recipient_email,
-      recipient_name,
-      alert_kind,
-      notification_title,
-      notification_content,
-      link,
-      status,
-      last_error
-    ) values (
-      v_notification_id,
-      v_announcement.user_id,
-      v_recipient_email,
-      v_recipient_name,
-      'announcement_reported_to_review',
-      'Seu anuncio entrou em analise',
-      format(
-        'O anuncio "%s" recebeu %s denuncias de usuarios unicos e foi encaminhado para analise da equipe.',
-        v_announcement.title,
-        v_report_state.report_count
-      ),
-      '/minha-conta/anuncios',
-      case when v_recipient_email is not null then 'pending' else 'skipped' end,
-      case when v_recipient_email is not null then null else 'Usuario sem e-mail valido' end
-    );
+    if v_notification_id is not null then
+      begin
+        insert into public.plan_alert_email_jobs (
+          notification_id,
+          user_id,
+          recipient_email,
+          recipient_name,
+          alert_kind,
+          notification_title,
+          notification_content,
+          link,
+          status,
+          last_error
+        ) values (
+          v_notification_id,
+          v_announcement.user_id,
+          v_recipient_email,
+          v_recipient_name,
+          'announcement_reported_to_review',
+          'Seu anuncio entrou em analise',
+          format(
+            'O anuncio "%s" recebeu %s denuncias de usuarios unicos e foi encaminhado para analise da equipe.',
+            v_announcement.title,
+            v_report_state.report_count
+          ),
+          '/minha-conta/anuncios',
+          case when v_recipient_email is not null then 'pending' else 'skipped' end,
+          case when v_recipient_email is not null then null else 'Usuario sem e-mail valido' end
+        );
+      exception
+        when others then
+          null;
+      end;
+    end if;
   end if;
 
   return jsonb_build_object(
@@ -467,7 +533,6 @@ begin
   join public.users u
     on u.id = a.user_id
   where a.community_reported_to_review_at is not null
-    and coalesce(a.community_reports_count, 0) >= 10
   order by a.community_reported_to_review_at desc, a.created_at desc;
 end;
 $$;
@@ -637,16 +702,9 @@ begin
     publication_review_reasons = v_remaining_reasons
   where id = p_announcement_id;
 
-  insert into public.notifications (
-    user_id,
-    type,
-    title,
-    content,
-    link,
-    is_read
-  ) values (
+  v_notification_id := public.insert_notification_compat(
     v_announcement.user_id,
-    'announcement_reports_reviewed',
+    'system',
     'Seu anuncio foi liberado pela equipe',
     format(
       'O anuncio "%s" foi revisado pela equipe AGRO BW e voltou a ficar visivel.%s',
@@ -655,8 +713,7 @@ begin
     ),
     '/minha-conta/anuncios',
     false
-  )
-  returning id into v_notification_id;
+  );
 
   return jsonb_build_object(
     'success', true,
@@ -670,6 +727,7 @@ $$;
 grant execute on function public.refresh_announcement_report_state(uuid) to authenticated;
 grant execute on function public.get_announcement_report_snapshot(uuid) to authenticated;
 grant execute on function public.submit_announcement_report(uuid, text, text) to authenticated;
+grant execute on function public.insert_notification_compat(uuid, text, text, text, text, boolean) to authenticated, service_role;
 grant execute on function public.strip_community_report_review_reasons(jsonb) to authenticated, service_role;
 grant execute on function public.admin_list_reported_announcements() to authenticated;
 grant execute on function public.admin_get_reported_announcement_details(uuid) to authenticated;

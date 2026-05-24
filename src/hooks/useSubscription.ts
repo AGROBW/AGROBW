@@ -9,7 +9,12 @@ export type UserSubscription = {
   id: string;
   user_id: string;
   plan_id: string;
-  status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired';
+  provider: string;
+  provider_customer_id?: string | null;
+  provider_subscription_id?: string | null;
+  provider_price_id?: string | null;
+  provider_checkout_session_id?: string | null;
+  status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'cancelled' | 'expired';
   current_period_start: string;
   current_period_end: string;
   cancel_at_period_end: boolean;

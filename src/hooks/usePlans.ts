@@ -14,6 +14,8 @@ export interface Plan {
   show_footer_card: boolean;
   monthly_price: number;
   yearly_price: number;
+  stripe_monthly_price_id: string | null;
+  stripe_yearly_price_id: string | null;
   features: string[];
   display_features: string[];
   is_popular: boolean;
@@ -60,6 +62,8 @@ export interface UpdatePlanData {
   show_footer_card?: boolean;
   monthly_price?: number;
   yearly_price?: number;
+  stripe_monthly_price_id?: string | null;
+  stripe_yearly_price_id?: string | null;
   features?: string[];
   display_features?: string[];
   is_popular?: boolean;
