@@ -483,15 +483,23 @@ const UserDashboardView: React.FC = () => {
     setValidationResult(null);
     
     try {
-      const userName = slugify(user.name);
-      const fileName = file.name;
-      const filePath = `${userName}/${fileName}`;
+      const lastDotIndex = file.name.lastIndexOf('.');
+      const baseName = (lastDotIndex > 0 ? file.name.slice(0, lastDotIndex) : file.name) || 'documento';
+      const extension = lastDotIndex > 0 ? file.name.slice(lastDotIndex).toLowerCase() : '';
+      const safeFileName = file.name
+        .replace(/\.[^/.]+$/, '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, '_')
+        .replace(/[^a-zA-Z0-9._-]/g, '_');
+      const safeBaseName = safeFileName || baseName;
+      const filePath = `${user.id}/${Date.now()}-${safeBaseName}${extension}`;
 
       // Upload para o Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('verification_docs')
         .upload(filePath, file, {
-          upsert: true,
+          upsert: false,
           contentType: file.type
         });
 
