@@ -29,7 +29,7 @@ const staticRoutes = [
   { path: '/anuncios', changefreq: 'daily', priority: '0.9' },
   { path: '/categorias', changefreq: 'weekly', priority: '0.9' },
   { path: '/planos', changefreq: 'weekly', priority: '0.8' },
-  { path: '/patrocinador', changefreq: 'weekly', priority: '0.7' },
+  { path: '/vitrine', changefreq: 'weekly', priority: '0.7' },
   { path: '/lojas-parceiras', changefreq: 'weekly', priority: '0.8' },
   { path: '/noticias', changefreq: 'daily', priority: '0.8' },
   { path: '/quem-somos', changefreq: 'monthly', priority: '0.5' },

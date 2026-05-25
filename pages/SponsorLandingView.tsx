@@ -473,7 +473,7 @@ const SponsorLandingView: React.FC = () => {
       <SeoHead
         title="Vitrine Premium para marcas do agronegócio"
         description="Leve sua marca para a Vitrine Premium da AGRO BW e ganhe visibilidade estratégica dentro do marketplace rural."
-        canonicalPath="/patrocinador"
+        canonicalPath="/vitrine"
       />
 
       {/* -- HERO ------------------------------------------------------------ */}

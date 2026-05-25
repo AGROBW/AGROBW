@@ -4,12 +4,12 @@ values (
   'announcement-videos',
   true,
   104857600,
-  array['video/mp4', 'video/webm', 'video/quicktime']
+  array['video/mp4', 'video/webm', 'video/quicktime', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 )
 on conflict (id) do update set
   public = true,
   file_size_limit = 104857600,
-  allowed_mime_types = array['video/mp4', 'video/webm', 'video/quicktime'];
+  allowed_mime_types = array['video/mp4', 'video/webm', 'video/quicktime', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
 drop policy if exists "Announcement videos public read" on storage.objects;
 create policy "Announcement videos public read"

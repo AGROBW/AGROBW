@@ -85,7 +85,7 @@ const Header: React.FC = () => {
             <Link to="/lojas-parceiras" className="text-sm font-medium text-slate-600 transition-colors hover:text-green-700">
               Lojas Parceiras
             </Link>
-            <Link to="/patrocinador" className="text-sm font-medium text-slate-600 transition-colors hover:text-green-700">
+            <Link to="/vitrine" className="text-sm font-medium text-slate-600 transition-colors hover:text-green-700">
               Vitrine Premium
             </Link>
             <Link to="/planos" className="text-sm font-medium text-slate-600 transition-colors hover:text-green-700">
@@ -264,7 +264,7 @@ const Header: React.FC = () => {
             Lojas Parceiras
           </Link>
           <Link
-            to="/patrocinador"
+            to="/vitrine"
             onClick={() => setIsOpen(false)}
             className="block rounded-md px-3 py-2 text-base font-medium text-slate-700 hover:bg-green-50 hover:text-green-700"
           >

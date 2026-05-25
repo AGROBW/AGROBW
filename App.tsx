@@ -195,7 +195,8 @@ const AppContent: React.FC = () => {
             <Route path="/anuncios" element={<AdsListingView />} />
             <Route path="/categorias" element={<CategoriesView />} />
             <Route path="/planos" element={<PricingView />} />
-            <Route path="/patrocinador" element={<SponsorLandingView />} />
+            <Route path="/vitrine" element={<SponsorLandingView />} />
+            <Route path="/patrocinador" element={<Navigate to="/vitrine" replace />} />
             <Route path="/lojas-parceiras" element={<PartnerStoresView />} />
             <Route path="/loja/:slug" element={<StorefrontView />} />
             <Route path="/contato" element={<ContactView />} />

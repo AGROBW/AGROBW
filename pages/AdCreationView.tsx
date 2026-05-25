@@ -443,6 +443,7 @@ const AdCreationView: React.FC = () => {
   const editAdId = searchParams.get('edit');
   const isEditingExistingAd = Boolean(editAdId);
   const hasStoreListingAccess = !!subscription?.plans?.has_seller_store;
+  const isVideoUploading = Boolean(videoItem?.uploading);
   const hasAnnouncementVideo = hasStoreListingAccess && Boolean(formData.videoUrl);
   const normalizeTechnicalLabel = (value: string) => slugify(value).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   const normalizeSubcategoryValue = (value: string) => slugify(value).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -1525,8 +1526,17 @@ const AdCreationView: React.FC = () => {
           : current
       );
 
-      const thumbnailUpload = await uploadVideoThumbnail(compressed.file, filePath);
-      uploadedThumbnailPath = thumbnailUpload.storagePath;
+      let thumbnailUpload: { publicUrl: string; storagePath: string } | null = null;
+      try {
+        thumbnailUpload = await uploadVideoThumbnail(compressed.file, filePath);
+        uploadedThumbnailPath = thumbnailUpload.storagePath;
+      } catch (thumbnailError: any) {
+        appWarn('[Ads] Falha ao gerar ou enviar thumbnail do video', {
+          message: thumbnailError?.message || 'Erro desconhecido',
+          filePath,
+          draftId: draftIdRef.current || null,
+        });
+      }
       const previousVideoPath = formData.videoStoragePath || videoItem?.storagePath;
       const previousThumbnailPath = formData.videoThumbnailStoragePath || videoItem?.thumbnailStoragePath;
 
@@ -1535,8 +1545,8 @@ const AdCreationView: React.FC = () => {
         previewUrl: data.publicUrl,
         publicUrl: data.publicUrl,
         storagePath: filePath,
-        thumbnailUrl: thumbnailUpload.publicUrl,
-        thumbnailStoragePath: thumbnailUpload.storagePath,
+        thumbnailUrl: thumbnailUpload?.publicUrl,
+        thumbnailStoragePath: thumbnailUpload?.storagePath,
         uploading: false,
         progress: 100,
         durationSeconds: compressed.durationSeconds,
@@ -1548,8 +1558,8 @@ const AdCreationView: React.FC = () => {
           ...prev,
           videoUrl: data.publicUrl,
           videoStoragePath: filePath,
-          videoThumbnailUrl: thumbnailUpload.publicUrl,
-          videoThumbnailStoragePath: thumbnailUpload.storagePath,
+          videoThumbnailUrl: thumbnailUpload?.publicUrl || '',
+          videoThumbnailStoragePath: thumbnailUpload?.storagePath || '',
           videoDurationSeconds: compressed.durationSeconds,
           videoSizeBytes: compressed.sizeBytes,
         };
@@ -1572,13 +1582,17 @@ const AdCreationView: React.FC = () => {
       if (previousVideoPath && previousVideoPath !== filePath) {
         await supabase.storage.from('announcement-videos').remove([previousVideoPath]);
       }
-      if (previousThumbnailPath && previousThumbnailPath !== thumbnailUpload.storagePath) {
+      if (previousThumbnailPath && previousThumbnailPath !== thumbnailUpload?.storagePath) {
         await supabase.storage.from('announcement-videos').remove([previousThumbnailPath]);
       }
 
       if (compressed.sizeBytes > 12 * 1024 * 1024) {
         toast.success('Video enviado com sucesso.', {
           description: 'A compressao foi aplicada, mas o arquivo final permaneceu acima do alvo ideal de 12MB.',
+        });
+      } else if (!thumbnailUpload) {
+        toast.success('Video enviado com sucesso.', {
+          description: 'A capa automatica nao ficou disponivel, mas o video foi salvo normalmente.',
         });
       } else {
         toast.success('Video otimizado e enviado com sucesso.');
@@ -1712,6 +1726,12 @@ const AdCreationView: React.FC = () => {
 
   const handleSubmitAd = async () => {
     if (isSubmitting) return;
+    if (isVideoUploading) {
+      toast.error('Aguarde o processamento do vídeo terminar antes de publicar.', {
+        description: 'Quando o spinner desaparecer, o vídeo estará pronto para seguir com o anúncio.',
+      });
+      return;
+    }
     setIsSubmitting(true);
     
     debugLog('[AdCreation] Iniciando publicaÃ§Ã£o com dados:', {
@@ -2570,9 +2590,15 @@ const AdCreationView: React.FC = () => {
                     </div>
                     <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="text-sm font-black text-slate-900">Vídeo pronto para o anúncio</p>
+                        <p className="text-sm font-black text-slate-900">
+                          {videoItem.uploading ? 'Vídeo em processamento' : 'Vídeo pronto para o anúncio'}
+                        </p>
                         <p className="mt-1 text-xs text-slate-500">
-                          {videoItem.durationSeconds ? `${videoItem.durationSeconds}s` : 'Duração em processamento'}
+                          {videoItem.uploading
+                            ? 'Otimizando e enviando o vídeo...'
+                            : videoItem.durationSeconds
+                              ? `${videoItem.durationSeconds}s`
+                              : 'Duração em processamento'}
                           {videoItem.sizeBytes ? ` • ${formatVideoSize(videoItem.sizeBytes)}` : ''}
                         </p>
                       </div>
@@ -2609,7 +2635,20 @@ const AdCreationView: React.FC = () => {
             )}
             <div className="flex flex-col sm:flex-row gap-3">
               <button onClick={handleBack} className="w-full py-5 border border-slate-200 text-slate-600 rounded-2xl font-black hover:bg-slate-50 transition-all">Voltar</button>
-              <button onClick={() => setCurrentStep('PRICING')} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all">Próxima Etapa: Preço e Local</button>
+              <button
+                onClick={() => {
+                  if (isVideoUploading) {
+                    toast.error('Aguarde o vídeo terminar de processar.', {
+                      description: 'Assim que o upload finalizar, você poderá seguir para a próxima etapa.',
+                    });
+                    return;
+                  }
+                  setCurrentStep('PRICING');
+                }}
+                className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all"
+              >
+                Próxima Etapa: Preço e Local
+              </button>
             </div>
           </div>
         );
@@ -2769,9 +2808,9 @@ const AdCreationView: React.FC = () => {
                     await refreshUsage(); // Atualizar contadores após publicar
                   }}
                   className="w-full py-6 bg-green-700 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-green-900/20 hover:bg-green-800 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                  disabled={isSubmitting || isUploadingImages || !canCreateAd}
+                  disabled={isSubmitting || isUploadingImages || isVideoUploading || !canCreateAd}
                 >
-                  {isUploadingImages ? 'Aguardando uploads...' : isSubmitting ? 'Publicando...' : 'Publicar Anúncio Agora'}
+                  {isUploadingImages || isVideoUploading ? 'Aguardando uploads...' : isSubmitting ? 'Publicando...' : 'Publicar Anúncio Agora'}
                 </button>
                 <button onClick={handleBack} className="w-full py-4 text-slate-400 font-bold hover:text-slate-600 transition-all">Voltar</button>
               </div>
