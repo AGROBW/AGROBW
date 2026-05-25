@@ -932,6 +932,14 @@ const UserDashboardView: React.FC = () => {
     }, [ads, removedAdIds]);
 
     const hasPendingEditReview = (ad: Ad) => ad.latestEditRequestStatus === 'pending';
+    const getPrimaryDisplayStatus = (ad: Ad) => {
+      if (hasPendingEditReview(ad) && ad.status === AdStatus.ACTIVE) return 'EDIT_PENDING';
+      if (ad.status === AdStatus.PENDING) return AdStatus.PENDING;
+      if (ad.status === AdStatus.REJECTED) return AdStatus.REJECTED;
+      if (ad.status === AdStatus.PAUSED) return AdStatus.PAUSED;
+      if (ad.status === AdStatus.EXPIRED) return AdStatus.EXPIRED;
+      return AdStatus.ACTIVE;
+    };
 
     const counts = useMemo(() => {
         const active = visibleAds.filter(a => a.status === AdStatus.ACTIVE).length;
@@ -978,6 +986,7 @@ const UserDashboardView: React.FC = () => {
     ] as const;
 
     const statusLabel: Record<string, string> = {
+      EDIT_PENDING: 'Edições em análise',
       [AdStatus.ACTIVE]: 'Ativo',
       [AdStatus.PAUSED]: 'Pausado',
       [AdStatus.PENDING]: 'Em Análise',
@@ -988,6 +997,7 @@ const UserDashboardView: React.FC = () => {
     };
 
     const statusToneClass: Record<string, string> = {
+      EDIT_PENDING: 'text-amber-700',
       [AdStatus.ACTIVE]: 'text-green-700',
       [AdStatus.PAUSED]: 'text-slate-500',
       [AdStatus.PENDING]: 'text-amber-700',
@@ -1677,16 +1687,9 @@ const UserDashboardView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-semibold ${statusToneClass[ad.status] || 'text-slate-500'}`}>
-                        {statusLabel[ad.status] || 'Status'}
-                      </span>
-                      {hasPendingEditReview(ad) && ad.status === AdStatus.ACTIVE ? (
-                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
-                          Alterações em análise
-                        </span>
-                      ) : null}
-                    </div>
+                    <span className={`text-xs font-semibold ${statusToneClass[getPrimaryDisplayStatus(ad)] || 'text-slate-500'}`}>
+                      {statusLabel[getPrimaryDisplayStatus(ad)] || 'Status'}
+                    </span>
                     <div className="flex items-center gap-1 text-slate-400">
                       {/* Botão de Destaques */}
                       {ad.status !== AdStatus.EXPIRED && ad.status !== AdStatus.REJECTED && (
@@ -3361,7 +3364,10 @@ const UserDashboardView: React.FC = () => {
       newPassword: '',
       confirmPassword: '',
     });
-    const [selectedProfileTab, setSelectedProfileTab] = useState<'identity' | 'contact' | 'security' | 'verification'>('identity');
+    const [selectedProfileTab, setSelectedProfileTab] = usePersistentState<'identity' | 'contact' | 'security' | 'verification'>(
+      'user-dashboard-profile-tab',
+      'identity'
+    );
     const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
     const [isLoadingCep, setIsLoadingCep] = useState(false);
     const lastLookedUpCepRef = useRef('');

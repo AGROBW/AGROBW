@@ -32,6 +32,8 @@ CHECK (
     'radar_match',
     'system',
     'plan_alert',
+    'account_verification',
+    'ad_edit_rejected',
     'SYSTEM',
     'SECURITY',
     'PROMO',

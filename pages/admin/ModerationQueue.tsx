@@ -453,95 +453,33 @@ const ModerationQueue: React.FC = () => {
   const handleApproveEditRequest = async (request: PendingEditRequest) => {
     if (!request.announcement) return toast.error('Anuncio original nao encontrado');
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const reviewerId = authData.user?.id || null;
-      const sanitizedPayload = sanitizeAnnouncementPayload(request.payload || {});
-      const originalAnnouncementStatus = getOriginalAnnouncementStatusFromRequest(request);
-      let updatedAnnouncement: PendingAnnouncement | null = request.announcement;
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('admin_apply_announcement_edit_request', {
+        p_request_id: request.id,
+      });
+      if (rpcError) throw rpcError;
 
-      if (Object.keys(sanitizedPayload).length > 0) {
-        const { data: updateData, error: announcementError } = await supabase
-          .from('announcements')
-          .update(sanitizedPayload)
-          .eq('id', request.announcement_id)
-          .select(ANNOUNCEMENT_EDIT_SELECT)
-          .maybeSingle();
-
-        if (announcementError) throw announcementError;
-
-        updatedAnnouncement = (updateData as PendingAnnouncement | null) || null;
-
-        if (!updatedAnnouncement) {
-          const { data: fetchedAnnouncement, error: fetchError } = await supabase
-            .from('announcements')
-            .select(ANNOUNCEMENT_EDIT_SELECT)
-            .eq('id', request.announcement_id)
-            .maybeSingle();
-
-          if (fetchError) throw fetchError;
-          updatedAnnouncement = (fetchedAnnouncement as PendingAnnouncement | null) || null;
-        }
-
-        if (!updatedAnnouncement) {
-          throw new Error('Anuncio original nao encontrado ou sem permissao para atualizacao.');
-        }
-
-        if (!updateData) {
-            appWarn('[ModerationQueue] Update da edicao nao retornou linha; seguindo com anuncio buscado como fallback.', {
-              announcementId: request.announcement_id,
-            });
-        }
+      const appliedAnnouncement = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+      if (!appliedAnnouncement?.announcement_id) {
+        throw new Error('A aprovacao da edicao nao retornou o anuncio atualizado.');
       }
 
-      const restoreApprovedAnnouncementPayload =
-        originalAnnouncementStatus === 'ACTIVE'
-          ? {
-              status: 'ACTIVE',
-              publication_review_admin_override: true,
-              publication_review_severity: null,
-              publication_review_reasons: [],
-              publication_review_checked_at: new Date().toISOString(),
-            }
-          : originalAnnouncementStatus === 'REJECTED'
-            ? {
-                status: 'ACTIVE',
-                publication_review_admin_override: true,
-                publication_review_severity: null,
-                publication_review_reasons: [],
-                publication_review_checked_at: new Date().toISOString(),
-                rejection_reason: null,
-                rejected_at: null,
-                reanalysis_available_at: null,
-              }
-          : {
-              status: originalAnnouncementStatus,
-              publication_review_admin_override: false,
-              publication_review_severity: null,
-              publication_review_reasons: [],
-              publication_review_checked_at: new Date().toISOString(),
-            };
-
-      const { error: restoreApprovedStatusError } = await supabase
+      const { data: refreshedAnnouncement, error: refreshedAnnouncementError } = await supabase
         .from('announcements')
-        .update(restoreApprovedAnnouncementPayload)
-        .eq('id', request.announcement_id);
+        .select(ANNOUNCEMENT_EDIT_SELECT)
+        .eq('id', request.announcement_id)
+        .maybeSingle();
 
-      if (restoreApprovedStatusError) throw restoreApprovedStatusError;
+      if (refreshedAnnouncementError) throw refreshedAnnouncementError;
 
-      await supabase.from('announcement_technical_details').delete().eq('announcement_id', request.announcement_id);
-      const details = (request.technical_details || []).map((detail) => ({ announcement_id: request.announcement_id, label: detail.label, value: detail.value, icon_name: detail.icon_name || 'Circle' }));
-      if (details.length > 0) {
-        const { error: detailsError } = await supabase.from('announcement_technical_details').insert(details);
-        if (detailsError) throw detailsError;
+      const updatedAnnouncement = (refreshedAnnouncement as PendingAnnouncement | null) || request.announcement;
+
+      if (
+        Object.prototype.hasOwnProperty.call(request.payload || {}, 'video_url') &&
+        String(request.payload?.video_url || '').trim() !== String(updatedAnnouncement?.video_url || '').trim()
+      ) {
+        throw new Error('Aprovacao concluida sem aplicar o video da edicao no anuncio.');
       }
-      const { error: requestError } = await supabase.from('announcement_edit_requests').update({
-        status: 'approved',
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: reviewerId,
-        rejection_reason: null,
-        reanalysis_available_at: null,
-      }).eq('id', request.id);
-      if (requestError) throw requestError;
+
       await logAction({
         action: ADMIN_ACTIONS.APPROVE_AD_EDIT,
         resourceType: RESOURCE_TYPES.ANNOUNCEMENT,
@@ -555,12 +493,16 @@ const ModerationQueue: React.FC = () => {
           technical_details: request.current_technical_details || [],
         },
         newValue: {
-          ...(updatedAnnouncement || sanitizedPayload),
+          ...(updatedAnnouncement || {}),
           technical_details: request.technical_details || [],
         },
         reason: `Edicao do anuncio "${request.announcement.title}" aprovada pela moderacao`,
       });
-      toast.success('Edicao aprovada e aplicada');
+      toast.success(
+        Object.prototype.hasOwnProperty.call(request.payload || {}, 'video_url')
+          ? 'Edicao aprovada e video aplicado no anuncio.'
+          : 'Edicao aprovada e aplicada'
+      );
       setSelectedEditRequest(null);
       await loadPendingEditRequests();
       } catch (error) {
