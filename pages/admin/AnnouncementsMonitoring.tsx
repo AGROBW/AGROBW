@@ -40,7 +40,9 @@ type MonitoringAnnouncement = {
   category_id?: string | null;
   user_id: string;
   highlight_home?: boolean | null;
+  highlight_home_until?: string | null;
   highlight_category?: boolean | null;
+  highlight_category_until?: string | null;
   owner?: {
     name: string;
     email: string;
@@ -132,6 +134,9 @@ const AnnouncementsMonitoring: React.FC = () => {
   const [pauseTarget, setPauseTarget] = useState<MonitoringAnnouncement | null>(null);
   const [pauseReason, setPauseReason] = useState('');
   const [isSubmittingPause, setIsSubmittingPause] = useState(false);
+  const [editingHighlightType, setEditingHighlightType] = useState<'home' | 'category' | null>(null);
+  const [highlightExpiryInput, setHighlightExpiryInput] = useState('');
+  const [isSavingHighlightExpiry, setIsSavingHighlightExpiry] = useState(false);
   const [openActionsMenuId, setOpenActionsMenuId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -349,6 +354,169 @@ const AnnouncementsMonitoring: React.FC = () => {
     setPauseTarget(null);
     setPauseReason('');
     setIsSubmittingPause(false);
+  };
+
+  const formatDateTimeLocalInputValue = (value?: string | null) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+
+    const localDate = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+    return localDate.toISOString().slice(0, 16);
+  };
+
+  const formatDateTimeDisplay = (value?: string | null) => {
+    if (!value) return 'Sem data';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString('pt-BR');
+  };
+
+  const syncSelectedAnnouncement = (announcementId: string, updater: (current: MonitoringAnnouncement) => MonitoringAnnouncement) => {
+    setAnnouncements((current) => current.map((item) => (item.id === announcementId ? updater(item) : item)));
+    setSelectedAnnouncement((current) => {
+      if (!current || current.id !== announcementId) return current;
+      return updater(current);
+    });
+  };
+
+  const openHighlightExpiryEditor = (announcement: MonitoringAnnouncement, highlightType: 'home' | 'category') => {
+    const currentValue =
+      highlightType === 'home'
+        ? announcement.highlight_home_until || null
+        : announcement.highlight_category_until || null;
+
+    setEditingHighlightType(highlightType);
+    setHighlightExpiryInput(formatDateTimeLocalInputValue(currentValue));
+  };
+
+  const closeHighlightExpiryEditor = () => {
+    setEditingHighlightType(null);
+    setHighlightExpiryInput('');
+    setIsSavingHighlightExpiry(false);
+  };
+
+  const handleSaveHighlightExpiry = async (announcement: MonitoringAnnouncement, highlightType: 'home' | 'category') => {
+    if (!highlightExpiryInput) {
+      toast.error('Informe a nova data e hora de expiração do destaque.');
+      return;
+    }
+
+    const parsedDate = new Date(highlightExpiryInput);
+    if (Number.isNaN(parsedDate.getTime())) {
+      toast.error('A data informada para o destaque é inválida.');
+      return;
+    }
+
+    try {
+      setIsSavingHighlightExpiry(true);
+
+      const { data, error } = await supabase.rpc('admin_update_announcement_highlight_expiration', {
+        p_announcement_id: announcement.id,
+        p_highlight_type: highlightType,
+        p_expires_at: parsedDate.toISOString(),
+      });
+
+      if (error) throw error;
+
+      const updatedAnnouncement = Array.isArray(data) ? data[0] : data;
+      if (!updatedAnnouncement) {
+        throw new Error('Não foi possível confirmar a atualização da expiração do destaque.');
+      }
+
+      syncSelectedAnnouncement(announcement.id, (current) => ({
+        ...current,
+        highlight_home: updatedAnnouncement.highlight_home ?? current.highlight_home,
+        highlight_home_until: updatedAnnouncement.highlight_home_until ?? null,
+        highlight_category: updatedAnnouncement.highlight_category ?? current.highlight_category,
+        highlight_category_until: updatedAnnouncement.highlight_category_until ?? null,
+      }));
+
+      await logAction({
+        action: ADMIN_ACTIONS.UPDATE_AD,
+        resourceType: RESOURCE_TYPES.ANNOUNCEMENT,
+        resourceId: announcement.id,
+        oldValue: {
+          highlight_type: highlightType,
+          expires_at: highlightType === 'home' ? announcement.highlight_home_until || null : announcement.highlight_category_until || null,
+        },
+        newValue: {
+          highlight_type: highlightType,
+          expires_at: parsedDate.toISOString(),
+        },
+        reason: `Expiração do destaque ${highlightType === 'home' ? 'Home' : 'Categoria'} ajustada no monitoramento.`,
+      });
+
+      toast.success(`Expiração do destaque ${highlightType === 'home' ? 'Home' : 'Categoria'} atualizada com sucesso.`);
+      closeHighlightExpiryEditor();
+    } catch (error) {
+      console.error('[AnnouncementsMonitoring] Erro ao atualizar expiração do destaque:', error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível atualizar a expiração do destaque.'
+      );
+    } finally {
+      setIsSavingHighlightExpiry(false);
+    }
+  };
+
+  const handleClearHighlight = async (announcement: MonitoringAnnouncement, highlightType: 'home' | 'category') => {
+    try {
+      setIsSavingHighlightExpiry(true);
+
+      const { data, error } = await supabase.rpc('admin_clear_announcement_highlight', {
+        p_announcement_id: announcement.id,
+        p_highlight_type: highlightType,
+      });
+
+      if (error) throw error;
+
+      const updatedAnnouncement = Array.isArray(data) ? data[0] : data;
+      if (!updatedAnnouncement) {
+        throw new Error('Não foi possível confirmar o encerramento do destaque.');
+      }
+
+      syncSelectedAnnouncement(announcement.id, (current) => ({
+        ...current,
+        highlight_home: updatedAnnouncement.highlight_home ?? false,
+        highlight_home_until: updatedAnnouncement.highlight_home_until ?? null,
+        highlight_category: updatedAnnouncement.highlight_category ?? false,
+        highlight_category_until: updatedAnnouncement.highlight_category_until ?? null,
+      }));
+
+      await logAction({
+        action: ADMIN_ACTIONS.UPDATE_AD,
+        resourceType: RESOURCE_TYPES.ANNOUNCEMENT,
+        resourceId: announcement.id,
+        oldValue: {
+          highlight_type: highlightType,
+          active: true,
+          expires_at: highlightType === 'home' ? announcement.highlight_home_until || null : announcement.highlight_category_until || null,
+        },
+        newValue: {
+          highlight_type: highlightType,
+          active: false,
+          expires_at: null,
+        },
+        reason: `Destaque ${highlightType === 'home' ? 'Home' : 'Categoria'} encerrado manualmente no monitoramento.`,
+      });
+
+      toast.success(`Destaque ${highlightType === 'home' ? 'Home' : 'Categoria'} encerrado com sucesso.`);
+
+      if (editingHighlightType === highlightType) {
+        closeHighlightExpiryEditor();
+      }
+    } catch (error) {
+      console.error('[AnnouncementsMonitoring] Erro ao encerrar destaque:', error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível encerrar o destaque.'
+      );
+    } finally {
+      setIsSavingHighlightExpiry(false);
+    }
   };
 
   const handleTogglePause = async (announcement: MonitoringAnnouncement, reason?: string) => {
@@ -1083,6 +1251,74 @@ const AnnouncementsMonitoring: React.FC = () => {
                         : 'Padrão'}
                     </span>
                   </div>
+                  {(selectedAnnouncement.highlight_home || selectedAnnouncement.highlight_category) && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-sm text-slate-600">Destaques ativos</span>
+                        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Gerenciamento
+                        </span>
+                      </div>
+
+                      <div className="mt-3 space-y-3">
+                        {selectedAnnouncement.highlight_home && (
+                          <div className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-amber-700">Destaque Home</p>
+                                <p className="mt-1 text-sm text-slate-600">
+                                  Expira em <span className="font-semibold text-slate-900">{formatDateTimeDisplay(selectedAnnouncement.highlight_home_until)}</span>
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => openHighlightExpiryEditor(selectedAnnouncement, 'home')}
+                                className="inline-flex h-9 items-center justify-center rounded-xl border border-amber-200 px-3 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-50"
+                              >
+                                Editar expiração
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleClearHighlight(selectedAnnouncement, 'home')}
+                                disabled={isSavingHighlightExpiry}
+                                className="inline-flex h-9 items-center justify-center rounded-xl border border-rose-200 px-3 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Encerrar destaque
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedAnnouncement.highlight_category && (
+                          <div className="rounded-2xl border border-blue-200 bg-white px-4 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-blue-700">Destaque Categoria</p>
+                                <p className="mt-1 text-sm text-slate-600">
+                                  Expira em <span className="font-semibold text-slate-900">{formatDateTimeDisplay(selectedAnnouncement.highlight_category_until)}</span>
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => openHighlightExpiryEditor(selectedAnnouncement, 'category')}
+                                className="inline-flex h-9 items-center justify-center rounded-xl border border-blue-200 px-3 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50"
+                              >
+                                Editar expiração
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleClearHighlight(selectedAnnouncement, 'category')}
+                                disabled={isSavingHighlightExpiry}
+                                className="inline-flex h-9 items-center justify-center rounded-xl border border-rose-200 px-3 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Encerrar destaque
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1130,6 +1366,65 @@ const AnnouncementsMonitoring: React.FC = () => {
                   Abrir anúncio
                 </Link>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedAnnouncement && editingHighlightType && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-[1px]">
+          <div className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_32px_80px_-32px_rgba(15,23,42,0.45)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Editar destaque</p>
+                <h3 className="mt-2 text-xl font-bold text-slate-900">
+                  {editingHighlightType === 'home' ? 'Destaque Home' : 'Destaque Categoria'}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Ajuste manualmente quando esse destaque deve expirar. A alteração é aplicada direto no anúncio.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeHighlightExpiryEditor}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <label htmlFor="highlight-expiry" className="text-sm font-semibold text-slate-700">
+                Nova expiração do destaque
+              </label>
+              <input
+                id="highlight-expiry"
+                type="datetime-local"
+                value={highlightExpiryInput}
+                onChange={(event) => setHighlightExpiryInput(event.target.value)}
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/15"
+              />
+              <p className="text-xs text-slate-500">
+                O horário digitado é interpretado no fuso do seu navegador e salvo com precisão no banco.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeHighlightExpiryEditor}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 px-5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveHighlightExpiry(selectedAnnouncement, editingHighlightType)}
+                disabled={isSavingHighlightExpiry}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSavingHighlightExpiry ? 'Salvando...' : 'Salvar expiração'}
+              </button>
             </div>
           </div>
         </div>

@@ -1,3 +1,5 @@
+drop function if exists public.admin_list_announcements_monitoring();
+
 create or replace function public.admin_list_announcements_monitoring()
 returns table (
   id uuid,
@@ -13,7 +15,9 @@ returns table (
   category_slug text,
   user_id uuid,
   highlight_home boolean,
-  highlight_category boolean
+  highlight_home_until timestamptz,
+  highlight_category boolean,
+  highlight_category_until timestamptz
 )
 language plpgsql
 security definer
@@ -52,7 +56,9 @@ begin
     a.category_slug as category_slug,
     a.user_id as user_id,
     coalesce(a.highlight_home, false) as highlight_home,
-    coalesce(a.highlight_category, false) as highlight_category
+    a.highlight_home_until as highlight_home_until,
+    coalesce(a.highlight_category, false) as highlight_category,
+    a.highlight_category_until as highlight_category_until
   from public.announcements a
   order by a.created_at desc;
 end;
