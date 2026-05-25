@@ -931,9 +931,11 @@ const UserDashboardView: React.FC = () => {
       return ads.filter(ad => !removedAdIds.includes(ad.id));
     }, [ads, removedAdIds]);
 
+    const hasPendingEditReview = (ad: Ad) => ad.latestEditRequestStatus === 'pending';
+
     const counts = useMemo(() => {
         const active = visibleAds.filter(a => a.status === AdStatus.ACTIVE).length;
-        const pending = visibleAds.filter(a => a.status === AdStatus.PENDING).length;
+        const pending = visibleAds.filter(a => a.status === AdStatus.PENDING || hasPendingEditReview(a)).length;
         const paused = visibleAds.filter(a => a.status === AdStatus.PAUSED).length;
         const rejected = visibleAds.filter(a => a.status === AdStatus.REJECTED).length;
         const expired = visibleAds.filter(a => a.status === AdStatus.EXPIRED).length;
@@ -952,7 +954,7 @@ const UserDashboardView: React.FC = () => {
       const normalized = searchTerm.trim().toLowerCase();
         const byTab = visibleAds.filter(ad => {
           if (activeTab === 'active') return ad.status === AdStatus.ACTIVE;
-          if (activeTab === 'pending') return ad.status === AdStatus.PENDING;
+          if (activeTab === 'pending') return ad.status === AdStatus.PENDING || hasPendingEditReview(ad);
           if (activeTab === 'paused') return ad.status === AdStatus.PAUSED;
           if (activeTab === 'rejected') return ad.status === AdStatus.REJECTED;
           if (activeTab === 'expired') return ad.status === AdStatus.EXPIRED;
@@ -1157,6 +1159,10 @@ const UserDashboardView: React.FC = () => {
 
       if (ad.status === AdStatus.EXPIRED) {
         return getExpiredRetentionLabel(ad);
+      }
+
+      if (hasPendingEditReview(ad) && ad.status === AdStatus.ACTIVE) {
+        return 'Alterações enviadas para análise com anúncio ativo';
       }
 
         return `Anúncio ${getAdLifetimeLabel(ad).toLowerCase()}`;
@@ -1671,9 +1677,16 @@ const UserDashboardView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <span className={`text-xs font-semibold ${statusToneClass[ad.status] || 'text-slate-500'}`}>
-                      {statusLabel[ad.status] || 'Status'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-semibold ${statusToneClass[ad.status] || 'text-slate-500'}`}>
+                        {statusLabel[ad.status] || 'Status'}
+                      </span>
+                      {hasPendingEditReview(ad) && ad.status === AdStatus.ACTIVE ? (
+                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                          Alterações em análise
+                        </span>
+                      ) : null}
+                    </div>
                     <div className="flex items-center gap-1 text-slate-400">
                       {/* Botão de Destaques */}
                       {ad.status !== AdStatus.EXPIRED && ad.status !== AdStatus.REJECTED && (

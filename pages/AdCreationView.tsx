@@ -2023,33 +2023,16 @@ const AdCreationView: React.FC = () => {
           return;
         }
 
-        if (effectiveModerationResult.reviewRequired && originalAnnouncementStatus === 'ACTIVE') {
-          const { error: statusUpdateError } = await supabase
-            .from('announcements')
-            .update({
-              status: AdStatus.PENDING,
-              publication_review_reasons: effectiveModerationResult.reasons,
-              publication_review_severity: 'review',
-              publication_review_checked_at: new Date().toISOString(),
-              publication_review_admin_override: false,
-            })
-            .eq('id', editAdId)
-            .eq('user_id', userId);
-
-          if (statusUpdateError) {
-            toast.error('As alterações foram enviadas, mas não foi possível retirar o anúncio da publicação agora.', {
-              description: statusUpdateError.message,
-            });
-            return;
-          }
-        }
-
         hasPublishedSuccessfullyRef.current = true;
         localStorage.removeItem('bwagro_ad_draft');
         localStorage.removeItem('bwagro_ad_draft_id');
         setDraftAdId(null);
         draftIdRef.current = null;
-        toast.success('Alteracoes enviadas para analise da equipe.');
+        toast.success(
+          effectiveModerationResult.reviewRequired && originalAnnouncementStatus === 'ACTIVE'
+            ? 'Alterações enviadas para análise. O anúncio atual segue publicado até a revisão.'
+            : 'Alteracoes enviadas para analise da equipe.'
+        );
         navigate('/minha-conta/anuncios');
         return;
       }

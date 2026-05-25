@@ -31,6 +31,8 @@ create table if not exists public.announcement_similarity_cooldowns (
   created_at timestamptz not null default now()
 );
 
+alter table public.announcement_similarity_cooldowns enable row level security;
+
 create index if not exists idx_announcement_similarity_cooldowns_user_active
   on public.announcement_similarity_cooldowns (user_id, cooldown_until desc);
 
@@ -44,9 +46,17 @@ create index if not exists idx_announcement_similarity_cooldowns_signature
     price
   );
 
+drop policy if exists "Users can read own announcement similarity cooldowns" on public.announcement_similarity_cooldowns;
+create policy "Users can read own announcement similarity cooldowns"
+on public.announcement_similarity_cooldowns
+for select
+to authenticated
+using (user_id = auth.uid());
+
 create or replace function public.register_announcement_similarity_cooldown()
 returns trigger
 language plpgsql
+security definer
 set search_path = public
 as $$
 declare

@@ -510,11 +510,7 @@ export const useUserAds = () => {
           videoDurationSeconds: ad.video_duration_seconds || undefined,
           videoSizeBytes: ad.video_size_bytes || undefined,
           userId: ad.user_id,
-          status: (
-            latestEditRequestByAnnouncement.get(ad.id)?.status === 'pending'
-              ? 'PENDING'
-              : getEffectiveAdStatus(ad.status, ad.expires_at)
-          ) as Ad['status'],
+          status: getEffectiveAdStatus(ad.status, ad.expires_at) as Ad['status'],
           views: ad.views || 0,
           isPremium: ad.is_premium || false,
           createdAt: ad.created_at,
