@@ -24,6 +24,7 @@ import ContactNotificationEmailManagement from './ContactNotificationEmailManage
 import ContactPageManagement from './ContactPageManagement';
 import FiscalSettingsManagement from './FiscalSettingsManagement';
 import GrowthConversionSettingsManagement from './GrowthConversionSettingsManagement';
+import HighlightSettingsManagement from './HighlightSettingsManagement';
 import IntegrationsManagement from './IntegrationsManagement';
 import MarketQuotesManagement from './MarketQuotesManagement';
 import PagesManagement from './PagesManagement';
@@ -52,6 +53,7 @@ type SettingsTab =
   | 'conversion'
   | 'renewal'
   | 'ranking'
+  | 'highlightCooldown'
   | 'boosters';
 
 const SettingsView: React.FC = () => {
@@ -75,6 +77,7 @@ const SettingsView: React.FC = () => {
     { id: 'conversion' as SettingsTab, label: 'Conversao', icon: BellRing },
     { id: 'renewal' as SettingsTab, label: 'Renovacao', icon: CreditCard },
     { id: 'ranking' as SettingsTab, label: 'Ranking Categorias', icon: SlidersHorizontal },
+    { id: 'highlightCooldown' as SettingsTab, label: 'Cooldown Destaques', icon: Sparkles },
     { id: 'boosters' as SettingsTab, label: 'Boosters', icon: Sparkles },
   ];
 
@@ -130,6 +133,7 @@ const SettingsView: React.FC = () => {
         {activeTab === 'conversion' && <GrowthConversionSettingsManagement />}
         {activeTab === 'renewal' && <RenewalNotificationSettingsManagement />}
         {activeTab === 'ranking' && <CategoryRankingSettingsManagement />}
+        {activeTab === 'highlightCooldown' && <HighlightSettingsManagement />}
         {activeTab === 'boosters' && <PaymentsBoostersTab />}
       </div>
     </div>

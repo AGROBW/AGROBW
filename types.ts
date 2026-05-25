@@ -445,7 +445,7 @@ export interface ContactInfo {
 
 export interface Notification {
   id: string;
-  type: 'new_lead' | 'radar_match' | 'new_message' | 'system' | 'plan_alert' | 'ad_edit_rejected' | 'SYSTEM' | 'SECURITY' | 'PROMO' | 'AD_STATUS' | 'NEW_MESSAGE';
+  type: 'new_lead' | 'radar_match' | 'new_message' | 'system' | 'plan_alert' | 'ad_edit_rejected' | 'account_verification' | 'SYSTEM' | 'SECURITY' | 'PROMO' | 'AD_STATUS' | 'NEW_MESSAGE';
   title: string;
   content: string;
   timestamp: string;
@@ -571,6 +571,14 @@ export interface HighlightBoosterSummary {
   hasEligiblePaidPlan?: boolean;
   currentPlanName?: string | null;
   blockedReason?: string | null;
+}
+
+export interface HighlightSettings {
+  id: string;
+  highlightCooldownDays: number;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CommercialLeadPreference {

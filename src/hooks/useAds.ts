@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { Ad } from '../../types'
 import { getCategoryGroupBySlug, getGroupCategorySlugs } from '../lib/categoryHierarchy'
 import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime'
+import { useHighlightSettings } from './useHighlightSettings'
+import { DEFAULT_HIGHLIGHT_COOLDOWN_DAYS, getEffectiveHighlightCooldownDays } from '../utils/highlightCooldown'
 import { appError, appWarn } from '../utils/appLogger'
 
 const USER_ADS_SELECT = `
@@ -237,15 +239,16 @@ const getEffectiveAdStatus = (status: string, expiresAt?: string | null) => {
   return status;
 };
 
-const HIGHLIGHT_COOLDOWN_DAYS = 15;
-
 const isFutureTimestamp = (value?: string | null) => {
   if (!value) return false;
   const parsed = new Date(value);
   return !Number.isNaN(parsed.getTime()) && parsed.getTime() > Date.now();
 };
 
-const getHighlightCooldownAvailableAfter = (highlight: { expires_at?: string | null; applied_at?: string | null }) => {
+const getHighlightCooldownAvailableAfter = (
+  highlight: { expires_at?: string | null; applied_at?: string | null },
+  cooldownDays: number
+) => {
   const baseValue = highlight.expires_at || highlight.applied_at;
 
   if (!baseValue) {
@@ -259,7 +262,7 @@ const getHighlightCooldownAvailableAfter = (highlight: { expires_at?: string | n
   }
 
   const availableAfter = new Date(baseDate);
-  availableAfter.setDate(availableAfter.getDate() + HIGHLIGHT_COOLDOWN_DAYS);
+  availableAfter.setDate(availableAfter.getDate() + getEffectiveHighlightCooldownDays(cooldownDays));
   return availableAfter.toISOString();
 };
 
@@ -328,9 +331,13 @@ export const adminDeleteAnnouncementWithNotification = async (
 // Hook para buscar anuncios do usuario
 export const useUserAds = () => {
   const { user } = useAuth()
+  const { settings: highlightSettings } = useHighlightSettings()
   const [ads, setAds] = useState<Ad[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const highlightCooldownDays = getEffectiveHighlightCooldownDays(
+    highlightSettings?.highlightCooldownDays ?? DEFAULT_HIGHLIGHT_COOLDOWN_DAYS
+  )
 
   useEffect(() => {
     if (!user) {
@@ -444,7 +451,7 @@ export const useUserAds = () => {
               seenHighlightKeys.add(historyKey)
 
               const current = latestHighlightHistoryByAnnouncement.get(item.announcement_id) || {}
-              const availableAfter = getHighlightCooldownAvailableAfter(item)
+              const availableAfter = getHighlightCooldownAvailableAfter(item, highlightCooldownDays)
 
               if (item.highlight_type === 'category') {
                 current.categoryAvailableAfter = availableAfter
@@ -539,7 +546,7 @@ export const useUserAds = () => {
     }
 
     fetchAds()
-  }, [user])
+  }, [highlightCooldownDays, user])
 
   return { ads, isLoading, error }
 }

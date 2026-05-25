@@ -2,7 +2,7 @@
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, Lock, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store } from 'lucide-react';
-import { AdStatus, Message, Ad, AdMetrics, PaymentRecord } from '../types';
+import { AdStatus, Message, Ad, AdMetrics, Notification, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
 import { deleteAnnouncementWithRelations, useUserAds } from '../src/hooks/useAds';
@@ -12,6 +12,7 @@ import { supabase } from '../src/lib/supabaseClient';
 import { useInvoices } from '../src/hooks/useInvoices';
 import { usePayments } from '../src/hooks/usePayments';
 import { useHighlightBoosters } from '../src/hooks/useHighlightBoosters';
+import { useHighlightSettings } from '../src/hooks/useHighlightSettings';
 import { useMySellerStore } from '../src/hooks/useSellerStore';
 import HighlightBoosterCard from '../components/boosters/HighlightBoosterCard';
 import PlanGuard from '../components/PlanGuard';
@@ -35,6 +36,7 @@ import { updateUserCoordinates } from '../services/geoService';
 import { openStripeCustomerPortal } from '../services/paymentCheckoutService';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
+import { DEFAULT_HIGHLIGHT_COOLDOWN_DAYS, formatHighlightCooldownDaysLabel, getEffectiveHighlightCooldownDays } from '../src/utils/highlightCooldown';
 import { appError, appWarn } from '../src/utils/appLogger';
 import { 
   DashboardStatsCard, 
@@ -120,6 +122,7 @@ const UserDashboardView: React.FC = () => {
     isLoading: boostersLoading,
     refresh: refreshBoosters,
   } = useHighlightBoosters();
+  const { settings: highlightSettings } = useHighlightSettings();
   const [newLeadsCount, setNewLeadsCount] = useState(0);
   const lastGrowthNotificationIdRef = useRef<string | null>(null);
   const lastRenewalNotificationIdRef = useRef<string | null>(null);
@@ -129,6 +132,10 @@ const UserDashboardView: React.FC = () => {
   const hasPerformancePanelAccess = PERFORMANCE_PANEL_ALLOWED_PLANS.has(normalizedPlanName);
   const isDowngradedBasicPlan = normalizedPlanName === 'básico' || normalizedPlanName === 'basico';
   const isCommercialIntelligenceEnabled = Boolean(settings.commercialIntelligenceEnabled);
+  const highlightCooldownDays = getEffectiveHighlightCooldownDays(
+    highlightSettings?.highlightCooldownDays ?? DEFAULT_HIGHLIGHT_COOLDOWN_DAYS
+  );
+  const highlightCooldownLabel = formatHighlightCooldownDaysLabel(highlightCooldownDays);
   
   // Estados para upload
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -1498,8 +1505,8 @@ const UserDashboardView: React.FC = () => {
       if (isSameTypeAlreadyActive) {
         toast.error(
           type === 'category'
-            ? 'Este anúncio já está com destaque em Categoria ativo. Ele só poderá receber novo destaque em Categoria 15 dias após o vencimento do período atual.'
-            : 'Este anúncio já está com destaque na Home ativo. Ele só poderá receber novo destaque na Home 15 dias após o vencimento do período atual.'
+            ? `Este anúncio já está com destaque em Categoria ativo. Ele só poderá receber novo destaque em Categoria ${highlightCooldownLabel} após o vencimento do período atual.`
+            : `Este anúncio já está com destaque na Home ativo. Ele só poderá receber novo destaque na Home ${highlightCooldownLabel} após o vencimento do período atual.`
         );
         return;
       }
@@ -1722,14 +1729,14 @@ const UserDashboardView: React.FC = () => {
                           const categoryBlocked = hasActiveHomeHighlight || hasActiveCategoryHighlight || isCategoryOnCooldown;
                           const homeBlocked = hasActiveCategoryHighlight || hasActiveHomeHighlight || isHomeOnCooldown;
                           const categoryTitle = hasActiveCategoryHighlight
-                            ? 'Este anúncio já está com destaque em Categoria ativo. Novo destaque em Categoria só fica disponível 15 dias após o vencimento.'
+                            ? `Este anúncio já está com destaque em Categoria ativo. Novo destaque em Categoria só fica disponível ${highlightCooldownLabel} após o vencimento.`
                             : isCategoryOnCooldown
                               ? categoryCooldownLabel
                               : hasActiveHomeHighlight
                                 ? 'Indisponível: este anúncio já está destacado na Home'
                                 : 'Destaque na categoria';
                           const homeTitle = hasActiveHomeHighlight
-                            ? 'Este anúncio já está com destaque na Home ativo. Novo destaque na Home só fica disponível 15 dias após o vencimento.'
+                            ? `Este anúncio já está com destaque na Home ativo. Novo destaque na Home só fica disponível ${highlightCooldownLabel} após o vencimento.`
                             : isHomeOnCooldown
                               ? homeCooldownLabel
                             : hasActiveCategoryHighlight
@@ -3376,6 +3383,7 @@ const UserDashboardView: React.FC = () => {
       'user-dashboard-profile-tab',
       'identity'
     );
+    const [latestVerificationNotification, setLatestVerificationNotification] = useState<Notification | null>(null);
     const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
     const [isLoadingCep, setIsLoadingCep] = useState(false);
     const lastLookedUpCepRef = useRef('');
@@ -3429,6 +3437,56 @@ const UserDashboardView: React.FC = () => {
       user?.cidade,
       user?.estado,
     ]);
+
+    useEffect(() => {
+      let isActive = true;
+
+      const loadLatestVerificationNotification = async () => {
+        if (!user?.id) {
+          if (isActive) setLatestVerificationNotification(null);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('id,type,title,content,created_at,is_read,link')
+          .eq('user_id', user.id)
+          .eq('type', 'account_verification')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) {
+          appWarn('[Profile] Nao foi possivel carregar a ultima notificacao de verificacao', {
+            userId: user.id,
+            error,
+          });
+          return;
+        }
+
+        if (!isActive) return;
+
+        setLatestVerificationNotification(
+          data
+            ? {
+                id: data.id,
+                type: data.type,
+                title: data.title,
+                content: data.content,
+                timestamp: data.created_at,
+                isRead: data.is_read,
+                link: data.link || undefined,
+              }
+            : null
+        );
+      };
+
+      void loadLatestVerificationNotification();
+
+      return () => {
+        isActive = false;
+      };
+    }, [user?.id, user?.document_review_status, user?.document_reviewed_at, user?.document_last_failure_reason]);
 
     const handleProfileFieldChange = (field: keyof typeof profileForm, value: string) => {
       const normalizedValue = field === 'cep'
@@ -4033,6 +4091,35 @@ const UserDashboardView: React.FC = () => {
           icon={<FileText className="h-5 w-5" strokeWidth={1.5} />}
           color="amber"
         >
+          {latestVerificationNotification ? (
+            <div
+              className={`mb-4 rounded-2xl border px-4 py-4 text-left ${
+                user?.document_review_status === 'approved'
+                  ? 'border-green-200 bg-green-50'
+                  : user?.document_review_status === 'pending'
+                    ? 'border-sky-200 bg-sky-50'
+                    : 'border-amber-200 bg-amber-50'
+              }`}
+            >
+              <p
+                className={`text-xs font-black uppercase tracking-[0.18em] ${
+                  user?.document_review_status === 'approved'
+                    ? 'text-green-700'
+                    : user?.document_review_status === 'pending'
+                      ? 'text-sky-700'
+                      : 'text-amber-700'
+                }`}
+              >
+                Última atualização da verificação
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{latestVerificationNotification.title}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{latestVerificationNotification.content}</p>
+              <p className="mt-3 text-xs text-slate-500">
+                {new Date(latestVerificationNotification.timestamp).toLocaleString('pt-BR')}
+              </p>
+            </div>
+          ) : null}
+
           <div className="rounded-[22px] border border-dashed border-slate-200 bg-white p-5 text-center shadow-sm">
             <input
               type="file"

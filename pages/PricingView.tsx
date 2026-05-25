@@ -9,11 +9,13 @@ import toast from 'react-hot-toast';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { Plan } from '../src/hooks/usePlans';
 import { useHighlightBoosters } from '../src/hooks/useHighlightBoosters';
+import { useHighlightSettings } from '../src/hooks/useHighlightSettings';
 import HighlightBoosterCard from '../components/boosters/HighlightBoosterCard';
 import SeoHead from '../components/SeoHead';
 import StructuredData from '../components/StructuredData';
 import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 import { getEffectivePlanValidityDays } from '../src/utils/subscriptionUsageWindow';
+import { DEFAULT_HIGHLIGHT_COOLDOWN_DAYS, formatHighlightCooldownDaysLabel, getEffectiveHighlightCooldownDays } from '../src/utils/highlightCooldown';
 import { appError } from '../src/utils/appLogger';
 
 type BillingCycle = 'monthly' | 'yearly';
@@ -37,6 +39,11 @@ const PricingView: React.FC = () => {
   const { user } = useAuth();
   const { settings } = useLayout();
   const { boosters, summary: boosterSummary, isLoading: boostersLoading, refresh: refreshBoosters } = useHighlightBoosters();
+  const { settings: highlightSettings } = useHighlightSettings();
+  const highlightCooldownDays = getEffectiveHighlightCooldownDays(
+    highlightSettings?.highlightCooldownDays ?? DEFAULT_HIGHLIGHT_COOLDOWN_DAYS
+  );
+  const highlightCooldownLabel = formatHighlightCooldownDaysLabel(highlightCooldownDays);
   const visiblePricingFaq = useMemo(
     () => PRICING_FAQ
       .filter((faq) => faq.question !== 'Posso cancelar minha assinatura a qualquer momento?')
@@ -58,9 +65,9 @@ const PricingView: React.FC = () => {
       })
       .concat({
         question: 'Como funciona na prática? Após utilizar o Destaque:',
-        answer: 'Seu anúncio fica destacado pelo período contratado.\nAo final, entra automaticamente em um intervalo de 15 dias (cooldown).\nDurante esse tempo, ele não poderá ser destacado novamente no mesmo espaço.\n\nApós esse período, você pode voltar a utilizar seus créditos normalmente.',
+        answer: `Seu anúncio fica destacado pelo período contratado.\nAo final, entra automaticamente em um intervalo de ${highlightCooldownLabel} (cooldown).\nDurante esse tempo, ele não poderá ser destacado novamente no mesmo espaço.\n\nApós esse período, você pode voltar a utilizar seus créditos normalmente.`,
       }),
-    []
+    [highlightCooldownLabel]
   );
 
   const scrollToSection = (sectionId: string) => {

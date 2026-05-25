@@ -6,7 +6,9 @@ import { toast } from 'sonner';
 import { useSubscription } from '../src/hooks/useSubscription';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { useHighlightBoosters } from '../src/hooks/useHighlightBoosters';
+import { useHighlightSettings } from '../src/hooks/useHighlightSettings';
 import { getTrustedNowMs, syncTrustedTime } from '../src/lib/trustedTime';
+import { DEFAULT_HIGHLIGHT_COOLDOWN_DAYS, formatHighlightCooldownDaysLabel, getEffectiveHighlightCooldownDays } from '../src/utils/highlightCooldown';
 
 type HighlightType = 'category' | 'home';
 
@@ -35,7 +37,11 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
   const [trustedTimeReady, setTrustedTimeReady] = useState(false);
   const { usage, refreshUsage, subscription } = useSubscription();
   const { boosters, purchases } = useHighlightBoosters();
+  const { settings: highlightSettings } = useHighlightSettings();
   const { settings } = useLayout();
+  const highlightCooldownDays = getEffectiveHighlightCooldownDays(
+    highlightSettings?.highlightCooldownDays ?? DEFAULT_HIGHLIGHT_COOLDOWN_DAYS
+  );
 
   const highlightConfig = {
     category: {
@@ -119,13 +125,13 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
     expiresAt.setDate(expiresAt.getDate() + estimatedDurationDays);
 
     const availableAfter = new Date(expiresAt.getTime());
-    availableAfter.setDate(availableAfter.getDate() + 15);
+    availableAfter.setDate(availableAfter.getDate() + highlightCooldownDays);
 
     return {
       expiresAtLabel: expiresAt.toLocaleDateString('pt-BR'),
       availableAfterLabel: availableAfter.toLocaleDateString('pt-BR'),
     };
-  }, [estimatedDurationDays, trustedTimeReady]);
+  }, [estimatedDurationDays, highlightCooldownDays, trustedTimeReady]);
 
   useEffect(() => {
     let isMounted = true;
@@ -311,7 +317,7 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
                   <ul className="text-[13px] sm:text-sm text-amber-800 space-y-1 pl-4 sm:pl-5 list-disc">
                     <li>O sistema consome primeiro os creditos do seu plano.</li>
                     <li>Quando o ciclo acabar, o consumo continua pelos creditos extras do booster.</li>
-                    <li>Ao ativar este destaque, este anuncio so podera receber {nextHighlightLabel} novamente 15 dias apos o vencimento do periodo ativo.</li>
+                    <li>Ao ativar este destaque, este anuncio so podera receber {nextHighlightLabel} novamente {formatHighlightCooldownDaysLabel(highlightCooldownDays)} apos o vencimento do periodo ativo.</li>
                     <li>
                       {estimatedDates
                         ? `Se voce ativar este destaque agora, ele ficara ativo ate ${estimatedDates.expiresAtLabel} e este anuncio podera receber novo destaque deste tipo a partir de ${estimatedDates.availableAfterLabel}.`
