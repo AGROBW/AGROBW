@@ -9,7 +9,7 @@ import {
 } from '../_shared/marketQuotes.ts';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'null',  // VULN-002 fix: Internal/cron only
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey, x-cron-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -43,7 +43,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !serviceRoleKey) {
-      return jsonResponse({ success: false, error: 'Missing Supabase secrets' }, 500);
+      return jsonResponse({ success: false, error: 'Serviço indisponível' }, 500);
     }
 
     const cronSecret = Deno.env.get('MARKET_QUOTES_CRON_SECRET');

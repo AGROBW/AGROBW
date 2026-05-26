@@ -1,25 +1,16 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
-import { SmtpClient } from 'https://deno.land/x/smtp@v0.7.0/mod.ts';
-import {
-  connectSmtpClientWithSettings,
-  loadSmtpSettings,
-  validateSmtpSettings,
-} from '../_shared/smtpSettings.ts';
+// VULN-019 fix: nodemailer via sendSmtpEmail()
+import { loadSmtpSettings, validateSmtpSettings, sendSmtpEmail } from '../_shared/smtpSettings.ts';
+import { getCorsHeaders, handleCorsPreflightBrowser } from '../_shared/cors.ts';
+import { isAdminProfile, extractBearerToken } from '../_shared/security.ts';
+import { validateNotifySupportTicketInput } from '../_shared/validation.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+// VULN-002 fix: CORS dinâmico com allowlist
+const jsonResponse = (req: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: {
-      ...corsHeaders,
-      'Content-Type': 'application/json',
-    },
+    headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
   });
 
 type TicketEventType = 'admin_reply' | 'ticket_resolved';
@@ -71,7 +62,7 @@ const getEmailTemplate = (params: {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflightBrowser(req);
   }
 
   try {
@@ -80,47 +71,46 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return jsonResponse({ success: false, error: 'Missing Supabase secrets' }, 500);
+      return jsonResponse(req, { success: false, error: 'Serviço indisponível' }, 500);
     }
 
     const authClient = createClient(supabaseUrl, anonKey);
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    const authHeader = req.headers.get('Authorization') || '';
-    if (!authHeader.startsWith('Bearer ')) {
-      return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+    // VULN-020 fix: extractBearerToken + isAdminProfile centralizados
+    const token = extractBearerToken(req);
+    if (!token) {
+      return jsonResponse(req, { success: false, error: 'Unauthorized' }, 401);
     }
 
-    const token = authHeader.slice(7).trim();
     const {
       data: { user },
       error: authError,
     } = await authClient.auth.getUser(token);
 
     if (authError || !user) {
-      return jsonResponse({ success: false, error: 'Invalid JWT', details: authError?.message }, 401);
+      return jsonResponse(req, { success: false, error: 'Unauthorized' }, 401);
     }
 
     const { data: adminProfile } = await supabaseAdmin
       .from('users')
-      .select('role, is_admin, name, email')
+      .select('role')
       .eq('id', user.id)
       .maybeSingle();
 
-    const isAdmin =
-      (adminProfile?.role || '').toLowerCase() === 'admin' || Boolean(adminProfile?.is_admin);
-
-    if (!isAdmin) {
-      return jsonResponse({ success: false, error: 'Admin access required' }, 403);
+    if (!isAdminProfile(adminProfile)) {
+      return jsonResponse(req, { success: false, error: 'Admin access required' }, 403);
     }
 
-    const body = await req.json().catch(() => ({}));
-    const ticketId = String(body.ticketId || '').trim();
-    const eventType = String(body.eventType || '').trim() as TicketEventType;
+    const rawBody = await req.json().catch(() => ({}));
 
-    if (!ticketId || !['admin_reply', 'ticket_resolved'].includes(eventType)) {
-      return jsonResponse({ success: false, error: 'ticketId and valid eventType are required' }, 400);
+    // VULN-023 fix: Valida schema antes de processar
+    const validation = validateNotifySupportTicketInput(rawBody);
+    if (!validation.success) {
+      return jsonResponse(req, { success: false, error: 'Parâmetros inválidos' }, 400);
     }
+
+    const { ticketId, eventType } = validation.data;
 
     const { data: ticket, error: ticketError } = await supabaseAdmin
       .from('support_tickets')
@@ -129,7 +119,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (ticketError || !ticket) {
-      return jsonResponse({ success: false, error: 'Ticket not found' }, 404);
+      return jsonResponse(req, { success: false, error: 'Ticket não encontrado' }, 404);
     }
 
     const { data: ticketUser, error: userError } = await supabaseAdmin
@@ -139,7 +129,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (userError || !ticketUser) {
-      return jsonResponse({ success: false, error: 'Ticket user not found' }, 404);
+      return jsonResponse(req, { success: false, error: 'Usuário do ticket não encontrado' }, 404);
     }
 
     const appUrl = Deno.env.get('APP_URL') || 'https://bwagro.com';
@@ -187,25 +177,17 @@ serve(async (req) => {
         ctaLink: helpLink,
       });
 
-      const client = new SmtpClient();
+      // VULN-019 fix: Usando sendSmtpEmail() com nodemailer (TLS verificado)
+      const result = await sendSmtpEmail(smtpSettings!, {
+        to: ticketUser.email,
+        subject: email.subject,
+        html: email.html,
+      });
 
-      try {
-        await connectSmtpClientWithSettings(client, smtpSettings!);
-
-        await client.send({
-          from: `${smtpSettings!.from_name} <${smtpSettings!.from_email}>`,
-          to: ticketUser.email,
-          subject: email.subject,
-          content: email.html,
-          html: email.html,
-        });
-
-        emailSent = true;
-      } catch (error) {
-        emailError = error instanceof Error ? error.message : 'Unknown SMTP error';
-        console.error('[notify-support-ticket-update] failed to send email:', error);
-      } finally {
-        await client.close();
+      emailSent = result.success;
+      if (!result.success) {
+        emailError = result.error || 'Falha ao enviar email';
+        console.error('[notify-support-ticket-update] failed to send email:', result.error);
       }
     } else if (!ticketUser.email) {
       emailError = 'User does not have email';
@@ -213,7 +195,7 @@ serve(async (req) => {
       emailError = smtpValidationError || 'Configuracao SMTP do painel nao encontrada ou inativa';
     }
 
-    return jsonResponse({
+    return jsonResponse(req, {
       success: true,
       ticketId,
       eventType,
@@ -224,11 +206,8 @@ serve(async (req) => {
   } catch (error) {
     console.error('[notify-support-ticket-update] unexpected error:', error);
     return jsonResponse(
-      {
-        success: false,
-        error: 'Unexpected error while notifying support ticket update',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
+      req,
+      { success: false, error: 'Erro inesperado ao notificar ticket de suporte' },
       500
     );
   }

@@ -18,8 +18,8 @@ type HighlightConfirmationModalProps = {
   announcementId: string;
   announcementTitle: string;
   highlightType: HighlightType;
-  hasCategoryHighlight?: boolean;
-  hasHomeHighlight?: boolean;
+  hasActiveCategoryHighlight?: boolean;
+  hasActiveHomeHighlight?: boolean;
   onSuccess?: () => void;
 };
 
@@ -29,8 +29,8 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
   announcementId,
   announcementTitle,
   highlightType,
-  hasCategoryHighlight = false,
-  hasHomeHighlight = false,
+  hasActiveCategoryHighlight = false,
+  hasActiveHomeHighlight = false,
   onSuccess,
 }) => {
   const [isApplying, setIsApplying] = useState(false);
@@ -72,7 +72,7 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
   const remainingPlanCredits = Math.max(config.limit - config.used, 0);
   const totalAvailableCredits = remainingPlanCredits + config.boosterRemaining;
   const conflictingHighlightType = highlightType === 'category' ? 'home' : 'category';
-  const hasConflictingHighlight = highlightType === 'category' ? hasHomeHighlight : hasCategoryHighlight;
+  const hasConflictingHighlight = highlightType === 'category' ? hasActiveHomeHighlight : hasActiveCategoryHighlight;
   const conflictMessage =
     highlightType === 'category'
       ? 'Este anuncio ja esta destacado na Home. Remova ou aguarde o fim do destaque atual para usar destaque em Categoria.'

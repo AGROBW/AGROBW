@@ -7,7 +7,7 @@ interface PortalRequest {
 }
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://bwagro.vercel.app',  // VULN-002 fix: Allowlist
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -84,7 +84,7 @@ serve(async (req) => {
       attemptedAction: 'stripe_portal_invalid_jwt',
       reason: authError?.message || 'JWT invalido.',
     });
-    return jsonResponse({ success: false, error: 'Invalid token', details: authError?.message || 'User not found' }, 401);
+    return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
   }
 
   try {

@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 import { logSecurityEvent } from '../_shared/security.ts';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://bwagro.vercel.app',  // VULN-002 fix: Allowlist
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -94,7 +94,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return jsonResponse({ success: false, error: 'Missing Supabase secrets' }, 500);
+      return jsonResponse({ success: false, error: 'Serviço indisponível' }, 500);
     }
 
     const authClient = createClient(supabaseUrl, anonKey);
@@ -124,7 +124,7 @@ serve(async (req) => {
         attemptedAction: 'delete_announcement_invalid_jwt',
         reason: authError?.message || 'JWT inválido para exclusão de anúncio.',
       });
-      return jsonResponse({ success: false, error: 'Invalid JWT', details: authError?.message }, 401);
+      return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
     }
 
     const body = await req.json().catch(() => ({}));

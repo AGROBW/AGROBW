@@ -28,6 +28,7 @@ const ContactView = lazy(() => import('./pages/ContactView'));
 const AboutView = lazy(() => import('./pages/AboutView'));
 const TermsView = lazy(() => import('./pages/TermsView'));
 const PrivacyView = lazy(() => import('./pages/PrivacyView'));
+const LegalCmsDocumentView = lazy(() => import('./pages/LegalCmsDocumentView'));
 const NewsListingView = lazy(() => import('./pages/NewsListingView'));
 const NewsArticleView = lazy(() => import('./pages/NewsArticleView'));
 const UserDashboardView = lazy(() => import('./pages/UserDashboardView'));
@@ -207,6 +208,8 @@ const AppContent: React.FC = () => {
             <Route path="/quem-somos" element={<AboutView />} />
             <Route path="/termos-de-uso" element={<TermsView />} />
             <Route path="/privacidade" element={<PrivacyView />} />
+            <Route path="/politica-de-cookies" element={<LegalCmsDocumentView />} />
+            <Route path="/politica-de-precos" element={<LegalCmsDocumentView />} />
             
             <Route path="/login" element={<LoginView />} />
             <Route path="/cadastro" element={<RegisterView />} />

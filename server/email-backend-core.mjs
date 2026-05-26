@@ -1,4 +1,4 @@
-﻿import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import crypto from 'node:crypto';
 
@@ -48,7 +48,8 @@ export const requireAdminByToken = async (token) => {
     .eq('id', user.id)
     .maybeSingle();
 
-  const isAdmin = (adminProfile?.role || '').toLowerCase() === 'admin' || Boolean(adminProfile?.is_admin);
+  // VULN-020 fix: Usar apenas role === 'admin' como critério canônico
+  const isAdmin = (adminProfile?.role || '').toLowerCase() === 'admin';
 
   if (!isAdmin) {
     return { ok: false, status: 403, body: { success: false, message: 'Admin access required' } };
@@ -57,12 +58,20 @@ export const requireAdminByToken = async (token) => {
   return { ok: true, user };
 };
 
+/**
+ * VULN-010 fix: Substituído SHA-256 simples (ultrarrápido, sujeito a brute force)
+ * por scrypt, que é resistente a força bruta por ser computacionalmente caro.
+ * SHA-256 permitia bilhões de tentativas/segundo; scrypt limita a milhares.
+ */
 const deriveKey = () => {
   if (!EMAIL_CONFIG_SECRET) {
     throw new Error('Missing EMAIL_CONFIG_SECRET or EMAIL_BACKEND_SECRET');
   }
 
-  return crypto.createHash('sha256').update(EMAIL_CONFIG_SECRET).digest();
+  // scrypt com parâmetros de trabalho moderados para contexto de servidor
+  // N=16384 (2^14): custo de CPU/memória; r=8: tamanho de bloco; p=1: paralelismo
+  const salt = Buffer.from('bwagro-smtp-key-derivation-v1', 'utf8');
+  return crypto.scryptSync(EMAIL_CONFIG_SECRET, salt, 32, { N: 16384, r: 8, p: 1 });
 };
 
 const isEncryptedValue = (value) => typeof value === 'string' && value.startsWith('enc:v1:');
@@ -197,8 +206,11 @@ export const buildTransporter = (settings) => {
       user: settings.user_name,
       pass: settings.password,
     },
+    // VULN-006 fix: Habilitada verificação de certificado TLS
+    // rejectUnauthorized: false desabilitava proteção contra MitM em SMTP
     tls: {
-      rejectUnauthorized: false,
+      rejectUnauthorized: true,  // Sempre verificar certificado em produção
+      minVersion: 'TLSv1.2',    // Exigir TLS moderno
     },
   });
 };

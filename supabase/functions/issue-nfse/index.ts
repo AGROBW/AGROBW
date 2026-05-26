@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://bwagro.vercel.app',  // VULN-002 fix: Allowlist
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey, x-internal-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -72,7 +72,7 @@ serve(async (req) => {
     const internalAutomationSecret = Deno.env.get('INTERNAL_AUTOMATION_SECRET');
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return jsonResponse({ success: false, error: 'Missing Supabase secrets' }, 500);
+      return jsonResponse({ success: false, error: 'Serviço indisponível' }, 500);
     }
 
     if (!fiscalProviderApiKey) {
@@ -100,7 +100,7 @@ serve(async (req) => {
       } = await authClient.auth.getUser(token);
 
       if (authError || !user) {
-        return jsonResponse({ success: false, error: 'Invalid JWT', details: authError?.message }, 401);
+        return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
       }
 
       const { data: userProfile } = await supabaseAdmin

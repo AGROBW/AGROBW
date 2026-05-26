@@ -1,25 +1,20 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
-import { SmtpClient } from 'https://deno.land/x/smtp@v0.7.0/mod.ts';
+// VULN-019 fix: nodemailer via createSmtpTransporter() + sendSmtpEmail()
 import {
-  connectSmtpClientWithSettings,
   loadSmtpSettings,
   validateSmtpSettings,
+  createSmtpTransporter,
+  sendSmtpEmail,
 } from '../_shared/smtpSettings.ts';
+import { getCorsHeaders, handleCorsPreflightBrowser } from '../_shared/cors.ts';
+import { isAdminProfile, extractBearerToken } from '../_shared/security.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+// VULN-002 fix: CORS dinâmico com allowlist
+const jsonResponse = (req: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: {
-      ...corsHeaders,
-      'Content-Type': 'application/json',
-    },
+    headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' },
   });
 
 const getSmtpHint = (message: string, port: number, encryption: string) => {
@@ -46,7 +41,7 @@ const getSmtpHint = (message: string, port: number, encryption: string) => {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflightBrowser(req);
   }
 
   try {
@@ -55,15 +50,15 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return jsonResponse({ success: false, message: 'Missing Supabase secrets' }, 500);
+      return jsonResponse(req, { success: false, message: 'Serviço indisponível' }, 500);
     }
 
-    const authHeader = req.headers.get('Authorization') || '';
-    if (!authHeader.startsWith('Bearer ')) {
-      return jsonResponse({ success: false, message: 'Unauthorized' }, 401);
+    // VULN-020 fix: extractBearerToken + isAdminProfile centralizados
+    const token = extractBearerToken(req);
+    if (!token) {
+      return jsonResponse(req, { success: false, message: 'Unauthorized' }, 401);
     }
 
-    const token = authHeader.slice(7).trim();
     const authClient = createClient(supabaseUrl, anonKey);
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
@@ -73,18 +68,17 @@ serve(async (req) => {
     } = await authClient.auth.getUser(token);
 
     if (authError || !user) {
-      return jsonResponse({ success: false, message: 'Invalid JWT' }, 401);
+      return jsonResponse(req, { success: false, message: 'Unauthorized' }, 401);
     }
 
     const { data: adminProfile } = await supabaseAdmin
       .from('users')
-      .select('role, is_admin')
+      .select('role')
       .eq('id', user.id)
       .maybeSingle();
 
-    const isAdmin = (adminProfile?.role || '').toLowerCase() === 'admin' || Boolean(adminProfile?.is_admin);
-    if (!isAdmin) {
-      return jsonResponse({ success: false, message: 'Admin access required' }, 403);
+    if (!isAdminProfile(adminProfile)) {
+      return jsonResponse(req, { success: false, message: 'Admin access required' }, 403);
     }
 
     const body = await req.json().catch(() => ({}));
@@ -95,95 +89,86 @@ serve(async (req) => {
     const smtpValidationError = validateSmtpSettings(smtpSettings);
 
     if (smtpValidationError) {
-      return jsonResponse({ success: false, message: smtpValidationError }, 400);
+      return jsonResponse(req, { success: false, message: smtpValidationError }, 400);
     }
 
-    const client = new SmtpClient();
+    // VULN-019 fix: Usando createSmtpTransporter() com nodemailer para validar conexão
     const smtpPort = Number(smtpSettings!.port || 587);
     const smtpEncryption = String(smtpSettings!.encryption || 'TLS');
 
+    // Verifica conexão
     try {
-      try {
-        await connectSmtpClientWithSettings(client, smtpSettings!);
-      } catch (error) {
-        const smtpMessage = error instanceof Error ? error.message : 'Falha desconhecida ao conectar no SMTP';
-        return jsonResponse({
+      const transporter = createSmtpTransporter(smtpSettings!);
+      await transporter.verify();
+      transporter.close();
+    } catch (error) {
+      const smtpMessage = error instanceof Error ? error.message : 'Falha desconhecida ao conectar no SMTP';
+      return jsonResponse(req, {
+        success: false,
+        stage: 'connect',
+        message: `Falha ao conectar/autenticar no SMTP: ${smtpMessage}`,
+        hint: getSmtpHint(smtpMessage, smtpPort, smtpEncryption),
+      });
+    }
+
+    if (action === 'send_test_email') {
+      if (!toEmail || !toEmail.includes('@')) {
+        return jsonResponse(req, { success: false, message: 'Digite um e-mail valido para teste' }, 400);
+      }
+
+      const subject = 'Teste SMTP AGRO BW';
+      const html = `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>${subject}</title>
+          </head>
+          <body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
+            <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;">
+              <div style="padding:28px 32px;background:#0f172a;color:#ffffff;">
+                <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#86efac;">
+                  SMTP TESTE
+                </p>
+                <h1 style="margin:0;font-size:24px;line-height:1.2;">Configuracao validada com sucesso</h1>
+              </div>
+              <div style="padding:32px;">
+                <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#475569;">
+                  Este e um e-mail de teste enviado a partir da configuracao SMTP salva no painel administrativo da AGRO BW.
+                </p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `.trim();
+
+      const result = await sendSmtpEmail(smtpSettings!, { to: toEmail, subject, html });
+
+      if (!result.success) {
+        const smtpMessage = result.error || 'Falha desconhecida ao enviar e-mail';
+        return jsonResponse(req, {
           success: false,
-          stage: 'connect',
-          message: `Falha ao conectar/autenticar no SMTP: ${smtpMessage}`,
+          stage: 'send',
+          message: `Falha ao enviar o e-mail de teste: ${smtpMessage}`,
           hint: getSmtpHint(smtpMessage, smtpPort, smtpEncryption),
         });
       }
 
-      if (action === 'send_test_email') {
-        if (!toEmail || !toEmail.includes('@')) {
-          return jsonResponse({ success: false, message: 'Digite um e-mail valido para teste' }, 400);
-        }
-
-        const subject = 'Teste SMTP AGRO BW';
-        const html = `
-          <!DOCTYPE html>
-          <html lang="pt-BR">
-            <head>
-              <meta charset="UTF-8" />
-              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-              <title>${subject}</title>
-            </head>
-            <body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
-              <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;">
-                <div style="padding:28px 32px;background:#0f172a;color:#ffffff;">
-                  <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#86efac;">
-                    SMTP TESTE
-                  </p>
-                  <h1 style="margin:0;font-size:24px;line-height:1.2;">Configuracao validada com sucesso</h1>
-                </div>
-                <div style="padding:32px;">
-                  <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#475569;">
-                    Este e um e-mail de teste enviado a partir da configuracao SMTP salva no painel administrativo da AGRO BW.
-                  </p>
-                </div>
-              </div>
-            </body>
-          </html>
-        `.trim();
-
-        try {
-          await client.send({
-            from: `${smtpSettings!.from_name} <${smtpSettings!.from_email}>`,
-            to: toEmail,
-            subject,
-            content: html,
-            html,
-          });
-        } catch (error) {
-          const smtpMessage = error instanceof Error ? error.message : 'Falha desconhecida ao enviar e-mail';
-          return jsonResponse({
-            success: false,
-            stage: 'send',
-            message: `Falha ao enviar o e-mail de teste: ${smtpMessage}`,
-            hint: getSmtpHint(smtpMessage, smtpPort, smtpEncryption),
-          });
-        }
-
-        return jsonResponse({
-          success: true,
-          message: `E-mail de teste enviado para ${toEmail}`,
-        });
-      }
-
-      return jsonResponse({
+      return jsonResponse(req, {
         success: true,
-        message: 'Conexao SMTP validada com sucesso pelo backend.',
+        message: `E-mail de teste enviado para ${toEmail}`,
       });
-    } finally {
-      await client.close();
     }
+
+    return jsonResponse(req, {
+      success: true,
+      message: 'Conexao SMTP validada com sucesso pelo backend.',
+    });
   } catch (error) {
     return jsonResponse(
-      {
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
+      req,
+      { success: false, message: 'Erro inesperado ao testar configuração SMTP' },
       500
     );
   }

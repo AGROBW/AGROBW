@@ -41,12 +41,11 @@ type ResolvedStripeContext = {
   priceId: string | null;
 };
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'Content-Type, Authorization, X-Client-Info, apikey, stripe-signature',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+import { getCorsHeadersWebhook } from '../_shared/cors.ts';
+
+// VULN-002 fix: Webhooks Stripe são chamados diretamente pelos servidores do Stripe
+// Nunca por browsers — usar headers de webhook restritivos
+const corsHeaders = getCorsHeadersWebhook();
 
 const jsonResponse = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -694,7 +693,7 @@ serve(async (req) => {
   const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
-    return textResponse('Missing Supabase secrets', 500);
+    return textResponse('Serviço indisponível', 500);
   }
 
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);

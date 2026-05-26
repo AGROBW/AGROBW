@@ -18,6 +18,7 @@ declare
   v_actor_id uuid := auth.uid();
   v_is_admin boolean := false;
   v_announcement public.announcements%rowtype;
+  v_history_highlight_type text;
 begin
   if p_highlight_type not in ('home', 'category') then
     raise exception 'Tipo de destaque inválido: %. Use "home" ou "category".', p_highlight_type;
@@ -59,14 +60,30 @@ begin
     raise exception 'Este anúncio não possui destaque Categoria ativo para edição.';
   end if;
 
+  v_history_highlight_type := case
+    when p_highlight_type = 'home' then 'home'
+    else 'category'
+  end;
+
   update public.announcements
   set
-    highlight_home_until = case when p_highlight_type = 'home' then p_expires_at else highlight_home_until end,
-    highlight_category_until = case when p_highlight_type = 'category' then p_expires_at else highlight_category_until end,
+    highlight_home_until = case when p_highlight_type = 'home' then p_expires_at else public.announcements.highlight_home_until end,
+    highlight_category_until = case when p_highlight_type = 'category' then p_expires_at else public.announcements.highlight_category_until end,
     updated_at = now()
   where id = p_announcement_id
   returning *
   into v_announcement;
+
+  update public.announcement_highlights_history ahh
+  set expires_at = p_expires_at
+  where ahh.id = (
+    select history.id
+    from public.announcement_highlights_history history
+    where history.announcement_id = p_announcement_id
+      and history.highlight_type = v_history_highlight_type
+    order by coalesce(history.expires_at, history.applied_at) desc, history.applied_at desc
+    limit 1
+  );
 
   return query
   select

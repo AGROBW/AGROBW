@@ -122,25 +122,25 @@ export const usePrivacyPage = (): UsePrivacyPageReturn => {
 // Fallback com conteúdo padrão
 export const PRIVACY_PAGE_FALLBACK: PrivacyPageContent = {
   id: '00000000-0000-0000-0000-000000000003',
-  last_updated_date: '15 de Agosto de 2024',
+  last_updated_date: '25 de Maio de 2026',
   section1_title: '1. Dados que Coletamos',
   section1_content:
-    'Coletamos dados pessoais quando você cria uma conta, publica um anúncio ou interage com nossa plataforma. Isso inclui:\n\n• Nome completo, e-mail, telefone e CPF/CNPJ (obrigatórios para cadastro).\n• Dados adicionais como cidade, estado e categoria de interesse.\n• Informações sobre sua navegação (cookies, IP, dispositivo).',
-  section2_title: '2. Como Usamos Seus Dados',
+    'Coletamos os dados necessários para operar a BWAGRO com segurança e viabilizar os serviços contratados. Isso pode incluir dados cadastrais e de autenticação, informações de perfil, CPF ou CNPJ, telefone, endereço, cidade, estado, dados de anúncios, imagens, vídeos, informações comerciais da loja parceira, mensagens trocadas pela plataforma, registros de leads, dados de assinatura e histórico de atendimento.\n\nTambém podemos tratar documentos enviados para verificação de conta, imagem ou PDF submetidos ao fluxo de OCR, registros de aceite jurídico, dados técnicos de acesso, logs de segurança, identificadores de sessão e informações de uso da plataforma.',
+  section2_title: '2. Finalidades e bases legais do tratamento',
   section2_content:
-    'Seus dados permitem publicar anúncios, mediar negociações e garantir a segurança contra fraudes.\n\nUsamos seus dados para:\n\n• Habilitar funcionalidades, como publicação de anúncios e sistema de mensagens.\n• Personalizar sua experiência com recomendações e alertas relevantes.\n• Enviar notificações sobre atividades da sua conta (novos interessados, mensagens).',
-  section3_title: '3. Compartilhamento com Terceiros',
+    'Utilizamos dados pessoais para criar e manter contas, publicar anúncios, processar planos e destaques, habilitar chats e leads, enviar notificações operacionais, permitir verificação documental, prevenir fraude, atender solicitações do titular, cumprir obrigações legais e aprimorar a experiência de navegação.\n\nAs bases legais podem variar conforme a situação, incluindo execução de contrato, procedimentos preliminares, cumprimento de obrigação legal ou regulatória, exercício regular de direitos, legítimo interesse para segurança e operação da plataforma e, quando aplicável, consentimento do titular.',
+  section3_title: '3. Compartilhamento e operadores envolvidos',
   section3_content:
-    'A BWAGRO não vende seus dados. Compartilhamos apenas com:\n\n• Outros usuários (nome, telefone, cidade) quando você publica um anúncio.\n• Parceiros técnicos (Supabase, Resend) sempre dentro dos limites necessários para a operação.\n• Autoridades legais, apenas mediante ordem judicial.',
-  section4_title: '4. Seus Direitos (LGPD)',
+    'A BWAGRO não comercializa dados pessoais. O compartilhamento ocorre apenas dentro do necessário para prestar os serviços, cumprir exigências legais e proteger a plataforma. Dependendo do fluxo, dados podem ser tratados por fornecedores de infraestrutura, autenticação, banco de dados, storage, envio de e-mail, mensageria, processamento de pagamento, analytics, OCR ou suporte operacional.\n\nAlém disso, certas informações do anunciante precisam ser exibidas a terceiros para viabilizar a finalidade do marketplace, como nome, cidade, estado, dados públicos do anúncio e canais de contato liberados pelo próprio fluxo da plataforma. Também poderemos compartilhar dados com autoridades públicas, órgãos reguladores, escritórios jurídicos ou parceiros antifraude quando houver base legal para isso.',
+  section4_title: '4. Cookies, armazenamento local e analytics',
   section4_content:
-    'Você pode a qualquer momento:\n\n• Acessar, corrigir ou atualizar seus dados no painel do usuário.\n• Solicitar a exclusão da conta (salvo obrigações legais de retenção, como auditoria fiscal).\n• Revogar consentimentos para uso de cookies ou newsletters.',
-  section5_title: '5. Retenção e Segurança',
+    'Utilizamos cookies e tecnologias semelhantes, além de recursos de localStorage e sessionStorage, para manter login, lembrar preferências, registrar sessões, proteger fluxos críticos e medir uso da plataforma. Algumas dessas tecnologias são estritamente necessárias para o funcionamento de cadastro, painel do usuário, segurança, notificações, drafts e analytics internos.\n\nA Política de Cookies detalha melhor as categorias utilizadas, sua finalidade e os controles disponíveis ao titular. Configurações do navegador ou do dispositivo podem impactar parte das funcionalidades da plataforma.',
+  section5_title: '5. Retenção, segurança e direitos do titular',
   section5_content:
-    'Mantemos seus dados pelo tempo necessário para cumprir as finalidades descritas ou por obrigações legais.\n\n• Anúncios inativos são arquivados após 90 dias.\n• Dados de transações financeiras (se aplicável) são retidos por até 5 anos (legislação fiscal).\n• Implementamos criptografia, autenticação segura e monitoramento constante.',
-  section6_title: '6. Encarregado de Dados (DPO)',
+    'Os dados são mantidos pelo tempo necessário para cumprir as finalidades desta Política, respeitar prazos de defesa, auditoria, prevenção a fraude, rastreabilidade de consentimentos e obrigações legais ou regulatórias. O prazo de retenção pode variar conforme a natureza do dado e o recurso utilizado na plataforma.\n\nAdotamos medidas técnicas e administrativas compatíveis com o porte e os riscos da operação, incluindo autenticação, segregação de acessos, políticas de permissão, registros de auditoria, monitoramento e mecanismos de proteção na infraestrutura utilizada.\n\nNos termos da LGPD, o titular pode solicitar confirmação de tratamento, acesso, correção, anonimização quando cabível, portabilidade, eliminação de dados tratados com base em consentimento, informação sobre compartilhamentos e revisão de decisões exclusivamente automatizadas, observadas as limitações legais e técnicas aplicáveis.',
+  section6_title: '6. Canal de privacidade e documentos de verificacao',
   section6_content:
-    'Se você tiver dúvidas ou solicitações sobre privacidade (acesso aos dados, correção, exclusão), entre em contato com:\n\n📧 privacidade@bwagro.com.br\n\nResponderemos em até 15 dias úteis conforme previsto na LGPD.',
+    'Documentos enviados para verificação cadastral, selo ou validação de conta podem passar por análise manual e, em certos casos, por extração automatizada de texto para conferência preliminar. A aprovação ou rejeição do documento não elimina a possibilidade de revisão adicional quando houver suspeita de fraude, inconsistência ou exigência regulatória.\n\nSolicitações relacionadas à privacidade, aos direitos do titular ou a esta Política podem ser encaminhadas para privacidade@bwagro.com.br. Sempre que possível, responderemos dentro de prazo razoável e conforme as exigências da LGPD e da regulamentação aplicável.',
   last_updated_by: null,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),

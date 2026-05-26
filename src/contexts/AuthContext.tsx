@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, ReactNod
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { setRememberDevicePreference, supabase } from '../lib/supabaseClient'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
-import { isSupabaseUnauthorizedError, refreshSupabaseSession } from '../lib/supabaseAuthGuard'
+import { isSupabaseUnauthorizedError, refreshSupabaseSession, startIdleSessionMonitor, stopIdleSessionMonitor } from '../lib/supabaseAuthGuard'
 import { User, UserRole } from '../../types'
 import { toast } from 'sonner'
 import { appError } from '../utils/appLogger'
@@ -355,6 +355,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && session?.user) {
         if (isMounted) {
+          // VULN-013: Iniciar monitoramento de inatividade ao autenticar
+          startIdleSessionMonitor();
           console.debug('[Auth] Iniciando sincronização autenticada', { userId: session.user.id, event })
           void loadAuthenticatedState(session.user.id, {
             silent: event !== 'SIGNED_IN',
@@ -362,6 +364,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           })
         }
       } else if (event === 'SIGNED_OUT') {
+        // VULN-013: Parar monitoramento de inatividade ao fazer logout
+        stopIdleSessionMonitor();
         clearRetryTimeout()
         if (isMounted) {
           setUser(null)

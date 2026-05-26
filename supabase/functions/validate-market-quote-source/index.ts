@@ -13,7 +13,7 @@ import {
 } from '../_shared/marketQuotes.ts';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://bwagro.vercel.app',  // VULN-002 fix: Allowlist
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -94,7 +94,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return jsonResponse({ success: false, error: 'Missing Supabase secrets' }, 500);
+      return jsonResponse({ success: false, error: 'Serviço indisponível' }, 500);
     }
 
     const authClient = createClient(supabaseUrl, anonKey);
@@ -112,7 +112,7 @@ serve(async (req) => {
     } = await authClient.auth.getUser(token);
 
     if (authError || !user) {
-      return jsonResponse({ success: false, error: 'Invalid JWT', details: authError?.message }, 401);
+      return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
     }
 
     if (!(await isAdminUser(supabaseAdmin, user.id))) {

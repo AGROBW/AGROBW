@@ -1,16 +1,25 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import { getCorsHeadersWebhook } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey, x-webhook-secret',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+/**
+ * Comparação de strings resistente a timing attacks.
+ * Essencial para verificação de secrets de webhook.
+ */
+const timingSafeEqual = (a: string, b: string): boolean => {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
 };
 
+// VULN-002 fix: Webhooks são chamados por servidores, nunca por browsers
 const textResponse = (body: string, status = 200) =>
   new Response(body, {
     status,
-    headers: corsHeaders,
+    headers: getCorsHeadersWebhook(),
   });
 
 const mapFocusStatus = (body: any) =>
@@ -75,7 +84,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !serviceRoleKey) {
-      return textResponse('Missing Supabase secrets', 500);
+      return textResponse('Serviço indisponível', 500);
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
@@ -87,14 +96,28 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
-    const expectedSecret = fiscalSettings?.provider_webhook_secret || null;
+    const expectedSecret = (fiscalSettings?.provider_webhook_secret || '').trim();
+
+    // VULN-004 fix: Rejeitar se o secret não está configurado.
+    // Anteriormente, se expectedSecret era null, qualquer request passava sem auth.
+    if (!expectedSecret) {
+      console.error('[webhook-fiscal] FISCAL_WEBHOOK_SECRET não configurado em fiscal_settings!');
+      return textResponse('Webhook not configured — contact the platform administrator', 503);
+    }
+
+    // VULN-021 fix: Aceitar APENAS via header — nunca via query string
+    // (tokens em URLs aparecem em logs de servidor e histórico de browser)
     const providedSecret =
       req.headers.get('x-webhook-secret') ||
       req.headers.get('x-fiscal-webhook-secret') ||
-      req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
-      new URL(req.url).searchParams.get('token');
+      '';
 
-    if (expectedSecret && providedSecret !== expectedSecret) {
+    // VULN-004 fix: Comparação timing-safe para evitar timing attacks
+    if (!timingSafeEqual(expectedSecret, providedSecret)) {
+      console.warn('[webhook-fiscal] Secret inválido recebido:', {
+        hasSecret: Boolean(providedSecret),
+        secretLength: providedSecret.length,
+      });
       return textResponse('Invalid webhook secret', 401);
     }
 

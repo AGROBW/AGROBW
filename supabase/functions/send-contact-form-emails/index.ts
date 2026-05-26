@@ -1,23 +1,22 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
-import { SmtpClient } from 'https://deno.land/x/smtp@v0.7.0/mod.ts';
+// VULN-019 fix: Usando sendSmtpEmail() com nodemailer em vez de SmtpClient obsoleto
 import {
-  connectSmtpClientWithSettings,
   loadSmtpSettings,
   validateSmtpSettings,
+  sendSmtpEmail,
 } from '../_shared/smtpSettings.ts';
+import { getCorsHeaders, handleCorsPreflightBrowser } from '../_shared/cors.ts';
+import { isAdminProfile, extractBearerToken } from '../_shared/security.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey, x-cron-secret',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+// VULN-002 fix: CORS allowlist — sem wildcard
+const corsHeaders = (req: Request) => getCorsHeaders(req);
 
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (req: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...getCorsHeaders(req),
       'Content-Type': 'application/json',
     },
   });
@@ -110,36 +109,46 @@ const getContactFormTemplate = (params: {
   return { subject: subjectLine, html };
 };
 
-const isAdminRequest = async (req: Request, supabaseAdmin: ReturnType<typeof createClient>, authClient: ReturnType<typeof createClient>) => {
+/**
+ * VULN-008 fix: Verificação de admin centralizada e consistente.
+ * Usa isAdminProfile() do _shared/security.ts para critério único.
+ */
+const checkAdminAccess = async (
+  req: Request,
+  supabaseAdmin: ReturnType<typeof createClient>,
+  authClient: ReturnType<typeof createClient>,
+): Promise<boolean> => {
   const cronSecret = Deno.env.get('CONTACT_FORM_EMAILS_CRON_SECRET');
   const requestSecret = req.headers.get('x-cron-secret');
 
-  if (cronSecret && requestSecret === cronSecret) {
-    return true;
+  // Verificar cron secret com timing-safe comparison
+  if (cronSecret && requestSecret) {
+    let mismatch = 0;
+    if (cronSecret.length !== requestSecret.length) return false;
+    for (let i = 0; i < cronSecret.length; i++) {
+      mismatch |= cronSecret.charCodeAt(i) ^ requestSecret.charCodeAt(i);
+    }
+    if (mismatch === 0) return true;
   }
 
-  const authHeader = req.headers.get('Authorization') || '';
-  if (!authHeader.startsWith('Bearer ')) {
-    return false;
-  }
+  // Verificar JWT de admin
+  const token = extractBearerToken(req);
+  if (!token) return false;
 
-  const token = authHeader.slice(7).trim();
   const {
     data: { user },
     error: authError,
   } = await authClient.auth.getUser(token);
 
-  if (authError || !user) {
-    return false;
-  }
+  if (authError || !user) return false;
 
   const { data: adminProfile } = await supabaseAdmin
     .from('users')
-    .select('role, is_admin')
+    .select('role')
     .eq('id', user.id)
     .maybeSingle();
 
-  return (adminProfile?.role || '').toLowerCase() === 'admin' || Boolean(adminProfile?.is_admin);
+  return isAdminProfile(adminProfile);
 };
 
 const processJob = async (
@@ -221,18 +230,14 @@ const processJob = async (
     createdAt,
   });
 
-  const client = new SmtpClient();
+  // VULN-019 fix: Usando sendSmtpEmail() com nodemailer (TLS verificado)
+  const result = await sendSmtpEmail(smtpSettings!, {
+    to: recipientEmail,
+    subject: email.subject,
+    html: email.html,
+  });
 
-  try {
-    await connectSmtpClientWithSettings(client, smtpSettings!);
-    await client.send({
-      from: `${smtpSettings!.from_name} <${smtpSettings!.from_email}>`,
-      to: recipientEmail,
-      subject: email.subject,
-      content: email.html,
-      html: email.html,
-    });
-
+  if (result.success) {
     await supabaseAdmin
       .from('contact_form_email_jobs')
       .update({
@@ -243,28 +248,26 @@ const processJob = async (
       .eq('id', claimedJob.id);
 
     return { processed: true, status: 'sent' as const, reason: null };
-  } catch (error) {
+  } else {
     await supabaseAdmin
       .from('contact_form_email_jobs')
       .update({
         status: 'failed',
-        last_error: error instanceof Error ? error.message : 'Unknown SMTP error',
+        last_error: result.error || 'Falha ao enviar email',
       })
       .eq('id', claimedJob.id);
 
     return {
       processed: true,
       status: 'failed' as const,
-      reason: error instanceof Error ? error.message : 'Unknown SMTP error',
+      reason: result.error || 'Falha ao enviar email',
     };
-  } finally {
-    await client.close();
   }
 };
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflightBrowser(req);
   }
 
   try {
@@ -273,11 +276,20 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return jsonResponse({ success: false, error: 'Missing Supabase secrets' }, 500);
+      return jsonResponse(req, { success: false, error: 'Serviço indisponível' }, 500);
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
     const authClient = createClient(supabaseUrl, anonKey);
+
+    // VULN-008 fix: Autenticar SEMPRE primeiro, antes de qualquer processamento.
+    // Anteriormente, se um messageId era fornecido, o email era processado
+    // sem qualquer verificação de autenticação.
+    const isAdmin = await checkAdminAccess(req, supabaseAdmin, authClient);
+    if (!isAdmin) {
+      return jsonResponse(req, { success: false, error: 'Unauthorized' }, 401);
+    }
+
     const body = await req.json().catch(() => ({}));
     const messageId = typeof body?.messageId === 'string' ? body.messageId.trim() : '';
     const limit = clampLimit(body?.limit, 10);
@@ -308,16 +320,16 @@ serve(async (req) => {
         .maybeSingle();
 
       if (error) {
-        return jsonResponse({ success: false, error: error.message }, 400);
+        return jsonResponse(req, { success: false, error: 'Erro ao buscar job' }, 400);
       }
 
       if (!job) {
-        return jsonResponse({ success: true, processedCount: 0, sentCount: 0, failedCount: 0, skippedCount: 0 });
+        return jsonResponse(req, { success: true, processedCount: 0, sentCount: 0, failedCount: 0, skippedCount: 0 });
       }
 
       const result = await processJob(supabaseAdmin, smtpSettings, job as ContactFormJobRow);
 
-      return jsonResponse({
+      return jsonResponse(req, {
         success: true,
         processedCount: result.processed ? 1 : 0,
         sentCount: result.status === 'sent' ? 1 : 0,
@@ -325,11 +337,6 @@ serve(async (req) => {
         skippedCount: result.status === 'skipped' ? 1 : 0,
         reason: result.reason,
       });
-    }
-
-    const isAdmin = await isAdminRequest(req, supabaseAdmin, authClient);
-    if (!isAdmin) {
-      return jsonResponse({ success: false, error: 'Admin access required' }, 403);
     }
 
     const { data: jobs, error } = await supabaseAdmin
@@ -356,7 +363,7 @@ serve(async (req) => {
       .limit(limit);
 
     if (error) {
-      return jsonResponse({ success: false, error: error.message }, 400);
+      return jsonResponse(req, { success: false, error: 'Erro ao buscar jobs' }, 400);
     }
 
     let processedCount = 0;
@@ -373,7 +380,7 @@ serve(async (req) => {
       if (result.status === 'skipped') skippedCount += 1;
     }
 
-    return jsonResponse({
+    return jsonResponse(req, {
       success: true,
       processedCount,
       sentCount,
@@ -381,11 +388,10 @@ serve(async (req) => {
       skippedCount,
     });
   } catch (error) {
+    console.error('[send-contact-form-emails] unexpected error:', error);
     return jsonResponse(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
+      req,
+      { success: false, error: 'Erro interno ao processar emails' },
       500,
     );
   }

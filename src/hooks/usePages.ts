@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { sanitizeRichTextHtml } from '../utils/sanitizeRichTextHtml';
 import { appError } from '../utils/appLogger';
@@ -30,12 +30,12 @@ export const usePages = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const sanitizePageRecord = (page: InstitutionalPage): InstitutionalPage => ({
+  const sanitizePageRecord = useCallback((page: InstitutionalPage): InstitutionalPage => ({
     ...page,
     content: sanitizeRichTextHtml(page.content),
-  });
+  }), []);
 
-  const fetchPages = async () => {
+  const fetchPages = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -54,9 +54,9 @@ export const usePages = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [sanitizePageRecord]);
 
-  const fetchPublishedPages = async () => {
+  const fetchPublishedPages = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -76,9 +76,9 @@ export const usePages = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [sanitizePageRecord]);
 
-  const getPageBySlug = async (slug: string): Promise<InstitutionalPage | null> => {
+  const getPageBySlug = useCallback(async (slug: string): Promise<InstitutionalPage | null> => {
     try {
       const { data, error: fetchError } = await supabase
         .from('institutional_pages')
@@ -102,9 +102,9 @@ export const usePages = () => {
       });
       return null;
     }
-  };
+  }, [sanitizePageRecord]);
 
-  const createPage = async (pageData: CreatePageData, userId: string) => {
+  const createPage = useCallback(async (pageData: CreatePageData, userId: string) => {
     try {
       const sanitizedPayload = {
         ...pageData,
@@ -132,9 +132,9 @@ export const usePages = () => {
       });
       return { data: null, error: err.message };
     }
-  };
+  }, [fetchPages, sanitizePageRecord]);
 
-  const updatePage = async (id: string, updates: Partial<InstitutionalPage>, userId: string) => {
+  const updatePage = useCallback(async (id: string, updates: Partial<InstitutionalPage>, userId: string) => {
     try {
       const sanitizedPayload = {
         ...updates,
@@ -164,9 +164,9 @@ export const usePages = () => {
       });
       return { data: null, error: err.message };
     }
-  };
+  }, [fetchPages, sanitizePageRecord]);
 
-  const deletePage = async (id: string) => {
+  const deletePage = useCallback(async (id: string) => {
     try {
       const { error: deleteError } = await supabase
         .from('institutional_pages')
@@ -183,13 +183,13 @@ export const usePages = () => {
       });
       return { error: err.message };
     }
-  };
+  }, [fetchPages]);
 
-  const togglePublished = async (id: string, currentStatus: boolean, userId: string) => {
+  const togglePublished = useCallback(async (id: string, currentStatus: boolean, userId: string) => {
     return updatePage(id, { is_published: !currentStatus }, userId);
-  };
+  }, [updatePage]);
 
-  const validateSlug = (slug: string): { valid: boolean; error?: string } => {
+  const validateSlug = useCallback((slug: string): { valid: boolean; error?: string } => {
     // Remover espaços e converter para minúsculas
     const cleanSlug = slug.trim().toLowerCase();
 
@@ -226,9 +226,9 @@ export const usePages = () => {
     }
 
     return { valid: true };
-  };
+  }, []);
 
-  const generateSlug = (title: string): string => {
+  const generateSlug = useCallback((title: string): string => {
     return title
       .toLowerCase()
       .normalize('NFD')
@@ -237,7 +237,7 @@ export const usePages = () => {
       .replace(/\s+/g, '-') // Substitui espaços por hífens
       .replace(/-+/g, '-') // Remove hífens duplos
       .replace(/^-|-$/g, ''); // Remove hífens do início/fim
-  };
+  }, []);
 
   useEffect(() => {
     fetchPages();

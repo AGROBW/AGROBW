@@ -1,25 +1,21 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
-import { SmtpClient } from 'https://deno.land/x/smtp@v0.7.0/mod.ts';
+// VULN-019 fix: nodemailer via sendSmtpEmail()
 import {
-  connectSmtpClientWithSettings,
   loadSmtpSettings,
   validateSmtpSettings,
+  sendSmtpEmail,
 } from '../_shared/smtpSettings.ts';
+import { getCorsHeadersInternal } from '../_shared/cors.ts';
+import { isAdminProfile, extractBearerToken } from '../_shared/security.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey, x-cron-secret',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+// VULN-002 fix: Função interna/cron - sem acesso de browser
+const corsHeaders = getCorsHeadersInternal();
 
 const jsonResponse = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: {
-      ...corsHeaders,
-      'Content-Type': 'application/json',
-    },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 
 type ContactNotificationEmailJobRow = {
@@ -146,7 +142,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return jsonResponse({ success: false, error: 'Missing Supabase secrets' }, 500);
+      return jsonResponse({ success: false, error: 'Serviço indisponível' }, 500);
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
@@ -156,34 +152,44 @@ serve(async (req) => {
     const requestSecret = req.headers.get('x-cron-secret');
     const authHeader = req.headers.get('Authorization') || '';
 
+    // VULN-020 fix + timing-safe para cron secret
     let triggeredBy: 'cron' | 'admin' = 'admin';
 
-    if (cronSecret && requestSecret === cronSecret) {
-      triggeredBy = 'cron';
-    } else {
-      if (!authHeader.startsWith('Bearer ')) {
+    if (cronSecret && requestSecret) {
+      // Timing-safe comparison
+      let mismatch = 0;
+      if (cronSecret.length !== requestSecret.length) {
+        mismatch = 1;
+      } else {
+        for (let i = 0; i < cronSecret.length; i++) {
+          mismatch |= cronSecret.charCodeAt(i) ^ requestSecret.charCodeAt(i);
+        }
+      }
+      if (mismatch === 0) triggeredBy = 'cron';
+    }
+
+    if (triggeredBy === 'admin') {
+      const token = extractBearerToken(req);
+      if (!token) {
         return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
       }
 
-      const token = authHeader.slice(7).trim();
       const {
         data: { user },
         error: authError,
       } = await authClient.auth.getUser(token);
 
       if (authError || !user) {
-        return jsonResponse({ success: false, error: 'Invalid JWT', details: authError?.message }, 401);
+        return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
       }
 
       const { data: adminProfile } = await supabaseAdmin
         .from('users')
-        .select('role, is_admin')
+        .select('role')
         .eq('id', user.id)
         .maybeSingle();
 
-      const isAdmin = (adminProfile?.role || '').toLowerCase() === 'admin' || Boolean(adminProfile?.is_admin);
-
-      if (!isAdmin) {
+      if (!isAdminProfile(adminProfile)) {
         return jsonResponse({ success: false, error: 'Admin access required' }, 403);
       }
     }
@@ -272,18 +278,14 @@ serve(async (req) => {
         sourceKind: claimedJob.source_kind,
       });
 
-      const client = new SmtpClient();
+      // VULN-019 fix: Usando sendSmtpEmail() com nodemailer (TLS verificado)
+      const result = await sendSmtpEmail(smtpSettings!, {
+        to: claimedJob.recipient_email,
+        subject: email.subject,
+        html: email.html,
+      });
 
-      try {
-        await connectSmtpClientWithSettings(client, smtpSettings!);
-        await client.send({
-          from: `${smtpSettings!.from_name} <${smtpSettings!.from_email}>`,
-          to: claimedJob.recipient_email,
-          subject: email.subject,
-          content: email.html,
-          html: email.html,
-        });
-
+      if (result.success) {
         sentCount += 1;
         await supabaseAdmin
           .from('contact_notification_email_jobs')
@@ -293,17 +295,15 @@ serve(async (req) => {
             last_error: null,
           })
           .eq('id', claimedJob.id);
-      } catch (error) {
+      } else {
         failedCount += 1;
         await supabaseAdmin
           .from('contact_notification_email_jobs')
           .update({
             status: 'failed',
-            last_error: error instanceof Error ? error.message : 'Unknown SMTP error',
+            last_error: result.error || 'Falha ao enviar email',
           })
           .eq('id', claimedJob.id);
-      } finally {
-        await client.close();
       }
     }
 
@@ -348,12 +348,9 @@ serve(async (req) => {
       }
     }
 
-    return jsonResponse(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return jsonResponse({
+      success: false,
+      error: 'Erro interno ao processar emails de notificação',
+    }, 500);
   }
 });

@@ -937,8 +937,8 @@ const UserDashboardView: React.FC = () => {
     const [adForHighlight, setAdForHighlight] = useState<{
       id: string;
       title: string;
-      hasCategoryHighlight: boolean;
-      hasHomeHighlight: boolean;
+      hasActiveCategoryHighlight: boolean;
+      hasActiveHomeHighlight: boolean;
     } | null>(null);
     const [highlightType, setHighlightType] = useState<'category' | 'home'>('category');
 
@@ -1105,14 +1105,14 @@ const UserDashboardView: React.FC = () => {
       if (!hasActiveCategoryHighlight) {
         const categoryDaysRemaining = getHighlightCooldownDaysRemaining(ad.highlightCategoryAvailableAfter);
         if (categoryDaysRemaining) {
-          parts.push(`Categoria disponível novamente em ${categoryDaysRemaining} ${categoryDaysRemaining === 1 ? 'dia' : 'dias'}`);
+          parts.push(`Destaque de categoria disponível novamente em ${categoryDaysRemaining} ${categoryDaysRemaining === 1 ? 'dia' : 'dias'}.`);
         }
       }
 
       if (!hasActiveHomeHighlight) {
         const homeDaysRemaining = getHighlightCooldownDaysRemaining(ad.highlightHomeAvailableAfter);
         if (homeDaysRemaining) {
-          parts.push(`Home disponível novamente em ${homeDaysRemaining} ${homeDaysRemaining === 1 ? 'dia' : 'dias'}`);
+          parts.push(`Destaque de Home disponível novamente em ${homeDaysRemaining} ${homeDaysRemaining === 1 ? 'dia' : 'dias'}.`);
         }
       }
 
@@ -1488,7 +1488,7 @@ const UserDashboardView: React.FC = () => {
       const homeUntil = (ad as any).highlight_home_until || (ad as any).highlightHomeUntil;
       const hasActiveCategoryHighlight = hasCategoryHighlight && isTimestampActive(categoryUntil);
       const hasActiveHomeHighlight = hasHomeHighlight && isTimestampActive(homeUntil);
-      const isBlocked = (type === 'category' && hasHomeHighlight) || (type === 'home' && hasCategoryHighlight);
+      const isBlocked = (type === 'category' && hasActiveHomeHighlight) || (type === 'home' && hasActiveCategoryHighlight);
       const isSameTypeAlreadyActive =
         (type === 'category' && hasActiveCategoryHighlight) ||
         (type === 'home' && hasActiveHomeHighlight);
@@ -1514,8 +1514,8 @@ const UserDashboardView: React.FC = () => {
       setAdForHighlight({
         id: ad.id,
         title: ad.title,
-        hasCategoryHighlight,
-        hasHomeHighlight,
+        hasActiveCategoryHighlight,
+        hasActiveHomeHighlight,
       });
       setHighlightType(type);
       setHighlightModalOpen(true);
@@ -1733,15 +1733,15 @@ const UserDashboardView: React.FC = () => {
                             : isCategoryOnCooldown
                               ? categoryCooldownLabel
                               : hasActiveHomeHighlight
-                                ? 'Indisponível: este anúncio já está destacado na Home'
-                                : 'Destaque na categoria';
+                                ? 'Indisponível enquanto o destaque na Home estiver ativo.'
+                                : 'Aplicar destaque de categoria.';
                           const homeTitle = hasActiveHomeHighlight
                             ? `Este anúncio já está com destaque na Home ativo. Novo destaque na Home só fica disponível ${highlightCooldownLabel} após o vencimento.`
                             : isHomeOnCooldown
                               ? homeCooldownLabel
                             : hasActiveCategoryHighlight
-                              ? 'Indisponível: este anúncio já está destacado em Categoria'
-                              : 'Destaque na home';
+                              ? 'Indisponível enquanto o destaque em Categoria estiver ativo.'
+                              : 'Aplicar destaque na Home.';
 
                           return (
                             <>
@@ -2022,8 +2022,8 @@ const UserDashboardView: React.FC = () => {
             announcementId={adForHighlight.id}
             announcementTitle={adForHighlight.title}
             highlightType={highlightType}
-            hasCategoryHighlight={adForHighlight.hasCategoryHighlight}
-            hasHomeHighlight={adForHighlight.hasHomeHighlight}
+            hasActiveCategoryHighlight={adForHighlight.hasActiveCategoryHighlight}
+            hasActiveHomeHighlight={adForHighlight.hasActiveHomeHighlight}
             onSuccess={() => {
               refreshUsage();
               window.location.reload();

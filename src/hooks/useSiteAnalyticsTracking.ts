@@ -49,6 +49,8 @@ const describePage = (pathname: string) => {
     '/contato': { pageType: 'contact', pageLabel: 'Contato' },
     '/quem-somos': { pageType: 'about', pageLabel: 'Quem somos' },
     '/privacidade': { pageType: 'privacy', pageLabel: 'Privacidade' },
+    '/politica-de-cookies': { pageType: 'cookies_policy', pageLabel: 'Politica de cookies' },
+    '/politica-de-precos': { pageType: 'pricing_policy', pageLabel: 'Politica de precos' },
     '/termos-de-uso': { pageType: 'terms', pageLabel: 'Termos de uso' },
     '/noticias': { pageType: 'news_listing', pageLabel: 'Notícias' },
     '/login': { pageType: 'login', pageLabel: 'Login' },
