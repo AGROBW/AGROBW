@@ -5,6 +5,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { useChats, useMessages } from '../src/hooks/useMessages';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useLocation, useNavigate } from 'react-router-dom';
 import LogisticsSidebar from './LogisticsSidebar';
 import { debugLog } from '../src/utils/debugLog';
 
@@ -16,6 +17,8 @@ type MessageTab = 'sent' | 'received';
 
 const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { chats, isLoading: chatsLoading } = useChats();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(initialChatId || null);
   const [activeTab, setActiveTab] = useState<MessageTab>('sent');
@@ -72,6 +75,41 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
 
   const sentChatsCount = chats.filter(chat => (chat.direction || 'received') === 'sent').length;
   const receivedChatsCount = chats.filter(chat => (chat.direction || 'received') === 'received').length;
+  const sentUnreadChatsCount = chats.filter(
+    chat => (chat.direction || 'received') === 'sent' && chat.unreadCount > 0
+  ).length;
+  const receivedUnreadChatsCount = chats.filter(
+    chat => (chat.direction || 'received') === 'received' && chat.unreadCount > 0
+  ).length;
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const chatIdFromState =
+      location.state && typeof location.state === 'object' && 'chatId' in location.state
+        ? String((location.state as { chatId?: string }).chatId || '')
+        : '';
+    const incomingChatId = chatIdFromState || searchParams.get('chat') || '';
+
+    if (!incomingChatId) {
+      return;
+    }
+
+    const targetChat = chats.find((chat) => chat.id === incomingChatId);
+    if (targetChat) {
+      const targetTab = (targetChat.direction || 'received') as MessageTab;
+      if (activeTab !== targetTab) {
+        setActiveTab(targetTab);
+      }
+    }
+
+    if (incomingChatId !== selectedChatId) {
+      setSelectedChatId(incomingChatId);
+    }
+
+    if (searchParams.get('chat')) {
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.pathname, location.search, location.state, chats, activeTab, navigate, selectedChatId]);
 
   useEffect(() => {
     if (!selectedChatId) return;
@@ -139,7 +177,15 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
             >
               <span className="inline-flex items-center gap-2">
                 Enviadas {sentChatsCount > 0 ? `(${sentChatsCount})` : ''}
-                {activeTab === 'sent' ? <span className="h-2 w-2 rounded-full bg-white/90" /> : null}
+                {sentUnreadChatsCount > 0 ? (
+                  <span
+                    className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${
+                      activeTab === 'sent' ? 'bg-white/90 text-green-700' : 'bg-green-600 text-white'
+                    }`}
+                  >
+                    {sentUnreadChatsCount}
+                  </span>
+                ) : activeTab === 'sent' ? <span className="h-2 w-2 rounded-full bg-white/90" /> : null}
               </span>
             </button>
             <button
@@ -153,7 +199,15 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
             >
               <span className="inline-flex items-center gap-2">
                 Recebidas {receivedChatsCount > 0 ? `(${receivedChatsCount})` : ''}
-                {activeTab === 'received' ? <span className="h-2 w-2 rounded-full bg-white/90" /> : null}
+                {receivedUnreadChatsCount > 0 ? (
+                  <span
+                    className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${
+                      activeTab === 'received' ? 'bg-white/90 text-green-700' : 'bg-green-600 text-white'
+                    }`}
+                  >
+                    {receivedUnreadChatsCount}
+                  </span>
+                ) : activeTab === 'received' ? <span className="h-2 w-2 rounded-full bg-white/90" /> : null}
               </span>
             </button>
           </div>
@@ -190,6 +244,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                 const shouldShowFrozen =
                   !!chat.isFrozen &&
                   (chat.freezeReason !== 'lead_contact_expired' || activeTab === 'received');
+                const isUnreadConversation = chat.unreadCount > 0;
                 const previewMessage = shouldShowFrozen
                   ? chat.freezeReason === 'lead_contact_expired'
                     ? 'Conteúdo protegido. Faça upgrade para visualizar a mensagem.'
@@ -206,7 +261,11 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                 key={chat.id}
                 onClick={() => setSelectedChatId(chat.id)}
                 className={`w-full p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors text-left ${
-                  selectedChatId === chat.id ? 'bg-green-50 border-l-4 border-l-green-600' : ''
+                  selectedChatId === chat.id
+                    ? 'bg-green-50 border-l-4 border-l-green-600'
+                    : isUnreadConversation
+                      ? 'bg-emerald-50/60 border-l-4 border-l-emerald-500'
+                      : ''
                 }`}
               >
                 <div className="flex gap-3">
@@ -223,10 +282,10 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between mb-1">
-                      <h3 className="font-bold text-sm text-slate-900 truncate">
+                      <h3 className={`text-sm truncate ${isUnreadConversation ? 'font-extrabold text-slate-950' : 'font-bold text-slate-900'}`}>
                         {shouldShowFrozen ? 'Interacao congelada' : getOtherUserName(chat)}
                       </h3>
-                      <span className="text-xs text-slate-400 flex-shrink-0 ml-2">
+                      <span className={`text-xs flex-shrink-0 ml-2 ${isUnreadConversation ? 'font-semibold text-emerald-700' : 'text-slate-400'}`}>
                         {formatTime(chat.lastMessageTime)}
                       </span>
                     </div>
@@ -236,12 +295,12 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                     </p>
                     
                     <div className="flex items-center justify-between">
-                      <p className="text-xs text-slate-400 truncate flex-1">
+                      <p className={`text-xs truncate flex-1 ${isUnreadConversation ? 'font-semibold text-slate-700' : 'text-slate-400'}`}>
                         {effectivePreviewMessage}
                       </p>
                       
                       {chat.unreadCount > 0 && (
-                        <span className="ml-2 flex-shrink-0 w-5 h-5 bg-green-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                        <span className="ml-2 flex-shrink-0 min-w-5 h-5 px-1.5 bg-green-600 text-white text-xs font-bold rounded-full inline-flex items-center justify-center shadow-sm">
                           {chat.unreadCount}
                         </span>
                       )}

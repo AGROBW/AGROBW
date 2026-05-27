@@ -51,7 +51,7 @@ const ContactView: React.FC = () => {
     } catch (error: any) {
       console.error('[ContactView] Erro ao enviar mensagem:', error);
       setFormStatus('error');
-      setFormError(error?.message || 'Nao foi possivel enviar sua mensagem agora. Tente novamente em instantes.');
+      setFormError(error?.message || 'Não foi possível enviar sua mensagem agora. Tente novamente em instantes.');
     }
   };
 
@@ -156,7 +156,7 @@ const ContactView: React.FC = () => {
                     <Check className="h-7 w-7" strokeWidth={1.5} />
                   </div>
                   <h3 className="mb-2 text-xl font-semibold text-slate-900">Mensagem Enviada!</h3>
-                  <p className="text-sm text-slate-500">Agradecemos seu contato. Nossa equipe respondera em breve.</p>
+                  <p className="text-sm text-slate-500">Agradecemos seu contato. Nossa equipe responderá em breve.</p>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">

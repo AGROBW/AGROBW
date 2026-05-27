@@ -512,7 +512,7 @@ const RegisterView: React.FC = () => {
           {inviteCode ? (
             <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left">
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-700">
-                Convite de captacao
+                Convite de captação
               </p>
               <p className="mt-1 text-sm font-semibold text-slate-800">
                 {isLoadingInvite
@@ -520,7 +520,7 @@ const RegisterView: React.FC = () => {
                   : invitePreview
                     ? `Cadastro vinculado ao convite de ${invitePreview.captor_name}.`
                     : inviteLookupFailed
-                      ? 'O link de convite nao esta mais ativo, mas voce pode seguir com o cadastro.'
+                      ? 'O link de convite não está mais ativo, mas você pode seguir com o cadastro.'
                       : 'Cadastro vinculado ao convite recebido.'}
               </p>
             </div>

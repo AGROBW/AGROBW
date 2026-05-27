@@ -232,7 +232,7 @@ const LeadsView: React.FC = () => {
   };
 
   const goToChat = (chatId: string) => {
-    navigate(`/minha-conta/mensagens?chat=${chatId}`);
+    navigate('/minha-conta/mensagens', { state: { chatId } });
   };
 
   const formatTime = (dateString: string) => {

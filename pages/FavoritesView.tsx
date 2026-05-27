@@ -58,7 +58,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ embedded = false }
   const handleCompare = () => {
     const canCompare = selectedIds.length >= 2 && selectedIds.length <= 4;
     if (canCompare) {
-      alert(`Comparando ${selectedIds.length} anuncios selecionados`);
+      alert(`Comparando ${selectedIds.length} anúncios selecionados`);
     }
   };
 
@@ -93,8 +93,8 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ embedded = false }
       <div className="text-center space-y-4">
         <Heart className="w-16 h-16 text-slate-300 mx-auto" />
         <div>
-          <p className="text-lg font-semibold text-slate-700 mb-2">Faca login para acessar seus favoritos</p>
-          <p className="text-sm text-slate-500">Voce precisa estar autenticado para visualizar seus favoritos.</p>
+          <p className="text-lg font-semibold text-slate-700 mb-2">Faça login para acessar seus favoritos</p>
+          <p className="text-sm text-slate-500">Você precisa estar autenticado para visualizar seus favoritos.</p>
         </div>
         <button
           onClick={() => navigate('/login')}
@@ -119,7 +119,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ embedded = false }
           <div>
             <h1 className="text-xl font-bold text-slate-900">Meus Favoritos</h1>
             <p className="text-sm text-slate-500 mt-2">
-              Acompanhe os anuncios salvos, variacoes de preco e indisponibilidades em um so lugar.
+              Acompanhe os anúncios salvos, variações de preço e indisponibilidades em um só lugar.
             </p>
           </div>
 
@@ -129,11 +129,11 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ embedded = false }
               <p className="text-xl font-bold text-slate-900 mt-1">{stats.total}</p>
             </div>
             <div className="rounded-2xl border border-green-100 bg-green-50 px-4 py-3 min-w-[150px]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-green-700">Preco reduzido</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-green-700">Preço reduzido</p>
               <p className="text-xl font-bold text-green-700 mt-1">{stats.withPriceReduction}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 min-w-[150px]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Indisponiveis</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Indisponíveis</p>
               <p className="text-xl font-bold text-slate-900 mt-1">{stats.unavailable}</p>
             </div>
           </div>
@@ -174,13 +174,13 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ embedded = false }
           <Inbox className="w-14 h-14 mb-4 text-slate-300" strokeWidth={1.5} />
           <h3 className="text-lg font-semibold text-slate-700 mb-2">Nenhum favorito ainda</h3>
           <p className="text-sm max-w-md mb-6">
-            Explore nossos anuncios e clique no icone de coracao para salvar seus favoritos aqui.
+            Explore nossos anúncios e clique no ícone de coração para salvar seus favoritos aqui.
           </p>
           <button
             onClick={() => navigate('/anuncios')}
             className="px-6 py-2.5 bg-green-700 text-white font-semibold rounded-xl hover:bg-green-800 transition-colors"
           >
-            Explorar anuncios
+            Explorar anúncios
           </button>
         </div>
       ) : (
@@ -205,9 +205,9 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({ embedded = false }
         <div className="rounded-2xl border border-green-100 bg-green-50 p-5 flex items-start gap-3">
           <TrendingDown className="w-5 h-5 text-green-700 mt-0.5" strokeWidth={1.5} />
           <div>
-            <p className="text-sm font-semibold text-slate-900">Voce tem anuncios com preco reduzido</p>
+            <p className="text-sm font-semibold text-slate-900">Você tem anúncios com preço reduzido</p>
             <p className="text-sm text-slate-600 mt-1">
-              Acompanhe seus favoritos com desconto para agir mais rapido quando surgir uma boa oportunidade.
+              Acompanhe seus favoritos com desconto para agir mais rápido quando surgir uma boa oportunidade.
             </p>
           </div>
         </div>

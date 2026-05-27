@@ -195,7 +195,7 @@ const fallbackTestimonials: SponsorTestimonial[] = [
     companyName: 'Agro Maquinas Sul',
     contactName: 'Carlos Mendonca',
     roleTitle: 'Diretor Comercial',
-    segment: 'Maquinas agricolas',
+    segment: 'Máquinas agrícolas',
     locationLabel: 'Rio Verde/GO',
     avatarUrl: 'https://i.pravatar.cc/80?u=carlos_agro',
     text: 'Em 30 dias na Vitrine Premium, recebemos mais de 40 contatos qualificados direto pelo WhatsApp. O ROI superou qualquer outra mídia digital que testamos no setor.',
@@ -208,18 +208,18 @@ const fallbackTestimonials: SponsorTestimonial[] = [
     contactName: 'Fernanda Oliveira',
     roleTitle: 'Gerente de Marketing',
     segment: 'Insumos',
-    locationLabel: 'Uberlandia/MG',
+    locationLabel: 'Uberlândia/MG',
     avatarUrl: 'https://i.pravatar.cc/80?u=fernanda_insumos',
     text: 'A exclusividade por nicho fez toda a diferença. Nosso banner não compete com concorrente direto, e isso se reflete no CTR muito acima da mídia que tínhamos em outras plataformas.',
     highlightMetric: 'CTR acima das campanhas anteriores',
   },
   {
     id: 'fallback-roberto',
-    companyName: 'AgroTech Solucoes',
+    companyName: 'AgroTech Soluções',
     contactName: 'Roberto Faria',
     roleTitle: 'CEO',
     segment: 'Tecnologia para o agro',
-    locationLabel: 'Cuiaba/MT',
+    locationLabel: 'Cuiabá/MT',
     avatarUrl: 'https://i.pravatar.cc/80?u=roberto_agrotech',
     text: 'Estamos no segundo ciclo da Vitrine Premium. A visibilidade no topo do marketplace trouxe leads que já se tornaram clientes recorrentes. Vale muito o investimento.',
     highlightMetric: 'Leads que viraram clientes recorrentes',
@@ -241,7 +241,7 @@ const faqs = [
   },
   {
     question: 'Como acompanho as métricas da campanha?',
-    answer: 'Você recebe um relatório semanal por e-mail com impressões, cliques, CTR e origens do público. Em breve teremos um painel de acesso em tempo real.',
+    answer: 'Você recebe um relatório mensal por e-mail com impressões, cliques, CTR e origens do público. Em breve teremos um painel de acesso em tempo real.',
   },
   {
     question: 'O que acontece se meu nicho já estiver ocupado?',
@@ -796,7 +796,7 @@ const SponsorLandingView: React.FC = () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-3">
-              Quem ja anunciou na vitrine
+              Quem já anunciou na vitrine
             </p>
             <h2 className="text-3xl md:text-5xl font-black text-white">O que dizem nossos anunciantes</h2>
           </div>

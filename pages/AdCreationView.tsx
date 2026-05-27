@@ -405,7 +405,7 @@ const AdCreationView: React.FC = () => {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
-  const [dbCategories, setDbCategories] = useState<Array<{ id: string; name: string; slug: string; icon?: string | null; technical_fields_schema?: any[] }>>([]);
+  const [dbCategories, setDbCategories] = useState<Array<{ id: string; name: string; slug: string; parent_group_slug?: string | null; icon?: string | null; technical_fields_schema?: any[] }>>([]);
   const [dbSubcategories, setDbSubcategories] = useState<Array<{ id: string; category_id: string; name: string; slug: string }>>([]);
   const [technicalFieldsSchema, setTechnicalFieldsSchema] = useState<any[]>([]);
   const [videoItem, setVideoItem] = useState<VideoItem | null>(null);
@@ -453,9 +453,15 @@ const AdCreationView: React.FC = () => {
   const shouldShowStoreProductCondition = hasStoreListingAccess && !hasConservationStateField;
   const selectedCategoryGroup = getCategoryGroupBySlug(formData.categoryGroupSlug || formData.categorySlug);
   const availableSpecificCategories = selectedCategoryGroup
-    ? selectedCategoryGroup.categorySlugs
-        .map((slug) => dbCategories.find((category) => category.slug === slug))
-        .filter(Boolean) as Array<{ id: string; name: string; slug: string; icon?: string | null; technical_fields_schema?: any[] }>
+    ? dbCategories.filter((category) => {
+        const resolvedGroupSlug =
+          category.parent_group_slug ||
+          getCategoryGroupForCategorySlug(category.slug)?.slug ||
+          getCategoryGroupBySlug(category.slug)?.slug ||
+          '';
+
+        return resolvedGroupSlug === selectedCategoryGroup.slug;
+      })
     : [];
   const topLevelCategoryGroups = CATEGORY_HIERARCHY.map((group) => {
     const matchingVisualCategory = CATEGORIES.find((category) =>
@@ -734,12 +740,12 @@ const AdCreationView: React.FC = () => {
     const loadCategories = async () => {
       const { data, error } = await supabase
         .from('categories')
-        .select('id,name,slug,icon,technical_fields_schema')
+        .select('id,name,slug,parent_group_slug,icon,technical_fields_schema')
         .eq('is_active', true)
         .order('sort_order', { ascending: true })
         .order('name', { ascending: true });
       if (!error && data) {
-        setDbCategories(data as Array<{ id: string; name: string; slug: string; icon?: string | null; technical_fields_schema?: any[] }>);
+        setDbCategories(data as Array<{ id: string; name: string; slug: string; parent_group_slug?: string | null; icon?: string | null; technical_fields_schema?: any[] }>);
       }
     };
     loadCategories();
@@ -2297,6 +2303,25 @@ const AdCreationView: React.FC = () => {
                 </select>
               </div>
 
+              <div className="rounded-[2rem] border border-amber-200 bg-amber-50/70 p-6">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-2xl bg-white p-3 text-amber-600 shadow-sm">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-[0.18em] text-amber-700">Atenção!</h3>
+                    <div className="mt-2 space-y-3 text-sm leading-6 text-slate-700">
+                      <p>
+                        Todos os anúncios devem conter quantidades e preços corretos, compatíveis com os valores praticados no mercado. Solicitamos que cada anúncio seja destinado a apenas um produto, mantendo sempre as informações atualizadas.
+                      </p>
+                      <p>
+                        Também não é permitido inserir dados de contato pessoais ou da empresa, pois os interessados poderão entrar em contato por meio do botão “Fale com o vendedor”. O descumprimento dessas regras poderá resultar no bloqueio do anúncio e, em caso de reincidência, na sua exclusão.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Título do Anúncio</label>
                 <input 
@@ -2885,18 +2910,20 @@ const AdCreationView: React.FC = () => {
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen pb-32">
-      <div className="max-w-7xl mx-auto px-4 pt-10">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-sm text-yellow-900">
-          <strong className="block text-xs font-black uppercase tracking-widest mb-2">ATENÇÃO!</strong>
-          <p>
-            Preencha os dados do anúncio com veracidade. Informações falsas podem resultar em bloqueio do anúncio e da conta.
-          </p>
+      <div className="bg-gray-50 min-h-screen pb-32">
+        <div className="max-w-7xl mx-auto px-4 pt-10">
+          <div className="max-w-5xl mx-auto mb-8">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-sm text-yellow-900">
+              <strong className="block text-xs font-black uppercase tracking-widest mb-2">ATENÇÃO!</strong>
+              <p>
+                Preencha os dados do anúncio com veracidade. Informações falsas podem resultar em bloqueio do anúncio e da conta.
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
       {/* Stepper Progress Header */}
       {currentStep !== 'SUCCESS' && (
-        <div className="bg-white border-b border-gray-100 mb-12 py-8">
+        <div className="bg-white border-b border-gray-100 mb-12 pt-10 pb-12">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex justify-between items-center relative">
               {/* Progress Line */}

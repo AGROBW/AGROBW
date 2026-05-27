@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Eye, LayoutTemplate, Plus, RotateCcw, Save, Sparkles } from 'lucide-react';
+import { Eye, LayoutTemplate, Pencil, Plus, RotateCcw, Save, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SitePopup, SitePopupAudience, SitePopupPageScope } from '../../types';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
@@ -45,13 +45,18 @@ const mapPopupToDraft = (popup: SitePopup): SitePopupDraft => ({
 });
 
 const SitePopupsManagement: React.FC = () => {
-  const { popups, isLoading, savePopup, togglePopupStatus } = useSitePopups();
+  const { popups, isLoading, savePopup, togglePopupStatus, deletePopup } = useSitePopups();
   const { logAction } = useAdminAudit();
   const [selectedPopupId, setSelectedPopupId] = useState<string | null>(null);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [form, setForm] = useState<SitePopupDraft>(cloneSitePopupDraft(DEFAULT_SITE_POPUP_DRAFT));
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    if (isCreatingNew) {
+      return;
+    }
+
     if (selectedPopupId) {
       const selectedPopup = popups.find((item) => item.id === selectedPopupId);
       if (selectedPopup) {
@@ -63,13 +68,13 @@ const SitePopupsManagement: React.FC = () => {
     if (!selectedPopupId && popups.length === 0) {
       setForm(cloneSitePopupDraft(DEFAULT_SITE_POPUP_DRAFT));
     }
-  }, [popups, selectedPopupId]);
+  }, [isCreatingNew, popups, selectedPopupId]);
 
   useEffect(() => {
-    if (!selectedPopupId && popups.length > 0) {
+    if (!isCreatingNew && !selectedPopupId && popups.length > 0) {
       setSelectedPopupId(popups[0].id);
     }
-  }, [popups, selectedPopupId]);
+  }, [isCreatingNew, popups, selectedPopupId]);
 
   const selectedPopup = useMemo(
     () => popups.find((item) => item.id === selectedPopupId) || null,
@@ -86,8 +91,15 @@ const SitePopupsManagement: React.FC = () => {
   };
 
   const handleCreateNew = () => {
+    setIsCreatingNew(true);
     setSelectedPopupId(null);
     setForm(cloneSitePopupDraft(DEFAULT_SITE_POPUP_DRAFT));
+  };
+
+  const handleEditPopup = (popup: SitePopup) => {
+    setIsCreatingNew(false);
+    setSelectedPopupId(popup.id);
+    setForm(mapPopupToDraft(popup));
   };
 
   const handleRestoreDefault = () => {
@@ -139,6 +151,7 @@ const SitePopupsManagement: React.FC = () => {
         : 'Novo pop-up do site criado pelo painel administrativo',
     });
 
+    setIsCreatingNew(false);
     toast.success(selectedPopupId ? 'Pop-up atualizado com sucesso.' : 'Pop-up criado com sucesso.');
     setIsSaving(false);
   };
@@ -166,6 +179,40 @@ const SitePopupsManagement: React.FC = () => {
     });
 
     toast.success(shouldActivate ? 'Pop-up ativado com sucesso.' : 'Pop-up desativado com sucesso.');
+  };
+
+  const handleDeletePopup = async (popup: SitePopup) => {
+    const confirmed = window.confirm(`Deseja excluir o pop-up "${popup.name}"? Essa ação não poderá ser desfeita.`);
+    if (!confirmed) return;
+
+    const { error } = await deletePopup(popup.id);
+
+    if (error) {
+      toast.error('Nao foi possivel excluir o pop-up.', {
+        description: error,
+      });
+      return;
+    }
+
+    await logAction({
+      action: ADMIN_ACTIONS.DELETE_PAGE,
+      resourceType: RESOURCE_TYPES.SYSTEM,
+      resourceId: popup.id,
+      oldValue: popup as any,
+      newValue: null,
+      reason: 'Pop-up do site excluido pelo painel administrativo',
+    });
+
+    if (selectedPopupId === popup.id) {
+      const remainingPopups = popups.filter((item) => item.id !== popup.id);
+      if (remainingPopups.length > 0) {
+        handleEditPopup(remainingPopups[0]);
+      } else {
+        handleCreateNew();
+      }
+    }
+
+    toast.success('Pop-up excluido com sucesso.');
   };
 
   return (
@@ -230,12 +277,16 @@ const SitePopupsManagement: React.FC = () => {
               </div>
             ) : (
               popups.map((popup) => (
-                <button
+                <div
                   key={popup.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedPopupId(popup.id);
-                    setForm(mapPopupToDraft(popup));
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleEditPopup(popup)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleEditPopup(popup);
+                    }
                   }}
                   className={`w-full rounded-[24px] border p-4 text-left transition ${
                     popup.id === selectedPopupId
@@ -304,6 +355,17 @@ const SitePopupsManagement: React.FC = () => {
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
+                        handleEditPopup(popup);
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
                         void handleToggleActivation(popup);
                       }}
                       className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-bold transition ${
@@ -314,8 +376,19 @@ const SitePopupsManagement: React.FC = () => {
                     >
                       {popup.isActive ? 'Desativar' : 'Ativar'}
                     </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleDeletePopup(popup);
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Excluir
+                    </button>
                   </div>
-                </button>
+                </div>
               ))
             )}
           </div>

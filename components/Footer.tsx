@@ -246,7 +246,7 @@ const Footer: React.FC = () => {
 
         <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-800 pt-8 md:flex-row">
           <p className="text-xs text-slate-500">
-            &copy; 2024 {brandName}. Todos os direitos reservados. CNPJ: 00.000.000/0001-00
+            &copy; 2024 {brandName}. Todos os direitos reservados. CNPJ: 66.980.493/0001-81
           </p>
           <div className="flex flex-wrap items-center gap-2">
 

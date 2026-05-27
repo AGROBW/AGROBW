@@ -143,7 +143,7 @@ const UserDashboardView: React.FC = () => {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [isValidatingDocument, setIsValidatingDocument] = useState(false);
   const [validationResult, setValidationResult] = useState<{
-    success: boolean;
+    status: 'approved' | 'manual_review' | 'error';
     message: string;
   } | null>(null);
   const [documentRetryAvailableAt, setDocumentRetryAvailableAt] = useState<string | null>(user?.document_retry_available_at || null);
@@ -540,8 +540,18 @@ const UserDashboardView: React.FC = () => {
         // Imagens ou PDFs pequenos: validação OCR automática
         setIsValidatingDocument(true);
         
-        const validationResult = await validateDocumentWithOCR(file);
-        setValidationResult(validationResult);
+      const validationResult = await validateDocumentWithOCR(file);
+        setValidationResult(
+          validationResult.success
+            ? {
+                status: 'approved',
+                message: validationResult.message,
+              }
+            : {
+                status: 'manual_review',
+                message: 'Não foi possível concluir a validação automática. Seu documento foi encaminhado para análise da equipe de segurança.',
+              }
+        );
         
         if (validationResult.success) {
           const { data: resultRows, error: completionError } = await supabase.rpc(
@@ -583,8 +593,8 @@ const UserDashboardView: React.FC = () => {
             'complete_my_document_verification_upload',
             {
               p_document_path: filePath,
-              p_result: 'rejected',
-              p_failure_reason: validationResult.message,
+              p_result: 'pending',
+              p_failure_reason: null,
             }
           );
 
@@ -592,14 +602,10 @@ const UserDashboardView: React.FC = () => {
 
           const result = Array.isArray(resultRows) ? resultRows[0] : resultRows;
           setDocumentRetryAvailableAt(result?.document_retry_available_at || null);
-          const failureReason = result?.document_last_failure_reason || validationResult.message || null;
-          setDocumentLastFailureReason(failureReason);
+          setDocumentLastFailureReason(result?.document_last_failure_reason || null);
           await refreshStats();
-          const retryBlockedMessage =
-            result?.document_retry_available_at
-              ? `${failureReason || 'Não foi possível validar seu documento automaticamente.'} Você poderá tentar novamente em ${new Date(result.document_retry_available_at).toLocaleString('pt-BR')}.`
-              : (failureReason || 'Não foi possível validar seu documento automaticamente.');
-          toast.error(retryBlockedMessage);
+          toast.success('Documento enviado para análise da equipe de segurança.');
+          setUploadSuccess('Documento recebido. Nossa equipe de segurança fará a análise e você será avisado aqui na plataforma.');
         }
         
         setIsValidatingDocument(false);
@@ -4083,6 +4089,20 @@ const UserDashboardView: React.FC = () => {
       </ProfileSectionCard>
     );
 
+    const verificationUpdate = latestVerificationNotification
+      ? latestVerificationNotification
+      : user?.document_review_status === 'pending'
+        ? {
+            id: 'document-review-pending-fallback',
+            type: 'account_verification' as const,
+            title: 'Documento enviado para análise',
+            content:
+              'Recebemos seu documento com sucesso. Ele foi encaminhado para análise da nossa equipe de segurança e verificação. Você será avisado aqui na plataforma assim que a revisão for concluída.',
+            timestamp: user?.document_last_attempt_at || user?.document_reviewed_at || new Date().toISOString(),
+            isRead: true,
+          }
+        : null;
+
     const verificationSection = (
       <PlanGuard requiredFeature="has_verification_badge">
         <ProfileSectionCard
@@ -4091,7 +4111,7 @@ const UserDashboardView: React.FC = () => {
           icon={<FileText className="h-5 w-5" strokeWidth={1.5} />}
           color="amber"
         >
-          {latestVerificationNotification ? (
+          {verificationUpdate ? (
             <div
               className={`mb-4 rounded-2xl border px-4 py-4 text-left ${
                 user?.document_review_status === 'approved'
@@ -4112,10 +4132,10 @@ const UserDashboardView: React.FC = () => {
               >
                 Última atualização da verificação
               </p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{latestVerificationNotification.title}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-700">{latestVerificationNotification.content}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{verificationUpdate.title}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{verificationUpdate.content}</p>
               <p className="mt-3 text-xs text-slate-500">
-                {new Date(latestVerificationNotification.timestamp).toLocaleString('pt-BR')}
+                {new Date(verificationUpdate.timestamp).toLocaleString('pt-BR')}
               </p>
             </div>
           ) : null}
@@ -4179,14 +4199,22 @@ const UserDashboardView: React.FC = () => {
             {validationResult && (
               <div
                 className={`mt-3 rounded-xl border p-3 ${
-                  validationResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                  validationResult.status === 'approved'
+                    ? 'border-green-200 bg-green-50'
+                    : validationResult.status === 'manual_review'
+                      ? 'border-sky-200 bg-sky-50'
+                      : 'border-red-200 bg-red-50'
                 }`}
               >
                 <div className="flex items-start gap-2">
                   <div className="mt-0.5 flex-shrink-0">
-                    {validationResult.success ? (
+                    {validationResult.status === 'approved' ? (
                       <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500">
                         <span className="text-xs font-bold text-white">✓</span>
+                      </div>
+                    ) : validationResult.status === 'manual_review' ? (
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500">
+                        <Clock3 className="h-3 w-3 text-white" strokeWidth={2.5} />
                       </div>
                     ) : (
                       <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500">
@@ -4195,10 +4223,23 @@ const UserDashboardView: React.FC = () => {
                     )}
                   </div>
                   <div className="flex-1 text-left">
-                    <p className={`text-xs font-semibold ${validationResult.success ? 'text-green-700' : 'text-red-700'}`}>
+                    <p
+                      className={`text-xs font-semibold ${
+                        validationResult.status === 'approved'
+                          ? 'text-green-700'
+                          : validationResult.status === 'manual_review'
+                            ? 'text-sky-700'
+                            : 'text-red-700'
+                      }`}
+                    >
                       {validationResult.message}
                     </p>
-                    {!validationResult.success && (
+                    {validationResult.status === 'manual_review' && (
+                      <p className="mt-2 text-xs text-slate-600">
+                        Você não precisa reenviar agora. A equipe de segurança continuará a verificação manualmente.
+                      </p>
+                    )}
+                    {validationResult.status === 'error' && (
                       <p className="mt-2 text-xs text-slate-600">
                         Dica: certifique-se de que a imagem está nítida e o documento está bem enquadrado.
                       </p>

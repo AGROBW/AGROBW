@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SitePopup, SitePopupMetrics, SitePopupUserState } from '../../types';
 import { supabase } from '../lib/supabaseClient';
 import { appError } from '../utils/appLogger';
@@ -55,7 +55,7 @@ export const useSitePopups = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchPopups = async () => {
+  const fetchPopups = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -77,7 +77,7 @@ export const useSitePopups = () => {
     }
 
     setIsLoading(false);
-  };
+  }, []);
 
   const deactivateOtherPopups = async (currentId?: string | null) => {
     let query = supabase
@@ -149,9 +149,20 @@ export const useSitePopups = () => {
     return { error: null };
   };
 
+  const deletePopup = async (popupId: string) => {
+    const { error } = await supabase.from('site_popups').delete().eq('id', popupId);
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    await fetchPopups();
+    return { error: null };
+  };
+
   useEffect(() => {
     void fetchPopups();
-  }, []);
+  }, [fetchPopups]);
 
   return {
     popups,
@@ -160,6 +171,7 @@ export const useSitePopups = () => {
     fetchPopups,
     savePopup,
     togglePopupStatus,
+    deletePopup,
   };
 };
 

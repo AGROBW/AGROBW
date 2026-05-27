@@ -74,12 +74,21 @@ const PartnerStoresView: React.FC = () => {
           .some((value) => String(value).toLowerCase().includes(normalizedSearch));
 
       const matchesState = stateFilter === 'all' || store.state === stateFilter;
-      const matchesCategory = categoryFilter === 'all' || store.categoryGroups.some((category) => category.slug === categoryFilter);
+      const matchesCategory =
+        categoryFilter === 'all' || store.categoryGroups.some((category) => category.slug === categoryFilter);
       const matchesCondition = conditionFilter === 'all' || store.productConditions.includes(conditionFilter);
-      const matchesAvailability = availabilityFilter === 'all' || store.availabilityOptions.includes(availabilityFilter);
+      const matchesAvailability =
+        availabilityFilter === 'all' || store.availabilityOptions.includes(availabilityFilter);
       const matchesActiveAds = !onlyWithAds || store.activeAdsCount > 0;
 
-      return matchesSearch && matchesState && matchesCategory && matchesCondition && matchesAvailability && matchesActiveAds;
+      return (
+        matchesSearch &&
+        matchesState &&
+        matchesCategory &&
+        matchesCondition &&
+        matchesAvailability &&
+        matchesActiveAds
+      );
     });
 
     return filtered.sort((left, right) => {
@@ -123,7 +132,8 @@ const PartnerStoresView: React.FC = () => {
               Presença Profissional no Agro
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
-              Explore lojas com presença institucional, catálogo organizado e identidade própria, tudo para apresentar produtos com mais credibilidade e profissionalismo.
+              Explore lojas com presença institucional, catálogo organizado e identidade própria, tudo para apresentar
+              produtos com mais credibilidade e profissionalismo.
             </p>
           </div>
         </div>
@@ -141,7 +151,8 @@ const PartnerStoresView: React.FC = () => {
                   </span>
                   <h2 className="mt-3 text-xl font-black text-slate-900">Explore as lojas</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Busque por empresa e refine por estado, categoria e perfil dos anúncios para encontrar parceiros mais próximos do seu negócio.
+                    Busque por empresa e refine por estado, categoria e perfil dos anúncios para encontrar parceiros
+                    mais próximos do seu negócio.
                   </p>
                 </div>
 
@@ -163,7 +174,10 @@ const PartnerStoresView: React.FC = () => {
                     Buscar loja
                   </label>
                   <div className="relative">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" strokeWidth={1.9} />
+                    <Search
+                      className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                      strokeWidth={1.9}
+                    />
                     <input
                       type="text"
                       value={searchTerm}
@@ -175,7 +189,9 @@ const PartnerStoresView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Estado</label>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">
+                    Estado
+                  </label>
                   <select
                     value={stateFilter}
                     onChange={(event) => setStateFilter(event.target.value)}
@@ -191,7 +207,9 @@ const PartnerStoresView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Categoria</label>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">
+                    Categoria
+                  </label>
                   <select
                     value={categoryFilter}
                     onChange={(event) => setCategoryFilter(event.target.value)}
@@ -207,7 +225,9 @@ const PartnerStoresView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Condição do item</label>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">
+                    Condição do item
+                  </label>
                   <select
                     value={conditionFilter}
                     onChange={(event) => setConditionFilter(event.target.value)}
@@ -223,7 +243,9 @@ const PartnerStoresView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Disponibilidade</label>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">
+                    Disponibilidade
+                  </label>
                   <select
                     value={availabilityFilter}
                     onChange={(event) => setAvailabilityFilter(event.target.value)}
@@ -249,7 +271,9 @@ const PartnerStoresView: React.FC = () => {
                 </label>
 
                 <div>
-                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">Ordenação</label>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.28em] text-slate-500">
+                    Ordenação
+                  </label>
                   <select
                     value={sortBy}
                     onChange={(event) => setSortBy(event.target.value as SortKey)}

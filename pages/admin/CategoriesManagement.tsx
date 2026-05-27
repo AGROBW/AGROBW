@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Search,
   Tag,
+  Trash2,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -253,6 +254,103 @@ const CategoriesManagement: React.FC = () => {
       sort_order: Number(subcategory.sort_order || 0),
       is_active: subcategory.is_active ?? true,
     });
+  };
+
+  const handleDeleteCategory = async (category: CategoryRecord) => {
+    const confirmed = window.confirm(`Deseja excluir a categoria secundária "${category.name}"?`);
+    if (!confirmed) return;
+
+    try {
+      const { count: subcategoryCount, error: subcategoryCountError } = await supabase
+        .from('category_subcategories')
+        .select('id', { count: 'exact', head: true })
+        .eq('category_id', category.id);
+
+      if (subcategoryCountError) throw subcategoryCountError;
+
+      if ((subcategoryCount || 0) > 0) {
+        toast.error('Exclua as subcategorias vinculadas antes de remover esta categoria.');
+        return;
+      }
+
+      const { count: adsCount, error: adsCountError } = await supabase
+        .from('announcements')
+        .select('id', { count: 'exact', head: true })
+        .eq('category_id', category.id);
+
+      if (adsCountError) throw adsCountError;
+
+      if ((adsCount || 0) > 0) {
+        toast.error('Não é possível excluir uma categoria com anúncios vinculados.');
+        return;
+      }
+
+      const { error } = await supabase.from('categories').delete().eq('id', category.id);
+      if (error) throw error;
+
+      await logAction({
+        action: ADMIN_ACTIONS.DELETE_PAGE,
+        resourceType: 'category',
+        resourceId: category.id,
+        previousValue: category,
+        reason: `Categoria secundaria ${category.name} excluida de ${selectedGroup?.name || 'grupo desconhecido'}`,
+      });
+
+      if (selectedCategoryId === category.id) {
+        setSelectedCategoryId('');
+        setSubcategories([]);
+      }
+
+      if (editingCategoryId === category.id) {
+        resetCategoryForm();
+      }
+
+      toast.success('Categoria secundaria excluída com sucesso.');
+      await loadCategories();
+    } catch (error) {
+      console.error('[CategoriesManagement] Erro ao excluir categoria secundaria:', error);
+      toast.error('Não foi possível excluir a categoria secundaria.');
+    }
+  };
+
+  const handleDeleteSubcategory = async (subcategory: CategorySubcategoryRecord) => {
+    const confirmed = window.confirm(`Deseja excluir a subcategoria "${subcategory.name}"?`);
+    if (!confirmed) return;
+
+    try {
+      const { count: adsCount, error: adsCountError } = await supabase
+        .from('announcements')
+        .select('id', { count: 'exact', head: true })
+        .eq('sub_category_id', subcategory.id);
+
+      if (adsCountError) throw adsCountError;
+
+      if ((adsCount || 0) > 0) {
+        toast.error('Não é possível excluir uma subcategoria já utilizada em anúncios.');
+        return;
+      }
+
+      const { error } = await supabase.from('category_subcategories').delete().eq('id', subcategory.id);
+      if (error) throw error;
+
+      await logAction({
+        action: ADMIN_ACTIONS.DELETE_PAGE,
+        resourceType: 'category_subcategory',
+        resourceId: subcategory.id,
+        previousValue: subcategory,
+        reason: `Subcategoria ${subcategory.name} excluida de ${selectedCategory?.name || 'categoria desconhecida'}`,
+      });
+
+      if (editingSubcategoryId === subcategory.id) {
+        resetSubcategoryForm();
+      }
+
+      toast.success('Subcategoria excluída com sucesso.');
+      await loadSubcategories(selectedCategoryId);
+    } catch (error) {
+      console.error('[CategoriesManagement] Erro ao excluir subcategoria:', error);
+      toast.error('Não foi possível excluir a subcategoria.');
+    }
   };
 
   const handleSaveCategory = async () => {
@@ -564,6 +662,14 @@ const CategoriesManagement: React.FC = () => {
                         </span>
                         <button
                           type="button"
+                          onClick={() => void handleDeleteCategory(category)}
+                          className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Excluir
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleEditCategory(category)}
                           className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
                         >
@@ -631,6 +737,14 @@ const CategoriesManagement: React.FC = () => {
                       >
                         {(subcategory.is_active ?? true) ? 'Ativa' : 'Inativa'}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteSubcategory(subcategory)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Excluir
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleEditSubcategory(subcategory)}
@@ -885,4 +999,3 @@ const CategoriesManagement: React.FC = () => {
 };
 
 export default CategoriesManagement;
-

@@ -175,7 +175,7 @@ const PricingView: React.FC = () => {
 
     if (isCustomPlan(planName)) return void window.open(getCustomPlanContactLink(planName), '_blank');
     if (!user) {
-      toast.error('Voce precisa estar logado para assinar um plano.');
+      toast.error('Você precisa estar logado para assinar um plano.');
       setTimeout(() => { window.location.href = '/login?redirect=/planos'; }, 1500);
       return;
     }
@@ -201,14 +201,14 @@ const PricingView: React.FC = () => {
     const booster = boosters[0];
     if (!booster) return void toast.error('Nenhum booster disponível no momento.');
     if (!user) {
-      toast.error('Voce precisa estar logado para comprar um booster.');
+      toast.error('Você precisa estar logado para comprar um booster.');
       setTimeout(() => { window.location.href = '/login?redirect=/planos'; }, 1500);
       return;
     }
     if (boosterSummary.requiresPaidPlan && boosterSummary.hasEligiblePaidPlan === false) {
       return void toast.error(boosterSummary.blockedReason || 'Booster disponível apenas para assinantes com plano pago ativo.');
     }
-    if (!boosterSummary.canPurchase) return void toast.error('Voce atingiu o limite de 2 boosters a cada 30 dias.');
+    if (!boosterSummary.canPurchase) return void toast.error('Você atingiu o limite de 2 boosters a cada 30 dias.');
     setLoadingPlanId(`booster-${booster.id}`);
     toast.loading('Preparando checkout do booster...', { id: 'booster-checkout-loading' });
     try {

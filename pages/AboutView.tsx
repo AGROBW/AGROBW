@@ -101,7 +101,10 @@ const AboutView: React.FC = () => {
       <section className="relative h-[60vh] md:h-[80vh] flex items-center overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center transition-transform duration-[10s] scale-105"
-          style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1600&auto=format&fit=crop)' }}
+          style={{
+            backgroundImage:
+              'url(https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1600&auto=format&fit=crop)',
+          }}
         >
           <div className="absolute inset-0 bg-gradient-to-b from-slate-900/60 via-slate-900/40 to-white" />
         </div>
@@ -161,7 +164,10 @@ const AboutView: React.FC = () => {
           <div className="flex-1 relative animate-in slide-in-from-right duration-1000">
             <div className="absolute -inset-4 bg-green-100 rounded-[3rem] -rotate-3" />
             <img
-              src={data.history_image_url || 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?q=80&w=800&auto=format&fit=crop'}
+              src={
+                data.history_image_url ||
+                'https://images.unsplash.com/photo-1464226184884-fa280b87c399?q=80&w=800&auto=format&fit=crop'
+              }
               alt="Produtor Rural"
               className="relative rounded-[3rem] shadow-2xl z-10 w-full h-[500px] object-cover"
             />
@@ -178,7 +184,10 @@ const AboutView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             <div className="bg-white rounded-[2.5rem] p-12 shadow-sm border border-slate-100 text-center group hover:bg-green-700 transition-colors duration-500">
               <div className="text-6xl mb-8 group-hover:scale-110 transition-transform duration-500">
-                <Target className="w-16 h-16 mx-auto text-green-700 group-hover:text-white transition-colors" strokeWidth={1.5} />
+                <Target
+                  className="w-16 h-16 mx-auto text-green-700 group-hover:text-white transition-colors"
+                  strokeWidth={1.5}
+                />
               </div>
               <h3 className="text-2xl font-black text-slate-900 mb-6 font-display group-hover:text-white transition-colors">
                 {data.mission_title}
@@ -189,7 +198,10 @@ const AboutView: React.FC = () => {
             </div>
             <div className="bg-white rounded-[2.5rem] p-12 shadow-sm border border-slate-100 text-center group hover:bg-green-700 transition-colors duration-500">
               <div className="text-6xl mb-8 group-hover:scale-110 transition-transform duration-500">
-                <Telescope className="w-16 h-16 mx-auto text-green-700 group-hover:text-white transition-colors" strokeWidth={1.5} />
+                <Telescope
+                  className="w-16 h-16 mx-auto text-green-700 group-hover:text-white transition-colors"
+                  strokeWidth={1.5}
+                />
               </div>
               <h3 className="text-2xl font-black text-slate-900 mb-6 font-display group-hover:text-white transition-colors">
                 {data.vision_title}
@@ -200,7 +212,10 @@ const AboutView: React.FC = () => {
             </div>
             <div className="bg-white rounded-[2.5rem] p-12 shadow-sm border border-slate-100 text-center group hover:bg-green-700 transition-colors duration-500">
               <div className="text-6xl mb-8 group-hover:scale-110 transition-transform duration-500">
-                <Gem className="w-16 h-16 mx-auto text-green-700 group-hover:text-white transition-colors" strokeWidth={1.5} />
+                <Gem
+                  className="w-16 h-16 mx-auto text-green-700 group-hover:text-white transition-colors"
+                  strokeWidth={1.5}
+                />
               </div>
               <h3 className="text-2xl font-black text-slate-900 mb-6 font-display group-hover:text-white transition-colors">
                 {data.values_title}
@@ -246,10 +261,11 @@ const AboutView: React.FC = () => {
           </div>
           <div className="order-1 lg:order-2">
             <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-8 font-display leading-tight">
-              Por que a AGRO BW e <span className="text-green-700">diferente?</span>
+              Por que a AGRO BW é <span className="text-green-700">diferente?</span>
             </h2>
             <p className="text-lg text-slate-500 mb-10 leading-relaxed font-medium">
-              Nao somos apenas um site de anuncios. Somos uma ferramenta estrategica para quem vive o agronegocio. Cada linha de codigo e pensada para suportar a robustez das operacoes rurais.
+              Não somos apenas um site de anúncios. Somos uma ferramenta estratégica para quem vive o agronegócio.
+              Cada linha de código é pensada para suportar a robustez das operações rurais.
             </p>
             <div className="flex gap-4">
               <div className="flex -space-x-4">
@@ -271,17 +287,18 @@ const AboutView: React.FC = () => {
         <div className="absolute top-0 right-0 w-1/3 h-full bg-slate-900/10 skew-x-12 translate-x-10" />
         <div className="max-w-5xl mx-auto px-4 text-center relative z-10">
           <h2 className="text-4xl md:text-6xl font-black text-white mb-8 font-display leading-tight">
-            Faca parte da nossa historia
+            Faça parte da nossa história
           </h2>
           <p className="text-green-50 text-xl mb-12 max-w-2xl mx-auto opacity-90 leading-relaxed">
-            Comece hoje mesmo a transformar o jeito que voce faz negocios no campo. Anuncie gratis e conecte-se com compradores reais.
+            Comece hoje mesmo a transformar o jeito que você faz negócios no campo. Anuncie grátis e conecte-se com
+            compradores reais.
           </p>
           <div className="flex flex-col sm:flex-row gap-6 justify-center">
             <Link
               to="/anunciar"
               className="bg-slate-900 text-white px-12 py-6 rounded-[2rem] font-black text-xl hover:bg-slate-800 transition-all shadow-2xl hover:scale-105 active:scale-95"
             >
-              Comecar a Anunciar Agora
+              Começar a Anunciar Agora
             </Link>
             <Link
               to="/anuncios"
