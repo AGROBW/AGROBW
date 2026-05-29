@@ -20,6 +20,15 @@ export interface BoosterCheckoutRequest {
   userId: string;
 }
 
+type CheckoutAction = 'open_stripe_portal' | 'schedule_subscription_change';
+
+type CheckoutResult = {
+  success: boolean;
+  error?: string;
+  provider?: 'stripe';
+  action?: CheckoutAction;
+};
+
 export interface CheckoutGatewayConfig {
   preferred_checkout_provider: 'stripe';
   stripe_enabled: boolean;
@@ -66,9 +75,36 @@ export const getCheckoutGatewayConfig = async (): Promise<CheckoutGatewayConfig 
   }
 };
 
+const ACTIVE_STRIPE_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due'];
+
+const hasExistingStripePlanSubscription = async (userId: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .from('user_subscriptions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('provider', 'stripe')
+      .in('status', ACTIVE_STRIPE_SUBSCRIPTION_STATUSES)
+      .not('provider_subscription_id', 'is', null)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Erro ao verificar assinatura Stripe existente:', error);
+      return false;
+    }
+
+    return Boolean(data?.id);
+  } catch (error) {
+    console.warn('Erro inesperado ao verificar assinatura Stripe existente:', error);
+    return false;
+  }
+};
+
 const initiateStripeCheckout = async (
   request: CheckoutRequest
-): Promise<{ success: boolean; error?: string }> => {
+): Promise<CheckoutResult> => {
   try {
     const {
       data: { user },
@@ -139,7 +175,7 @@ const initiateStripeCheckout = async (
       };
     }
 
-    window.open(data.url, '_blank');
+    window.location.assign(data.url);
 
     return {
       success: true,
@@ -155,7 +191,17 @@ const initiateStripeCheckout = async (
 
 export const initiatePlatformPlanCheckout = async (
   request: CheckoutRequest
-): Promise<{ success: boolean; error?: string; provider?: 'stripe' }> => {
+): Promise<CheckoutResult> => {
+  const hasExistingStripeSubscription = await hasExistingStripePlanSubscription(request.userId);
+  if (hasExistingStripeSubscription) {
+    return {
+      success: false,
+      provider: 'stripe',
+      action: 'schedule_subscription_change',
+      error: 'Sua conta já possui uma assinatura Stripe ativa. A alteração do plano será agendada para o próximo ciclo.',
+    };
+  }
+
   const gatewayConfig = await getCheckoutGatewayConfig();
   if (!gatewayConfig?.stripe_enabled) {
     return {
@@ -182,7 +228,7 @@ export const initiatePlatformPlanCheckout = async (
 
 export const initiateBoosterCheckout = async (
   request: BoosterCheckoutRequest
-): Promise<{ success: boolean; error?: string; provider?: 'stripe' }> => {
+): Promise<CheckoutResult> => {
   const gatewayConfig = await getCheckoutGatewayConfig();
   const checkoutRequest: CheckoutRequest = {
     planId: request.boosterId,
@@ -262,7 +308,7 @@ export const openStripeCustomerPortal = async (
       };
     }
 
-    window.open(data.url, '_blank');
+    window.location.assign(data.url);
 
     return {
       success: true,

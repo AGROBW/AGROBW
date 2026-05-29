@@ -501,6 +501,89 @@ const upsertStripeSubscription = async (
   return data;
 };
 
+const markScheduledChangeAsApplied = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  params: {
+    providerSubscriptionId: string | null;
+    appliedPlanId?: string | null;
+    appliedBillingCycle?: 'monthly' | 'yearly' | null;
+    subscriptionStatus?: SubscriptionRowStatus | null;
+  }
+) => {
+  const providerSubscriptionId = String(params.providerSubscriptionId || '').trim();
+  if (!providerSubscriptionId) {
+    return;
+  }
+
+  const { data: pendingRequest } = await supabaseAdmin
+    .from('subscription_change_requests')
+    .select('id,user_id,change_kind,target_plan_id,target_billing_cycle,status')
+    .eq('provider_subscription_id', providerSubscriptionId)
+    .eq('status', 'pending')
+    .order('requested_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!pendingRequest?.id) {
+    return;
+  }
+
+  const changeKind = String(pendingRequest.change_kind || '').trim();
+  const appliedPlanId = String(params.appliedPlanId || '').trim() || null;
+  const appliedBillingCycle = params.appliedBillingCycle || null;
+  const subscriptionStatus = params.subscriptionStatus || null;
+
+  let shouldMarkApplied = false;
+  let notificationTitle = 'Alteração de assinatura concluída';
+  let notificationContent = 'Sua alteração de assinatura Stripe foi aplicada com sucesso.';
+
+  if (
+    changeKind === 'cancel' &&
+    ['canceled', 'cancelled', 'expired'].includes(String(subscriptionStatus || ''))
+  ) {
+    shouldMarkApplied = true;
+    notificationTitle = 'Assinatura encerrada no fim do ciclo';
+    notificationContent = 'O cancelamento da sua assinatura Stripe foi concluído no encerramento do ciclo.';
+  }
+
+  if (
+    !shouldMarkApplied &&
+    (changeKind === 'upgrade' || changeKind === 'downgrade') &&
+    pendingRequest.target_plan_id === appliedPlanId &&
+    pendingRequest.target_billing_cycle === appliedBillingCycle
+  ) {
+    shouldMarkApplied = true;
+    notificationTitle =
+      changeKind === 'upgrade' ? 'Upgrade aplicado no novo ciclo' : 'Downgrade aplicado no novo ciclo';
+    notificationContent =
+      changeKind === 'upgrade'
+        ? 'Seu upgrade Stripe entrou em vigor no início do novo ciclo.'
+        : 'Seu downgrade Stripe entrou em vigor no início do novo ciclo.';
+  }
+
+  if (!shouldMarkApplied) {
+    return;
+  }
+
+  await supabaseAdmin
+    .from('subscription_change_requests')
+    .update({
+      status: 'applied',
+      applied_at: new Date().toISOString(),
+      failure_reason: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', pendingRequest.id);
+
+  await insertNotification(supabaseAdmin, {
+    user_id: pendingRequest.user_id,
+    type: 'SYSTEM',
+    title: notificationTitle,
+    content: notificationContent,
+    link: '/minha-conta/financeiro',
+  });
+};
+
 const upsertStripePayment = async (
   supabaseAdmin: ReturnType<typeof createClient>,
   params: {
@@ -978,6 +1061,13 @@ serve(async (req) => {
           currency: invoice.currency || stripeSubscription.currency || 'BRL',
         });
 
+        await markScheduledChangeAsApplied(supabaseAdmin, {
+          providerSubscriptionId: context.subscriptionId,
+          appliedPlanId: context.planId,
+          appliedBillingCycle: context.billingCycle,
+          subscriptionStatus: subscriptionRow?.status || null,
+        });
+
         const paidAt = toIsoFromUnix(invoice.status_transitions?.paid_at) || new Date().toISOString();
         const paymentStatus =
           eventType === 'invoice.paid'
@@ -1105,11 +1195,18 @@ serve(async (req) => {
       });
 
       if (context.itemType === 'plan' && context.subscriptionId) {
-        await upsertStripeSubscription(supabaseAdmin, {
+        const subscriptionRow = await upsertStripeSubscription(supabaseAdmin, {
           context,
           stripeSubscription,
           amountPaid: null,
           currency: stripeSubscription.currency || 'BRL',
+        });
+
+        await markScheduledChangeAsApplied(supabaseAdmin, {
+          providerSubscriptionId: context.subscriptionId,
+          appliedPlanId: context.planId,
+          appliedBillingCycle: context.billingCycle,
+          subscriptionStatus: subscriptionRow?.status || null,
         });
       }
 

@@ -17,6 +17,17 @@ type SubscriptionRow = {
   plans: Record<string, any> | null
 }
 
+const ELIGIBLE_SUBSCRIPTION_STATUSES: SubscriptionRow['status'][] = ['active', 'trialing', 'past_due']
+
+const SUBSCRIPTION_STATUS_PRIORITY: Record<SubscriptionRow['status'], number> = {
+  active: 3,
+  trialing: 2,
+  past_due: 1,
+  canceled: 0,
+  cancelled: 0,
+  expired: 0,
+}
+
 type HandleActionOptions = {
   adCreatedAt?: string
   onUpgrade?: () => void
@@ -59,15 +70,26 @@ export const usePlanCheck = () => {
           .from('user_subscriptions')
           .select('id,status,current_period_start,current_period_end,cancel_at_period_end,trial_end_date,source,promotion_code_id, plans (id,name,max_ads,lead_contact_limit_days,lead_contact_limit_days_monthly,lead_contact_limit_days_yearly,has_verification_badge,has_seller_store,has_email_marketing,has_commercial_intelligence,commercial_intelligence_requests_per_month)')
           .eq('user_id', user.id)
-          .eq('status', 'active')
+          .in('status', ELIGIBLE_SUBSCRIPTION_STATUSES)
           .gte('current_period_end', new Date().toISOString())
           .order('current_period_end', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        if (error || !data) {
+          .limit(5)
+        if (error || !data?.length) {
           setSubscription(null)
         } else {
-          setSubscription((data as SubscriptionRow) || null)
+          const bestSubscription = [...(data as SubscriptionRow[])].sort((left, right) => {
+            const priorityDiff =
+              (SUBSCRIPTION_STATUS_PRIORITY[right.status] || 0) -
+              (SUBSCRIPTION_STATUS_PRIORITY[left.status] || 0)
+
+            if (priorityDiff !== 0) {
+              return priorityDiff
+            }
+
+            return new Date(right.current_period_end).getTime() - new Date(left.current_period_end).getTime()
+          })[0] || null
+
+          setSubscription(bestSubscription)
         }
       } catch {
         setSubscription(null)

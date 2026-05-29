@@ -13,6 +13,12 @@ const ALLOWED_BROWSER_ORIGINS: readonly string[] = [
   'https://bwagro.vercel.app',
   'https://bwagro.com.br',
   'https://www.bwagro.com.br',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
   // Previews do Vercel (apenas em desenvolvimento/staging)
   // 'https://*.vercel.app', ← Não usar glob — muito permissivo
 ];

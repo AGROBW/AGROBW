@@ -8,7 +8,8 @@ import {
   getCustomPlanContactLink,
   isCustomPlan,
 } from '../../services/paymentUtils';
-import { initiatePlatformPlanCheckout } from '../../services/paymentCheckoutService';
+import { initiatePlatformPlanCheckout, openStripeCustomerPortal } from '../../services/paymentCheckoutService';
+import { requestSubscriptionChangeNextCycle } from '../../services/subscriptionChangeService';
 import toast from 'react-hot-toast';
 
 type BillingCycle = 'monthly' | 'yearly';
@@ -19,6 +20,7 @@ interface RecommendedUpgradeModalProps {
   currentPlan?: Plan | null;
   nextPlan: Plan | null;
   userId?: string;
+  onScheduledChangeCreated?: () => void | Promise<void>;
 }
 
 const formatCurrency = (value: number) =>
@@ -36,6 +38,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
   currentPlan,
   nextPlan,
   userId,
+  onScheduledChangeCreated,
 }) => {
   const { settings } = useLayout();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
@@ -129,12 +132,53 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
 
       toast.dismiss('upgrade-checkout-loading');
 
+      if (!result.success && result.action === 'schedule_subscription_change') {
+        const changeKind =
+          currentPlan && nextPlan.position < currentPlan.position ? 'downgrade' : 'upgrade';
+
+        const scheduleResult = await requestSubscriptionChangeNextCycle({
+          changeKind,
+          targetPlanId: nextPlan.id,
+          targetBillingCycle: billingCycle,
+        });
+
+        if (!scheduleResult.success) {
+          toast.error(scheduleResult.error || result.error || 'Não foi possível agendar a alteração do plano.');
+          return;
+        }
+
+        toast.success(
+          changeKind === 'upgrade'
+            ? 'Upgrade agendado para o próximo ciclo.'
+            : 'Downgrade agendado para o próximo ciclo.'
+        );
+        if (scheduleResult.warning) {
+          toast.warning(`A mudança foi registrada, mas a sincronização com a Stripe ainda precisa de revisão: ${scheduleResult.warning}`);
+        }
+        await onScheduledChangeCreated?.();
+        onClose();
+        return;
+      }
+
+      if (!result.success && result.action === 'open_stripe_portal') {
+        const portalResult = await openStripeCustomerPortal('/minha-conta/assinatura');
+
+        if (!portalResult.success) {
+          toast.error(portalResult.error || result.error || 'Não foi possível abrir o portal Stripe.');
+          return;
+        }
+
+        toast.success('Portal Stripe aberto para gerenciar sua assinatura atual.');
+        onClose();
+        return;
+      }
+
       if (!result.success) {
         toast.error(result.error || 'Não foi possível iniciar o upgrade.');
         return;
       }
 
-      toast.success(`Checkout Stripe ${getBillingCycleLabel(billingCycle).toLowerCase()} aberto em uma nova aba.`);
+      toast.success(`Redirecionando para o checkout Stripe ${getBillingCycleLabel(billingCycle).toLowerCase()}...`);
       onClose();
     } catch (error) {
       console.error('Erro ao iniciar upgrade:', error);

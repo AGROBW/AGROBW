@@ -8,6 +8,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { deleteAnnouncementWithRelations, useUserAds } from '../src/hooks/useAds';
 import { useNotificationsCount } from '../src/hooks/useNotificationsCount';
 import { useSubscription } from '../src/hooks/useSubscription';
+import { useScheduledSubscriptionChange } from '../src/hooks/useScheduledSubscriptionChange';
 import { supabase } from '../src/lib/supabaseClient';
 import { useInvoices } from '../src/hooks/useInvoices';
 import { usePayments } from '../src/hooks/usePayments';
@@ -33,7 +34,13 @@ import { useDashboardStats } from '../src/hooks/useDashboardStats';
 import { useRadar } from '../src/hooks/useRadar';
 import { usePersistentState } from '../src/hooks/usePersistentState';
 import { updateUserCoordinates } from '../services/geoService';
-import { openStripeCustomerPortal } from '../services/paymentCheckoutService';
+import { initiatePlatformPlanCheckout, openStripeCustomerPortal } from '../services/paymentCheckoutService';
+import {
+  cancelPendingSubscriptionChange,
+  clearStripeSubscriptionCancelAtPeriodEnd,
+  requestSubscriptionChangeNextCycle,
+} from '../services/subscriptionChangeService';
+import { calculateYearlyTotal, getCustomPlanContactLink, isCustomPlan } from '../services/paymentUtils';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { DEFAULT_HIGHLIGHT_COOLDOWN_DAYS, formatHighlightCooldownDaysLabel, getEffectiveHighlightCooldownDays } from '../src/utils/highlightCooldown';
@@ -67,6 +74,10 @@ const Icons = {
 };
 
 const PERFORMANCE_PANEL_ALLOWED_PLANS = new Set(['safra', 'produtor', 'loja parceira']);
+const normalizePlanLabel = (value: string) =>
+  value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+const isLegacySignupPlanName = (planName: string) =>
+  ['start', 'start agro', 'safra', 'semente', 'seed'].includes(normalizePlanLabel(planName || ''));
 
 const AdsSkeletonList = ({ count = 3 }: { count?: number }) => (
   <div className="space-y-2">
@@ -106,6 +117,7 @@ const UserDashboardView: React.FC = () => {
     refreshUsage,
     refetch: refetchSubscription,
   } = useSubscription();
+  const { pendingChange, refetch: refetchPendingChange } = useScheduledSubscriptionChange();
   const [userAds, setUserAds] = useState<Ad[]>([]);
   const [userAdsLoading, setUserAdsLoading] = useState(false);
   const {
@@ -128,7 +140,7 @@ const UserDashboardView: React.FC = () => {
   const lastRenewalNotificationIdRef = useRef<string | null>(null);
   const sidebarNavRef = useRef<HTMLDivElement | null>(null);
   const [showSidebarScrollHint, setShowSidebarScrollHint] = useState(false);
-  const normalizedPlanName = (subscription?.plans?.name || '').trim().toLowerCase();
+  const normalizedPlanName = normalizePlanLabel(subscription?.plans?.name || '');
   const hasPerformancePanelAccess = PERFORMANCE_PANEL_ALLOWED_PLANS.has(normalizedPlanName);
   const isDowngradedBasicPlan = normalizedPlanName === 'básico' || normalizedPlanName === 'basico';
   const isCommercialIntelligenceEnabled = Boolean(settings.commercialIntelligenceEnabled);
@@ -136,10 +148,77 @@ const UserDashboardView: React.FC = () => {
     highlightSettings?.highlightCooldownDays ?? DEFAULT_HIGHLIGHT_COOLDOWN_DAYS
   );
   const highlightCooldownLabel = formatHighlightCooldownDaysLabel(highlightCooldownDays);
+
+  const formatCycleBoundaryDate = (value?: string | null) => {
+    if (!value) return 'data indisponível';
+    return new Date(value).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+  };
+
+  const handleCancelScheduledPlanChange = async () => {
+    setIsCancellingScheduledChange(true);
+    try {
+      const result = await cancelPendingSubscriptionChange();
+      if (!result.success) {
+        toast.error(result.error || 'Não foi possível cancelar a alteração agendada.');
+        return;
+      }
+
+      await refetchPendingChange();
+      toast.success('Alteração agendada cancelada com sucesso.');
+      if (result.warning) {
+        toast.warning(`O cancelamento local foi salvo, mas a reversão na Stripe ainda precisa de revisão: ${result.warning}`);
+      }
+    } finally {
+      setIsCancellingScheduledChange(false);
+    }
+  };
+
+  const handleSchedulePlanCancellation = async () => {
+    setIsCancellingScheduledChange(true);
+    try {
+      const result = await requestSubscriptionChangeNextCycle({
+        changeKind: 'cancel',
+      });
+
+      if (!result.success) {
+        toast.error(result.error || 'Não foi possível agendar o cancelamento da assinatura.');
+        return;
+      }
+
+      await Promise.all([refetchSubscription(), refetchPendingChange()]);
+      toast.success('Cancelamento agendado para o próximo ciclo.');
+      if (result.warning) {
+        toast.warning(`O cancelamento foi registrado, mas a sincronização com a Stripe ainda precisa de revisão: ${result.warning}`);
+      }
+    } finally {
+      setIsCancellingScheduledChange(false);
+    }
+  };
+
+  const handleKeepStripeSubscription = async () => {
+    setIsCancellingScheduledChange(true);
+    try {
+      const result = await clearStripeSubscriptionCancelAtPeriodEnd(subscription?.provider_subscription_id || null);
+      if (!result.success) {
+        toast.error(result.error || 'Não foi possível manter a renovação automática da assinatura.');
+        return;
+      }
+
+      await Promise.all([refetchSubscription(), refetchPendingChange()]);
+      toast.success('A renovação automática da assinatura foi reativada.');
+    } finally {
+      setIsCancellingScheduledChange(false);
+    }
+  };
   
   // Estados para upload
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  const [isCancellingScheduledChange, setIsCancellingScheduledChange] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [isValidatingDocument, setIsValidatingDocument] = useState(false);
   const [validationResult, setValidationResult] = useState<{
@@ -232,7 +311,7 @@ const UserDashboardView: React.FC = () => {
 
       sonnerToast.success(data.title || 'Oportunidade AGRO BW', {
         description:
-          `${data.content || 'Seu anúncio ganhou tração e pode render ainda mais com um upgrade.'} Abra "Meu Plano" para ver as opções.`,
+          `${data.content || 'Seu anúncio ganhou tração e pode render ainda mais com um upgrade.'} Abra "Assinatura" para revisar o plano atual e ver as próximas opções.`,
         duration: 9000,
       });
     };
@@ -271,7 +350,7 @@ const UserDashboardView: React.FC = () => {
 
       sonnerToast.error(data.title || 'Renovação AGRO BW', {
         description:
-          `${data.content || 'Seu plano pago está perto do vencimento. Abra "Meu Plano" para renovar e manter os benefícios ativos.'}`,
+          `${data.content || 'Seu plano pago está perto do vencimento. Abra "Assinatura" para revisar a renovação e manter os benefícios ativos.'}`,
         duration: 9000,
       });
     };
@@ -648,7 +727,7 @@ const UserDashboardView: React.FC = () => {
     ...(isCommercialIntelligenceEnabled
       ? [{ label: 'Inteligência Comercial', path: '/minha-conta/inteligencia-comercial', icon: <Icons.Commercial />, badge: 0 }]
       : []),
-    { label: 'Financeiro', path: '/minha-conta/financeiro', icon: <Icons.Finance />, badge: 0 },
+    { label: 'Assinatura', path: '/minha-conta/assinatura', icon: <Icons.Finance />, badge: 0 },
     { label: 'Central de Ajuda', path: '/minha-conta/ajuda', icon: <Icons.Help />, badge: 0 },
     { label: 'Perfil', path: '/minha-conta/perfil', icon: <Icons.Profile />, badge: 0 },
   ];
@@ -2080,7 +2159,7 @@ const UserDashboardView: React.FC = () => {
 
     const handleOpenStripePortal = async () => {
       setOpeningStripePortal(true);
-      const result = await openStripeCustomerPortal('/minha-conta/financeiro');
+      const result = await openStripeCustomerPortal('/minha-conta/assinatura');
       if (!result.success) {
         toast.error(result.error || 'Nao foi possivel abrir o portal Stripe.');
       }
@@ -2288,10 +2367,15 @@ const UserDashboardView: React.FC = () => {
       () => plansRaw.filter((plan) => plan.is_active).sort((a, b) => a.position - b.position),
       [plansRaw]
     );
+    const hasExplicitSignupPlan = useMemo(
+      () => activePlans.some((plan) => plan.is_default_signup_plan),
+      [activePlans]
+    );
     const currentPlanRecord = useMemo(() => {
       if (!subscription?.plan_id) return null;
       return activePlans.find((plan) => plan.id === subscription.plan_id) || null;
     }, [activePlans, subscription?.plan_id]);
+    const canManageStripeBilling = subscription?.provider === 'stripe' && !!subscription?.provider_customer_id;
     const nextRecommendedPlan = useMemo(() => {
       if (!currentPlanRecord) return null;
       return (
@@ -2480,6 +2564,62 @@ const UserDashboardView: React.FC = () => {
           </div>
         </section>
 
+        {pendingChange?.status === 'pending' ? (
+          <section className="rounded-[24px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_55%,#dbeafe_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(59,130,246,0.28)]">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
+                  Alteração agendada
+                </p>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {pendingChange.changeKind === 'cancel'
+                    ? 'Cancelamento confirmado para o próximo ciclo'
+                    : pendingChange.changeKind === 'upgrade'
+                      ? 'Upgrade agendado para o próximo ciclo'
+                      : 'Downgrade agendado para o próximo ciclo'}
+                </h3>
+                <p className="text-sm text-slate-600">
+                  {pendingChange.changeKind === 'cancel'
+                    ? `Sua assinatura seguirá ativa até ${formatCycleBoundaryDate(pendingChange.effectiveOn)} e não será renovada depois disso.`
+                    : `A mudança de ${pendingChange.currentPlanName} para ${pendingChange.targetPlanName || 'o plano selecionado'} será aplicada automaticamente em ${formatCycleBoundaryDate(pendingChange.effectiveOn)}.`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleCancelScheduledPlanChange()}
+                disabled={isCancellingScheduledChange}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isCancellingScheduledChange ? 'Cancelando...' : 'Cancelar alteração'}
+              </button>
+            </div>
+          </section>
+        ) : subscription?.cancel_at_period_end ? (
+          <section className="rounded-[24px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_55%,#fde68a_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(245,158,11,0.28)]">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
+                  Cancelamento agendado
+                </p>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  A assinatura está marcada para encerrar no fim do ciclo atual
+                </h3>
+                <p className="text-sm text-slate-600">
+                  Seus benefícios seguem ativos até {formatCycleBoundaryDate(subscription.current_period_end)}. Depois dessa data, a assinatura não será renovada automaticamente.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleKeepStripeSubscription()}
+                disabled={isCancellingScheduledChange}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-200 bg-white px-4 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isCancellingScheduledChange ? 'Reativando...' : 'Manter assinatura'}
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         {subscription?.plans && usage.adsLimit !== null && (
           <section className={`rounded-[24px] border p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.3)] ${
             adsOverLimit
@@ -2651,22 +2791,15 @@ const UserDashboardView: React.FC = () => {
             </div>
           </section>
         )}
-
-        <RecommendedUpgradeModal
-          isOpen={isUpgradeModalOpen}
-          onClose={() => setIsUpgradeModalOpen(false)}
-          currentPlan={currentPlanRecord}
-          nextPlan={nextRecommendedPlan}
-          userId={user?.id}
-        />
       </div>
     );
   };
 
   const FinanceDashboard = () => {
     const { plansRaw } = usePlans();
-    const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
     const [openingStripePortal, setOpeningStripePortal] = useState(false);
+    const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
+    const [isPlanChangePanelOpen, setIsPlanChangePanelOpen] = useState(false);
     const searchParams = useMemo(() => {
       const candidates = [location.search];
       const hashQuery = window.location.hash.includes('?')
@@ -2698,20 +2831,32 @@ const UserDashboardView: React.FC = () => {
       () => plansRaw.filter((plan) => plan.is_active).sort((a, b) => a.position - b.position),
       [plansRaw]
     );
+    const hasExplicitSignupPlan = useMemo(
+      () => activePlans.some((plan) => plan.is_default_signup_plan),
+      [activePlans]
+    );
     const currentPlanRecord = useMemo(() => {
       if (!subscription?.plan_id) return null;
       return activePlans.find((plan) => plan.id === subscription.plan_id) || null;
     }, [activePlans, subscription?.plan_id]);
-    const nextRecommendedPlan = useMemo(() => {
-      if (!currentPlanRecord) return null;
-      return (
-        activePlans.find(
-          (plan) =>
-            !plan.is_downgrade_plan &&
-            plan.position > currentPlanRecord.position
-        ) || null
-      );
-    }, [activePlans, currentPlanRecord]);
+    const effectiveBillingCycle = subscription?.billing_cycle === 'yearly' ? 'yearly' : 'monthly';
+    const hasActiveSubscription = Boolean(subscription && ['active', 'trialing', 'past_due'].includes(subscription.status));
+    const manageablePlans = useMemo(
+      () =>
+        activePlans.filter((plan) => {
+          if (plan.id === currentPlanRecord?.id) return false;
+          if (plan.is_downgrade_plan) return false;
+          const isSignupPlan = hasExplicitSignupPlan
+            ? Boolean(plan.is_default_signup_plan)
+            : isLegacySignupPlanName(plan.name);
+          if (hasActiveSubscription && isSignupPlan) {
+            return false;
+          }
+          return true;
+        }),
+      [activePlans, currentPlanRecord?.id, hasActiveSubscription, hasExplicitSignupPlan]
+    );
+    const hasBlockingScheduledChange = pendingChange?.status === 'pending' || Boolean(subscription?.cancel_at_period_end);
 
     const formatCurrency = (value: number, currency = 'BRL') =>
       new Intl.NumberFormat('pt-BR', {
@@ -2766,49 +2911,134 @@ const UserDashboardView: React.FC = () => {
       failed: 'bg-rose-100 text-rose-700',
       not_applicable: 'bg-slate-100 text-slate-500',
     } as const;
-
-    const handleManagePlan = () => {
-      navigate(`/planos?current=${subscription?.plan_id || ''}`);
-    };
     const canManageStripeBilling = subscription?.provider === 'stripe' && !!subscription?.provider_customer_id;
 
     const handleOpenStripePortal = async () => {
       setOpeningStripePortal(true);
-      const result = await openStripeCustomerPortal('/minha-conta/financeiro');
+      const result = await openStripeCustomerPortal('/minha-conta/assinatura');
       if (!result.success) {
         toast.error(result.error || 'Nao foi possivel abrir o portal Stripe.');
       }
       setOpeningStripePortal(false);
     };
 
-    const getUpgradeHighlights = () => {
-      if (!nextRecommendedPlan) return [];
-
-      const highlights: string[] = [];
-
-      if ((nextRecommendedPlan.max_ads ?? 0) > (currentPlanRecord?.max_ads ?? 0)) {
-        const currentAds = currentPlanRecord?.max_ads ?? 0;
-        const diff = (nextRecommendedPlan.max_ads ?? 0) - currentAds;
-        highlights.push(`Mais ${diff} anúncio${diff > 1 ? 's' : ''} ativo${diff > 1 ? 's' : ''} no plano.`);
+    const getManagedPlanActionLabel = (plan: (typeof activePlans)[number]) => {
+      if (isCustomPlan(plan.name)) {
+        return 'Falar com suporte';
       }
 
-      if ((nextRecommendedPlan.category_highlights_count || 0) > (currentPlanRecord?.category_highlights_count || 0)) {
-        highlights.push(`Mais destaque em categoria para ampliar a exposição dos anúncios.`);
+      if (!canManageStripeBilling || !currentPlanRecord) {
+        return `Assinar ${effectiveBillingCycle === 'yearly' ? 'Anual' : 'Mensal'}`;
       }
 
-      if ((nextRecommendedPlan.home_highlight_count || 0) > (currentPlanRecord?.home_highlight_count || 0)) {
-        highlights.push(`Entrada na vitrine da home para campanhas mais fortes.`);
+      if (plan.position > currentPlanRecord.position) {
+        return 'Solicitar upgrade';
       }
 
-      if ((nextRecommendedPlan.radar_max_alerts || 0) > (currentPlanRecord?.radar_max_alerts || 0)) {
-        highlights.push(`Radar com mais alertas e filtros avançados para novas oportunidades.`);
+      if (plan.position < currentPlanRecord.position) {
+        return 'Solicitar downgrade';
       }
 
-      if (highlights.length === 0) {
-        return (nextRecommendedPlan.display_features || []).filter(Boolean).slice(0, 3);
+      return 'Trocar via Portal Stripe';
+    };
+
+    const getManagedPlanSupportText = (plan: (typeof activePlans)[number]) => {
+      if (!canManageStripeBilling || !currentPlanRecord) {
+        return `Nova assinatura com cobrança ${effectiveBillingCycle === 'yearly' ? 'anual' : 'mensal'}.`;
       }
 
-      return highlights.slice(0, 3);
+      if (plan.position > currentPlanRecord.position) {
+        return `Upgrade agendado para o próximo ciclo ${effectiveBillingCycle === 'yearly' ? 'anual' : 'mensal'}.`;
+      }
+
+      if (plan.position < currentPlanRecord.position) {
+        return `Downgrade agendado para o próximo ciclo ${effectiveBillingCycle === 'yearly' ? 'anual' : 'mensal'}.`;
+      }
+
+      return 'Mudanças de ciclo ou casos especiais seguem pelo Portal Stripe.';
+    };
+
+    const handleManagedPlanAction = async (plan: (typeof activePlans)[number]) => {
+      if (!user?.id) {
+        toast.error('Você precisa estar logado para gerenciar a assinatura.');
+        return;
+      }
+
+      if (hasBlockingScheduledChange) {
+        toast.error('Existe uma alteração de assinatura pendente. Cancele ou conclua essa alteração antes de solicitar outra.');
+        return;
+      }
+
+      if (isCustomPlan(plan.name)) {
+        window.open(getCustomPlanContactLink(plan.name), '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      setChangingPlanId(plan.id);
+
+      try {
+        if (canManageStripeBilling && currentPlanRecord) {
+          const changeKind =
+            plan.position > currentPlanRecord.position
+              ? 'upgrade'
+              : plan.position < currentPlanRecord.position
+                ? 'downgrade'
+                : null;
+
+          if (!changeKind) {
+            const portalResult = await openStripeCustomerPortal('/minha-conta/assinatura');
+            if (!portalResult.success) {
+              toast.error(portalResult.error || 'Não foi possível abrir o Portal Stripe.');
+              return;
+            }
+
+            toast.success('Portal Stripe aberto para ajustar a assinatura atual.');
+            return;
+          }
+
+          const scheduleResult = await requestSubscriptionChangeNextCycle({
+            changeKind,
+            targetPlanId: plan.id,
+            targetBillingCycle: effectiveBillingCycle,
+          });
+
+          if (!scheduleResult.success) {
+            toast.error(scheduleResult.error || 'Não foi possível registrar a alteração do plano.');
+            return;
+          }
+
+          toast.success(changeKind === 'upgrade' ? 'Upgrade agendado para o próximo ciclo.' : 'Downgrade agendado para o próximo ciclo.');
+          if (scheduleResult.warning) {
+            toast.error(`A mudança foi registrada, mas a sincronização com a Stripe precisa de revisão: ${scheduleResult.warning}`);
+          }
+          await refetchPendingChange();
+          await refetchSubscription();
+          return;
+        }
+
+        const amount =
+          effectiveBillingCycle === 'monthly'
+            ? plan.monthly_price
+            : calculateYearlyTotal(plan.monthly_price, plan.yearly_price);
+
+        const checkoutResult = await initiatePlatformPlanCheckout({
+          planId: plan.id,
+          planName: plan.name,
+          planDescription: plan.description || `Plano ${plan.name}`,
+          billingCycle: effectiveBillingCycle,
+          amount,
+          userId: user.id,
+        });
+
+        if (!checkoutResult.success) {
+          toast.error(checkoutResult.error || 'Não foi possível iniciar a assinatura.');
+          return;
+        }
+
+        toast.success('Redirecionando para o checkout Stripe...');
+      } finally {
+        setChangingPlanId(null);
+      }
     };
 
     const openUrl = (url?: string | null) => {
@@ -2952,269 +3182,282 @@ const UserDashboardView: React.FC = () => {
       <div className="space-y-6">
         {renderFeedbackBanner()}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="flex items-center gap-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.3)]">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-green-700/10 text-green-700 shadow-sm">
-              <CreditCard className="w-5 h-5" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Plano atual</p>
-              <p className="text-sm font-semibold text-slate-900">{planName}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.3)]">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900/5 text-slate-700 shadow-sm">
-              <Receipt className="w-5 h-5" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ultimo pagamento</p>
-              <p className="text-sm font-semibold text-slate-900">
-                {lastApprovedPayment ? formatCurrency(lastApprovedPayment.amount, lastApprovedPayment.currency) : 'Sem registro'}
+        <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(135deg,#f8fafc_0%,#ffffff_50%,#ecfdf5_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.26)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-700">
+                Central da assinatura
+              </p>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+                Gerencie cobrança, renovação e próximas mudanças do plano
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Use esta área para acompanhar o ciclo atual, agendar cancelamento, manter a renovação automática ativa e consultar comprovantes e notas.
               </p>
             </div>
-          </div>
-
-          <div className="flex items-center gap-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.3)]">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900/5 text-slate-700 shadow-sm">
-              <FileText className="w-5 h-5" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Proxima renovacao</p>
-              <p className="text-sm font-semibold text-slate-900">{renewalDate}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 rounded-[24px] border border-green-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_50%,#dcfce7_100%)] p-5 shadow-[0_18px_45px_-36px_rgba(22,163,74,0.35)]">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-green-700 text-white shadow-sm">
-              <Sparkles className="w-5 h-5" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-green-700 uppercase tracking-wider">Documentos fiscais</p>
-              <p className="text-sm font-bold text-green-900">
-                {availableInvoicesCount} disponivel(is)
-              </p>
-              <p className="text-xs text-green-700/80">
-                {pendingFiscalDocumentsCount} em emissao
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-[1.35fr,0.95fr] gap-6">
-          <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)] space-y-5">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-700">
-                  Ultimo pagamento confirmado
-                </p>
-                <h3 className="text-xl font-semibold text-slate-900">
-                  {latestPayment?.itemName || latestPayment?.planName || latestPayment?.description || 'Nenhum pagamento aprovado ainda'}
-                </h3>
-                <p className="text-sm text-slate-500">
-                  Central de comprovantes, ciclo da assinatura e documentos fiscais.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {canManageStripeBilling && (
-                  <button
-                    onClick={handleOpenStripePortal}
-                    disabled={openingStripePortal}
-                    className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {openingStripePortal ? 'Abrindo portal...' : 'Portal Stripe'}
-                  </button>
-                )}
+            <div className="flex flex-wrap gap-2">
+              {canManageStripeBilling && !pendingChange && !subscription?.cancel_at_period_end && (
                 <button
-                  onClick={handleManagePlan}
-                  className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                  type="button"
+                  onClick={() => void handleSchedulePlanCancellation()}
+                  disabled={isCancellingScheduledChange}
+                  className="h-10 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 shadow-sm hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Gerenciar plano
+                  {isCancellingScheduledChange ? 'Agendando...' : 'Cancelar no próximo ciclo'}
                 </button>
+              )}
+              {canManageStripeBilling && (
                 <button
-                  onClick={() => navigate('/planos')}
-                  className="h-10 rounded-xl bg-green-700 px-4 text-sm font-semibold text-white shadow-[0_18px_30px_-20px_rgba(22,163,74,0.75)] hover:bg-green-800"
+                  onClick={handleOpenStripePortal}
+                  disabled={openingStripePortal}
+                  className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Ver planos
+                  {openingStripePortal ? 'Abrindo portal...' : 'Portal Stripe'}
                 </button>
-              </div>
-            </div>
-
-            {latestPayment ? (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Valor pago</p>
-                    <p className="mt-2 text-3xl font-bold text-slate-900">
-                      {formatCurrency(latestPayment.amount, latestPayment.currency)}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {latestPayment.itemType === 'booster' ? 'Compra avulsa' : latestPayment.billingCycle === 'yearly' ? 'Ciclo anual' : 'Ciclo mensal'}
-                    </p>
-                  </div>
-
-                  <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Status da cobranca</span>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${paymentStatusClass[latestPayment.status]}`}>
-                        {paymentStatusLabel[latestPayment.status]}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Status fiscal</span>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${fiscalStatusClass[latestPayment.invoiceStatus]}`}>
-                        {fiscalStatusLabel[latestPayment.invoiceStatus]}
-                      </span>
-                    </div>
-                    <div className="text-sm text-slate-600">
-                      {latestPayment.statusDetail || 'Pagamento confirmado e vinculado a sua assinatura.'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Data da aprovacao</p>
-                      <p className="mt-1 font-semibold text-slate-900">{formatDateTime(latestPayment.paidAt || latestPayment.createdAt)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Metodo</p>
-                      <p className="mt-1 font-semibold text-slate-900">{latestPayment.paymentMethod || (latestPayment.provider === 'stripe' ? 'Stripe' : 'Gateway externo')}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">ID da transacao</p>
-                      <p className="mt-1 font-semibold text-slate-900 break-all">{latestPayment.providerPaymentId}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col justify-between gap-4 rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Acoes rapidas</p>
-                      <p className="mt-1 text-sm text-slate-600">
-                        Baixe seu comprovante digital agora e acompanhe a disponibilidade da nota fiscal neste painel.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => downloadReceipt(latestPayment)}
-                        className="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
-                      >
-                        Baixar comprovante
-                      </button>
-                      <button
-                        onClick={() => openUrl(latestPayment.invoicePdfUrl)}
-                        disabled={!latestPayment.invoicePdfUrl}
-                        className="h-10 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
-                      >
-                        {latestPayment.invoicePdfUrl ? 'Baixar nota fiscal' : 'NF em emissao'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center">
-                <p className="text-sm font-semibold text-slate-900">Nenhum pagamento aprovado encontrado.</p>
-                <p className="text-sm text-slate-500 mt-2">
-                  Assim que sua primeira assinatura for confirmada, o comprovante e os documentos fiscais aparecerao aqui.
-                </p>
-              </div>
-            )}
-          </section>
-
-          <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Documentos fiscais</p>
-                <h3 className="text-lg font-semibold text-slate-900">Notas e anexos da cobranca</h3>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {paymentsLoading ? (
-                <div className="text-sm text-slate-500 py-8 text-center">Carregando documentos...</div>
-              ) : fiscalDocuments.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center">
-                  <p className="text-sm font-semibold text-slate-900">Nenhum documento fiscal registrado.</p>
-                  <p className="text-sm text-slate-500 mt-2">
-                    Quando a nota fiscal for anexada ao pagamento, ela ficara disponivel para download aqui.
-                  </p>
-                </div>
-              ) : (
-                fiscalDocuments.map((payment) => (
-                  <div key={`fiscal-${payment.id}`} className="flex flex-col gap-3 rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {payment.itemName || payment.planName || payment.description || 'Assinatura BWAGRO'}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          Pagamento {payment.providerPaymentId}
-                        </p>
-                      </div>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${fiscalStatusClass[payment.invoiceStatus]}`}>
-                        {fiscalStatusLabel[payment.invoiceStatus]}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-600">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Data</p>
-                        <p className="mt-1">{formatDateTime(payment.paidAt || payment.createdAt)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Numero da nota</p>
-                        <p className="mt-1">{payment.invoiceNumber || 'Aguardando emissao'}</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => openUrl(payment.invoicePdfUrl)}
-                        disabled={!payment.invoicePdfUrl}
-                        className="h-9 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
-                      >
-                        {payment.invoicePdfUrl ? 'Baixar NF' : 'NF em emissao'}
-                      </button>
-                      <button
-                        onClick={() => downloadReceipt(payment)}
-                        className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
-                      >
-                        Comprovante
-                      </button>
-                    </div>
-                  </div>
-                ))
               )}
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
 
-        {nextRecommendedPlan && (
-          <div className="rounded-[24px] border border-green-100 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_52%,#f0fdf4_100%)] p-5 shadow-[0_18px_45px_-35px_rgba(22,163,74,0.42)]">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        {pendingChange?.status === 'pending' ? (
+          <div className="rounded-[24px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_55%,#dbeafe_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(59,130,246,0.28)]">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Upgrade recomendado</p>
-                <h4 className="text-sm font-semibold text-slate-900">
-                  Próximo passo recomendado: {nextRecommendedPlan.name}
-                </h4>
-                <p className="text-sm text-slate-600">
-                  Saia do {currentPlanRecord?.name || planName} para o {nextRecommendedPlan.name} e ganhe mais estrutura para vender.
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                  Próxima alteração já registrada
                 </p>
-                <ul className="text-sm text-slate-600 mt-3 space-y-1">
-                  {getUpgradeHighlights().map((item) => (
-                    <li key={item}>- {item}</li>
-                  ))}
-                </ul>
+                <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                  {pendingChange.changeKind === 'cancel'
+                    ? 'Cancelamento no próximo ciclo'
+                    : pendingChange.changeKind === 'upgrade'
+                      ? 'Upgrade no próximo ciclo'
+                      : 'Downgrade no próximo ciclo'}
+                </h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  {pendingChange.changeKind === 'cancel'
+                    ? `A assinatura seguirá válida até ${formatCycleBoundaryDate(pendingChange.effectiveOn)} e não será renovada após essa data.`
+                    : `A mudança para ${pendingChange.targetPlanName || 'o novo plano'} será aplicada automaticamente em ${formatCycleBoundaryDate(pendingChange.effectiveOn)}.`}
+                </p>
               </div>
               <button
-                onClick={() => setIsUpgradeModalOpen(true)}
-                className="h-10 px-4 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
+                type="button"
+                onClick={() => void handleCancelScheduledPlanChange()}
+                disabled={isCancellingScheduledChange}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Fazer upgrade
+                {isCancellingScheduledChange ? 'Cancelando...' : 'Cancelar alteração'}
               </button>
             </div>
           </div>
-        )}
+        ) : subscription?.cancel_at_period_end ? (
+          <div className="rounded-[24px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_55%,#fde68a_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(245,158,11,0.28)]">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+                  Renovação desativada
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                  O cancelamento está programado para o fim do ciclo atual
+                </h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Sua assinatura continuará ativa até {formatCycleBoundaryDate(subscription.current_period_end)}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleKeepStripeSubscription()}
+                disabled={isCancellingScheduledChange}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-200 bg-white px-4 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isCancellingScheduledChange ? 'Reativando...' : 'Manter assinatura'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-green-700/10 text-green-700 shadow-sm">
+                <CreditCard className="w-5 h-5" strokeWidth={1.5} />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Resumo da assinatura</p>
+                <h3 className="mt-1 text-lg font-semibold text-slate-900">{planName}</h3>
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Contratado em</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">
+                      {subscription?.created_at ? formatDateTime(subscription.created_at) : 'Não disponível'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Ciclo da assinatura</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">
+                      {effectiveBillingCycle === 'yearly' ? 'Anual' : 'Mensal'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Status</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">
+                      {subscription?.cancel_at_period_end ? 'Cancelamento agendado' : 'Ativo'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Documentos fiscais</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">
+                      {availableInvoicesCount} disponível(is) · {pendingFiscalDocumentsCount} em emissão
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900/5 text-slate-700 shadow-sm">
+                <Receipt className="w-5 h-5" strokeWidth={1.5} />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Dados de renovação</p>
+                <h3 className="mt-1 text-lg font-semibold text-slate-900">Próxima renovação</h3>
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Data</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">{renewalDate}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Valor da renovação</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">
+                      {latestPayment ? formatCurrency(latestPayment.amount, latestPayment.currency) : 'Não disponível'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Método de pagamento</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">
+                      {latestPayment?.paymentMethod || (subscription?.provider === 'stripe' ? 'Stripe' : 'Não informado')}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Última cobrança</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">
+                      {latestPayment ? paymentStatusLabel[latestPayment.status] : 'Sem registro'}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {canManageStripeBilling && !pendingChange && !subscription?.cancel_at_period_end && (
+                    <button
+                      type="button"
+                      onClick={() => void handleSchedulePlanCancellation()}
+                      disabled={isCancellingScheduledChange}
+                      className="h-10 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 shadow-sm hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isCancellingScheduledChange ? 'Agendando...' : 'Cancelar no próximo ciclo'}
+                    </button>
+                  )}
+                  {canManageStripeBilling && (
+                    <button
+                      onClick={handleOpenStripePortal}
+                      disabled={openingStripePortal}
+                      className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {openingStripePortal ? 'Abrindo portal...' : 'Portal Stripe'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Alterar plano</p>
+              <h3 className="text-lg font-semibold text-slate-900">Upgrade ou downgrade no próximo ciclo</h3>
+            </div>
+            <p className="max-w-2xl text-sm text-slate-500">
+              Todas as alterações são programadas para o próximo ciclo. Você continua com o plano atual até a data da renovação.
+            </p>
+          </div>
+
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setIsPlanChangePanelOpen((current) => !current)}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              {isPlanChangePanelOpen ? 'Ocultar opções de plano' : 'Alterar plano'}
+            </button>
+          </div>
+
+          {isPlanChangePanelOpen && (
+            manageablePlans.length === 0 ? (
+              <div className="mt-5 rounded-[20px] border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">
+                Nenhum outro plano ativo está disponível para alteração no momento.
+              </div>
+            ) : (
+              <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {manageablePlans.map((plan) => {
+                  const displayPrice =
+                    effectiveBillingCycle === 'monthly'
+                      ? plan.monthly_price
+                      : calculateYearlyTotal(plan.monthly_price, plan.yearly_price);
+
+                  const isPlanActionDisabled = Boolean(changingPlanId) || hasBlockingScheduledChange;
+
+                  return (
+                    <div
+                      key={plan.id}
+                      className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            {plan.card_eyebrow?.trim() || 'Plano BWAGRO'}
+                          </p>
+                          <h4 className="mt-2 text-lg font-semibold text-slate-900">{plan.name}</h4>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {plan.description || 'Plano disponível para ajuste da sua assinatura.'}
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                          {effectiveBillingCycle === 'yearly' ? 'Ciclo anual' : 'Ciclo mensal'}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex items-end gap-2">
+                        <span className="text-2xl font-bold text-slate-900">
+                          {formatCurrency(displayPrice)}
+                        </span>
+                        <span className="pb-0.5 text-sm text-slate-500">
+                          {effectiveBillingCycle === 'yearly' ? '/ano' : '/mês'}
+                        </span>
+                      </div>
+
+                      <p className="mt-3 text-sm text-slate-500">
+                        {getManagedPlanSupportText(plan)}
+                      </p>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleManagedPlanAction(plan)}
+                          disabled={isPlanActionDisabled}
+                          className="inline-flex h-10 items-center justify-center rounded-xl bg-green-700 px-4 text-sm font-semibold text-white shadow-[0_18px_30px_-20px_rgba(22,163,74,0.75)] transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {changingPlanId === plan.id ? 'Processando...' : getManagedPlanActionLabel(plan)}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
+        </section>
 
         <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
           <div className="flex flex-col gap-2 border-b border-slate-100 px-6 py-5 md:flex-row md:items-center md:justify-between">
@@ -3351,14 +3594,6 @@ const UserDashboardView: React.FC = () => {
             )}
           </div>
         </section>
-
-        <RecommendedUpgradeModal
-          isOpen={isUpgradeModalOpen}
-          onClose={() => setIsUpgradeModalOpen(false)}
-          currentPlan={currentPlanRecord}
-          nextPlan={nextRecommendedPlan}
-          userId={user?.id}
-        />
       </div>
     );
   };
@@ -4499,7 +4734,8 @@ const UserDashboardView: React.FC = () => {
             }
           />
           <Route path="/meu-plano" element={<MyPlanDashboard />} />
-          <Route path="/financeiro" element={<FinanceDashboard />} />
+          <Route path="/financeiro" element={<Navigate to="/minha-conta/assinatura" replace />} />
+          <Route path="/assinatura" element={<FinanceDashboard />} />
           <Route
             path="/minha-loja"
             element={

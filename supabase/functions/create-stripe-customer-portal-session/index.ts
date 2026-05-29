@@ -1,22 +1,17 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import { getCorsHeaders, handleCorsPreflightBrowser } from '../_shared/cors.ts';
 import { logSecurityEvent } from '../_shared/security.ts';
 
 interface PortalRequest {
   returnPath?: string;
 }
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://bwagro.vercel.app',  // VULN-002 fix: Allowlist
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (req: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...getCorsHeaders(req),
       'Content-Type': 'application/json',
     },
   });
@@ -46,7 +41,7 @@ const stripeRequest = async (
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflightBrowser(req);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -54,7 +49,7 @@ serve(async (req) => {
   const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return jsonResponse({ success: false, error: 'Configuracao incompleta do Supabase' }, 500);
+    return jsonResponse(req, { success: false, error: 'Configuracao incompleta do Supabase' }, 500);
   }
 
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
@@ -68,7 +63,7 @@ serve(async (req) => {
       attemptedAction: 'stripe_portal_missing_bearer',
       reason: 'Authorization header ausente ou sem Bearer token.',
     });
-    return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+    return jsonResponse(req, { success: false, error: 'Unauthorized' }, 401);
   }
 
   const token = authHeader.slice('Bearer '.length).trim();
@@ -84,7 +79,7 @@ serve(async (req) => {
       attemptedAction: 'stripe_portal_invalid_jwt',
       reason: authError?.message || 'JWT invalido.',
     });
-    return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+    return jsonResponse(req, { success: false, error: 'Unauthorized' }, 401);
   }
 
   try {
@@ -98,6 +93,7 @@ serve(async (req) => {
 
     if (settingsError || !settings?.stripe_secret_key) {
       return jsonResponse(
+        req,
         {
           success: false,
           error: 'Stripe sem secret key configurada.',
@@ -121,6 +117,7 @@ serve(async (req) => {
 
     if (!customerId) {
       return jsonResponse(
+        req,
         {
           success: false,
           error: 'Nenhum cliente Stripe vinculado a esta conta ainda.',
@@ -131,7 +128,7 @@ serve(async (req) => {
     }
 
     const siteUrl = Deno.env.get('SITE_URL') || 'https://bwagro.com.br';
-    const returnPath = String(body.returnPath || '/minha-conta/financeiro');
+    const returnPath = String(body.returnPath || '/minha-conta/assinatura');
     const returnUrl = `${siteUrl}${returnPath.startsWith('/') ? returnPath : `/${returnPath}`}`;
 
     const params = new URLSearchParams();
@@ -142,6 +139,7 @@ serve(async (req) => {
 
     if (!stripeResult.ok || !stripeResult.payload?.url) {
       return jsonResponse(
+        req,
         {
           success: false,
           error: 'Falha ao criar sessao do portal Stripe.',
@@ -151,7 +149,7 @@ serve(async (req) => {
       );
     }
 
-    return jsonResponse({
+    return jsonResponse(req, {
       success: true,
       provider: 'stripe',
       url: stripeResult.payload.url,
@@ -160,6 +158,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Stripe portal session error:', error);
     return jsonResponse(
+      req,
       {
         success: false,
         error: error instanceof Error ? error.message : 'Internal server error',

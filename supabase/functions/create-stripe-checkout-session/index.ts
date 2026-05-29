@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import { getCorsHeaders, handleCorsPreflightBrowser } from '../_shared/cors.ts';
 import { logSecurityEvent } from '../_shared/security.ts';
 
 interface StripeCheckoutRequest {
@@ -11,17 +12,11 @@ interface StripeCheckoutRequest {
   itemName?: string;
 }
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://bwagro.vercel.app',  // VULN-002 fix: Allowlist
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+const jsonResponse = (req: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...getCorsHeaders(req),
       'Content-Type': 'application/json',
     },
   });
@@ -51,7 +46,7 @@ const stripeRequest = async (
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflightBrowser(req);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -60,6 +55,7 @@ serve(async (req) => {
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
     return jsonResponse(
+      req,
       {
         success: false,
         error: 'Configuracao incompleta do Supabase',
@@ -79,7 +75,7 @@ serve(async (req) => {
       attemptedAction: 'stripe_checkout_missing_bearer',
       reason: 'Authorization header ausente ou sem Bearer token.',
     });
-    return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+    return jsonResponse(req, { success: false, error: 'Unauthorized' }, 401);
   }
 
   const token = authHeader.slice('Bearer '.length).trim();
@@ -95,7 +91,7 @@ serve(async (req) => {
       attemptedAction: 'stripe_checkout_invalid_jwt',
       reason: authError?.message || 'JWT invalido.',
     });
-    return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+    return jsonResponse(req, { success: false, error: 'Unauthorized' }, 401);
   }
 
   try {
@@ -104,7 +100,7 @@ serve(async (req) => {
     const effectiveResourceId = itemType === 'booster' ? body.boosterId || body.planId : body.planId;
 
     if (!body.planId || !body.billingCycle || body.userId !== user.id || !effectiveResourceId) {
-      return jsonResponse({ success: false, error: 'Invalid request data' }, 400);
+      return jsonResponse(req, { success: false, error: 'Invalid request data' }, 400);
     }
 
     const { data: gatewayConfig, error: gatewayError } = await supabaseAdmin
@@ -119,6 +115,7 @@ serve(async (req) => {
       !gatewayRow?.stripe_checkout_allowed_for_current_user
     ) {
       return jsonResponse(
+        req,
         {
           success: false,
           error: 'Checkout Stripe indisponivel para esta conta no momento.',
@@ -139,6 +136,7 @@ serve(async (req) => {
 
     if (settingsError || !settings?.stripe_secret_key) {
       return jsonResponse(
+        req,
         {
           success: false,
           error: 'Stripe sem secret key configurada.',
@@ -175,6 +173,7 @@ serve(async (req) => {
 
       if (activeSubscriptionError) {
         return jsonResponse(
+          req,
           {
             success: false,
             error: 'Nao foi possivel validar o plano ativo para compra do booster.',
@@ -208,6 +207,7 @@ serve(async (req) => {
         });
 
         return jsonResponse(
+          req,
           {
             success: false,
             error: 'Booster disponivel apenas para assinantes com plano pago ativo.',
@@ -227,6 +227,7 @@ serve(async (req) => {
 
       if (boosterError || !booster) {
         return jsonResponse(
+          req,
           {
             success: false,
             error: 'Booster nao encontrado',
@@ -237,12 +238,13 @@ serve(async (req) => {
       }
 
       if (!booster.is_active) {
-        return jsonResponse({ success: false, error: 'Booster inativo' }, 400);
+        return jsonResponse(req, { success: false, error: 'Booster inativo' }, 400);
       }
 
       priceId = String(booster.stripe_price_id || '').trim();
       if (!priceId) {
         return jsonResponse(
+          req,
           {
             success: false,
             error: 'Booster sem Price ID Stripe configurado.',
@@ -263,6 +265,7 @@ serve(async (req) => {
 
       if (limitError) {
         return jsonResponse(
+          req,
           {
             success: false,
             error: 'Erro ao validar limite do booster',
@@ -274,6 +277,7 @@ serve(async (req) => {
 
       if ((recentPurchasesCount || 0) >= Number(booster.max_purchases_per_30_days || 2)) {
         return jsonResponse(
+          req,
           {
             success: false,
             error: `Limite de ${Number(booster.max_purchases_per_30_days || 2)} booster(s) a cada 30 dias atingido.`,
@@ -286,6 +290,42 @@ serve(async (req) => {
       itemDescription = booster.description || `Compra do booster ${booster.name}`;
       auditResourceType = 'PAYMENT';
     } else {
+      const { data: existingStripeSubscription, error: existingStripeSubscriptionError } = await supabaseAdmin
+        .from('user_subscriptions')
+        .select('id, plan_id, provider_subscription_id, status')
+        .eq('user_id', user.id)
+        .eq('provider', 'stripe')
+        .in('status', ['active', 'trialing', 'past_due'])
+        .not('provider_subscription_id', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingStripeSubscriptionError) {
+        return jsonResponse(
+          req,
+          {
+            success: false,
+            error: 'Nao foi possivel validar a assinatura Stripe atual.',
+            details: existingStripeSubscriptionError.message,
+          },
+          500
+        );
+      }
+
+      if (existingStripeSubscription?.id) {
+        return jsonResponse(
+          req,
+          {
+            success: false,
+            error: 'Ja existe uma assinatura Stripe ativa para esta conta.',
+            details: 'Use o portal Stripe para alterar plano, ciclo ou cancelamento sem criar uma segunda assinatura.',
+            action: 'open_stripe_portal',
+          },
+          409
+        );
+      }
+
       const { data: plan, error: planError } = await supabaseAdmin
         .from('plans')
         .select('id, name, description, is_active, monthly_price, yearly_price, stripe_monthly_price_id, stripe_yearly_price_id')
@@ -294,6 +334,7 @@ serve(async (req) => {
 
       if (planError || !plan) {
         return jsonResponse(
+          req,
           {
             success: false,
             error: 'Plano nao encontrado',
@@ -304,7 +345,7 @@ serve(async (req) => {
       }
 
       if (!plan.is_active) {
-        return jsonResponse({ success: false, error: 'Plano inativo' }, 400);
+        return jsonResponse(req, { success: false, error: 'Plano inativo' }, 400);
       }
 
       priceId =
@@ -314,6 +355,7 @@ serve(async (req) => {
 
       if (!priceId) {
         return jsonResponse(
+          req,
           {
             success: false,
             error: 'Plano sem Price ID Stripe configurado para este ciclo.',
@@ -348,7 +390,7 @@ serve(async (req) => {
     checkoutParams.set('mode', itemType === 'booster' ? 'payment' : 'subscription');
     checkoutParams.set(
       'success_url',
-      `${siteUrl}/minha-conta/financeiro?payment=success&provider=stripe&item=${itemType}&session_id={CHECKOUT_SESSION_ID}`
+      `${siteUrl}/minha-conta/assinatura?payment=success&provider=stripe&item=${itemType}&session_id={CHECKOUT_SESSION_ID}`
     );
     checkoutParams.set('cancel_url', `${siteUrl}/planos?payment=cancelled&provider=stripe&item=${itemType}`);
     checkoutParams.set('client_reference_id', user.id);
@@ -382,6 +424,7 @@ serve(async (req) => {
 
     if (!stripeResult.ok || !stripeResult.payload?.url) {
       return jsonResponse(
+        req,
         {
           success: false,
           error: 'Falha ao criar sessao Stripe.',
@@ -410,7 +453,7 @@ serve(async (req) => {
       reason: 'Sessao de checkout Stripe criada',
     });
 
-    return jsonResponse({
+    return jsonResponse(req, {
       success: true,
       provider: 'stripe',
       url: stripeResult.payload.url,
@@ -421,6 +464,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Stripe checkout session error:', error);
     return jsonResponse(
+      req,
       {
         success: false,
         error: error instanceof Error ? error.message : 'Internal server error',

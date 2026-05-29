@@ -68,6 +68,16 @@ type ActiveAdCapacityStatus = {
   can_reactivate: boolean;
 };
 
+const ELIGIBLE_SUBSCRIPTION_STATUSES: UserSubscription['status'][] = ['active', 'trialing', 'past_due'];
+const SUBSCRIPTION_STATUS_PRIORITY: Record<UserSubscription['status'], number> = {
+  active: 3,
+  trialing: 2,
+  past_due: 1,
+  canceled: 0,
+  cancelled: 0,
+  expired: 0,
+};
+
 export const useSubscription = () => {
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
@@ -146,15 +156,28 @@ export const useSubscription = () => {
           )
         `)
         .eq('user_id', user.id)
-        .eq('status', 'active')
+        .in('status', ELIGIBLE_SUBSCRIPTION_STATUSES)
         .gte('current_period_end', new Date().toISOString())
         .order('current_period_end', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(5);
 
       if (subscriptionError) throw subscriptionError;
 
-      const nextSubscription = data as UserSubscription | null;
+      const nextSubscription =
+        ((data as UserSubscription[] | null) || [])
+          .sort((left, right) => {
+            const statusDiff =
+              SUBSCRIPTION_STATUS_PRIORITY[right.status] - SUBSCRIPTION_STATUS_PRIORITY[left.status];
+
+            if (statusDiff !== 0) {
+              return statusDiff;
+            }
+
+            return (
+              new Date(right.current_period_end).getTime() -
+              new Date(left.current_period_end).getTime()
+            );
+          })[0] || null;
       setSubscription(nextSubscription);
       clearRetry();
       return nextSubscription;

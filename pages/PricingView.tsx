@@ -3,8 +3,10 @@ import { ArrowRight, Award, BarChart3, Check, ChevronDown, Loader2, MapPin, Mega
 import { PRICING_FAQ } from '../constants';
 import { usePlans } from '../src/hooks/usePlans';
 import { useAuth } from '../src/contexts/AuthContext';
+import { useSubscription } from '../src/hooks/useSubscription';
 import { calculateYearlySavings, calculateYearlyTotal, getCustomPlanContactLink, isCustomPlan } from '../services/paymentUtils';
-import { initiateBoosterCheckout, initiatePlatformPlanCheckout } from '../services/paymentCheckoutService';
+import { initiateBoosterCheckout, initiatePlatformPlanCheckout, openStripeCustomerPortal } from '../services/paymentCheckoutService';
+import { requestSubscriptionChangeNextCycle } from '../services/subscriptionChangeService';
 import toast from 'react-hot-toast';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { Plan } from '../src/hooks/usePlans';
@@ -29,7 +31,7 @@ const formatComparisonValue = (value: unknown): string | boolean => typeof value
 const humanizeComparisonKey = (key: string) => key.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, (char) => char.toUpperCase());
 const normalizePlanName = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 const isLegacyStartSignupPlanName = (planName: string) =>
-  ['start', 'start agro', 'safra'].includes(normalizePlanName(planName || ''));
+  ['start', 'start agro', 'safra', 'semente', 'seed'].includes(normalizePlanName(planName || ''));
 
 const PricingView: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
@@ -37,6 +39,7 @@ const PricingView: React.FC = () => {
   const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
   const { plansRaw, isLoading: plansLoading } = usePlans();
   const { user } = useAuth();
+  const { subscription } = useSubscription();
   const { settings } = useLayout();
   const { boosters, summary: boosterSummary, isLoading: boostersLoading, refresh: refreshBoosters } = useHighlightBoosters();
   const { settings: highlightSettings } = useHighlightSettings();
@@ -103,7 +106,59 @@ const PricingView: React.FC = () => {
     return [...baseRows, ...extraKeys.map((key) => ({ id: key, label: humanizeComparisonKey(key), getValue: (plan: Plan) => formatComparisonValue(plan.comparison?.[key] ?? '-') }))];
   }, [billingCycle, plansRaw]);
 
-  const visiblePlans = useMemo(() => plansRaw.filter((plan) => plan.is_active && plan.show_in_public_pricing !== false && (billingCycle === 'yearly' ? !isFreeMonthlyOnlyPlan(plan) : true)), [billingCycle, plansRaw]);
+  const hasActiveSubscription = Boolean(
+    subscription && ['active', 'trialing', 'past_due'].includes(subscription.status)
+  );
+  const hasExplicitSignupPlan = useMemo(
+    () => plansRaw.some((plan) => plan.is_default_signup_plan),
+    [plansRaw]
+  );
+  const visiblePlans = useMemo(
+    () =>
+      plansRaw.filter((plan) => {
+        if (!plan.is_active || plan.show_in_public_pricing === false) return false;
+        if (plan.is_downgrade_plan) return false;
+        if (billingCycle === 'yearly' && isFreeMonthlyOnlyPlan(plan)) return false;
+        const isSignupPlan = hasExplicitSignupPlan
+          ? Boolean(plan.is_default_signup_plan)
+          : isLegacyStartSignupPlanName(plan.name || '');
+        if (hasActiveSubscription && isSignupPlan) {
+          return false;
+        }
+        return true;
+      }),
+    [billingCycle, hasActiveSubscription, hasExplicitSignupPlan, plansRaw]
+  );
+  const currentPlanRecord = useMemo(
+    () => plansRaw.find((plan) => plan.id === subscription?.plan_id) || null,
+    [plansRaw, subscription?.plan_id]
+  );
+  const hasManagedStripeSubscription = Boolean(
+    user &&
+    subscription &&
+    subscription.provider === 'stripe' &&
+    ['active', 'trialing', 'past_due'].includes(subscription.status)
+  );
+
+  const getPlanActionLabel = (plan: Plan) => {
+    if (!hasManagedStripeSubscription || !currentPlanRecord) {
+      return `${plan.button_text || 'Assinar'} ${getBillingCycleLabel(billingCycle)}`;
+    }
+
+    if (plan.id === currentPlanRecord.id) {
+      return 'Plano atual';
+    }
+
+    if (plan.position > currentPlanRecord.position) {
+      return `Agendar upgrade ${getBillingCycleLabel(billingCycle)}`;
+    }
+
+    if (plan.position < currentPlanRecord.position) {
+      return `Agendar downgrade ${getBillingCycleLabel(billingCycle)}`;
+    }
+
+    return 'Trocar ciclo no Portal Stripe';
+  };
   const getDisplayPrice = (monthlyPrice: number, yearlyPrice: number) =>
     billingCycle === 'monthly'
       ? monthlyPrice
@@ -179,12 +234,84 @@ const PricingView: React.FC = () => {
       setTimeout(() => { window.location.href = '/login?redirect=/planos'; }, 1500);
       return;
     }
+
+    if (hasManagedStripeSubscription && currentPlanRecord?.id === planId) {
+      if (subscription?.billing_cycle === billingCycle) {
+        toast('Esse já é o seu plano e ciclo atuais.');
+        return;
+      }
+
+      const portalResult = await openStripeCustomerPortal('/minha-conta/assinatura');
+      if (!portalResult.success) {
+        toast.error(portalResult.error || 'Não foi possível abrir o Portal Stripe.');
+        return;
+      }
+
+      toast.success('Portal Stripe aberto para alterar apenas o ciclo da assinatura.');
+      return;
+    }
+
     const amount = billingCycle === 'monthly' ? monthlyPrice : calculateYearlyTotal(monthlyPrice, yearlyPrice);
     setLoadingPlanId(planId);
     toast.loading('Preparando checkout...', { id: 'checkout-loading' });
     try {
       const result = await initiatePlatformPlanCheckout({ planId, planName, planDescription: description || `Plano ${planName}`, billingCycle, amount, userId: user.id });
       toast.dismiss('checkout-loading');
+
+      if (!result.success && result.action === 'schedule_subscription_change') {
+        const targetPlan = plansRaw.find((plan) => plan.id === planId) || null;
+
+        if (!currentPlanRecord || !targetPlan) {
+          toast.error('Não foi possível identificar a alteração. Use o Portal Stripe.');
+          return;
+        }
+
+        const changeKind =
+          targetPlan.position > currentPlanRecord.position
+            ? 'upgrade'
+            : targetPlan.position < currentPlanRecord.position
+              ? 'downgrade'
+              : null;
+
+        if (!changeKind) {
+          toast.error('Troca apenas de ciclo ainda deve ser feita pelo Portal Stripe.');
+          return;
+        }
+
+        const scheduleResult = await requestSubscriptionChangeNextCycle({
+          changeKind,
+          targetPlanId: targetPlan.id,
+          targetBillingCycle: billingCycle,
+        });
+
+        if (!scheduleResult.success) {
+          toast.error(scheduleResult.error || result.error || 'Não foi possível agendar a alteração do plano.');
+          return;
+        }
+
+        toast.success(
+          changeKind === 'upgrade'
+            ? 'Upgrade agendado para o próximo ciclo.'
+            : 'Downgrade agendado para o próximo ciclo.'
+        );
+        if (scheduleResult.warning) {
+          toast.warning(`A mudança foi registrada, mas a sincronização com a Stripe ainda precisa de revisão: ${scheduleResult.warning}`);
+        }
+        return;
+      }
+
+      if (!result.success && result.action === 'open_stripe_portal') {
+        const portalResult = await openStripeCustomerPortal('/minha-conta/assinatura');
+
+        if (!portalResult.success) {
+          toast.error(portalResult.error || result.error || 'Não foi possível abrir o portal Stripe.');
+          return;
+        }
+
+        toast.success('Portal Stripe aberto para gerenciar sua assinatura atual.');
+        return;
+      }
+
       result.success
         ? toast.success('Redirecionando para checkout Stripe...')
         : toast.error(result.error || 'Erro ao processar checkout.');
@@ -456,7 +583,7 @@ const PricingView: React.FC = () => {
                       <div className="mt-auto px-7 pb-7 pt-6">
                         <button
                           onClick={() => handleSubscribe(plan.id, plan.name, plan.monthly_price, plan.yearly_price, plan.description)}
-                          disabled={loadingPlanId === plan.id || startPlanLocked}
+                          disabled={loadingPlanId === plan.id || startPlanLocked || (hasManagedStripeSubscription && currentPlanRecord?.id === plan.id && subscription?.billing_cycle === billingCycle)}
                           className={`flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-black transition-all disabled:cursor-not-allowed disabled:opacity-70 ${
                             startPlanLocked
                               ? 'bg-slate-200 text-slate-500'
@@ -470,7 +597,9 @@ const PricingView: React.FC = () => {
                             ? <><Loader2 className="h-4 w-4 animate-spin" />Processando...</>
                             : startPlanLocked
                               ? <>Disponível apenas no cadastro</>
-                              : <>{plan.button_text || 'Assinar'} {getBillingCycleLabel(billingCycle)} <ArrowRight className="h-4 w-4" /></>}
+                              : hasManagedStripeSubscription && currentPlanRecord?.id === plan.id && subscription?.billing_cycle === billingCycle
+                                ? <>Plano atual</>
+                                : <>{getPlanActionLabel(plan)} <ArrowRight className="h-4 w-4" /></>}
                         </button>
                       </div>
                     </div>
