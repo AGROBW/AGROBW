@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { Toaster as HotToaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LayoutProvider } from './src/contexts/LayoutContext';
 import { useSiteAnalyticsTracking } from './src/hooks/useSiteAnalyticsTracking';
@@ -335,6 +336,31 @@ const AppContent: React.FC = () => {
             error: 'bg-red-50 text-red-700 border-red-100',
             info: 'bg-slate-50 text-slate-900 border-slate-200'
           }
+        }}
+      />
+      <HotToaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            zIndex: 100000,
+            borderRadius: '1rem',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 10px 30px -12px rgba(15, 23, 42, 0.35)',
+          },
+          success: {
+            style: {
+              background: '#f0fdf4',
+              color: '#166534',
+              borderColor: '#bbf7d0',
+            },
+          },
+          error: {
+            style: {
+              background: '#fef2f2',
+              color: '#b91c1c',
+              borderColor: '#fecaca',
+            },
+          },
         }}
       />
     </div>
