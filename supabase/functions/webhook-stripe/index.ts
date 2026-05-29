@@ -62,6 +62,28 @@ const textResponse = (body: string, status = 200) =>
     headers: corsHeaders,
   });
 
+const describeUnknownError = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  if (error && typeof error === 'object') {
+    const candidate = error as Record<string, unknown>;
+    const message = typeof candidate.message === 'string' ? candidate.message : null;
+    const details = typeof candidate.details === 'string' ? candidate.details : null;
+    const hint = typeof candidate.hint === 'string' ? candidate.hint : null;
+    const code = typeof candidate.code === 'string' ? candidate.code : null;
+
+    return [message, details, hint, code].filter(Boolean).join(' | ') || JSON.stringify(candidate);
+  }
+
+  return 'Internal server error';
+};
+
 const encoder = new TextEncoder();
 const STRIPE_SIGNATURE_TOLERANCE_MS = 5 * 60 * 1000;
 const PAYMENT_SETTINGS_ID = '00000000-0000-0000-0000-000000000005';
@@ -411,6 +433,300 @@ const resolveContext = async (
   };
 };
 
+const enrichPlanContextFromPrice = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  currentContext: ResolvedStripeContext
+): Promise<ResolvedStripeContext> => {
+  if (!currentContext.priceId || (currentContext.planId && currentContext.billingCycle)) {
+    return currentContext;
+  }
+
+  const { data: matchingPlan } = await supabaseAdmin
+    .from('plans')
+    .select('id, stripe_monthly_price_id, stripe_yearly_price_id')
+    .or(
+      `stripe_monthly_price_id.eq.${currentContext.priceId},stripe_yearly_price_id.eq.${currentContext.priceId}`
+    )
+    .maybeSingle();
+
+  if (!matchingPlan?.id) {
+    return currentContext;
+  }
+
+  const inferredCycle =
+    currentContext.billingCycle ||
+    (matchingPlan.stripe_yearly_price_id === currentContext.priceId ? 'yearly' : 'monthly');
+
+  return {
+    ...currentContext,
+    planId: currentContext.planId || matchingPlan.id,
+    billingCycle: inferredCycle,
+    itemType: 'plan',
+  };
+};
+
+const enrichUserContextFromEmail = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  currentContext: ResolvedStripeContext,
+  candidateEmail?: string | null
+): Promise<ResolvedStripeContext> => {
+  const normalizedEmail = String(candidateEmail || '').trim().toLowerCase();
+  if (currentContext.userId || !normalizedEmail) {
+    return currentContext;
+  }
+
+  const { data: userRow } = await supabaseAdmin
+    .from('users')
+    .select('id, email')
+    .ilike('email', normalizedEmail)
+    .maybeSingle();
+
+  if (!userRow?.id) {
+    return currentContext;
+  }
+
+  return {
+    ...currentContext,
+    userId: userRow.id,
+  };
+};
+
+const enrichContextFromCheckoutWebhookLog = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  currentContext: ResolvedStripeContext
+): Promise<ResolvedStripeContext> => {
+  if (
+    currentContext.userId &&
+    currentContext.planId &&
+    currentContext.billingCycle &&
+    currentContext.itemType === 'plan'
+  ) {
+    return currentContext;
+  }
+
+  const { data: checkoutLogs } = await supabaseAdmin
+    .from('webhook_logs')
+    .select('payload, received_at')
+    .eq('provider', 'stripe')
+    .eq('event_type', 'checkout.session.completed')
+    .eq('processed', true)
+    .order('received_at', { ascending: false })
+    .limit(20);
+
+  if (!Array.isArray(checkoutLogs) || checkoutLogs.length === 0) {
+    return currentContext;
+  }
+
+  const matchedLog = checkoutLogs.find((log) => {
+    const sessionObject = log?.payload?.data?.object;
+    if (!sessionObject) {
+      return false;
+    }
+
+    const logSubscriptionId =
+      typeof sessionObject.subscription === 'string'
+        ? sessionObject.subscription
+        : sessionObject.subscription?.id || null;
+    const logCustomerId = String(sessionObject.customer || '').trim() || null;
+    const logSessionId = String(sessionObject.id || '').trim() || null;
+
+    if (currentContext.subscriptionId && logSubscriptionId === currentContext.subscriptionId) {
+      return true;
+    }
+
+    if (currentContext.checkoutSessionId && logSessionId === currentContext.checkoutSessionId) {
+      return true;
+    }
+
+    if (currentContext.customerId && logCustomerId === currentContext.customerId) {
+      return true;
+    }
+
+    return false;
+  });
+
+  const sessionObject = matchedLog?.payload?.data?.object;
+  if (!sessionObject) {
+    return currentContext;
+  }
+
+  const sessionMetadata = sessionObject.metadata || {};
+  const sessionSubscriptionMetadata = sessionObject.subscription_details?.metadata || {};
+
+  return {
+    ...currentContext,
+    userId:
+      currentContext.userId ||
+      sessionMetadata.user_id ||
+      sessionSubscriptionMetadata.user_id ||
+      null,
+    planId:
+      currentContext.planId ||
+      sessionMetadata.plan_id ||
+      sessionSubscriptionMetadata.plan_id ||
+      null,
+    boosterId:
+      currentContext.boosterId ||
+      sessionMetadata.booster_id ||
+      sessionSubscriptionMetadata.booster_id ||
+      null,
+    billingCycle:
+      currentContext.billingCycle ||
+      inferBillingCycle(
+        sessionMetadata.billing_cycle || sessionSubscriptionMetadata.billing_cycle || null,
+        null
+      ),
+    itemType:
+      currentContext.itemType !== 'unknown'
+        ? currentContext.itemType
+        : getItemType(sessionMetadata.item_type || sessionSubscriptionMetadata.item_type || null),
+    checkoutSessionId:
+      currentContext.checkoutSessionId || String(sessionObject.id || '').trim() || null,
+    customerId:
+      currentContext.customerId || String(sessionObject.customer || '').trim() || null,
+    subscriptionId:
+      currentContext.subscriptionId ||
+      (typeof sessionObject.subscription === 'string'
+        ? sessionObject.subscription
+        : sessionObject.subscription?.id || null),
+    priceId:
+      currentContext.priceId ||
+      sessionObject.line_items?.data?.[0]?.price?.id ||
+      null,
+  };
+};
+
+const findExistingStripeSubscriptionRow = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  context: ResolvedStripeContext
+) => {
+  if (context.subscriptionId) {
+    const { data } = await supabaseAdmin
+      .from('user_subscriptions')
+      .select('id')
+      .eq('provider', 'stripe')
+      .eq('provider_subscription_id', context.subscriptionId)
+      .maybeSingle();
+
+    if (data?.id) {
+      return data;
+    }
+  }
+
+  if (context.customerId) {
+    const { data } = await supabaseAdmin
+      .from('user_subscriptions')
+      .select('id')
+      .eq('provider', 'stripe')
+      .eq('provider_customer_id', context.customerId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data?.id) {
+      return data;
+    }
+  }
+
+  if (context.userId && context.planId) {
+    const { data } = await supabaseAdmin
+      .from('user_subscriptions')
+      .select('id')
+      .eq('provider', 'stripe')
+      .eq('user_id', context.userId)
+      .eq('plan_id', context.planId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data?.id) {
+      return data;
+    }
+  }
+
+  if (context.userId) {
+    const { data } = await supabaseAdmin
+      .from('user_subscriptions')
+      .select('id')
+      .eq('user_id', context.userId)
+      .in('status', ['active', 'trialing', 'past_due'])
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data?.id) {
+      return data;
+    }
+  }
+
+  if (context.userId) {
+    const { data } = await supabaseAdmin
+      .from('user_subscriptions')
+      .select('id')
+      .eq('user_id', context.userId)
+      .eq('status', 'pending')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data?.id) {
+      return data;
+    }
+  }
+
+  return null;
+};
+
+const tryResolveActiveUserSubscriptionConflict = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  context: ResolvedStripeContext,
+  payload: Record<string, any>
+) => {
+  if (!context.userId) {
+    return null;
+  }
+
+  const { data: activeRow } = await supabaseAdmin
+    .from('user_subscriptions')
+    .select('id')
+    .eq('user_id', context.userId)
+    .in('status', ['active', 'trialing', 'past_due'])
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!activeRow?.id) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('user_subscriptions')
+    .update(payload)
+    .eq('id', activeRow.id)
+    .select('id, user_id, plan_id, status, provider_customer_id, provider_subscription_id, provider_price_id, provider_checkout_session_id, current_period_start, current_period_end, cancel_at_period_end')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
+const isOneActiveSubscriptionConflict = (error: unknown) => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as Record<string, unknown>;
+  const code = String(candidate.code || '');
+  const message = String(candidate.message || '');
+  const details = String(candidate.details || '');
+  const haystack = `${message} ${details}`.toLowerCase();
+
+  return code === '23505' && haystack.includes('idx_user_subscriptions_one_active_per_user');
+};
+
 const upsertStripeSubscription = async (
   supabaseAdmin: ReturnType<typeof createClient>,
   params: {
@@ -436,12 +752,7 @@ const upsertStripeSubscription = async (
 
   const activeLikeStatuses: SubscriptionRowStatus[] = ['active', 'trialing', 'past_due'];
 
-  const { data: existingSubscription } = await supabaseAdmin
-    .from('user_subscriptions')
-    .select('id')
-    .eq('provider', 'stripe')
-    .eq('provider_subscription_id', context.subscriptionId)
-    .maybeSingle();
+  const existingSubscription = await findExistingStripeSubscriptionRow(supabaseAdmin, context);
 
   if (!existingSubscription?.id && activeLikeStatuses.includes(mappedStatus)) {
     await supabaseAdmin
@@ -482,6 +793,13 @@ const upsertStripeSubscription = async (
       .single();
 
     if (error) {
+      if (isOneActiveSubscriptionConflict(error)) {
+        const recovered = await tryResolveActiveUserSubscriptionConflict(supabaseAdmin, context, payload);
+        if (recovered?.id) {
+          return recovered;
+        }
+      }
+
       throw error;
     }
 
@@ -495,6 +813,236 @@ const upsertStripeSubscription = async (
     .single();
 
   if (error) {
+    if (isOneActiveSubscriptionConflict(error)) {
+      const recovered = await tryResolveActiveUserSubscriptionConflict(supabaseAdmin, context, payload);
+      if (recovered?.id) {
+        return recovered;
+      }
+    }
+
+    throw error;
+  }
+
+  return data;
+};
+
+const upsertStripeSubscriptionFromInvoiceFallback = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  params: {
+    context: ResolvedStripeContext;
+    invoice: Record<string, any>;
+  }
+) => {
+  const { context, invoice } = params;
+
+  if (!context.userId || !context.planId || !context.billingCycle) {
+    return null;
+  }
+
+  const firstLine = Array.isArray(invoice.lines?.data) ? invoice.lines.data[0] : null;
+  const linePeriodStart = toIsoFromUnix(firstLine?.period?.start);
+  const linePeriodEnd = toIsoFromUnix(firstLine?.period?.end);
+  const fallbackNow = new Date().toISOString();
+
+  const syntheticStripeSubscription = {
+    status: invoice.paid ? 'active' : invoice.status === 'open' ? 'past_due' : 'active',
+    current_period_start: firstLine?.period?.start ?? null,
+    current_period_end: firstLine?.period?.end ?? null,
+    trial_end: null,
+    cancel_at_period_end: false,
+    customer: context.customerId,
+    currency: invoice.currency || 'BRL',
+    items: {
+      data: [
+        {
+          price: {
+            id: context.priceId,
+            recurring: {
+              interval: context.billingCycle === 'yearly' ? 'year' : 'month',
+            },
+          },
+        },
+      ],
+    },
+  };
+
+  const normalizedSyntheticSubscription = {
+    ...syntheticStripeSubscription,
+    current_period_start: syntheticStripeSubscription.current_period_start ?? undefined,
+    current_period_end: syntheticStripeSubscription.current_period_end ?? undefined,
+    __fallback_period_start_iso: linePeriodStart || fallbackNow,
+    __fallback_period_end_iso: linePeriodEnd || fallbackNow,
+  };
+
+  const mappedStatus = mapStripeSubscriptionStatus(String(normalizedSyntheticSubscription.status || 'pending'));
+  const currentPeriodStart =
+    toIsoFromUnix(normalizedSyntheticSubscription.current_period_start) ||
+    normalizedSyntheticSubscription.__fallback_period_start_iso;
+  const currentPeriodEnd =
+    toIsoFromUnix(normalizedSyntheticSubscription.current_period_end) ||
+    normalizedSyntheticSubscription.__fallback_period_end_iso;
+  const activeLikeStatuses: SubscriptionRowStatus[] = ['active', 'trialing', 'past_due'];
+
+  const existingSubscription = await findExistingStripeSubscriptionRow(supabaseAdmin, context);
+
+  if (!existingSubscription?.id && activeLikeStatuses.includes(mappedStatus)) {
+    await supabaseAdmin
+      .from('user_subscriptions')
+      .update({
+        status: 'expired',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', context.userId)
+      .in('status', activeLikeStatuses);
+  }
+
+  const payload = {
+    user_id: context.userId,
+    plan_id: context.planId,
+    billing_cycle: context.billingCycle,
+    status: mappedStatus,
+    provider: 'stripe',
+    provider_customer_id: context.customerId,
+    provider_subscription_id: context.subscriptionId,
+    provider_price_id: context.priceId,
+    provider_checkout_session_id: context.checkoutSessionId,
+    current_period_start: currentPeriodStart,
+    current_period_end: currentPeriodEnd,
+    cancel_at_period_end: false,
+    trial_end_date: null,
+    amount_paid: toNumberAmount(invoice.amount_paid ?? invoice.amount_due ?? invoice.total ?? 0),
+    currency: normalizeCurrency(invoice.currency),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existingSubscription?.id) {
+    const { data, error } = await supabaseAdmin
+      .from('user_subscriptions')
+      .update(payload)
+      .eq('id', existingSubscription.id)
+      .select('id, user_id, plan_id, status, provider_customer_id, provider_subscription_id, provider_price_id, provider_checkout_session_id, current_period_start, current_period_end, cancel_at_period_end')
+      .single();
+
+    if (error) {
+      if (isOneActiveSubscriptionConflict(error)) {
+        const recovered = await tryResolveActiveUserSubscriptionConflict(supabaseAdmin, context, payload);
+        if (recovered?.id) {
+          return recovered;
+        }
+      }
+
+      throw error;
+    }
+
+    return data;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('user_subscriptions')
+    .insert(payload)
+    .select('id, user_id, plan_id, status, provider_customer_id, provider_subscription_id, provider_price_id, provider_checkout_session_id, current_period_start, current_period_end, cancel_at_period_end')
+    .single();
+
+  if (error) {
+    if (isOneActiveSubscriptionConflict(error)) {
+      const recovered = await tryResolveActiveUserSubscriptionConflict(supabaseAdmin, context, payload);
+      if (recovered?.id) {
+        return recovered;
+      }
+    }
+
+    throw error;
+  }
+
+  return data;
+};
+
+const upsertStripeSubscriptionFromCheckoutSessionFallback = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  params: {
+    context: ResolvedStripeContext;
+    checkoutSession: Record<string, any>;
+  }
+) => {
+  const { context, checkoutSession } = params;
+
+  if (!context.userId || !context.planId || !context.billingCycle) {
+    return null;
+  }
+
+  const fallbackNow = new Date().toISOString();
+  const paidAt = toIsoFromUnix(checkoutSession.created) || fallbackNow;
+  const fallbackStatus = checkoutSession.payment_status === 'paid' ? ('active' as const) : ('pending' as const);
+  const activeLikeStatuses: SubscriptionRowStatus[] = ['active', 'trialing', 'past_due'];
+
+  const existingSubscription = await findExistingStripeSubscriptionRow(supabaseAdmin, context);
+
+  if (!existingSubscription?.id && activeLikeStatuses.includes(fallbackStatus)) {
+    await supabaseAdmin
+      .from('user_subscriptions')
+      .update({
+        status: 'expired',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', context.userId)
+      .in('status', activeLikeStatuses);
+  }
+
+  const payload = {
+    user_id: context.userId,
+    plan_id: context.planId,
+    billing_cycle: context.billingCycle,
+    status: fallbackStatus,
+    provider: 'stripe',
+    provider_customer_id: context.customerId,
+    provider_subscription_id: context.subscriptionId,
+    provider_price_id: context.priceId,
+    provider_checkout_session_id: context.checkoutSessionId,
+    current_period_start: paidAt,
+    current_period_end: paidAt,
+    cancel_at_period_end: false,
+    trial_end_date: null,
+    amount_paid: toNumberAmount(checkoutSession.amount_total ?? 0),
+    currency: normalizeCurrency(checkoutSession.currency),
+    updated_at: fallbackNow,
+  };
+
+  if (existingSubscription?.id) {
+    const { data, error } = await supabaseAdmin
+      .from('user_subscriptions')
+      .update(payload)
+      .eq('id', existingSubscription.id)
+      .select('id, user_id, plan_id, status, provider_customer_id, provider_subscription_id, provider_price_id, provider_checkout_session_id, current_period_start, current_period_end, cancel_at_period_end')
+      .single();
+
+    if (error) {
+      if (isOneActiveSubscriptionConflict(error)) {
+        const recovered = await tryResolveActiveUserSubscriptionConflict(supabaseAdmin, context, payload);
+        if (recovered?.id) {
+          return recovered;
+        }
+      }
+
+      throw error;
+    }
+
+    return data;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('user_subscriptions')
+    .insert(payload)
+    .select('id, user_id, plan_id, status, provider_customer_id, provider_subscription_id, provider_price_id, provider_checkout_session_id, current_period_start, current_period_end, cancel_at_period_end')
+    .single();
+
+  if (error) {
+    if (isOneActiveSubscriptionConflict(error)) {
+      const recovered = await tryResolveActiveUserSubscriptionConflict(supabaseAdmin, context, payload);
+      if (recovered?.id) {
+        return recovered;
+      }
+    }
+
     throw error;
   }
 
@@ -595,7 +1143,7 @@ const upsertStripePayment = async (
     paidAt?: string | null;
   }
 ) => {
-  const { context, invoice, status, invoiceStatus, paidAt } = params;
+  const { context, subscriptionRowId, invoice, status, invoiceStatus, paidAt } = params;
 
   if (!context.userId || !context.planId || !context.billingCycle) {
     throw new Error('Contexto Stripe incompleto para persistir pagamento.');
@@ -916,13 +1464,20 @@ serve(async (req) => {
         priceId: stripeSubscription?.items?.data?.[0]?.price?.id || null,
       });
 
-      if (context.itemType === 'plan' && stripeSubscription) {
-        await upsertStripeSubscription(supabaseAdmin, {
-          context,
-          stripeSubscription,
-          amountPaid: toNumberAmount(payloadObject.amount_total ?? 0),
-          currency: payloadObject.currency || stripeSubscription.currency || 'BRL',
-        });
+      if (context.itemType === 'plan') {
+        if (stripeSubscription) {
+          await upsertStripeSubscription(supabaseAdmin, {
+            context,
+            stripeSubscription,
+            amountPaid: toNumberAmount(payloadObject.amount_total ?? 0),
+            currency: payloadObject.currency || stripeSubscription.currency || 'BRL',
+          });
+        } else if (context.userId && context.planId && context.billingCycle) {
+          await upsertStripeSubscriptionFromCheckoutSessionFallback(supabaseAdmin, {
+            context,
+            checkoutSession: payloadObject,
+          });
+        }
       } else if (context.itemType === 'booster') {
         if (payloadObject.payment_status !== 'paid') {
           throw new Error('Sessao Stripe de booster finalizada sem pagamento confirmado.');
@@ -998,14 +1553,28 @@ serve(async (req) => {
 
     if (eventType === 'invoice.paid' || eventType === 'invoice.payment_failed') {
       const invoice = payloadObject;
+      const firstInvoiceLine = Array.isArray(invoice.lines?.data) ? invoice.lines.data[0] : null;
       const subscriptionId =
-        typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id || null;
+        (typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id) ||
+        invoice.parent?.subscription_details?.subscription ||
+        firstInvoiceLine?.parent?.subscription_item_details?.subscription ||
+        null;
       const checkoutSessionId = String(invoice.parent?.subscription_details?.metadata?.checkout_session_id || '').trim() || null;
       const stripeSubscription = subscriptionId
         ? await fetchStripeSubscription(settings.stripe_secret_key, subscriptionId)
         : null;
+      const { data: existingDbSubscription } = subscriptionId
+        ? await supabaseAdmin
+            .from('user_subscriptions')
+            .select('id, status, plan_id, billing_cycle, provider_customer_id, provider_subscription_id')
+            .eq('provider', 'stripe')
+            .eq('provider_subscription_id', subscriptionId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : { data: null };
 
-      const context = await resolveContext(supabaseAdmin, {
+      let context = await resolveContext(supabaseAdmin, {
         userId:
           stripeSubscription?.metadata?.user_id ||
           invoice.parent?.subscription_details?.metadata?.user_id ||
@@ -1041,9 +1610,18 @@ serve(async (req) => {
         subscriptionId,
         priceId:
           stripeSubscription?.items?.data?.[0]?.price?.id ||
-          invoice.lines?.data?.[0]?.price?.id ||
+          firstInvoiceLine?.price?.id ||
+          firstInvoiceLine?.pricing?.price_details?.price ||
           null,
       });
+      context = await enrichPlanContextFromPrice(supabaseAdmin, context);
+      context = await enrichUserContextFromEmail(
+        supabaseAdmin,
+        context,
+        invoice.customer_email || invoice.account_name || null
+      );
+      context = await enrichContextFromCheckoutWebhookLog(supabaseAdmin, context);
+      context = await enrichPlanContextFromPrice(supabaseAdmin, context);
 
       if (context.itemType !== 'plan') {
         await markWebhookLog(supabaseAdmin, webhookLogId, {
@@ -1051,15 +1629,44 @@ serve(async (req) => {
           statusCode: 200,
           errorMessage: `ignored_item_type:${context.itemType}`,
         });
-      } else if (!stripeSubscription) {
-        throw new Error('Nao foi possivel carregar a assinatura Stripe vinculada ao invoice.');
       } else {
-        const subscriptionRow = await upsertStripeSubscription(supabaseAdmin, {
-          context,
-          stripeSubscription,
-          amountPaid: toNumberAmount(invoice.amount_paid ?? invoice.amount_due ?? invoice.total ?? 0),
-          currency: invoice.currency || stripeSubscription.currency || 'BRL',
-        });
+        const subscriptionRow = stripeSubscription
+          ? await upsertStripeSubscription(supabaseAdmin, {
+              context,
+              stripeSubscription,
+              amountPaid: toNumberAmount(invoice.amount_paid ?? invoice.amount_due ?? invoice.total ?? 0),
+              currency: invoice.currency || stripeSubscription.currency || 'BRL',
+            })
+          : context.userId && context.planId && context.billingCycle
+            ? await upsertStripeSubscriptionFromInvoiceFallback(supabaseAdmin, {
+                context,
+                invoice,
+              })
+          : existingDbSubscription?.id
+            ? {
+                id: existingDbSubscription.id,
+                status: existingDbSubscription.status,
+              }
+            : null;
+
+        if (!subscriptionRow?.id) {
+          throw new Error(
+            [
+              'Nao foi possivel carregar a assinatura Stripe vinculada ao invoice.',
+              `subscriptionId=${context.subscriptionId || 'null'}`,
+              `customerId=${context.customerId || 'null'}`,
+              `checkoutSessionId=${context.checkoutSessionId || 'null'}`,
+              `userId=${context.userId || 'null'}`,
+              `planId=${context.planId || 'null'}`,
+              `billingCycle=${context.billingCycle || 'null'}`,
+              `itemType=${context.itemType || 'null'}`,
+              `priceId=${context.priceId || 'null'}`,
+              `existingDbSubscription=${existingDbSubscription?.id || 'null'}`,
+              `stripeSubscriptionLoaded=${stripeSubscription ? 'yes' : 'no'}`,
+              `invoiceCustomerEmail=${invoice.customer_email || 'null'}`,
+            ].join(' | ')
+          );
+        }
 
         await markScheduledChangeAsApplied(supabaseAdmin, {
           providerSubscriptionId: context.subscriptionId,
@@ -1236,11 +1843,12 @@ serve(async (req) => {
     return textResponse('Stripe webhook processed');
   } catch (error) {
     console.error('[webhook-stripe] unexpected error:', error);
+    const normalizedErrorMessage = describeUnknownError(error);
 
     await markWebhookLog(supabaseAdmin, webhookLogId, {
       processed: false,
       statusCode: 500,
-      errorMessage: error instanceof Error ? error.message : 'Internal server error',
+      errorMessage: normalizedErrorMessage,
     });
 
     if (eventId) {
@@ -1259,7 +1867,7 @@ serve(async (req) => {
     return jsonResponse(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: normalizedErrorMessage,
       },
       500
     );

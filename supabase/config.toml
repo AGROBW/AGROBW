@@ -8,6 +8,11 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/webhook-fiscal/index.ts"
 
+[functions.webhook-stripe]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/webhook-stripe/index.ts"
+
 [functions.capture-news-url]
 enabled = true
 verify_jwt = false

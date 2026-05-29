@@ -65,7 +65,13 @@ serve(async (req) => {
   }
 
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
-  const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey);
+  const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: authHeader,
+      },
+    },
+  });
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
   if (!authHeader.startsWith('Bearer ')) {
@@ -103,7 +109,7 @@ serve(async (req) => {
       return jsonResponse(req, { success: false, error: 'Invalid request data' }, 400);
     }
 
-    const { data: gatewayConfig, error: gatewayError } = await supabaseAdmin
+    const { data: gatewayConfig, error: gatewayError } = await supabaseAuth
       .rpc('get_checkout_gateway_public_safe');
 
     const gatewayRow = Array.isArray(gatewayConfig) ? gatewayConfig[0] : gatewayConfig;
