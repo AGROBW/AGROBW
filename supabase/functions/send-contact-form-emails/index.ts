@@ -7,7 +7,7 @@ import {
   sendSmtpEmail,
 } from '../_shared/smtpSettings.ts';
 import { getCorsHeaders, handleCorsPreflightBrowser } from '../_shared/cors.ts';
-import { isAdminProfile, extractBearerToken } from '../_shared/security.ts';
+import { isAdminAal2Profile, extractBearerToken } from '../_shared/security.ts';
 
 // VULN-002 fix: CORS allowlist — sem wildcard
 const corsHeaders = (req: Request) => getCorsHeaders(req);
@@ -148,7 +148,7 @@ const checkAdminAccess = async (
     .eq('id', user.id)
     .maybeSingle();
 
-  return isAdminProfile(adminProfile);
+  return isAdminAal2Profile(adminProfile, token);
 };
 
 const processJob = async (

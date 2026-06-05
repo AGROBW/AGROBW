@@ -4,11 +4,9 @@ import { appError } from '../utils/appLogger';
 
 export interface PaymentSettings {
   id: string;
-  stripe_secret_key_configured: boolean;
-  stripe_publishable_key: string | null;
-  stripe_webhook_secret_configured: boolean;
-  preferred_checkout_provider: 'stripe';
-  stripe_rollout_mode: 'all_customers' | 'new_customers';
+  asaas_api_key_configured: boolean;
+  asaas_webhook_token_configured: boolean;
+  preferred_checkout_provider: 'asaas';
   is_production: boolean;
   last_updated_by: string | null;
   created_at: string;
@@ -16,9 +14,8 @@ export interface PaymentSettings {
 }
 
 export interface UpdatePaymentSettingsData {
-  stripe_secret_key?: string | null;
-  stripe_publishable_key?: string | null;
-  stripe_webhook_secret?: string | null;
+  asaas_api_key?: string | null;
+  asaas_webhook_token?: string | null;
   is_production?: boolean;
 }
 
@@ -45,34 +42,32 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
       const { data, error: fetchError } = await supabase.rpc('get_payment_settings_admin_safe');
 
       if (fetchError) {
-          appError('Erro ao buscar configuracoes', fetchError);
+        appError('Erro ao buscar configuracoes de pagamento', fetchError);
         setError(fetchError.message);
         return;
       }
 
       setSettings((Array.isArray(data) ? data[0] : data) || null);
     } catch (err) {
-        appError('Erro inesperado ao buscar configuracoes', err);
-      setError('Erro ao carregar configuracoes');
+      appError('Erro inesperado ao buscar configuracoes de pagamento', err);
+      setError('Erro ao carregar configuracoes de pagamento');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const updateSettings = async (updates: UpdatePaymentSettingsData): Promise<{ error: string | null }> => {
+  const updateSettings = async (
+    updates: UpdatePaymentSettingsData
+  ): Promise<{ error: string | null }> => {
     try {
       const { data, error: updateError } = await supabase.rpc('update_payment_settings_admin_safe', {
-        p_stripe_secret_key:
-          typeof updates.stripe_secret_key === 'string' && updates.stripe_secret_key.trim() !== ''
-            ? updates.stripe_secret_key.trim()
+        p_asaas_api_key:
+          typeof updates.asaas_api_key === 'string' && updates.asaas_api_key.trim() !== ''
+            ? updates.asaas_api_key.trim()
             : null,
-        p_stripe_publishable_key:
-          typeof updates.stripe_publishable_key === 'string'
-            ? updates.stripe_publishable_key
-            : null,
-        p_stripe_webhook_secret:
-          typeof updates.stripe_webhook_secret === 'string' && updates.stripe_webhook_secret.trim() !== ''
-            ? updates.stripe_webhook_secret.trim()
+        p_asaas_webhook_token:
+          typeof updates.asaas_webhook_token === 'string' && updates.asaas_webhook_token.trim() !== ''
+            ? updates.asaas_webhook_token.trim()
             : null,
         p_is_production:
           typeof updates.is_production === 'boolean'
@@ -81,20 +76,20 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
       });
 
       if (updateError) {
-          appError('Erro ao atualizar configuracoes', updateError);
+        appError('Erro ao atualizar configuracoes de pagamento', updateError);
         return { error: updateError.message };
       }
 
       setSettings((Array.isArray(data) ? data[0] : data) || null);
       return { error: null };
     } catch (err) {
-        appError('Erro inesperado ao atualizar configuracoes', err);
-      return { error: 'Erro ao salvar configuracoes' };
+      appError('Erro inesperado ao atualizar configuracoes de pagamento', err);
+      return { error: 'Erro ao salvar configuracoes de pagamento' };
     }
   };
 
   useEffect(() => {
-    fetchSettings();
+    void fetchSettings();
   }, []);
 
   return {
@@ -108,11 +103,9 @@ export const usePaymentSettings = (): UsePaymentSettingsReturn => {
 
 export const PAYMENT_SETTINGS_FALLBACK: PaymentSettings = {
   id: '00000000-0000-0000-0000-000000000005',
-  stripe_secret_key_configured: false,
-  stripe_publishable_key: null,
-  stripe_webhook_secret_configured: false,
-  preferred_checkout_provider: 'stripe',
-  stripe_rollout_mode: 'all_customers',
+  asaas_api_key_configured: false,
+  asaas_webhook_token_configured: false,
+  preferred_checkout_provider: 'asaas',
   is_production: false,
   last_updated_by: null,
   created_at: new Date().toISOString(),

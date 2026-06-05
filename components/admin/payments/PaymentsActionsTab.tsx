@@ -86,7 +86,7 @@ const PaymentsActionsTab: React.FC<PaymentsActionsTabProps> = ({
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Status da cobrança</p>
               <p className="mt-2 text-sm font-semibold text-slate-900 capitalize">{selectedPayment.status.replace('_', ' ')}</p>
               <p className="text-xs text-slate-500 mt-1">
-                {selectedPayment.payment_method || (selectedPayment.provider === 'stripe' ? 'Stripe' : 'Gateway externo')}
+                {selectedPayment.payment_method || (selectedPayment.provider === 'asaas' ? 'Checkout Asaas' : 'Gateway externo')}
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
@@ -107,9 +107,11 @@ const PaymentsActionsTab: React.FC<PaymentsActionsTabProps> = ({
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Contexto do gateway</p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                  selectedPayment.provider === 'stripe'
-                    ? 'bg-violet-100 text-violet-700'
-                    : 'bg-slate-100 text-slate-700'
+                  selectedPayment.provider === 'asaas'
+                    ? 'bg-sky-100 text-sky-700'
+                    : selectedPayment.provider === 'legacy'
+                      ? 'bg-slate-100 text-slate-700'
+                      : 'bg-violet-100 text-violet-700'
                 }`}>
                   {selectedPayment.provider || 'legacy'}
                 </span>

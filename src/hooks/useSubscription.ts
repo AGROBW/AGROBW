@@ -4,11 +4,15 @@ import { endAppSync, startAppSync } from '../lib/appSyncStatus';
 import { useAuth } from '../contexts/AuthContext';
 import { isSupabaseUnauthorizedError } from '../lib/supabaseAuthGuard';
 import { getEffectiveLeadContactLimitDays, getSubscriptionUsageWindow } from '../utils/subscriptionUsageWindow';
+import { BillingModel } from '../../types';
 
 export type UserSubscription = {
   id: string;
   user_id: string;
   plan_id: string;
+  billing_model: BillingModel;
+  category_highlights_carryover?: number | null;
+  home_highlights_carryover?: number | null;
   provider: string;
   provider_customer_id?: string | null;
   provider_subscription_id?: string | null;
@@ -221,6 +225,14 @@ export const useSubscription = () => {
       let adsLimit = activeSubscription?.plans?.max_ads ?? null;
       let categoryHighlightsCount = 0;
       let homeHighlightsCount = 0;
+      const categoryHighlightsCarryover = Math.max(
+        Number(activeSubscription?.category_highlights_carryover ?? 0),
+        0
+      );
+      const homeHighlightsCarryover = Math.max(
+        Number(activeSubscription?.home_highlights_carryover ?? 0),
+        0
+      );
 
       if (activeSubscription) {
         const { data: capacityRows, error: capacityError } = await supabase.rpc('get_my_active_ad_capacity_status');
@@ -268,9 +280,13 @@ export const useSubscription = () => {
         adsUsed: adsCount,
         adsLimit,
         categoryHighlightsUsed: categoryHighlightsCount,
-        categoryHighlightsLimit: activeSubscription?.plans?.category_highlights_count || 0,
+        categoryHighlightsLimit:
+          Math.max(Number(activeSubscription?.plans?.category_highlights_count ?? 0), 0) +
+          categoryHighlightsCarryover,
         homeHighlightsUsed: homeHighlightsCount,
-        homeHighlightsLimit: activeSubscription?.plans?.home_highlight_count || 0,
+        homeHighlightsLimit:
+          Math.max(Number(activeSubscription?.plans?.home_highlight_count ?? 0), 0) +
+          homeHighlightsCarryover,
         categoryHighlightsBoosterRemaining: Number(boosterSummary?.category_remaining ?? 0),
         homeHighlightsBoosterRemaining: Number(boosterSummary?.home_remaining ?? 0),
         isWithinPeriod: !!isWithinPeriod,

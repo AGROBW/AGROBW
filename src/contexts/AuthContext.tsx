@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { setRememberDevicePreference, supabase } from '../lib/supabaseClient'
+import { AdminMfaState, buildAdminMfaState, createEmptyAdminMfaState, extractAalFromJwt } from '../lib/adminMfa'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { isSupabaseUnauthorizedError, refreshSupabaseSession, startIdleSessionMonitor, stopIdleSessionMonitor } from '../lib/supabaseAuthGuard'
 import { User, UserRole } from '../../types'
@@ -22,10 +23,16 @@ interface AuthContextType {
   user: User | null
   supabaseUser: SupabaseUser | null
   stats: UserStats | null
+  adminMfaState: AdminMfaState
   isLoading: boolean
   isSeller: boolean
   isAdmin: boolean
-  signIn: (email: string, password: string, rememberDevice?: boolean) => Promise<{ error: any }>
+  isAdminMfaVerified: boolean
+  signIn: (
+    email: string,
+    password: string,
+    rememberDevice?: boolean
+  ) => Promise<{ error: any; isAdminUser?: boolean; completedAdminLogin?: boolean }>
   sendPasswordResetEmail: (email: string) => Promise<{ error: any }>
   signUp: (
     email: string,
@@ -54,6 +61,8 @@ interface AuthContextType {
   ) => Promise<{ error: any }>
   signOut: () => Promise<void>
   refreshStats: () => Promise<void>
+  refreshAdminMfaState: () => Promise<AdminMfaState>
+  recordCompletedLogin: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -84,10 +93,21 @@ const normalizeUserRole = (role?: string | null): UserRole => {
   }
 }
 
+const touchLastLogin = async (userId?: string | null) => {
+  const targetUserId = String(userId || '').trim()
+  if (!targetUserId) return
+
+  await supabase
+    .from('users')
+    .update({ last_login: new Date().toISOString() })
+    .eq('id', targetUserId)
+}
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null)
   const [stats, setStats] = useState<UserStats | null>(null)
+  const [adminMfaState, setAdminMfaState] = useState<AdminMfaState>(() => createEmptyAdminMfaState())
   const [isLoading, setIsLoading] = useState(true)
   const fetchingRef = useRef(false)
   const retryTimeoutRef = useRef<number | null>(null)
@@ -115,6 +135,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(null)
       setSupabaseUser(null)
       setStats(null)
+      setAdminMfaState(createEmptyAdminMfaState())
       setIsLoading(false)
     }
   }
@@ -270,6 +291,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }
 
+  const loadAdminMfaState = async (
+    isAdminUser: boolean,
+    canSetState?: () => boolean
+  ): Promise<AdminMfaState> => {
+    if (!isAdminUser) {
+      const nextState = createEmptyAdminMfaState(true)
+      if (!canSetState || canSetState()) {
+        setAdminMfaState(nextState)
+      }
+      return nextState
+    }
+
+    const [{ data: aalData, error: aalError }, { data: factorsData, error: factorsError }] = await Promise.all([
+      supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+      supabase.auth.mfa.listFactors()
+    ])
+
+    if (aalError) {
+      throw aalError
+    }
+
+    if (factorsError) {
+      throw factorsError
+    }
+
+    const nextState = buildAdminMfaState(aalData, factorsData)
+
+    if (!canSetState || canSetState()) {
+      setAdminMfaState(nextState)
+    }
+
+    return nextState
+  }
+
   const scheduleRetry = (userId: string, canSetState?: () => boolean) => {
     if (typeof window === 'undefined' || retryTimeoutRef.current !== null) return
 
@@ -297,6 +352,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         fetchStats(userId, options?.canSetState, { silent: options?.silent })
       ])
 
+      const isAdminUser =
+        Boolean(userData?.is_admin) || normalizeUserRole(userData?.role) === UserRole.ADMIN
+
+      await loadAdminMfaState(isAdminUser, options?.canSetState)
+
       if (!userData || !statsLoaded) {
         const { data: currentSession } = await supabase.auth.getSession()
         if (!currentSession.session) return
@@ -323,6 +383,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }
 
+  const refreshAdminMfaState = async () => {
+    const isAdminUser = (user?.isAdmin ?? (user?.role === UserRole.ADMIN)) || false
+    return loadAdminMfaState(isAdminUser)
+  }
+
+  const recordCompletedLogin = async () => {
+    const targetUserId = supabaseUser?.id || user?.id
+    await touchLastLogin(targetUserId)
+  }
+
   useEffect(() => {
     let isMounted = true
 
@@ -338,6 +408,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setSupabaseUser(session?.user ?? null)
         if (session?.user) {
           sessionExpiredToastShownRef.current = false
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED') {
+            setIsLoading(true)
+          }
           setUser(prev => prev ?? {
             id: session.user.id,
             email: session.user.email || '',
@@ -349,7 +422,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             plan: undefined,
             isAdmin: false
           })
-          setIsLoading(false)
         }
       }
 
@@ -370,9 +442,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (isMounted) {
           setUser(null)
           setStats(null)
+          setAdminMfaState(createEmptyAdminMfaState())
           setIsLoading(false)
         }
       } else if (!session?.user && isMounted) {
+        setAdminMfaState(createEmptyAdminMfaState(true))
         setIsLoading(false)
       }
     })
@@ -406,13 +480,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     })
 
     if (error) {
-      return { error }
+      return { error, isAdminUser: false, completedAdminLogin: false }
     }
 
     if (data?.user?.id) {
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('is_suspended, suspension_reason, name')
+        .select('is_suspended, suspension_reason, name, role, is_admin')
         .eq('id', data.user.id)
         .single()
 
@@ -424,17 +498,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             message: 'USER_SUSPENDED',
             suspension_reason: userData.suspension_reason || 'Sua conta foi suspensa.',
             user_name: userData.name
-          }
+          },
+          isAdminUser: false,
+          completedAdminLogin: false
         }
       }
 
-      await supabase
-        .from('users')
-        .update({ last_login: new Date().toISOString() })
-        .eq('id', data.user.id)
+      const isAdminUser =
+        Boolean(userData?.is_admin) || normalizeUserRole(userData?.role) === UserRole.ADMIN
+      const currentAal = extractAalFromJwt(data.session?.access_token)
+      const completedAdminLogin = isAdminUser && currentAal === 'aal2'
+
+      if (!isAdminUser || completedAdminLogin) {
+        await touchLastLogin(data.user.id)
+      }
+
+      return {
+        error: null,
+        isAdminUser,
+        completedAdminLogin
+      }
     }
 
-    return { error }
+    return { error: null, isAdminUser: false, completedAdminLogin: false }
   }
 
   const sendPasswordResetEmail = async (email: string) => {
@@ -517,7 +603,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await supabase.auth.signOut()
     setUser(null)
     setStats(null)
+    setAdminMfaState(createEmptyAdminMfaState())
   }
+
+  const isAdminResolved = (user?.isAdmin ?? (user?.role === UserRole.ADMIN)) || false
+  const isAdminMfaVerified = isAdminResolved && adminMfaState.currentLevel === 'aal2'
 
   return (
     <AuthContext.Provider
@@ -525,14 +615,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         user,
         supabaseUser,
         stats,
+        adminMfaState,
         isLoading,
         isSeller: stats?.is_seller ?? false,
-        isAdmin: (user?.isAdmin ?? (user?.role === UserRole.ADMIN)) || false,
+        isAdmin: isAdminResolved,
+        isAdminMfaVerified,
         signIn,
         sendPasswordResetEmail,
         signUp,
         signOut,
-        refreshStats
+        refreshStats,
+        refreshAdminMfaState,
+        recordCompletedLogin
       }}
     >
       {children}

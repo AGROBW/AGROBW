@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
-import { logSecurityEvent } from '../_shared/security.ts';
+import { isAdminAal2Profile, logSecurityEvent } from '../_shared/security.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://bwagro.vercel.app',  // VULN-002 fix: Allowlist
@@ -146,11 +146,11 @@ serve(async (req) => {
 
     const { data: userProfile } = await supabaseAdmin
       .from('users')
-      .select('role')
+      .select('role, is_admin')
       .eq('id', user.id)
       .maybeSingle();
 
-    const isAdmin = (userProfile?.role || '').toLowerCase() === 'admin';
+    const isAdmin = isAdminAal2Profile(userProfile, token);
     const isOwner = announcement.user_id === user.id;
 
     if (!isAdmin && !isOwner) {

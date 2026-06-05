@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { PricingPlan } from '../../types'
+import { BillingModel, PricingPlan } from '../../types'
 import { appError } from '../utils/appLogger'
 
 // Interface completa do plano (database)
@@ -8,14 +8,13 @@ export interface Plan {
   id: string;
   name: string;
   description: string | null;
+  billing_model: BillingModel;
   card_eyebrow: string | null;
   price_caption: string | null;
   footer_caption: string | null;
   show_footer_card: boolean;
   monthly_price: number;
   yearly_price: number;
-  stripe_monthly_price_id: string | null;
-  stripe_yearly_price_id: string | null;
   features: string[];
   display_features: string[];
   is_popular: boolean;
@@ -56,14 +55,13 @@ export interface Plan {
 export interface UpdatePlanData {
   name?: string;
   description?: string;
+  billing_model?: BillingModel;
   card_eyebrow?: string;
   price_caption?: string;
   footer_caption?: string;
   show_footer_card?: boolean;
   monthly_price?: number;
   yearly_price?: number;
-  stripe_monthly_price_id?: string | null;
-  stripe_yearly_price_id?: string | null;
   features?: string[];
   display_features?: string[];
   is_popular?: boolean;
@@ -129,6 +127,7 @@ export const usePlans = () => {
           description: plan.description,
           monthlyPrice: parseFloat(plan.monthly_price ?? 0),
           yearlyPrice: parseFloat(plan.yearly_price ?? 0),
+          billingModel: plan.billing_model || 'one_time',
           features: plan.features || [],
           isPopular: !!plan.is_popular,
           buttonText: plan.button_text || 'Escolher Plano',

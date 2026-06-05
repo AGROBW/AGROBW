@@ -68,6 +68,10 @@ export const CaptchaWidget: React.FC<CaptchaWidgetProps> = ({
     ? 'hcaptcha' 
     : 'mock';
 
+  const canUseMockCaptcha =
+    typeof window !== 'undefined' &&
+    ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
+
   useEffect(() => {
     if (captchaProvider === 'mock') {
       appWarn('[Captcha] Nenhuma chave configurada. Usando mock para desenvolvimento', {
@@ -263,7 +267,7 @@ export const CaptchaWidget: React.FC<CaptchaWidgetProps> = ({
   };
 
   // Mock para desenvolvimento (quando não há chave configurada)
-  if (captchaProvider === 'mock') {
+  if (captchaProvider === 'mock' && canUseMockCaptcha) {
     return (
       <div className="border-2 border-dashed border-yellow-300 bg-yellow-50 rounded-lg p-4 text-center">
         <p className="text-xs font-bold text-yellow-800 uppercase tracking-wider mb-2">
@@ -279,6 +283,17 @@ export const CaptchaWidget: React.FC<CaptchaWidgetProps> = ({
         >
           Simular Verificação
         </button>
+      </div>
+    );
+  }
+
+  if (captchaProvider === 'mock' && !canUseMockCaptcha) {
+    return (
+      <div className="border border-red-200 bg-red-50 rounded-lg p-4 text-center">
+        <p className="text-sm text-red-700 mb-1 font-semibold">Verificacao de seguranca indisponivel</p>
+        <p className="text-xs text-red-600">
+          O captcha nao esta configurado para este ambiente. Entre em contato com a equipe responsavel.
+        </p>
       </div>
     );
   }

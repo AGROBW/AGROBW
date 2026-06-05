@@ -7,6 +7,7 @@ create table if not exists public.plans (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   description text,
+  billing_model text not null default 'one_time' check (billing_model in ('one_time', 'recurring')),
   monthly_price numeric(10,2) not null default 0,
   yearly_price numeric(10,2) not null default 0,
   features jsonb not null default '[]'::jsonb,
@@ -39,11 +40,15 @@ create table if not exists public.plans (
   updated_at timestamptz not null default now()
 );
 
+alter table if exists public.plans
+  add column if not exists billing_model text not null default 'one_time';
+
 create index if not exists idx_plans_position on public.plans(position);
 create index if not exists idx_plans_active on public.plans(is_active);
 create index if not exists idx_plans_public_pricing on public.plans(show_in_public_pricing);
 create index if not exists idx_plans_default_signup on public.plans(is_default_signup_plan);
 create index if not exists idx_plans_downgrade on public.plans(is_downgrade_plan);
+create index if not exists idx_plans_billing_model on public.plans(billing_model);
 
 -- Trigger para updated_at
 create or replace function public.set_updated_at_plans()

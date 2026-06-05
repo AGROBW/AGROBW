@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, Lock, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store } from 'lucide-react';
@@ -8,7 +8,6 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { deleteAnnouncementWithRelations, useUserAds } from '../src/hooks/useAds';
 import { useNotificationsCount } from '../src/hooks/useNotificationsCount';
 import { useSubscription } from '../src/hooks/useSubscription';
-import { useScheduledSubscriptionChange } from '../src/hooks/useScheduledSubscriptionChange';
 import { supabase } from '../src/lib/supabaseClient';
 import { useInvoices } from '../src/hooks/useInvoices';
 import { usePayments } from '../src/hooks/usePayments';
@@ -23,23 +22,17 @@ import RadarView from '../components/RadarView';
 import { getBusinessDescriptionValidationError, MAX_BUSINESS_DESCRIPTION_LENGTH } from '../src/utils/businessDescription';
 import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 import HighlightConfirmationModal from '../components/HighlightConfirmationModal';
-import RecommendedUpgradeModal from '../components/finance/RecommendedUpgradeModal';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { usePlans } from '../src/hooks/usePlans';
 import HelpCenterView from './HelpCenterView';
 import FavoritesView from './FavoritesView';
+import SeoHead from '../components/SeoHead';
 import toast from 'react-hot-toast';
 import { toast as sonnerToast } from 'sonner';
 import { useDashboardStats } from '../src/hooks/useDashboardStats';
-import { useRadar } from '../src/hooks/useRadar';
 import { usePersistentState } from '../src/hooks/usePersistentState';
 import { updateUserCoordinates } from '../services/geoService';
-import { initiatePlatformPlanCheckout, openStripeCustomerPortal } from '../services/paymentCheckoutService';
-import {
-  cancelPendingSubscriptionChange,
-  clearStripeSubscriptionCancelAtPeriodEnd,
-  requestSubscriptionChangeNextCycle,
-} from '../services/subscriptionChangeService';
+import { initiatePlatformPlanCheckout } from '../services/paymentCheckoutService';
 import { calculateYearlyTotal, getCustomPlanContactLink, isCustomPlan } from '../services/paymentUtils';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
@@ -102,6 +95,45 @@ const AdsSkeletonList = ({ count = 3 }: { count?: number }) => (
   </div>
 );
 
+type ProfileSectionCardProps = {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  color?: 'emerald' | 'blue' | 'amber' | 'slate';
+  children: React.ReactNode;
+};
+
+const ProfileSectionCard: React.FC<ProfileSectionCardProps> = ({
+  title,
+  description,
+  icon,
+  color = 'emerald',
+  children
+}) => {
+  const colorMap = {
+    emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', icon: 'bg-emerald-100 text-emerald-700' },
+    blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'bg-blue-100 text-blue-700' },
+    amber: { bg: 'bg-amber-50', border: 'border-amber-200', icon: 'bg-amber-100 text-amber-700' },
+    slate: { bg: 'bg-slate-50', border: 'border-slate-200', icon: 'bg-slate-100 text-slate-700' },
+  };
+  const colors = colorMap[color];
+
+  return (
+    <div className={`space-y-5 rounded-3xl border ${colors.border} ${colors.bg} p-6 shadow-md`}>
+      <div className="flex items-start gap-4">
+        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${colors.icon} shadow-sm flex-shrink-0`}>
+          {icon}
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+          <p className="mt-1 text-sm text-slate-600">{description}</p>
+        </div>
+      </div>
+      <div className="space-y-4">{children}</div>
+    </div>
+  );
+};
+
 const UserDashboardView: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -113,11 +145,12 @@ const UserDashboardView: React.FC = () => {
     subscription,
     usage,
     isLoading: subscriptionLoading,
+    canCreateAd,
+    effectiveLeadContactLimitDays,
     adLimitMessage,
     refreshUsage,
     refetch: refetchSubscription,
   } = useSubscription();
-  const { pendingChange, refetch: refetchPendingChange } = useScheduledSubscriptionChange();
   const [userAds, setUserAds] = useState<Ad[]>([]);
   const [userAdsLoading, setUserAdsLoading] = useState(false);
   const {
@@ -158,67 +191,9 @@ const UserDashboardView: React.FC = () => {
     });
   };
 
-  const handleCancelScheduledPlanChange = async () => {
-    setIsCancellingScheduledChange(true);
-    try {
-      const result = await cancelPendingSubscriptionChange();
-      if (!result.success) {
-        toast.error(result.error || 'Não foi possível cancelar a alteração agendada.');
-        return;
-      }
-
-      await refetchPendingChange();
-      toast.success('Alteração agendada cancelada com sucesso.');
-      if (result.warning) {
-        toast.warning(`O cancelamento local foi salvo, mas a reversão na Stripe ainda precisa de revisão: ${result.warning}`);
-      }
-    } finally {
-      setIsCancellingScheduledChange(false);
-    }
-  };
-
-  const handleSchedulePlanCancellation = async () => {
-    setIsCancellingScheduledChange(true);
-    try {
-      const result = await requestSubscriptionChangeNextCycle({
-        changeKind: 'cancel',
-      });
-
-      if (!result.success) {
-        toast.error(result.error || 'Não foi possível agendar o cancelamento da assinatura.');
-        return;
-      }
-
-      await Promise.all([refetchSubscription(), refetchPendingChange()]);
-      toast.success('Cancelamento agendado para o próximo ciclo.');
-      if (result.warning) {
-        toast.warning(`O cancelamento foi registrado, mas a sincronização com a Stripe ainda precisa de revisão: ${result.warning}`);
-      }
-    } finally {
-      setIsCancellingScheduledChange(false);
-    }
-  };
-
-  const handleKeepStripeSubscription = async () => {
-    setIsCancellingScheduledChange(true);
-    try {
-      const result = await clearStripeSubscriptionCancelAtPeriodEnd(subscription?.provider_subscription_id || null);
-      if (!result.success) {
-        toast.error(result.error || 'Não foi possível manter a renovação automática da assinatura.');
-        return;
-      }
-
-      await Promise.all([refetchSubscription(), refetchPendingChange()]);
-      toast.success('A renovação automática da assinatura foi reativada.');
-    } finally {
-      setIsCancellingScheduledChange(false);
-    }
-  };
-  
   // Estados para upload
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
-  const [isCancellingScheduledChange, setIsCancellingScheduledChange] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [isValidatingDocument, setIsValidatingDocument] = useState(false);
   const [validationResult, setValidationResult] = useState<{
@@ -232,6 +207,86 @@ const UserDashboardView: React.FC = () => {
   const showSellerStoreMenu = hasSellerStoreAccess || Boolean(mySellerStore);
   
   const isPremium = user?.plan && user.plan !== 'seed';
+  const dashboardSeo = useMemo(() => {
+    const dashboardRoutes: Array<{ match: string; title: string; description: string }> = [
+      {
+        match: '/minha-conta/meu-plano',
+        title: 'Meu Plano',
+        description: 'Acompanhe capacidade, créditos e recursos liberados no seu plano atual da AGRO BW.',
+      },
+      {
+        match: '/minha-conta/financeiro',
+        title: 'Financeiro',
+        description: 'Gerencie cobranças, vigência e histórico financeiro dos seus planos na AGRO BW.',
+      },
+      {
+        match: '/minha-conta/assinatura',
+        title: 'Financeiro',
+        description: 'Gerencie cobranças, vigência e histórico financeiro dos seus planos na AGRO BW.',
+      },
+      {
+        match: '/minha-conta/meus-planos',
+        title: 'Financeiro',
+        description: 'Gerencie cobranças, vigência e histórico financeiro dos seus planos na AGRO BW.',
+      },
+      {
+        match: '/minha-conta/anuncios',
+        title: 'Meus Anúncios',
+        description: 'Acompanhe seus anúncios, destaques e desempenho na AGRO BW.',
+      },
+      {
+        match: '/minha-conta/mensagens',
+        title: 'Mensagens',
+        description: 'Acesse suas conversas e contatos recebidos pela AGRO BW.',
+      },
+      {
+        match: '/minha-conta/leads',
+        title: 'Leads',
+        description: 'Visualize os interessados nos seus anúncios e acompanhe as negociações.',
+      },
+      {
+        match: '/minha-conta/favoritos',
+        title: 'Favoritos',
+        description: 'Revise anúncios salvos e oportunidades favoritas na AGRO BW.',
+      },
+      {
+        match: '/minha-conta/radar',
+        title: 'Radar de Oportunidades',
+        description: 'Explore oportunidades relevantes para sua operação dentro da AGRO BW.',
+      },
+      {
+        match: '/minha-conta/inteligencia-comercial',
+        title: 'Inteligência Comercial',
+        description: 'Acesse análises e dados estratégicos para apoiar suas decisões comerciais.',
+      },
+      {
+        match: '/minha-conta/minha-loja',
+        title: 'Minha Loja',
+        description: 'Gerencie a vitrine da sua loja parceira e os anúncios publicados.',
+      },
+      {
+        match: '/minha-conta/ajuda',
+        title: 'Central de Ajuda',
+        description: 'Encontre suporte e respostas para dúvidas sobre sua conta.',
+      },
+      {
+        match: '/minha-conta/perfil',
+        title: 'Perfil',
+        description: 'Atualize seus dados de perfil e configurações da conta.',
+      },
+    ];
+
+    const currentRoute =
+      dashboardRoutes.find((route) => location.pathname.startsWith(route.match)) || {
+        title: 'Minha Conta',
+        description: 'Acompanhe plano, anúncios, mensagens e oportunidades na sua conta AGRO BW.',
+      };
+
+    return {
+      title: currentRoute.title,
+      description: currentRoute.description,
+    };
+  }, [location.pathname]);
 
   // Buscar contagem de novos leads
   useEffect(() => {
@@ -311,7 +366,7 @@ const UserDashboardView: React.FC = () => {
 
       sonnerToast.success(data.title || 'Oportunidade AGRO BW', {
         description:
-          `${data.content || 'Seu anúncio ganhou tração e pode render ainda mais com um upgrade.'} Abra "Assinatura" para revisar o plano atual e ver as próximas opções.`,
+          `${data.content || 'Seu anúncio ganhou tração e pode render ainda mais com um upgrade.'} Abra "Financeiro" para revisar o plano atual e ver as próximas opções.`,
         duration: 9000,
       });
     };
@@ -350,7 +405,7 @@ const UserDashboardView: React.FC = () => {
 
       sonnerToast.error(data.title || 'Renovação AGRO BW', {
         description:
-          `${data.content || 'Seu plano pago está perto do vencimento. Abra "Assinatura" para revisar a renovação e manter os benefícios ativos.'}`,
+          `${data.content || 'Seu plano pago está perto do vencimento. Abra "Financeiro" para revisar o próximo ciclo e manter os benefícios ativos.'}`,
         duration: 9000,
       });
     };
@@ -662,7 +717,7 @@ const UserDashboardView: React.FC = () => {
                 fontWeight: 'bold',
                 padding: '16px',
               },
-              icon: '✅',
+              icon: '?',
             }
           );
           
@@ -727,7 +782,7 @@ const UserDashboardView: React.FC = () => {
     ...(isCommercialIntelligenceEnabled
       ? [{ label: 'Inteligência Comercial', path: '/minha-conta/inteligencia-comercial', icon: <Icons.Commercial />, badge: 0 }]
       : []),
-    { label: 'Assinatura', path: '/minha-conta/assinatura', icon: <Icons.Finance />, badge: 0 },
+    { label: 'Financeiro', path: '/minha-conta/financeiro', icon: <Icons.Finance />, badge: 0 },
     { label: 'Central de Ajuda', path: '/minha-conta/ajuda', icon: <Icons.Help />, badge: 0 },
     { label: 'Perfil', path: '/minha-conta/perfil', icon: <Icons.Profile />, badge: 0 },
   ];
@@ -991,10 +1046,10 @@ const UserDashboardView: React.FC = () => {
                 Fazer upgrade
               </Link>
               <Link
-                to="/minha-conta/meu-plano"
+                to="/minha-conta/financeiro"
                 className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50"
               >
-                Ver meu plano
+                Ver financeiro
               </Link>
             </div>
           </div>
@@ -2068,7 +2123,7 @@ const UserDashboardView: React.FC = () => {
                             <p className="mt-2 text-sm text-slate-600">{section.summary}</p>
                           </div>
                           <span className={`mt-0.5 text-lg font-bold transition-transform ${section.accentText} ${isExpanded ? 'rotate-180' : ''}`}>
-                            ⌃
+                            ^
                           </span>
                         </button>
 
@@ -2119,716 +2174,372 @@ const UserDashboardView: React.FC = () => {
     );
   };
 
-  const LegacyFinanceDashboard = () => {
-    const { invoices, isLoading: invoicesLoading } = useInvoices();
-    const [openingStripePortal, setOpeningStripePortal] = useState(false);
-    const nextInvoice = invoices.find((inv) => inv.status !== 'PAID') || invoices[0];
-    
-    // Buscar nome do plano da assinatura
-    const planName = subscription?.plans?.name || 'Semente';
-    const planPrice = subscription?.plans ? 0 : 0; // PreÃ§o serÃ¡ calculado via RPC ou tabela de preÃ§os
-    
-    // Formatar data de vencimento
-    const periodEnd = subscription?.current_period_end 
-      ? new Date(subscription.current_period_end).toLocaleDateString('pt-BR')
-      : 'N/A';
-    
-    // CrÃ©ditos do usuÃ¡rio
-    const userCredits = user?.credits || 0;
-    
-    // Verificar se Ã© plano Impulso para mostrar banner de upgrade
-    const isBoostPlan = subscription?.plans?.name?.toLowerCase().includes('impulso');
-    const canManageStripeBilling = subscription?.provider === 'stripe' && !!subscription?.provider_customer_id;
-
-    const statusBadge = (status: string) => {
-      if (status === 'PAID') return 'bg-green-100 text-green-700';
-      if (status === 'PENDING') return 'bg-yellow-100 text-yellow-700';
-      return 'bg-red-100 text-red-700';
-    };
-
-    const statusLabel: Record<string, string> = {
-      PAID: 'Pago',
-      PENDING: 'Pendente',
-      OVERDUE: 'Vencido'
-    };
-    
-    const handleManagePlan = () => {
-      // Redirecionar para pÃ¡gina de planos com ID do plano atual
-      navigate(`/planos?current=${subscription?.plan_id || ''}`);
-    };
-
-    const handleOpenStripePortal = async () => {
-      setOpeningStripePortal(true);
-      const result = await openStripeCustomerPortal('/minha-conta/assinatura');
-      if (!result.success) {
-        toast.error(result.error || 'Nao foi possivel abrir o portal Stripe.');
-      }
-      setOpeningStripePortal(false);
-    };
-
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Card: Plano Atual */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-green-700/10 text-green-700 flex items-center justify-center">
-              <CreditCard className="w-5 h-5" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Plano Atual</p>
-              <p className="text-sm font-semibold text-slate-900">{planName}</p>
-            </div>
-          </div>
-
-          {/* Card: PrÃ³xima Fatura */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-slate-900/5 text-slate-700 flex items-center justify-center">
-              <DollarSign className="w-5 h-5" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">PrÃ³xima Fatura</p>
-              <p className="text-sm font-semibold text-slate-900">
-                {nextInvoice ? `R$ ${nextInvoice.amount.toLocaleString('pt-BR')}` : 'N/A'}
-              </p>
-            </div>
-          </div>
-
-          {/* Card: Vencimento */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-slate-900/5 text-slate-700 flex items-center justify-center">
-              <FileText className="w-5 h-5" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Vencimento</p>
-              <p className="text-sm font-semibold text-slate-900">{periodEnd}</p>
-            </div>
-          </div>
-          
-          {/* Card: Meus CrÃ©ditos */}
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-green-700 text-white flex items-center justify-center">
-              <Sparkles className="w-5 h-5" strokeWidth={1.5} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-green-700 uppercase tracking-wider">Meus CrÃ©ditos</p>
-              <p className="text-sm font-bold text-green-900">{userCredits}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl p-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900">GestÃ£o de Assinatura</h3>
-              <p className="text-sm text-slate-500">Acompanhe seu plano, altere forma de pagamento e visualize benefÃ­cios.</p>
-            </div>
-            <div className="flex gap-2">
-              {canManageStripeBilling && (
-                <button
-                  onClick={handleOpenStripePortal}
-                  disabled={openingStripePortal}
-                  className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {openingStripePortal ? 'Abrindo portal...' : 'Portal de cobranca'}
-                </button>
-              )}
-              <button 
-                onClick={handleManagePlan}
-                className="h-9 px-4 rounded-lg bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
-              >
-                Gerenciar Plano
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {isBoostPlan && (
-          <div className="bg-green-50 border border-green-100 rounded-xl p-5">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Upgrade</p>
-                <h4 className="text-sm font-semibold text-slate-900">Migre para o Plano Business</h4>
-                <p className="text-sm text-slate-600">Mais visibilidade e suporte dedicado para acelerar suas vendas.</p>
-                <ul className="text-sm text-slate-600 mt-3 space-y-1">
-                  <li>â€¢ RelatÃ³rios avanÃ§ados de performance</li>
-                  <li>â€¢ Prioridade na busca e destaque premium</li>
-                </ul>
-              </div>
-              <button className="h-9 px-4 rounded-lg bg-green-700 text-white text-sm font-semibold hover:bg-green-800">
-                Fazer Upgrade
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">Faturas Recentes</h3>
-          </div>
-
-          <div className="hidden md:block bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50">
-                <tr className="text-left text-slate-500">
-                  <th className="px-4 py-3 font-semibold">Fatura</th>
-                  <th className="px-4 py-3 font-semibold">Data</th>
-                  <th className="px-4 py-3 font-semibold">Valor</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold text-right">AÃ§Ãµes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {invoicesLoading ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">Carregando faturas...</td>
-                  </tr>
-                ) : invoices.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">Nenhuma fatura encontrada</td>
-                  </tr>
-                ) : (
-                  invoices.map((inv) => (
-                    <tr key={inv.id} className="text-slate-700">
-                      <td className="px-4 py-3 font-semibold text-slate-900">{inv.planName}</td>
-                      <td className="px-4 py-3 text-slate-500">{new Date(inv.date).toLocaleDateString('pt-BR')}</td>
-                      <td className="px-4 py-3 text-slate-900">R$ {inv.amount.toLocaleString('pt-BR')}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBadge(inv.status)}`}>
-                          {statusLabel[inv.status]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {inv.pdfUrl ? (
-                          <a
-                            href={inv.pdfUrl}
-                            className="inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 hover:text-green-700 hover:bg-slate-50 transition-colors"
-                            title="Baixar PDF"
-                          >
-                            <Download className="w-4 h-4" strokeWidth={1.5} />
-                          </a>
-                        ) : (
-                          <span className="text-xs text-slate-400">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="md:hidden space-y-3">
-            {invoicesLoading ? (
-              <div className="text-center text-xs text-slate-500 py-4">Carregando faturas...</div>
-            ) : invoices.length === 0 ? (
-              <div className="text-center text-xs text-slate-500 py-4">Nenhuma fatura encontrada</div>
-            ) : (
-              invoices.map((inv) => (
-                <div key={inv.id} className="bg-white border border-slate-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-semibold text-slate-900">{inv.planName}</p>
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBadge(inv.status)}`}>
-                      {statusLabel[inv.status]}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500">Data: {new Date(inv.date).toLocaleDateString('pt-BR')}</p>
-                  <p className="text-xs text-slate-500">Valor: R$ {inv.amount.toLocaleString('pt-BR')}</p>
-                  <div className="mt-3">
-                    {inv.pdfUrl ? (
-                      <a
-                        href={inv.pdfUrl}
-                        className="inline-flex items-center gap-2 text-sm font-semibold text-green-700"
-                      >
-                        <Download className="w-4 h-4" strokeWidth={1.5} />
-                        Baixar PDF
-                      </a>
-                    ) : (
-                      <span className="text-xs text-slate-400">PDF indisponÃ­vel</span>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  const LegacyFinanceDashboard = () => <Navigate to="/minha-conta/financeiro" replace />;
 
   const MyPlanDashboard = () => {
-    const { plansRaw } = usePlans();
-    const { alerts } = useRadar();
-    const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
-    const [isPromotionPanelOpen, setIsPromotionPanelOpen] = useState(false);
-    const [promotionCode, setPromotionCode] = useState('');
-    const [isRedeemingPromotion, setIsRedeemingPromotion] = useState(false);
-
-    const activePlans = useMemo(
-      () => plansRaw.filter((plan) => plan.is_active).sort((a, b) => a.position - b.position),
-      [plansRaw]
-    );
-    const hasExplicitSignupPlan = useMemo(
-      () => activePlans.some((plan) => plan.is_default_signup_plan),
-      [activePlans]
-    );
-    const currentPlanRecord = useMemo(() => {
-      if (!subscription?.plan_id) return null;
-      return activePlans.find((plan) => plan.id === subscription.plan_id) || null;
-    }, [activePlans, subscription?.plan_id]);
-    const canManageStripeBilling = subscription?.provider === 'stripe' && !!subscription?.provider_customer_id;
-    const nextRecommendedPlan = useMemo(() => {
-      if (!currentPlanRecord) return null;
-      return (
-        activePlans.find(
-          (plan) =>
-            !plan.is_downgrade_plan &&
-            plan.position > currentPlanRecord.position
-        ) || null
-      );
-    }, [activePlans, currentPlanRecord]);
-
-    const cycleEndLabel = usage.periodEndDate
-      ? usage.periodEndDate.toLocaleDateString('pt-BR', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
-        })
-      : 'Nao disponivel';
-
-    const formatCurrency = (value: number, currency = 'BRL') =>
-      new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency,
-      }).format(value || 0);
-
-    const adsOverLimit =
+    const currentPlan = subscription?.plans || null;
+    const hasActivePlan = Boolean(subscription && usage.periodEndDate && usage.periodEndDate.getTime() > Date.now());
+    const isOneTimePlan = subscription?.billing_model !== 'recurring';
+    const activeBooster = boosters[0] || null;
+    const adLimitReached =
+      usage.adsLimit !== null &&
+      usage.adsLimit !== undefined &&
+      usage.adsUsed >= usage.adsLimit;
+    const adLimitExceeded =
       usage.adsLimit !== null &&
       usage.adsLimit !== undefined &&
       usage.adsUsed > usage.adsLimit;
-    const availableAdSlots =
-      usage.adsLimit === null || usage.adsLimit === undefined
-        ? null
-        : Math.max(usage.adsLimit - usage.adsUsed, 0);
 
-    const planBenefits = [
+    const toneClasses: Record<string, { text: string; fill: string; track: string; icon: string }> = {
+      green: {
+        text: 'text-emerald-700',
+        fill: 'bg-emerald-500',
+        track: 'bg-emerald-100',
+        icon: 'text-emerald-600',
+      },
+      amber: {
+        text: 'text-amber-700',
+        fill: 'bg-amber-500',
+        track: 'bg-amber-100',
+        icon: 'text-amber-600',
+      },
+      warning: {
+        text: 'text-rose-700',
+        fill: 'bg-rose-500',
+        track: 'bg-rose-100',
+        icon: 'text-rose-600',
+      },
+      slate: {
+        text: 'text-slate-600',
+        fill: 'bg-slate-400',
+        track: 'bg-slate-100',
+        icon: 'text-slate-500',
+      },
+    };
+
+    const getUsageText = (used: number, limit: number | null | undefined, displayAsBalance?: boolean) => {
+      if (limit === null || limit === undefined) {
+        return displayAsBalance ? `${used} disponível(is)` : `${used} em uso`;
+      }
+
+      return `${used} de ${limit}`;
+    };
+
+    const getUsagePercentage = (used: number, limit: number | null | undefined, displayAsBalance?: boolean) => {
+      if (limit === null || limit === undefined || limit <= 0) {
+        return displayAsBalance && used > 0 ? 100 : 0;
+      }
+
+      return Math.max(0, Math.min((used / limit) * 100, 100));
+    };
+
+    const planUsageItems = [
       {
-        label: 'Anuncios ativos',
-        value: usage.adsLimit === null ? 'Ilimitado' : `${usage.adsUsed} de ${usage.adsLimit}`,
+        key: 'ads',
+        label: 'Anúncios ativos',
+        icon: <FileText className="h-4 w-4" strokeWidth={1.7} />,
+        used: usage.adsUsed,
+        limit: usage.adsLimit,
+        helper:
+          usage.adsLimit === null || usage.adsLimit === undefined
+            ? 'Seu plano atual permite publicações sem limite configurado.'
+            : adLimitExceeded
+              ? 'Você está acima da capacidade atual. Novas publicações e reativações ficam bloqueadas até abrir vaga ou fazer upgrade.'
+              : canCreateAd
+                ? 'Ainda há vagas disponíveis para novas publicações neste plano.'
+                : 'Abra vaga ou faça upgrade para voltar a publicar novos anúncios.',
+        tone: adLimitExceeded ? 'warning' : adLimitReached ? 'amber' : 'green',
       },
       {
+        key: 'category-highlights',
         label: 'Destaques em categoria',
-        value: `${usage.categoryHighlightsUsed} de ${usage.categoryHighlightsLimit}`,
+        icon: <TrendingUp className="h-4 w-4" strokeWidth={1.7} />,
+        used: usage.categoryHighlightsUsed,
+        limit: usage.categoryHighlightsLimit,
+        helper: usage.categoryHighlightsLimit > 0
+          ? `${Math.max(usage.categoryHighlightsLimit - usage.categoryHighlightsUsed, 0)} crédito(s) do plano disponível(is) neste ciclo.`
+          : 'Seu plano atual não inclui créditos diretos de destaque em categoria.',
+        tone: usage.categoryHighlightsUsed >= usage.categoryHighlightsLimit && usage.categoryHighlightsLimit > 0 ? 'amber' : 'green',
       },
       {
-        label: 'Destaques na home',
-        value: `${usage.homeHighlightsUsed} de ${usage.homeHighlightsLimit}`,
+        key: 'home-highlights',
+        label: 'Destaques na Home',
+        icon: <Sparkles className="h-4 w-4" strokeWidth={1.7} />,
+        used: usage.homeHighlightsUsed,
+        limit: usage.homeHighlightsLimit,
+        helper: usage.homeHighlightsLimit > 0
+          ? `${Math.max(usage.homeHighlightsLimit - usage.homeHighlightsUsed, 0)} crédito(s) do plano disponível(is) neste ciclo.`
+          : 'Seu plano atual não inclui créditos diretos de destaque na Home.',
+        tone: usage.homeHighlightsUsed >= usage.homeHighlightsLimit && usage.homeHighlightsLimit > 0 ? 'amber' : 'green',
       },
       {
-        label: 'Plano ativo ate',
-        value: cycleEndLabel,
+        key: 'booster-category',
+        label: 'Booster categoria',
+        icon: <Package className="h-4 w-4" strokeWidth={1.7} />,
+        used: usage.categoryHighlightsBoosterRemaining,
+        limit: activeBooster?.categoryCredits ?? Math.max(usage.categoryHighlightsBoosterRemaining, 1),
+        helper: usage.categoryHighlightsBoosterRemaining > 0
+          ? `Saldo extra atual: ${usage.categoryHighlightsBoosterRemaining} crédito(s) de booster em categoria.`
+          : 'Sem saldo extra de booster em categoria no momento.',
+        tone: usage.categoryHighlightsBoosterRemaining > 0 ? 'green' : 'slate',
+        displayAsBalance: true,
       },
       {
-        label: 'Duracao do anuncio',
-        value: currentPlanRecord?.ad_duration_days ? `${currentPlanRecord.ad_duration_days} dias` : 'Nao definido',
+        key: 'booster-home',
+        label: 'Booster Home',
+        icon: <Package className="h-4 w-4" strokeWidth={1.7} />,
+        used: usage.homeHighlightsBoosterRemaining,
+        limit: activeBooster?.homeCredits ?? Math.max(usage.homeHighlightsBoosterRemaining, 1),
+        helper: usage.homeHighlightsBoosterRemaining > 0
+          ? `Saldo extra atual: ${usage.homeHighlightsBoosterRemaining} crédito(s) de booster na Home.`
+          : 'Sem saldo extra de booster na Home no momento.',
+        tone: usage.homeHighlightsBoosterRemaining > 0 ? 'green' : 'slate',
+        displayAsBalance: true,
       },
       {
-        label: 'Exclusao apos vencimento',
-        value: currentPlanRecord?.expired_deletion_days ? `${currentPlanRecord.expired_deletion_days} dias` : 'Nao definido',
+        key: 'booster-window',
+        label: 'Janela de compra de booster',
+        icon: <Inbox className="h-4 w-4" strokeWidth={1.7} />,
+        used: boosterSummary.purchasesLast30Days,
+        limit: activeBooster?.maxPurchasesPer30Days ?? 2,
+        helper: boosterSummary.canPurchase
+          ? `${Math.max((activeBooster?.maxPurchasesPer30Days ?? 2) - boosterSummary.purchasesLast30Days, 0)} compra(s) restante(s) nos últimos 30 dias.`
+          : 'Limite de compras de booster atingido nos últimos 30 dias.',
+        tone: boosterSummary.canPurchase ? 'green' : 'amber',
+      },
+    ] as const;
+
+    const planFeatureItems = [
+      {
+        label: 'Selo verificado',
+        enabled: Boolean(currentPlan?.has_verification_badge),
+        helper: currentPlan?.has_verification_badge
+          ? 'Seu plano habilita a validação documental e o selo no perfil.'
+          : 'Disponível a partir dos planos que incluem validação documental.',
+      },
+      {
+        label: 'Loja parceira',
+        enabled: Boolean(currentPlan?.has_seller_store),
+        helper: currentPlan?.has_seller_store
+          ? 'Sua conta pode operar uma vitrine própria dentro da plataforma.'
+          : 'Faça upgrade para liberar uma página de loja parceira.',
+      },
+      {
+        label: 'E-mail marketing',
+        enabled: Boolean(currentPlan?.has_email_marketing),
+        helper: currentPlan?.has_email_marketing
+          ? 'Seu plano inclui campanhas e comunicações promocionais.'
+          : 'Esse recurso não está disponível no plano atual.',
+      },
+      {
+        label: 'Inteligência comercial',
+        enabled: Boolean(currentPlan?.has_commercial_intelligence),
+        helper: currentPlan?.has_commercial_intelligence
+          ? `${currentPlan?.commercial_intelligence_requests_per_month || 0} consulta(s) comercial(is) disponível(is) por mês.`
+          : 'Disponível nos planos com módulo de inteligência comercial.',
       },
     ];
 
-    const includedFeatures = [
-      currentPlanRecord?.has_verification_badge ? 'Selo de verificação' : null,
-      currentPlanRecord?.has_seller_store ? 'Loja do vendedor' : null,
-      currentPlanRecord?.has_email_marketing ? 'E-mail marketing' : null,
-      currentPlanRecord?.has_commercial_intelligence ? `Inteligência comercial com ${currentPlanRecord?.commercial_intelligence_requests_per_month || 0} consulta(s) por mês` : null,
-      (currentPlanRecord?.social_campaigns_per_month || 0) > 0 ? `${currentPlanRecord?.social_campaigns_per_month} campanha(s) social por mes` : null,
-      (currentPlanRecord?.radar_max_alerts || 0) > 0 ? `Radar com ${currentPlanRecord?.radar_max_alerts} alerta(s)` : null,
-      currentPlanRecord?.radar_has_radius ? 'Filtro por raio no radar' : null,
-      currentPlanRecord?.radar_has_keywords ? 'Filtro por palavras-chave no radar' : null,
-      currentPlanRecord?.radar_has_price_filter ? 'Filtro por preco no radar' : null,
-    ].filter(Boolean) as string[];
+    if (subscriptionLoading) {
+      return (
+        <div className="space-y-6">
+          <div className="animate-pulse rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
+            <div className="h-4 w-32 rounded bg-slate-100" />
+            <div className="mt-4 h-8 w-52 rounded bg-slate-100" />
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="h-28 rounded-2xl bg-slate-100" />
+              <div className="h-28 rounded-2xl bg-slate-100" />
+            </div>
+          </div>
+        </div>
+      );
+    }
 
-    const boosterCategoryTotal = boosterPurchases.reduce((total, purchase) => total + purchase.categoryCreditsTotal, 0);
-    const boosterHomeTotal = boosterPurchases.reduce((total, purchase) => total + purchase.homeCreditsTotal, 0);
-    const boosterCategoryUsed = Math.max(0, boosterCategoryTotal - boosterSummary.categoryRemaining);
-    const boosterHomeUsed = Math.max(0, boosterHomeTotal - boosterSummary.homeRemaining);
-    const radarAlertsUsed = alerts.length;
-
-    const getUpgradeHighlights = () => {
-      if (!nextRecommendedPlan) return [];
-
-      const highlights: string[] = [];
-
-      if ((nextRecommendedPlan.max_ads ?? 0) > (currentPlanRecord?.max_ads ?? 0)) {
-        const currentAds = currentPlanRecord?.max_ads ?? 0;
-        const diff = (nextRecommendedPlan.max_ads ?? 0) - currentAds;
-        highlights.push(`Mais ${diff} anúncio${diff > 1 ? 's' : ''} ativo${diff > 1 ? 's' : ''} no plano.`);
-      }
-
-      if ((nextRecommendedPlan.category_highlights_count || 0) > (currentPlanRecord?.category_highlights_count || 0)) {
-        highlights.push('Mais destaque em categoria para ampliar a exposição dos anúncios.');
-      }
-
-      if ((nextRecommendedPlan.home_highlight_count || 0) > (currentPlanRecord?.home_highlight_count || 0)) {
-        highlights.push('Entrada na vitrine da home para campanhas mais fortes.');
-      }
-
-      if ((nextRecommendedPlan.radar_max_alerts || 0) > (currentPlanRecord?.radar_max_alerts || 0)) {
-        highlights.push('Radar com mais alertas e filtros avançados para novas oportunidades.');
-      }
-
-      if (highlights.length === 0) {
-        return (nextRecommendedPlan.display_features || []).filter(Boolean).slice(0, 3);
-      }
-
-      return highlights.slice(0, 3);
-    };
-
-    const handleRedeemPromotionCode = async () => {
-      const cleanCode = promotionCode.trim().toUpperCase();
-
-      if (!cleanCode) {
-        sonnerToast.error('Informe um c\u00f3digo promocional.');
-        return;
-      }
-
-      if (!user?.id) {
-        sonnerToast.error('Fa\u00e7a login para resgatar um c\u00f3digo promocional.');
-        return;
-      }
-
-      setIsRedeemingPromotion(true);
-
-      try {
-        const { data, error } = await supabase.rpc('redeem_promotion_plan_code', {
-          p_code: cleanCode,
-        });
-
-        if (error) throw error;
-        if (data?.success === false) {
-          throw new Error(data.error || 'N\u00e3o foi poss\u00edvel resgatar o c\u00f3digo promocional.');
-        }
-
-        const planName = data?.plan_name ? ` Plano ${data.plan_name} liberado.` : '';
-        sonnerToast.success(`C\u00f3digo resgatado com sucesso.${planName}`);
-        setPromotionCode('');
-        await refetchSubscription();
-        await refreshUsage();
-      } catch (error: any) {
-        const errorMessage = error?.message || error?.details || error?.hint || 'N\u00e3o foi poss\u00edvel resgatar o c\u00f3digo promocional.';
-        appError('[MyPlanDashboard] Erro ao resgatar codigo promocional', error, {
-          userId: user?.id ?? null,
-          code: cleanCode,
-          errorMessage,
-          errorCode: error?.code,
-          errorDetails: error?.details,
-          errorHint: error?.hint,
-        });
-        sonnerToast.error(errorMessage);
-      } finally {
-        setIsRedeemingPromotion(false);
-      }
-    };
+    if (!currentPlan || !subscription) {
+      return (
+        <div className="space-y-6">
+          <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Meu Plano</p>
+            <h3 className="mt-2 text-2xl font-bold text-slate-900">Nenhum plano ativo no momento</h3>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+              Quando você contratar um plano, esta área vai mostrar capacidade, créditos e recursos liberados na sua conta.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/minha-conta/financeiro')}
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-green-700 px-5 text-sm font-semibold text-white shadow-[0_18px_30px_-20px_rgba(22,163,74,0.75)] transition hover:bg-green-800"
+              >
+                Ver planos e cobrança
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/planos')}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Abrir tabela pública
+              </button>
+            </div>
+          </section>
+        </div>
+      );
+    }
 
     return (
       <div className="space-y-6">
-        <section className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#f8fafc_0%,#ffffff_38%,#ecfdf5_100%)] p-6 shadow-[0_30px_80px_-48px_rgba(15,23,42,0.35)]">
-          <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-green-100/70 blur-3xl" />
-          <div className="pointer-events-none absolute -left-10 bottom-0 h-40 w-40 rounded-full bg-amber-100/60 blur-3xl" />
-
-          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-green-700">Central da assinatura</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
-                {currentPlanRecord?.name || subscription?.plans?.name || 'Meu Plano'}
-              </h2>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">
-                Acompanhe seus anuncios ativos, os recursos do plano atual e as vagas disponiveis para novas publicacoes e reativacoes.
-              </p>
+        <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Meu Plano</p>
+              <h3 className="mt-2 text-2xl font-bold text-slate-900">{currentPlan.name}</h3>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                  {isOneTimePlan ? 'Cobrança avulsa' : 'Cobrança recorrente'}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                  Válido até {formatCycleBoundaryDate(subscription.current_period_end)}
+                </span>
+                {subscription.source === 'promotion' || subscription.promotion_code_id ? (
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                    Período promocional
+                  </span>
+                ) : null}
+              </div>
             </div>
 
-            <div className="w-full max-w-sm">
-              <div className="rounded-[22px] border border-white/80 bg-white/88 px-5 py-4 backdrop-blur shadow-[0_18px_45px_-34px_rgba(15,23,42,0.25)]">
-                <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Vigencia do plano atual
-                </span>
-                <span className="mt-2 block text-lg font-semibold text-slate-900">
-                  {cycleEndLabel}
-                </span>
-                <p className="mt-1 text-xs text-slate-500">
-                  Novos contatos recebidos durante esta vigencia entram liberados. Depois do vencimento, apenas novos interessados passam a exigir renovacao ou upgrade.
-                </p>
-              </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/minha-conta/financeiro')}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Ver cobrança
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/minha-conta/financeiro')}
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-green-700 px-5 text-sm font-semibold text-white shadow-[0_18px_30px_-20px_rgba(22,163,74,0.75)] transition hover:bg-green-800"
+              >
+                Alterar plano
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Status</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">{hasActivePlan ? 'Ativo' : 'Expirado'}</p>
+            </div>
+            <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Anúncios ativos</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">
+                {usage.adsUsed}
+                {usage.adsLimit !== null && usage.adsLimit !== undefined ? ` / ${usage.adsLimit}` : ' / ilimitado'}
+              </p>
+            </div>
+            <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Vigência atual</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">{formatCycleBoundaryDate(subscription.current_period_end)}</p>
+            </div>
+            <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Janela de leads</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">
+                {effectiveLeadContactLimitDays ? `${effectiveLeadContactLimitDays} dias` : 'Não informado'}
+              </p>
             </div>
           </div>
         </section>
 
-        {pendingChange?.status === 'pending' ? (
-          <section className="rounded-[24px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_55%,#dbeafe_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(59,130,246,0.28)]">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-col gap-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
-                  Alteração agendada
-                </p>
-                <h3 className="text-lg font-semibold text-slate-900">
-                  {pendingChange.changeKind === 'cancel'
-                    ? 'Cancelamento confirmado para o próximo ciclo'
-                    : pendingChange.changeKind === 'upgrade'
-                      ? 'Upgrade agendado para o próximo ciclo'
-                      : 'Downgrade agendado para o próximo ciclo'}
-                </h3>
-                <p className="text-sm text-slate-600">
-                  {pendingChange.changeKind === 'cancel'
-                    ? `Sua assinatura seguirá ativa até ${formatCycleBoundaryDate(pendingChange.effectiveOn)} e não será renovada depois disso.`
-                    : `A mudança de ${pendingChange.currentPlanName} para ${pendingChange.targetPlanName || 'o plano selecionado'} será aplicada automaticamente em ${formatCycleBoundaryDate(pendingChange.effectiveOn)}.`}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleCancelScheduledPlanChange()}
-                disabled={isCancellingScheduledChange}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isCancellingScheduledChange ? 'Cancelando...' : 'Cancelar alteração'}
-              </button>
-            </div>
-          </section>
-        ) : subscription?.cancel_at_period_end ? (
-          <section className="rounded-[24px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_55%,#fde68a_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(245,158,11,0.28)]">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-col gap-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
-                  Cancelamento agendado
-                </p>
-                <h3 className="text-lg font-semibold text-slate-900">
-                  A assinatura está marcada para encerrar no fim do ciclo atual
-                </h3>
-                <p className="text-sm text-slate-600">
-                  Seus benefícios seguem ativos até {formatCycleBoundaryDate(subscription.current_period_end)}. Depois dessa data, a assinatura não será renovada automaticamente.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleKeepStripeSubscription()}
-                disabled={isCancellingScheduledChange}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-200 bg-white px-4 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isCancellingScheduledChange ? 'Reativando...' : 'Manter assinatura'}
-              </button>
-            </div>
+        {adLimitExceeded ? (
+          <section className="rounded-[24px] border border-amber-200 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_55%,#fef3c7_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(245,158,11,0.22)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">Capacidade do plano</p>
+            <h4 className="mt-2 text-lg font-semibold text-slate-900">Você está acima do limite do plano atual</h4>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{adLimitMessage}</p>
           </section>
         ) : null}
 
-        {subscription?.plans && usage.adsLimit !== null && (
-          <section className={`rounded-[24px] border p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.3)] ${
-            adsOverLimit
-              ? 'border-amber-200 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_100%)]'
-              : 'border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_100%)]'
-          }`}>
-            <div className="flex flex-col gap-2">
-              <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${adsOverLimit ? 'text-amber-700' : 'text-slate-500'}`}>
-                Capacidade do plano
-              </p>
-              {adsOverLimit ? (
-                <>
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    Voce esta acima do limite do plano atual
-                  </h3>
-                  <p className="text-sm text-slate-600">
-                    Seus anuncios ativos continuam publicados ate o vencimento normal, mas novas publicacoes e reativacoes ficam bloqueadas ate abrir vaga ou voce fazer upgrade.
-                  </p>
-                  <p className="text-sm font-medium text-amber-700">
-                    Anuncios ativos: {usage.adsUsed} | Limite do plano atual: {usage.adsLimit}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    Vagas disponiveis para novos anuncios
-                  </h3>
-                  <p className="text-sm text-slate-600">
-                    Seus anuncios ativos ocupam vagas do plano atual. Excluir, expirar ou desativar um anuncio libera espaco imediatamente.
-                  </p>
-                  <p className="text-sm font-medium text-emerald-700">
-                    {availableAdSlots} vaga(s) disponivel(is) agora.
-                  </p>
-                </>
-              )}
+        <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Capacidade e créditos</p>
+              <h3 className="mt-1 text-lg font-semibold text-slate-900">Como o plano está sendo usado agora</h3>
             </div>
-          </section>
-        )}
-
-        <section className="grid grid-cols-1 xl:grid-cols-[0.92fr,1.08fr] gap-6">
-          <div className="space-y-6">
-            {subscription?.plans || subscriptionLoading ? (
-              <PlanModule
-                planName={subscription?.plans?.name || 'Sem plano ativo'}
-                adsUsed={usage.adsUsed}
-                adsLimit={usage.adsLimit ?? 0}
-                adsOverLimit={adsOverLimit}
-                categoryHighlightsUsed={usage.categoryHighlightsUsed}
-                categoryHighlightsLimit={usage.categoryHighlightsLimit}
-                homeHighlightsUsed={usage.homeHighlightsUsed}
-                homeHighlightsLimit={usage.homeHighlightsLimit}
-                categoryHighlightsBoosterRemaining={boosterSummary.categoryRemaining}
-                homeHighlightsBoosterRemaining={boosterSummary.homeRemaining}
-                radarMaxAlerts={currentPlanRecord?.radar_max_alerts || 0}
-                boosterCategoryUsed={boosterCategoryUsed}
-                boosterCategoryLimit={boosterCategoryTotal}
-                boosterHomeUsed={boosterHomeUsed}
-                boosterHomeLimit={boosterHomeTotal}
-                radarAlertsUsed={radarAlertsUsed}
-                boosterPurchasesLast30Days={boosterSummary.purchasesLast30Days}
-                boosterMaxPurchasesPer30Days={boosters[0]?.maxPurchasesPer30Days || 0}
-                periodEndDate={usage.periodEndDate?.toISOString()}
-                loading={subscriptionLoading}
-              />
-            ) : (
-              <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
-                <div className="flex items-center justify-between mb-6">
-                  <h4 className="text-sm font-bold text-slate-900">Meu Plano</h4>
-                  <div className="px-3 py-1 bg-slate-100 border border-slate-200 rounded-full">
-                    <span className="text-xs font-bold text-slate-700">Sem plano ativo</span>
-                  </div>
-                </div>
-                <div className="space-y-3 text-sm text-slate-600">
-                  <p>Esta conta ainda nao possui assinatura vinculada.</p>
-                  <p>Assim que um plano for atribuido, os limites e beneficios aparecerao aqui.</p>
-                </div>
-              </div>
-            )}
-
-            <section className="rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_45px_-38px_rgba(15,23,42,0.22)]">
-              <button
-                type="button"
-                onClick={() => setIsPromotionPanelOpen((current) => !current)}
-                className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-50/80"
-                aria-expanded={isPromotionPanelOpen}
-              >
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Ação adicional</p>
-                  <h3 className="mt-1 text-sm font-semibold text-slate-900">Tenho um código promocional</h3>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Resgate um plano ou período promocional quando receber um código da equipe AGRO BW.
-                  </p>
-                </div>
-                <div className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm">
-                  Aplicar código
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform ${isPromotionPanelOpen ? 'rotate-180' : ''}`}
-                    strokeWidth={1.75}
-                  />
-                </div>
-              </button>
-
-              {isPromotionPanelOpen && (
-                <div className="border-t border-slate-100 px-5 pb-5 pt-4">
-                  <div className="rounded-[20px] border border-emerald-100 bg-[linear-gradient(135deg,#ffffff_0%,#f0fdf4_100%)] p-4">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-green-700">Código promocional</p>
-                        <h4 className="mt-2 text-base font-bold text-slate-900">Resgate benefícios de plano</h4>
-                        <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                          Se você recebeu um código da equipe AGRO BW, informe abaixo para ativar o plano ou período promocional.
-                        </p>
-                      </div>
-
-                      <div className="flex w-full flex-col gap-2 sm:max-w-md sm:flex-row">
-                        <input
-                          value={promotionCode}
-                          onChange={(event) => setPromotionCode(event.target.value.toUpperCase())}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              void handleRedeemPromotionCode();
-                            }
-                          }}
-                          className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold uppercase text-slate-800 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100"
-                          placeholder="AGRO-XXXX"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => void handleRedeemPromotionCode()}
-                          disabled={isRedeemingPromotion}
-                          className="inline-flex h-11 items-center justify-center rounded-xl bg-green-700 px-4 text-sm font-semibold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isRedeemingPromotion ? 'Resgatando...' : 'Resgatar'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </section>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+              {currentPlan.name}
+            </span>
           </div>
 
-          <div className="space-y-6" />
+          <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {planUsageItems.map((item) => {
+              const tone = toneClasses[item.tone];
+              const percentage = getUsagePercentage(item.used, item.limit, item.displayAsBalance);
+
+              return (
+                <article key={item.key} className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 ${tone.icon}`}>
+                      {item.icon}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900">{item.label}</p>
+                      <p className={`mt-1 text-sm font-semibold ${tone.text}`}>
+                        {getUsageText(item.used, item.limit, item.displayAsBalance)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className={`mt-4 h-2 overflow-hidden rounded-full ${tone.track}`}>
+                    <div
+                      className={`h-full rounded-full ${tone.fill}`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+
+                  <p className="mt-3 text-xs leading-5 text-slate-500">{item.helper}</p>
+                </article>
+              );
+            })}
+          </div>
         </section>
 
-        {nextRecommendedPlan && (
-          <section className="overflow-hidden rounded-[24px] border border-green-100 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_52%,#f0fdf4_100%)] p-5 shadow-[0_18px_45px_-35px_rgba(22,163,74,0.42)]">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-1">Upgrade recomendado</p>
-                <h4 className="text-sm font-semibold text-slate-900">
-                  Próximo passo recomendado: {nextRecommendedPlan.name}
-                </h4>
-                <p className="text-sm text-slate-600">
-                  Saia do {currentPlanRecord?.name || subscription?.plans?.name || 'plano atual'} para o {nextRecommendedPlan.name} e ganhe mais estrutura para vender.
-                </p>
-                <ul className="text-sm text-slate-600 mt-3 space-y-1">
-                  {getUpgradeHighlights().map((item) => (
-                    <li key={item}>- {item}</li>
-                  ))}
-                </ul>
+        <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Recursos incluídos</p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-900">O que o plano libera na sua conta</h3>
+
+          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+            {planFeatureItems.map((feature) => (
+              <div key={feature.label} className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${feature.enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                    {feature.enabled ? <CheckCircle2 className="h-4 w-4" strokeWidth={1.8} /> : <AlertCircle className="h-4 w-4" strokeWidth={1.8} />}
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{feature.label}</p>
+                    <p className={`mt-1 text-xs font-semibold ${feature.enabled ? 'text-emerald-700' : 'text-slate-500'}`}>
+                      {feature.enabled ? 'Disponível neste plano' : 'Não incluso no plano atual'}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">{feature.helper}</p>
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={() => setIsUpgradeModalOpen(true)}
-                className="h-10 px-4 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
-              >
-                Fazer upgrade
-              </button>
-            </div>
-          </section>
-        )}
+            ))}
+          </div>
+        </section>
       </div>
     );
   };
 
   const FinanceDashboard = () => {
     const { plansRaw } = usePlans();
-    const [openingStripePortal, setOpeningStripePortal] = useState(false);
-    const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
     const [isPlanChangePanelOpen, setIsPlanChangePanelOpen] = useState(false);
-    const searchParams = useMemo(() => {
-      const candidates = [location.search];
-      const hashQuery = window.location.hash.includes('?')
-        ? `?${window.location.hash.split('?')[1]}`
-        : '';
+    const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
 
-      if (hashQuery) {
-        candidates.push(hashQuery);
-      }
-
-      for (const candidate of candidates) {
-        const params = new URLSearchParams(candidate);
-        if (params.toString()) {
-          return params;
-        }
-      }
-
-      return new URLSearchParams();
-    }, [location.search]);
-
-    const paymentFeedback = searchParams.get('payment');
-    const planName = subscription?.plans?.name || 'Sem plano ativo';
-    const renewalDate = subscription?.current_period_end
-      ? new Date(subscription.current_period_end).toLocaleDateString('pt-BR')
-      : 'N/A';
-    const latestPayment = payments[0] || lastApprovedPayment;
-    const fiscalDocuments = payments.filter((payment) => payment.invoiceStatus !== 'not_applicable');
+    const activeManagedStatuses = new Set(['active', 'trialing', 'past_due']);
     const activePlans = useMemo(
-      () => plansRaw.filter((plan) => plan.is_active).sort((a, b) => a.position - b.position),
+      () =>
+        plansRaw
+          .filter((plan) => plan.is_active && !plan.is_downgrade_plan)
+          .sort((a, b) => a.position - b.position),
       [plansRaw]
     );
     const hasExplicitSignupPlan = useMemo(
@@ -2839,24 +2550,28 @@ const UserDashboardView: React.FC = () => {
       if (!subscription?.plan_id) return null;
       return activePlans.find((plan) => plan.id === subscription.plan_id) || null;
     }, [activePlans, subscription?.plan_id]);
+    const latestPayment = payments[0] || lastApprovedPayment || null;
     const effectiveBillingCycle = subscription?.billing_cycle === 'yearly' ? 'yearly' : 'monthly';
-    const hasActiveSubscription = Boolean(subscription && ['active', 'trialing', 'past_due'].includes(subscription.status));
-    const manageablePlans = useMemo(
-      () =>
-        activePlans.filter((plan) => {
-          if (plan.id === currentPlanRecord?.id) return false;
-          if (plan.is_downgrade_plan) return false;
-          const isSignupPlan = hasExplicitSignupPlan
-            ? Boolean(plan.is_default_signup_plan)
-            : isLegacySignupPlanName(plan.name);
-          if (hasActiveSubscription && isSignupPlan) {
-            return false;
-          }
-          return true;
-        }),
-      [activePlans, currentPlanRecord?.id, hasActiveSubscription, hasExplicitSignupPlan]
+    const currentBillingModel = (
+      subscription?.billing_model ||
+      latestPayment?.billingModel ||
+      currentPlanRecord?.billing_model ||
+      'one_time'
+    ) as 'one_time' | 'recurring';
+    const isCurrentPlanRecurring = currentBillingModel === 'recurring';
+    const hasActiveManagedPlan = Boolean(
+      subscription &&
+        activeManagedStatuses.has(subscription.status) &&
+        (!subscription.current_period_end || new Date(subscription.current_period_end).getTime() > Date.now())
     );
-    const hasBlockingScheduledChange = pendingChange?.status === 'pending' || Boolean(subscription?.cancel_at_period_end);
+    const hasActiveRecurringSubscription = hasActiveManagedPlan && isCurrentPlanRecurring;
+    const paymentFeedback = new URLSearchParams(location.search).get('payment');
+    const planName =
+      currentPlanRecord?.name ||
+      subscription?.plans?.name ||
+      latestPayment?.planName ||
+      latestPayment?.itemName ||
+      'Sem plano ativo';
 
     const formatCurrency = (value: number, currency = 'BRL') =>
       new Intl.NumberFormat('pt-BR', {
@@ -2865,10 +2580,7 @@ const UserDashboardView: React.FC = () => {
       }).format(value || 0);
 
     const formatDateTime = (value?: string | null) => {
-      if (!value) {
-        return 'Nao disponivel';
-      }
-
+      if (!value) return 'Não disponível';
       return new Date(value).toLocaleString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
@@ -2878,171 +2590,87 @@ const UserDashboardView: React.FC = () => {
       });
     };
 
+    const renewalDate = subscription?.current_period_end
+      ? formatDateTime(subscription.current_period_end)
+      : 'Não disponível';
+
+    const currentRenewalAmount =
+      latestPayment?.amount ||
+      (currentPlanRecord
+        ? effectiveBillingCycle === 'yearly'
+          ? calculateYearlyTotal(Number(currentPlanRecord.monthly_price ?? 0), Number(currentPlanRecord.yearly_price ?? 0))
+          : Number(currentPlanRecord.monthly_price ?? 0)
+        : 0);
+
+    const manageablePlans = useMemo(
+      () =>
+        activePlans.filter((plan) => {
+          if (currentPlanRecord?.id && plan.id === currentPlanRecord.id && hasActiveRecurringSubscription) {
+            return false;
+          }
+
+          const isSignupPlan = hasExplicitSignupPlan
+            ? plan.is_default_signup_plan
+            : isLegacySignupPlanName(plan.name || '');
+
+          if (hasActiveManagedPlan && isSignupPlan) return false;
+
+          return true;
+        }),
+      [activePlans, currentPlanRecord?.id, hasExplicitSignupPlan, hasActiveManagedPlan, hasActiveRecurringSubscription]
+    );
+
     const paymentStatusLabel: Record<PaymentRecord['status'], string> = {
       pending: 'Pendente',
       approved: 'Pago',
-      rejected: 'Recusado',
+      paid: 'Pago',
+      authorized: 'Autorizado',
+      in_process: 'Em análise',
+      in_mediation: 'Em disputa',
+      rejected: 'Falhou',
       cancelled: 'Cancelado',
       refunded: 'Estornado',
-      in_process: 'Em analise',
-      charged_back: 'Chargeback',
+      chargeback: 'Chargeback',
+      expired: 'Expirado',
+      unknown: 'Indefinido',
     };
 
     const paymentStatusClass: Record<PaymentRecord['status'], string> = {
-      pending: 'bg-amber-100 text-amber-700',
-      approved: 'bg-emerald-100 text-emerald-700',
-      rejected: 'bg-rose-100 text-rose-700',
-      cancelled: 'bg-slate-200 text-slate-700',
-      refunded: 'bg-orange-100 text-orange-700',
-      in_process: 'bg-sky-100 text-sky-700',
-      charged_back: 'bg-red-100 text-red-700',
+      pending: 'bg-amber-50 text-amber-700',
+      approved: 'bg-emerald-50 text-emerald-700',
+      paid: 'bg-emerald-50 text-emerald-700',
+      authorized: 'bg-sky-50 text-sky-700',
+      in_process: 'bg-slate-100 text-slate-700',
+      in_mediation: 'bg-orange-50 text-orange-700',
+      rejected: 'bg-rose-50 text-rose-700',
+      cancelled: 'bg-slate-100 text-slate-600',
+      refunded: 'bg-slate-100 text-slate-600',
+      chargeback: 'bg-rose-50 text-rose-700',
+      expired: 'bg-slate-100 text-slate-600',
+      unknown: 'bg-slate-100 text-slate-600',
     };
 
-    const fiscalStatusLabel = {
-      pending: 'Em emissao',
-      available: 'Disponivel',
+    const fiscalStatusLabel: Record<string, string> = {
+      issued: 'Emitida',
+      processing: 'Em emissão',
       failed: 'Falha',
-      not_applicable: 'Nao aplicavel',
-    } as const;
-
-    const fiscalStatusClass = {
-      pending: 'bg-amber-100 text-amber-700',
-      available: 'bg-emerald-100 text-emerald-700',
-      failed: 'bg-rose-100 text-rose-700',
-      not_applicable: 'bg-slate-100 text-slate-500',
-    } as const;
-    const canManageStripeBilling = subscription?.provider === 'stripe' && !!subscription?.provider_customer_id;
-
-    const handleOpenStripePortal = async () => {
-      setOpeningStripePortal(true);
-      const result = await openStripeCustomerPortal('/minha-conta/assinatura');
-      if (!result.success) {
-        toast.error(result.error || 'Nao foi possivel abrir o portal Stripe.');
-      }
-      setOpeningStripePortal(false);
+      not_requested: 'Não aplicável',
+      queued: 'Na fila',
+      manual: 'Manual',
     };
 
-    const getManagedPlanActionLabel = (plan: (typeof activePlans)[number]) => {
-      if (isCustomPlan(plan.name)) {
-        return 'Falar com suporte';
-      }
-
-      if (!canManageStripeBilling || !currentPlanRecord) {
-        return `Assinar ${effectiveBillingCycle === 'yearly' ? 'Anual' : 'Mensal'}`;
-      }
-
-      if (plan.position > currentPlanRecord.position) {
-        return 'Solicitar upgrade';
-      }
-
-      if (plan.position < currentPlanRecord.position) {
-        return 'Solicitar downgrade';
-      }
-
-      return 'Trocar via Portal Stripe';
-    };
-
-    const getManagedPlanSupportText = (plan: (typeof activePlans)[number]) => {
-      if (!canManageStripeBilling || !currentPlanRecord) {
-        return `Nova assinatura com cobrança ${effectiveBillingCycle === 'yearly' ? 'anual' : 'mensal'}.`;
-      }
-
-      if (plan.position > currentPlanRecord.position) {
-        return `Upgrade agendado para o próximo ciclo ${effectiveBillingCycle === 'yearly' ? 'anual' : 'mensal'}.`;
-      }
-
-      if (plan.position < currentPlanRecord.position) {
-        return `Downgrade agendado para o próximo ciclo ${effectiveBillingCycle === 'yearly' ? 'anual' : 'mensal'}.`;
-      }
-
-      return 'Mudanças de ciclo ou casos especiais seguem pelo Portal Stripe.';
-    };
-
-    const handleManagedPlanAction = async (plan: (typeof activePlans)[number]) => {
-      if (!user?.id) {
-        toast.error('Você precisa estar logado para gerenciar a assinatura.');
-        return;
-      }
-
-      if (hasBlockingScheduledChange) {
-        toast.error('Existe uma alteração de assinatura pendente. Cancele ou conclua essa alteração antes de solicitar outra.');
-        return;
-      }
-
-      if (isCustomPlan(plan.name)) {
-        window.open(getCustomPlanContactLink(plan.name), '_blank', 'noopener,noreferrer');
-        return;
-      }
-
-      setChangingPlanId(plan.id);
-
-      try {
-        if (canManageStripeBilling && currentPlanRecord) {
-          const changeKind =
-            plan.position > currentPlanRecord.position
-              ? 'upgrade'
-              : plan.position < currentPlanRecord.position
-                ? 'downgrade'
-                : null;
-
-          if (!changeKind) {
-            const portalResult = await openStripeCustomerPortal('/minha-conta/assinatura');
-            if (!portalResult.success) {
-              toast.error(portalResult.error || 'Não foi possível abrir o Portal Stripe.');
-              return;
-            }
-
-            toast.success('Portal Stripe aberto para ajustar a assinatura atual.');
-            return;
-          }
-
-          const scheduleResult = await requestSubscriptionChangeNextCycle({
-            changeKind,
-            targetPlanId: plan.id,
-            targetBillingCycle: effectiveBillingCycle,
-          });
-
-          if (!scheduleResult.success) {
-            toast.error(scheduleResult.error || 'Não foi possível registrar a alteração do plano.');
-            return;
-          }
-
-          toast.success(changeKind === 'upgrade' ? 'Upgrade agendado para o próximo ciclo.' : 'Downgrade agendado para o próximo ciclo.');
-          if (scheduleResult.warning) {
-            toast.error(`A mudança foi registrada, mas a sincronização com a Stripe precisa de revisão: ${scheduleResult.warning}`);
-          }
-          await refetchPendingChange();
-          await refetchSubscription();
-          return;
-        }
-
-        const amount =
-          effectiveBillingCycle === 'monthly'
-            ? plan.monthly_price
-            : calculateYearlyTotal(plan.monthly_price, plan.yearly_price);
-
-        const checkoutResult = await initiatePlatformPlanCheckout({
-          planId: plan.id,
-          planName: plan.name,
-          planDescription: plan.description || `Plano ${plan.name}`,
-          billingCycle: effectiveBillingCycle,
-          amount,
-          userId: user.id,
-        });
-
-        if (!checkoutResult.success) {
-          toast.error(checkoutResult.error || 'Não foi possível iniciar a assinatura.');
-          return;
-        }
-
-        toast.success('Redirecionando para o checkout Stripe...');
-      } finally {
-        setChangingPlanId(null);
-      }
+    const fiscalStatusClass: Record<string, string> = {
+      issued: 'bg-emerald-50 text-emerald-700',
+      processing: 'bg-amber-50 text-amber-700',
+      failed: 'bg-rose-50 text-rose-700',
+      not_requested: 'bg-slate-100 text-slate-600',
+      queued: 'bg-sky-50 text-sky-700',
+      manual: 'bg-violet-50 text-violet-700',
     };
 
     const openUrl = (url?: string | null) => {
       if (!url) {
+        toast.error('Link indisponível.');
         return;
       }
 
@@ -3055,222 +2683,264 @@ const UserDashboardView: React.FC = () => {
         return;
       }
 
-      const receiptHtml = `<!doctype html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <title>Comprovante BWAGRO - ${payment.providerPaymentId}</title>
-    <style>
-      body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; }
-      .card { max-width: 720px; margin: 0 auto; border: 1px solid #dbe4ee; border-radius: 16px; padding: 28px; }
-      h1 { margin: 0 0 8px; font-size: 24px; }
-      p { margin: 0 0 20px; color: #475569; }
-      table { width: 100%; border-collapse: collapse; }
-      td { padding: 10px 0; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
-      td:first-child { width: 220px; color: #64748b; font-weight: 600; }
-      .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #dcfce7; color: #166534; font-weight: 700; }
-    </style>
-  </head>
-  <body>
-    <div class="card">
-      <h1>Comprovante digital BWAGRO</h1>
-      <p>Registro financeiro da sua assinatura confirmado na plataforma.</p>
-      <table>
-        <tr><td>Status</td><td><span class="badge">${paymentStatusLabel[payment.status]}</span></td></tr>
-        <tr><td>Cliente</td><td>${user?.name || 'Nao informado'}</td></tr>
-        <tr><td>E-mail</td><td>${user?.email || 'Nao informado'}</td></tr>
-        <tr><td>Item</td><td>${payment.itemName || payment.planName || payment.description || 'Assinatura BWAGRO'}</td></tr>
-        <tr><td>Valor</td><td>${formatCurrency(payment.amount, payment.currency)}</td></tr>
-        <tr><td>Ciclo</td><td>${payment.itemType === 'booster' ? 'Compra avulsa' : payment.billingCycle === 'yearly' ? 'Anual' : 'Mensal'}</td></tr>
-        <tr><td>Forma de pagamento</td><td>${payment.paymentMethod || (payment.provider === 'stripe' ? 'Stripe' : 'Gateway externo')}</td></tr>
-        <tr><td>ID da transacao</td><td>${payment.providerPaymentId}</td></tr>
-        <tr><td>Data de aprovacao</td><td>${formatDateTime(payment.paidAt || payment.createdAt)}</td></tr>
-        <tr><td>Referencia</td><td>${payment.externalReference || 'Nao informada'}</td></tr>
-      </table>
-    </div>
-  </body>
-</html>`;
+      if (payment.invoicePdfUrl) {
+        openUrl(payment.invoicePdfUrl);
+        return;
+      }
 
-      const blob = new Blob([receiptHtml], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `comprovante-bwagro-${payment.providerPaymentId}.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      toast.error('Nenhum comprovante disponível para este pagamento.');
     };
 
-    const renderFeedbackBanner = () => {
-      if (paymentFeedback === 'success') {
-        return (
-          <div className="flex flex-col gap-4 rounded-[24px] border border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_58%,#dcfce7_100%)] p-5 shadow-[0_22px_60px_-40px_rgba(22,163,74,0.35)] md:flex-row md:items-center md:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
-                <CheckCircle2 className="w-5 h-5" strokeWidth={1.75} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                  Pagamento confirmado
-                </p>
-                <h3 className="text-lg font-semibold text-slate-900">
-                  Sua assinatura foi ativada com sucesso.
-                </h3>
-                <p className="text-sm text-slate-600">
-                  O comprovante digital e o status fiscal da cobranca ja estao centralizados aqui.
-                </p>
-              </div>
-            </div>
-            {lastApprovedPayment && (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => downloadReceipt(lastApprovedPayment)}
-                  className="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
-                >
-                  Baixar comprovante
-                </button>
-                <button
-                  onClick={() => openUrl(lastApprovedPayment.invoicePdfUrl)}
-                  disabled={!lastApprovedPayment.invoicePdfUrl}
-                  className="h-10 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white"
-                >
-                  {lastApprovedPayment.invoicePdfUrl ? 'Baixar nota fiscal' : 'Nota fiscal em emissao'}
-                </button>
-              </div>
-            )}
-          </div>
-        );
+    const getPlanCheckoutVerb = (plan: (typeof activePlans)[number]) =>
+      plan.billing_model === 'recurring' ? 'Contratar' : 'Comprar';
+
+    const getPlanPriceSuffix = (plan: (typeof activePlans)[number]) => {
+      if (plan.billing_model === 'recurring') {
+        return effectiveBillingCycle === 'yearly' ? '/ano' : '/mês';
       }
 
-      if (paymentFeedback === 'pending') {
-        return (
-          <div className="flex items-start gap-3 rounded-[24px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_60%,#fef3c7_100%)] p-5 shadow-[0_22px_60px_-42px_rgba(245,158,11,0.32)]">
-            <div className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0">
-              <Clock3 className="w-5 h-5" strokeWidth={1.75} />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Pagamento em processamento</h3>
-              <p className="text-sm text-slate-600">
-                Assim que o gateway confirmar a cobranca, o comprovante e a renovacao do plano serao atualizados aqui.
-              </p>
-            </div>
-          </div>
-        );
+      return effectiveBillingCycle === 'yearly' ? '/vigência anual' : '/vigência mensal';
+    };
+
+    const getPaymentKindLabel = (payment: PaymentRecord) => {
+      if (payment.itemType === 'booster') {
+        return 'Compra avulsa';
       }
 
-      if (paymentFeedback === 'failure') {
-        return (
-          <div className="flex items-start gap-3 rounded-[24px] border border-rose-200 bg-[linear-gradient(135deg,#fff1f2_0%,#ffffff_60%,#ffe4e6_100%)] p-5 shadow-[0_22px_60px_-42px_rgba(244,63,94,0.28)]">
-            <div className="w-11 h-11 rounded-xl bg-rose-500 text-white flex items-center justify-center flex-shrink-0">
-              <AlertCircle className="w-5 h-5" strokeWidth={1.75} />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Nao foi possivel concluir o pagamento</h3>
-              <p className="text-sm text-slate-600">
-                Revise a forma de pagamento ou tente novamente. O historico abaixo continua disponivel para consulta.
-              </p>
-            </div>
-          </div>
-        );
+      if (payment.billingModel === 'recurring') {
+        return payment.billingCycle === 'yearly' ? 'Plano com cobrança recorrente anual' : 'Plano com cobrança recorrente mensal';
       }
 
-      return null;
+      return payment.billingCycle === 'yearly' ? 'Compra avulsa anual' : 'Compra avulsa mensal';
+    };
+
+    const getManagedPlanActionLabel = (plan: (typeof activePlans)[number]) => {
+      if (isCustomPlan(plan.name)) {
+        return 'Falar com comercial';
+      }
+
+      if (!hasActiveManagedPlan) {
+        return `${getPlanCheckoutVerb(plan)} ${effectiveBillingCycle === 'yearly' ? 'Anual' : 'Mensal'}`;
+      }
+
+      if (!currentPlanRecord) {
+        return 'Solicitar ajuste';
+      }
+
+      if (isCurrentPlanRecurring) {
+        return plan.position > currentPlanRecord.position ? 'Solicitar upgrade' : 'Solicitar downgrade';
+      }
+
+      if (currentPlanRecord.id === plan.id && subscription?.billing_cycle === effectiveBillingCycle) {
+        return 'Comprar novamente agora';
+      }
+
+      return 'Trocar agora';
+    };
+
+    const getManagedPlanSupportText = (plan: (typeof activePlans)[number]) => {
+      if (isCustomPlan(plan.name)) {
+        return 'Plano com atendimento consultivo. Fale com a equipe para receber a proposta adequada.';
+      }
+
+      if (!hasActiveRecurringSubscription) {
+        return `Nova contratação com cobrança ${effectiveBillingCycle === 'yearly' ? 'anual' : 'mensal'} via Asaas.`;
+      }
+
+      return 'Ajustes em planos com cobrança recorrente em andamento são tratados pela equipe para evitar cobranças duplicadas.';
+    };
+
+    const getManagedPlanSupportTextResolved = (plan: (typeof activePlans)[number]) => {
+      if (isCustomPlan(plan.name)) {
+        return 'Plano com atendimento consultivo. Fale com a equipe para receber a proposta adequada.';
+      }
+
+      if (!hasActiveManagedPlan) {
+        return plan.billing_model === 'recurring'
+          ? `Nova contratação com cobrança ${effectiveBillingCycle === 'yearly' ? 'anual' : 'mensal'} via Asaas.`
+          : `Compra avulsa com vigência ${effectiveBillingCycle === 'yearly' ? 'anual' : 'mensal'} via Asaas.`;
+      }
+
+      if (!isCurrentPlanRecurring) {
+        return 'Sua conta já possui um plano avulso vigente. Se precisar trocar antes do vencimento, fale com a equipe para evitar sobreposição de vigência.';
+      }
+
+      return 'Ajustes em planos com cobrança recorrente em andamento são tratados pela equipe para evitar cobranças duplicadas.';
+    };
+
+    const getManagedPlanSupportTextResolvedSafe = (plan: (typeof activePlans)[number]) => {
+      if (isCustomPlan(plan.name)) {
+        return 'Plano com atendimento consultivo. Fale com a equipe para receber a proposta adequada.';
+      }
+
+      if (!hasActiveManagedPlan) {
+        return plan.billing_model === 'recurring'
+          ? `Nova contratação com cobrança ${effectiveBillingCycle === 'yearly' ? 'anual' : 'mensal'} via Asaas.`
+          : `Compra avulsa com vigência ${effectiveBillingCycle === 'yearly' ? 'anual' : 'mensal'} via Asaas.`;
+      }
+
+      if (!isCurrentPlanRecurring) {
+        if (currentPlanRecord?.id === plan.id && subscription?.billing_cycle === effectiveBillingCycle) {
+          return 'Uma nova compra renova a vigência imediatamente e soma os créditos remanescentes de destaque ao novo pacote do mesmo plano.';
+        }
+
+        return 'Ao comprar este plano agora, ele substitui o plano atual imediatamente. Os créditos remanescentes de destaque em Categoria e Home são preservados e somados ao novo plano.';
+      }
+
+      return 'Ajustes em planos com cobrança recorrente em andamento ainda são tratados pela equipe para evitar cobranças duplicadas.';
+    };
+
+    const handleManagedPlanActionResolved = async (plan: (typeof activePlans)[number]) => {
+      if (isCustomPlan(plan.name)) {
+        window.open(getCustomPlanContactLink(plan.name), '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      if (!user?.id) {
+        toast.error('Faça login para continuar.');
+        return;
+      }
+
+      if (hasActiveManagedPlan && isCurrentPlanRecurring) {
+        sonnerToast.message(
+          isCurrentPlanRecurring
+            ? 'Upgrades, downgrades e cancelamentos de planos com cobrança recorrente em andamento são conduzidos pela equipe para evitar duplicidade de cobrança.'
+            : 'Sua conta já possui um plano avulso vigente. Para ajustar o plano antes do vencimento, fale com a equipe.'
+        );
+        navigate('/minha-conta/ajuda');
+        return;
+      }
+
+      return handleManagedPlanAction(plan);
+    };
+
+    const handleManagedPlanAction = async (plan: (typeof activePlans)[number]) => {
+      if (isCustomPlan(plan.name)) {
+        window.open(getCustomPlanContactLink(plan.name), '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      if (!user?.id) {
+        toast.error('Faça login para continuar.');
+        return;
+      }
+
+      if (hasActiveRecurringSubscription) {
+        sonnerToast.message('Upgrades, downgrades e cancelamentos de planos com cobrança recorrente em andamento são conduzidos pela equipe para evitar duplicidade de cobrança.');
+        navigate('/minha-conta/ajuda');
+        return;
+      }
+
+      setChangingPlanId(plan.id);
+
+      try {
+        const amount =
+          effectiveBillingCycle === 'yearly'
+            ? calculateYearlyTotal(Number(plan.monthly_price ?? 0), Number(plan.yearly_price ?? 0))
+            : Number(plan.monthly_price ?? 0);
+
+        const result = await initiatePlatformPlanCheckout({
+          planId: plan.id,
+          planName: plan.name,
+          planDescription: plan.description || `Plano ${plan.name}`,
+          billingCycle: effectiveBillingCycle,
+          amount,
+          userId: user.id,
+        });
+
+        if (!result.success) {
+          toast.error(result.error || 'Não foi possível iniciar o checkout via Asaas.');
+          return;
+        }
+
+        toast.success('Redirecionando para o checkout Asaas...');
+      } catch (error: any) {
+        appError('[FinanceDashboard] erro ao processar checkout Asaas', error, {
+          userId: user.id,
+          targetPlanId: plan.id,
+        });
+        toast.error(error?.message || 'Erro ao processar a contratação.');
+      } finally {
+        setChangingPlanId(null);
+      }
     };
 
     return (
       <div className="space-y-6">
-        {renderFeedbackBanner()}
-
-        <section className="rounded-[24px] border border-slate-200 bg-[linear-gradient(135deg,#f8fafc_0%,#ffffff_50%,#ecfdf5_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.26)]">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-green-700">
-                Central da assinatura
-              </p>
-              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-                Gerencie cobrança, renovação e próximas mudanças do plano
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Use esta área para acompanhar o ciclo atual, agendar cancelamento, manter a renovação automática ativa e consultar comprovantes e notas.
+        {paymentFeedback === 'success' ? (
+          <div className="rounded-[24px] border border-emerald-200 bg-[linear-gradient(135deg,#f0fdf4_0%,#ffffff_50%,#dcfce7_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(34,197,94,0.28)]">
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Pagamento confirmado</p>
+              <h3 className="text-lg font-semibold text-slate-900">Recebemos a confirmação do checkout.</h3>
+              <p className="text-sm text-slate-600">
+                O histórico financeiro já foi atualizado. Se o plano ainda estiver exibindo dados antigos, atualize a página após alguns segundos.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {canManageStripeBilling && !pendingChange && !subscription?.cancel_at_period_end && (
+          </div>
+        ) : null}
+
+        {paymentFeedback === 'pending' ? (
+          <div className="rounded-[24px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_50%,#fde68a_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(245,158,11,0.28)]">
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Pagamento pendente</p>
+              <h3 className="text-lg font-semibold text-slate-900">A cobrança ainda está aguardando confirmação.</h3>
+              <p className="text-sm text-slate-600">
+                Você pode acompanhar a compensação e os documentos fiscais no histórico financeiro desta página.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {paymentFeedback === 'failure' ? (
+          <div className="rounded-[24px] border border-rose-200 bg-[linear-gradient(135deg,#fff1f2_0%,#ffffff_55%,#fecdd3_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(244,63,94,0.25)]">
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-700">Pagamento não concluído</p>
+              <h3 className="text-lg font-semibold text-slate-900">Não conseguimos confirmar essa cobrança.</h3>
+              <p className="text-sm text-slate-600">
+                Tente novamente ou entre em contato com a equipe caso precise de suporte para finalizar a contratação.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {paymentFeedback === 'cancelled' ? (
+          <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(135deg,#f8fafc_0%,#ffffff_55%,#e2e8f0_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.18)]">
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Checkout cancelado</p>
+              <h3 className="text-lg font-semibold text-slate-900">A contratação não foi alterada.</h3>
+              <p className="text-sm text-slate-600">
+                Você pode retomar a contratação quando quiser a partir desta mesma tela.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {isCurrentPlanRecurring && hasActiveManagedPlan ? (
+          <div className="rounded-[24px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_60%,#dbeafe_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(59,130,246,0.24)]">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">Gestão do plano</p>
+                <h3 className="text-lg font-semibold text-slate-900">Seu plano com cobrança recorrente já está ativo</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Upgrades, downgrades e cancelamentos de planos com cobrança recorrente em andamento seguem intermediados pela equipe para evitar duplicidade de cobrança. Toda a gestão continua centralizada aqui em Financeiro.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => void handleSchedulePlanCancellation()}
-                  disabled={isCancellingScheduledChange}
-                  className="h-10 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 shadow-sm hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => navigate('/minha-conta/ajuda')}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                 >
-                  {isCancellingScheduledChange ? 'Agendando...' : 'Cancelar no próximo ciclo'}
+                  Abrir Central de Ajuda
                 </button>
-              )}
-              {canManageStripeBilling && (
                 <button
-                  onClick={handleOpenStripePortal}
-                  disabled={openingStripePortal}
-                  className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  type="button"
+                  onClick={() => window.location.assign('/planos')}
+                  className="inline-flex h-10 items-center justify-center rounded-xl bg-green-700 px-4 text-sm font-semibold text-white shadow-[0_18px_30px_-20px_rgba(22,163,74,0.75)] transition hover:bg-green-800"
                 >
-                  {openingStripePortal ? 'Abrindo portal...' : 'Portal Stripe'}
+                  Ver tabela pública de planos
                 </button>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {pendingChange?.status === 'pending' ? (
-          <div className="rounded-[24px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_55%,#dbeafe_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(59,130,246,0.28)]">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-                  Próxima alteração já registrada
-                </p>
-                <h3 className="mt-1 text-lg font-semibold text-slate-900">
-                  {pendingChange.changeKind === 'cancel'
-                    ? 'Cancelamento no próximo ciclo'
-                    : pendingChange.changeKind === 'upgrade'
-                      ? 'Upgrade no próximo ciclo'
-                      : 'Downgrade no próximo ciclo'}
-                </h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  {pendingChange.changeKind === 'cancel'
-                    ? `A assinatura seguirá válida até ${formatCycleBoundaryDate(pendingChange.effectiveOn)} e não será renovada após essa data.`
-                    : `A mudança para ${pendingChange.targetPlanName || 'o novo plano'} será aplicada automaticamente em ${formatCycleBoundaryDate(pendingChange.effectiveOn)}.`}
-                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => void handleCancelScheduledPlanChange()}
-                disabled={isCancellingScheduledChange}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isCancellingScheduledChange ? 'Cancelando...' : 'Cancelar alteração'}
-              </button>
-            </div>
-          </div>
-        ) : subscription?.cancel_at_period_end ? (
-          <div className="rounded-[24px] border border-amber-200 bg-[linear-gradient(135deg,#fffbeb_0%,#ffffff_55%,#fde68a_100%)] p-5 shadow-[0_18px_45px_-38px_rgba(245,158,11,0.28)]">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
-                  Renovação desativada
-                </p>
-                <h3 className="mt-1 text-lg font-semibold text-slate-900">
-                  O cancelamento está programado para o fim do ciclo atual
-                </h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  Sua assinatura continuará ativa até {formatCycleBoundaryDate(subscription.current_period_end)}.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleKeepStripeSubscription()}
-                disabled={isCancellingScheduledChange}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-amber-200 bg-white px-4 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isCancellingScheduledChange ? 'Reativando...' : 'Manter assinatura'}
-              </button>
             </div>
           </div>
         ) : null}
@@ -3282,7 +2952,7 @@ const UserDashboardView: React.FC = () => {
                 <CreditCard className="w-5 h-5" strokeWidth={1.5} />
               </div>
               <div className="flex-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Resumo da assinatura</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Resumo do plano</p>
                 <h3 className="mt-1 text-lg font-semibold text-slate-900">{planName}</h3>
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
@@ -3292,7 +2962,7 @@ const UserDashboardView: React.FC = () => {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Ciclo da assinatura</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Ciclo da contratação</p>
                     <p className="mt-1 text-sm font-medium text-slate-900">
                       {effectiveBillingCycle === 'yearly' ? 'Anual' : 'Mensal'}
                     </p>
@@ -3300,7 +2970,7 @@ const UserDashboardView: React.FC = () => {
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Status</p>
                     <p className="mt-1 text-sm font-medium text-slate-900">
-                      {subscription?.cancel_at_period_end ? 'Cancelamento agendado' : 'Ativo'}
+                      {hasActiveManagedPlan ? 'Ativo' : 'Sem plano ativo'}
                     </p>
                   </div>
                   <div>
@@ -3320,52 +2990,39 @@ const UserDashboardView: React.FC = () => {
                 <Receipt className="w-5 h-5" strokeWidth={1.5} />
               </div>
               <div className="flex-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Dados de renovação</p>
-                <h3 className="mt-1 text-lg font-semibold text-slate-900">Próxima renovação</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  {isCurrentPlanRecurring ? 'Dados do próximo ciclo' : 'Dados de vigência'}
+                </p>
+                <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                  {isCurrentPlanRecurring ? 'Próximo ciclo' : 'Plano válido até'}
+                </h3>
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Data</p>
                     <p className="mt-1 text-sm font-medium text-slate-900">{renewalDate}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Valor da renovação</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      {isCurrentPlanRecurring ? 'Valor do próximo ciclo' : 'Valor da compra'}
+                    </p>
                     <p className="mt-1 text-sm font-medium text-slate-900">
-                      {latestPayment ? formatCurrency(latestPayment.amount, latestPayment.currency) : 'Não disponível'}
+                      {currentRenewalAmount > 0 ? formatCurrency(currentRenewalAmount, latestPayment?.currency || 'BRL') : 'Não disponível'}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Método de pagamento</p>
                     <p className="mt-1 text-sm font-medium text-slate-900">
-                      {latestPayment?.paymentMethod || (subscription?.provider === 'stripe' ? 'Stripe' : 'Não informado')}
+                      {latestPayment?.paymentMethod || (latestPayment?.provider === 'asaas' ? 'Checkout Asaas' : 'Não informado')}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Última cobrança</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Último pagamento
+                    </p>
                     <p className="mt-1 text-sm font-medium text-slate-900">
                       {latestPayment ? paymentStatusLabel[latestPayment.status] : 'Sem registro'}
                     </p>
                   </div>
-                </div>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {canManageStripeBilling && !pendingChange && !subscription?.cancel_at_period_end && (
-                    <button
-                      type="button"
-                      onClick={() => void handleSchedulePlanCancellation()}
-                      disabled={isCancellingScheduledChange}
-                      className="h-10 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 shadow-sm hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isCancellingScheduledChange ? 'Agendando...' : 'Cancelar no próximo ciclo'}
-                    </button>
-                  )}
-                  {canManageStripeBilling && (
-                    <button
-                      onClick={handleOpenStripePortal}
-                      disabled={openingStripePortal}
-                      className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {openingStripePortal ? 'Abrindo portal...' : 'Portal Stripe'}
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
@@ -3376,10 +3033,16 @@ const UserDashboardView: React.FC = () => {
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Alterar plano</p>
-              <h3 className="text-lg font-semibold text-slate-900">Upgrade ou downgrade no próximo ciclo</h3>
+              <h3 className="text-lg font-semibold text-slate-900">
+                {hasActiveManagedPlan ? 'Solicitações de ajuste do plano atual' : 'Contratar outro plano'}
+              </h3>
             </div>
             <p className="max-w-2xl text-sm text-slate-500">
-              Todas as alterações são programadas para o próximo ciclo. Você continua com o plano atual até a data da renovação.
+              {hasActiveManagedPlan
+                ? isCurrentPlanRecurring
+                  ? 'Os botões abaixo deixam a alteração solicitada a partir desta própria tela. A equipe fecha o ajuste para evitar conflito de cobrança em planos com cobrança recorrente em andamento.'
+                  : 'Enquanto o plano avulso atual estiver vigente, novas compras ficam bloqueadas para evitar sobreposição. Se precisar trocar antes do vencimento, fale com a equipe.'
+                : 'Se você ainda não possui plano ativo, a contratação é iniciada diretamente pelo checkout hospedado do Asaas.'}
             </p>
           </div>
 
@@ -3402,11 +3065,9 @@ const UserDashboardView: React.FC = () => {
               <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {manageablePlans.map((plan) => {
                   const displayPrice =
-                    effectiveBillingCycle === 'monthly'
-                      ? plan.monthly_price
-                      : calculateYearlyTotal(plan.monthly_price, plan.yearly_price);
-
-                  const isPlanActionDisabled = Boolean(changingPlanId) || hasBlockingScheduledChange;
+                    effectiveBillingCycle === 'yearly'
+                      ? calculateYearlyTotal(Number(plan.monthly_price ?? 0), Number(plan.yearly_price ?? 0))
+                      : Number(plan.monthly_price ?? 0);
 
                   return (
                     <div
@@ -3420,7 +3081,7 @@ const UserDashboardView: React.FC = () => {
                           </p>
                           <h4 className="mt-2 text-lg font-semibold text-slate-900">{plan.name}</h4>
                           <p className="mt-1 text-sm text-slate-600">
-                            {plan.description || 'Plano disponível para ajuste da sua assinatura.'}
+                            {plan.description || 'Plano disponível para ajuste do seu plano atual.'}
                           </p>
                         </div>
                         <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
@@ -3429,23 +3090,19 @@ const UserDashboardView: React.FC = () => {
                       </div>
 
                       <div className="mt-4 flex items-end gap-2">
-                        <span className="text-2xl font-bold text-slate-900">
-                          {formatCurrency(displayPrice)}
-                        </span>
+                        <span className="text-2xl font-bold text-slate-900">{formatCurrency(displayPrice)}</span>
                         <span className="pb-0.5 text-sm text-slate-500">
-                          {effectiveBillingCycle === 'yearly' ? '/ano' : '/mês'}
+                          {getPlanPriceSuffix(plan)}
                         </span>
                       </div>
 
-                      <p className="mt-3 text-sm text-slate-500">
-                        {getManagedPlanSupportText(plan)}
-                      </p>
+                      <p className="mt-3 text-sm text-slate-500">{getManagedPlanSupportTextResolvedSafe(plan)}</p>
 
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={() => void handleManagedPlanAction(plan)}
-                          disabled={isPlanActionDisabled}
+                          onClick={() => void handleManagedPlanActionResolved(plan)}
+                          disabled={Boolean(changingPlanId)}
                           className="inline-flex h-10 items-center justify-center rounded-xl bg-green-700 px-4 text-sm font-semibold text-white shadow-[0_18px_30px_-20px_rgba(22,163,74,0.75)] transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {changingPlanId === plan.id ? 'Processando...' : getManagedPlanActionLabel(plan)}
@@ -3462,15 +3119,15 @@ const UserDashboardView: React.FC = () => {
         <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)]">
           <div className="flex flex-col gap-2 border-b border-slate-100 px-6 py-5 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Historico financeiro</p>
-              <h3 className="text-lg font-semibold text-slate-900">Pagamentos e renovacoes</h3>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Histórico financeiro</p>
+              <h3 className="text-lg font-semibold text-slate-900">Pagamentos e renovações</h3>
             </div>
             <p className="text-sm text-slate-500">
-              Consulte status, ciclo, comprovantes e notas fiscais de cada cobranca.
+              Consulte status, comprovantes e documentos fiscais de cada cobrança.
             </p>
           </div>
 
-          <div className="hidden md:block overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead className="bg-slate-50">
                 <tr className="text-left text-slate-500">
@@ -3479,7 +3136,7 @@ const UserDashboardView: React.FC = () => {
                   <th className="px-6 py-3 font-semibold">Valor</th>
                   <th className="px-6 py-3 font-semibold">Status</th>
                   <th className="px-6 py-3 font-semibold">Fiscal</th>
-                  <th className="px-6 py-3 font-semibold text-right">Acoes</th>
+                  <th className="px-6 py-3 font-semibold text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -3501,45 +3158,43 @@ const UserDashboardView: React.FC = () => {
                       <td className="px-6 py-4">
                         <div>
                           <p className="font-semibold text-slate-900">
-                            {payment.itemName || payment.planName || payment.description || 'Assinatura BWAGRO'}
+                            {payment.itemName || payment.planName || payment.description || 'Plano BWAGRO'}
                           </p>
                           <p className="text-xs text-slate-500">
-                            {payment.itemType === 'booster' ? 'Compra avulsa' : payment.billingCycle === 'yearly' ? 'Cobranca anual' : 'Cobranca mensal'}
+                            {getPaymentKindLabel(payment)}
                           </p>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-slate-500">
-                        {formatDateTime(payment.paidAt || payment.createdAt)}
-                      </td>
+                      <td className="px-6 py-4 text-slate-500">{formatDateTime(payment.paidAt || payment.createdAt)}</td>
                       <td className="px-6 py-4 font-semibold text-slate-900">
                         {formatCurrency(payment.amount, payment.currency)}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${paymentStatusClass[payment.status]}`}>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStatusClass[payment.status]}`}>
                           {paymentStatusLabel[payment.status]}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${fiscalStatusClass[payment.invoiceStatus]}`}>
-                          {fiscalStatusLabel[payment.invoiceStatus]}
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${fiscalStatusClass[payment.invoiceStatus] || 'bg-slate-100 text-slate-600'}`}>
+                          {fiscalStatusLabel[payment.invoiceStatus] || 'Não aplicável'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => downloadReceipt(payment)}
-                            className="inline-flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
                             title="Baixar comprovante"
                           >
-                            <Download className="w-4 h-4" strokeWidth={1.5} />
+                            <Download className="h-4 w-4" strokeWidth={1.5} />
                           </button>
                           <button
                             onClick={() => openUrl(payment.invoicePdfUrl)}
                             disabled={!payment.invoicePdfUrl}
-                            className="inline-flex items-center justify-center w-9 h-9 rounded-xl text-slate-500 hover:text-green-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-50 hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-40"
                             title="Abrir nota fiscal"
                           >
-                            <ExternalLink className="w-4 h-4" strokeWidth={1.5} />
+                            <ExternalLink className="h-4 w-4" strokeWidth={1.5} />
                           </button>
                         </div>
                       </td>
@@ -3550,24 +3205,22 @@ const UserDashboardView: React.FC = () => {
             </table>
           </div>
 
-          <div className="md:hidden p-4 space-y-3">
+          <div className="space-y-3 p-4 md:hidden">
             {paymentsLoading ? (
-              <div className="text-center text-xs text-slate-500 py-4">Carregando pagamentos...</div>
+              <div className="py-4 text-center text-xs text-slate-500">Carregando pagamentos...</div>
             ) : payments.length === 0 ? (
-              <div className="text-center text-xs text-slate-500 py-4">Nenhum pagamento encontrado.</div>
+              <div className="py-4 text-center text-xs text-slate-500">Nenhum pagamento encontrado.</div>
             ) : (
               payments.map((payment) => (
-                <div key={payment.id} className="border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div key={payment.id} className="space-y-3 rounded-2xl border border-slate-200 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-900">
-                        {payment.itemName || payment.planName || payment.description || 'Assinatura BWAGRO'}
+                        {payment.itemName || payment.planName || payment.description || 'Plano BWAGRO'}
                       </p>
-                      <p className="text-xs text-slate-500">
-                        {formatDateTime(payment.paidAt || payment.createdAt)}
-                      </p>
+                      <p className="text-xs text-slate-500">{formatDateTime(payment.paidAt || payment.createdAt)}</p>
                     </div>
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${paymentStatusClass[payment.status]}`}>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStatusClass[payment.status]}`}>
                       {paymentStatusLabel[payment.status]}
                     </span>
                   </div>
@@ -3577,14 +3230,14 @@ const UserDashboardView: React.FC = () => {
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => downloadReceipt(payment)}
-                      className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+                      className="h-9 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800"
                     >
                       Comprovante
                     </button>
                     <button
                       onClick={() => openUrl(payment.invoicePdfUrl)}
                       disabled={!payment.invoicePdfUrl}
-                      className="h-9 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="h-9 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {payment.invoicePdfUrl ? 'Nota fiscal' : 'NF pendente'}
                     </button>
@@ -3597,7 +3250,6 @@ const UserDashboardView: React.FC = () => {
       </div>
     );
   };
-
   const ProfileDashboard = () => {
     const userName = user?.name || user?.email || 'Usuário';
     const userCity = user?.location || 'Localização não informada';
@@ -4085,43 +3737,6 @@ const UserDashboardView: React.FC = () => {
       },
     ];
 
-    const ProfileSectionCard = ({
-      title,
-      description,
-      icon,
-      color = 'emerald',
-      children,
-    }: {
-      title: string;
-      description: string;
-      icon: React.ReactNode;
-      color?: 'emerald' | 'blue' | 'amber' | 'slate';
-      children: React.ReactNode;
-    }) => {
-      const colorMap = {
-        emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', icon: 'bg-emerald-100 text-emerald-700' },
-        blue: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'bg-blue-100 text-blue-700' },
-        amber: { bg: 'bg-amber-50', border: 'border-amber-200', icon: 'bg-amber-100 text-amber-700' },
-        slate: { bg: 'bg-slate-50', border: 'border-slate-200', icon: 'bg-slate-100 text-slate-700' },
-      };
-      const colors = colorMap[color];
-
-      return (
-        <div className={`space-y-5 rounded-3xl border ${colors.border} ${colors.bg} p-6 shadow-md`}>
-          <div className="flex items-start gap-4">
-            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${colors.icon} shadow-sm flex-shrink-0`}>
-              {icon}
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">{title}</h3>
-              <p className="mt-1 text-sm text-slate-600">{description}</p>
-            </div>
-          </div>
-          <div className="space-y-4">{children}</div>
-        </div>
-      );
-    };
-
     const identitySection = (
       <ProfileSectionCard
         title="Dados principais"
@@ -4445,7 +4060,7 @@ const UserDashboardView: React.FC = () => {
                   <div className="mt-0.5 flex-shrink-0">
                     {validationResult.status === 'approved' ? (
                       <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500">
-                        <span className="text-xs font-bold text-white">✓</span>
+                        <span className="text-xs font-bold text-white">?</span>
                       </div>
                     ) : validationResult.status === 'manual_review' ? (
                       <div className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500">
@@ -4453,7 +4068,7 @@ const UserDashboardView: React.FC = () => {
                       </div>
                     ) : (
                       <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500">
-                        <span className="text-xs font-bold text-white">✕</span>
+                        <span className="text-xs font-bold text-white">?</span>
                       </div>
                     )}
                   </div>
@@ -4617,6 +4232,12 @@ const UserDashboardView: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] font-sans text-slate-900">
+      <SeoHead
+        title={dashboardSeo.title}
+        description={dashboardSeo.description}
+        canonicalPath={location.pathname}
+        noIndex
+      />
       <aside className="sticky top-0 hidden h-screen w-72 flex-col border-r border-slate-800/80 bg-[#0f172a] px-5 py-6 text-slate-100 shadow-[30px_0_60px_-45px_rgba(15,23,42,0.75)] lg:flex">
         <div className="mb-8 rounded-[24px] border border-white/10 bg-white/5 px-4 py-4 backdrop-blur">
           <div className="flex items-center gap-3">
@@ -4734,15 +4355,16 @@ const UserDashboardView: React.FC = () => {
             }
           />
           <Route path="/meu-plano" element={<MyPlanDashboard />} />
-          <Route path="/financeiro" element={<Navigate to="/minha-conta/assinatura" replace />} />
-          <Route path="/assinatura" element={<FinanceDashboard />} />
+          <Route path="/financeiro" element={<FinanceDashboard />} />
+          <Route path="/assinatura" element={<Navigate to="/minha-conta/financeiro" replace />} />
+          <Route path="/meus-planos" element={<Navigate to="/minha-conta/financeiro" replace />} />
           <Route
             path="/minha-loja"
             element={
               showSellerStoreMenu ? (
                 <SellerStoreDashboard hasStoreAccess={hasSellerStoreAccess} />
               ) : (
-                <Navigate to="/minha-conta/meu-plano" replace />
+                <Navigate to="/minha-conta/financeiro" replace />
               )
             }
           />
@@ -4756,3 +4378,4 @@ const UserDashboardView: React.FC = () => {
 };
 
 export default UserDashboardView;
+

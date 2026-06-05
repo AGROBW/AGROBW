@@ -38,6 +38,7 @@ const InstitutionalPage = lazy(() => import('./pages/InstitutionalPage'));
 
 // Admin Pages
 const AdminLoginView = lazy(() => import('./pages/AdminLoginView'));
+const AdminMfaView = lazy(() => import('./pages/AdminMfaView'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminDashboardOverview = lazy(() => import('./pages/admin/AdminDashboardOverview'));
@@ -221,6 +222,14 @@ const AppContent: React.FC = () => {
             
             {/* Admin Login */}
             <Route path="/admin/login" element={<AdminLoginView />} />
+            <Route
+              path="/admin/mfa"
+              element={
+                <RequireAuth>
+                  <AdminMfaView />
+                </RequireAuth>
+              }
+            />
 
             {/* User Protected Routes */}
             <Route 

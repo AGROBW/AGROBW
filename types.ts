@@ -151,12 +151,15 @@ export interface UserPlanQuota {
   total: number;
 }
 
+export type BillingModel = 'one_time' | 'recurring';
+
 export interface PricingPlan {
   id: string;
   name: string;
   description: string;
   monthlyPrice: number;
   yearlyPrice: number;
+  billingModel?: BillingModel;
   features: string[];
   isPopular: boolean;
   buttonText: string;
@@ -491,6 +494,7 @@ export interface PaymentRecord {
   subscriptionId?: string | null;
   planId?: string | null;
   boosterId?: string | null;
+  billingModel?: BillingModel | null;
   provider: string;
   providerPaymentId: string;
   providerPreferenceId?: string | null;
@@ -535,7 +539,6 @@ export interface HighlightBoosterRecord {
   name: string;
   description?: string | null;
   monthlyPrice: number;
-  stripePriceId?: string | null;
   categoryCredits: number;
   homeCredits: number;
   categoryHighlightDays: number;

@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import { extractBearerToken, isAdminAal2Profile } from '../_shared/security.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://bwagro.vercel.app',  // VULN-002 fix: Allowlist
@@ -89,11 +90,10 @@ serve(async (req) => {
     );
 
     if (!isInternalCall) {
-      if (!authHeader.startsWith('Bearer ')) {
+      const token = extractBearerToken(req);
+      if (!token) {
         return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
       }
-
-      const token = authHeader.slice(7).trim();
       const {
         data: { user },
         error: authError,
@@ -109,7 +109,7 @@ serve(async (req) => {
         .eq('id', user.id)
         .maybeSingle();
 
-      if ((userProfile?.role || '').toLowerCase() !== 'admin') {
+      if (!isAdminAal2Profile(userProfile, token)) {
         return jsonResponse({ success: false, error: 'Admin access required' }, 403);
       }
     }
@@ -425,7 +425,7 @@ serve(async (req) => {
         type: 'SYSTEM',
         title: 'Nota fiscal disponivel',
         content: 'Sua NFS-e foi emitida e ja esta disponivel para download na central financeira.',
-        link: '/minha-conta/financeiro',
+        link: '/minha-conta/assinatura',
       });
     }
 

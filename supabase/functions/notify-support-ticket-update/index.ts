@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 // VULN-019 fix: nodemailer via sendSmtpEmail()
 import { loadSmtpSettings, validateSmtpSettings, sendSmtpEmail } from '../_shared/smtpSettings.ts';
 import { getCorsHeaders, handleCorsPreflightBrowser } from '../_shared/cors.ts';
-import { isAdminProfile, extractBearerToken } from '../_shared/security.ts';
+import { isAdminAal2Profile, extractBearerToken } from '../_shared/security.ts';
 import { validateNotifySupportTicketInput } from '../_shared/validation.ts';
 
 // VULN-002 fix: CORS dinâmico com allowlist
@@ -98,7 +98,7 @@ serve(async (req) => {
       .eq('id', user.id)
       .maybeSingle();
 
-    if (!isAdminProfile(adminProfile)) {
+    if (!isAdminAal2Profile(adminProfile, token)) {
       return jsonResponse(req, { success: false, error: 'Admin access required' }, 403);
     }
 

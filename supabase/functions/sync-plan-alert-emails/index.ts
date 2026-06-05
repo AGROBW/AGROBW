@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 // VULN-019 fix: nodemailer via sendSmtpEmail()
 import { loadSmtpSettings, validateSmtpSettings, sendSmtpEmail } from '../_shared/smtpSettings.ts';
 import { getCorsHeadersInternal } from '../_shared/cors.ts';
-import { isAdminProfile, extractBearerToken } from '../_shared/security.ts';
+import { isAdminAal2Profile, extractBearerToken } from '../_shared/security.ts';
 
 // VULN-002 fix: Função interna/cron
 const corsHeaders = getCorsHeadersInternal();
@@ -143,7 +143,7 @@ serve(async (req) => {
       const { data: adminProfile } = await supabaseAdmin
         .from('users').select('role').eq('id', user.id).maybeSingle();
 
-      if (!isAdminProfile(adminProfile)) {
+      if (!isAdminAal2Profile(adminProfile, token)) {
         return jsonResponse({ success: false, error: 'Admin access required' }, 403);
       }
     }

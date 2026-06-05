@@ -35,7 +35,7 @@ export const ProtectedAdminRoute: React.FC<ProtectedAdminRouteProps> = ({
   requiredRole = 'admin',
   redirectTo = '/admin/login'
 }) => {
-  const { user, isAdmin, isLoading } = useAuth();
+  const { user, isAdmin, isLoading, adminMfaState, isAdminMfaVerified } = useAuth();
   const { logUnauthorizedAccess } = useSecurityLog();
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,6 +64,21 @@ export const ProtectedAdminRoute: React.FC<ProtectedAdminRouteProps> = ({
 
   // Verificar role
   const hasAccess = checkRoleAccess(user, requiredRole, isAdmin);
+
+  if (hasAccess && requiredRole === 'admin' && !isAdminMfaVerified) {
+    if (!adminMfaState.isLoaded) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <div className="text-center">
+            <Loader className="w-8 h-8 text-green-600 animate-spin mx-auto mb-3" />
+            <p className="text-sm text-slate-600 font-medium">Validando autenticacao em duas etapas...</p>
+          </div>
+        </div>
+      );
+    }
+
+    return <Navigate to="/admin/mfa" state={{ from: location }} replace />;
+  }
 
   if (!hasAccess) {
     appWarn('[ProtectedRoute] Acesso negado: Role insuficiente', {

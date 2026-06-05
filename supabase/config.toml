@@ -8,10 +8,10 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/webhook-fiscal/index.ts"
 
-[functions.webhook-stripe]
+[functions.webhook-asaas]
 enabled = true
 verify_jwt = false
-entrypoint = "./functions/webhook-stripe/index.ts"
+entrypoint = "./functions/webhook-asaas/index.ts"
 
 [functions.capture-news-url]
 enabled = true
@@ -62,3 +62,8 @@ entrypoint = "./functions/validate-document/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/sync-sponsor-metric-emails/index.ts"
+
+[functions.admin-login]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/admin-login/index.ts"

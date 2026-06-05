@@ -1,7 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 import { getCorsHeaders, handleCorsPreflightBrowser } from '../_shared/cors.ts';
-import { isAdminProfile, logSecurityEvent, extractBearerToken } from '../_shared/security.ts';
+import { isAdminAal2Profile, logSecurityEvent, extractBearerToken } from '../_shared/security.ts';
 import { checkRateLimit, rateLimitResponse } from '../_shared/rateLimit.ts';
 import { validateCaptureNewsUrlInput } from '../_shared/validation.ts';
 
@@ -177,7 +177,7 @@ serve(async (req) => {
       .eq('id', user.id)
       .maybeSingle();
 
-    if (!isAdminProfile(userProfile)) {
+    if (!isAdminAal2Profile(userProfile, token)) {
       await logSecurityEvent(supabaseAdmin, {
         req,
         attemptedRoute: '/functions/v1/capture-news-url',

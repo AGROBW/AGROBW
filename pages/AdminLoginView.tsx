@@ -1,21 +1,43 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../src/contexts/AuthContext';
-import { formatTimeRemaining } from '../src/hooks/useRateLimit';
-import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../src/hooks/useAdminAudit';
-import { CaptchaWidget } from '../components/CaptchaWidget';
-import { ShieldAlert, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { supabase } from '../src/lib/supabaseClient';
-import { debugLog } from '../src/utils/debugLog';
+import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react'
+import { CaptchaWidget } from '../components/CaptchaWidget'
+import { useAuth } from '../src/contexts/AuthContext'
+import { formatTimeRemaining } from '../src/hooks/useRateLimit'
+import { supabase } from '../src/lib/supabaseClient'
+import { debugLog } from '../src/utils/debugLog'
 
 interface AdminLoginRateLimitStatus {
-  attempts_used: number;
-  remaining_attempts: number;
-  is_blocked: boolean;
-  blocked_until: string | null;
-  time_until_unblock_seconds: number;
-  should_show_captcha: boolean;
-  server_now: string;
+  attempts_used: number
+  remaining_attempts: number
+  is_blocked: boolean
+  blocked_until: string | null
+  time_until_unblock_seconds: number
+  should_show_captcha: boolean
+  server_now: string
+}
+
+interface AdminLoginFunctionSuccessPayload {
+  success: true
+  session: {
+    accessToken: string
+    refreshToken: string
+    expiresAt?: number | null
+    expiresIn?: number | null
+    tokenType?: string | null
+  }
+  admin: {
+    currentLevel: string | null
+    requiresMfa: boolean
+  }
+  rateLimitStatus?: AdminLoginRateLimitStatus
+}
+
+interface AdminLoginFunctionErrorPayload {
+  success?: false
+  errorCode?: string
+  error?: string
+  rateLimitStatus?: AdminLoginRateLimitStatus
 }
 
 const defaultRateLimitStatus: AdminLoginRateLimitStatus = {
@@ -25,215 +47,247 @@ const defaultRateLimitStatus: AdminLoginRateLimitStatus = {
   blocked_until: null,
   time_until_unblock_seconds: 0,
   should_show_captcha: false,
-  server_now: new Date().toISOString(),
-};
+  server_now: new Date().toISOString()
+}
+
+const resolveCaptchaProvider = (): 'turnstile' | 'hcaptcha' | 'mock' => {
+  if (import.meta.env.VITE_TURNSTILE_SITE_KEY) {
+    return 'turnstile'
+  }
+
+  if (import.meta.env.VITE_HCAPTCHA_SITE_KEY) {
+    return 'hcaptcha'
+  }
+
+  return 'mock'
+}
+
+const readAdminLoginErrorPayload = async (response?: Response): Promise<AdminLoginFunctionErrorPayload | null> => {
+  if (!response) {
+    return null
+  }
+
+  try {
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.includes('application/json')) {
+      return null
+    }
+
+    return (await response.clone().json()) as AdminLoginFunctionErrorPayload
+  } catch {
+    return null
+  }
+}
+
+const toSafeAdminLoginErrorMessage = (
+  errorCode?: string | null,
+  message?: string | null,
+  rateLimitStatus?: AdminLoginRateLimitStatus | null
+) => {
+  const normalizedCode = String(errorCode || '').trim().toUpperCase()
+  const rawMessage = String(message || '').trim().toLowerCase()
+
+  if (normalizedCode === 'RATE_LIMITED' && rateLimitStatus?.time_until_unblock_seconds) {
+    return `Bloqueado por seguranca. Tente novamente em ${formatTimeRemaining(rateLimitStatus.time_until_unblock_seconds)}`
+  }
+
+  if (normalizedCode === 'CAPTCHA_REQUIRED') {
+    return 'Complete a verificacao de seguranca (captcha).'
+  }
+
+  if (normalizedCode === 'CAPTCHA_INVALID' || normalizedCode === 'CAPTCHA_UNAVAILABLE') {
+    return 'Nao foi possivel concluir a verificacao de seguranca. Tente novamente.'
+  }
+
+  if (!rawMessage && !normalizedCode) {
+    return 'Nao foi possivel concluir o acesso. Tente novamente.'
+  }
+
+  if (
+    normalizedCode === 'INVALID_CREDENTIALS' ||
+    normalizedCode === 'INVALID_INPUT' ||
+    rawMessage.includes('invalid') ||
+    rawMessage.includes('credentials') ||
+    rawMessage.includes('email not confirmed') ||
+    rawMessage.includes('user_suspended') ||
+    rawMessage.includes('permission') ||
+    rawMessage.includes('admin')
+  ) {
+    return 'Nao foi possivel validar o acesso. Confira seus dados e tente novamente.'
+  }
+
+  if (
+    rawMessage.includes('network') ||
+    rawMessage.includes('fetch') ||
+    rawMessage.includes('timeout') ||
+    rawMessage.includes('connection')
+  ) {
+    return 'Nao foi possivel concluir o acesso agora. Tente novamente em instantes.'
+  }
+
+  return 'Nao foi possivel concluir o acesso. Tente novamente.'
+}
 
 const AdminLoginView: React.FC = () => {
-  const navigate = useNavigate();
-  const { signIn, user, isAdmin } = useAuth();
-  const { logAction } = useAdminAudit();
+  const navigate = useNavigate()
+  const { user, isAdmin, isLoading: isAuthLoading, adminMfaState } = useAuth()
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showCaptcha, setShowCaptcha] = useState(false);
-  const [rateLimitStatus, setRateLimitStatus] = useState<AdminLoginRateLimitStatus>(defaultRateLimitStatus);
-  const [timeUntilUnblock, setTimeUntilUnblock] = useState(0);
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [captchaRenderKey, setCaptchaRenderKey] = useState(0)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [showCaptcha, setShowCaptcha] = useState(false)
+  const [rateLimitStatus, setRateLimitStatus] = useState<AdminLoginRateLimitStatus>(defaultRateLimitStatus)
+  const [timeUntilUnblock, setTimeUntilUnblock] = useState(0)
 
-  const isBlocked = rateLimitStatus.is_blocked && timeUntilUnblock > 0;
-  const remainingAttempts = rateLimitStatus.remaining_attempts;
-  const canAttempt = !isBlocked && remainingAttempts > 0;
+  const isBlocked = rateLimitStatus.is_blocked && timeUntilUnblock > 0
+  const remainingAttempts = rateLimitStatus.remaining_attempts
+  const canAttempt = !isBlocked && remainingAttempts > 0
 
-  const loadRateLimitStatus = async (targetEmail: string) => {
-    const normalizedEmail = targetEmail.trim().toLowerCase();
-
-    if (!normalizedEmail) {
-      setRateLimitStatus(defaultRateLimitStatus);
-      setTimeUntilUnblock(0);
-      setShowCaptcha(false);
-      return defaultRateLimitStatus;
-    }
-
-    const { data, error: rpcError } = await supabase.rpc('get_admin_login_rate_limit_status', {
-      p_email: normalizedEmail,
-    });
-
-    if (rpcError) {
-      throw rpcError;
-    }
-
-    const nextStatus = (Array.isArray(data) ? data[0] : data) as AdminLoginRateLimitStatus | undefined;
-    const resolvedStatus = nextStatus || defaultRateLimitStatus;
-
-    setRateLimitStatus(resolvedStatus);
-    setTimeUntilUnblock(resolvedStatus.time_until_unblock_seconds || 0);
-    setShowCaptcha(resolvedStatus.should_show_captcha);
-
-    return resolvedStatus;
-  };
-
-  const registerLoginAttempt = async (targetEmail: string, success: boolean, reason?: string) => {
-    const normalizedEmail = targetEmail.trim().toLowerCase();
-
-    if (!normalizedEmail) {
-      return defaultRateLimitStatus;
-    }
-
-    const { data, error: rpcError } = await supabase.rpc('register_admin_login_attempt', {
-      p_email: normalizedEmail,
-      p_success: success,
-      p_reason: reason || null,
-      p_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
-    });
-
-    if (rpcError) {
-      throw rpcError;
-    }
-
-    const nextStatus = (Array.isArray(data) ? data[0] : data) as AdminLoginRateLimitStatus | undefined;
-    const resolvedStatus = nextStatus || defaultRateLimitStatus;
-
-    setRateLimitStatus(resolvedStatus);
-    setTimeUntilUnblock(resolvedStatus.time_until_unblock_seconds || 0);
-    setShowCaptcha(resolvedStatus.should_show_captcha);
-
-    return resolvedStatus;
-  };
+  const applyRateLimitStatus = (nextStatus?: AdminLoginRateLimitStatus | null) => {
+    const resolvedStatus = nextStatus || defaultRateLimitStatus
+    setRateLimitStatus(resolvedStatus)
+    setTimeUntilUnblock(resolvedStatus.time_until_unblock_seconds || 0)
+    setShowCaptcha(Boolean(resolvedStatus.should_show_captcha))
+  }
 
   useEffect(() => {
+    if (isAuthLoading) {
+      return
+    }
+
     if (user && isAdmin) {
-      setTimeout(() => navigate('/admin'), 300);
-      return;
+      if (!adminMfaState.isLoaded) {
+        return
+      }
+
+      const destination = adminMfaState.currentLevel === 'aal2' ? '/admin' : '/admin/mfa'
+      setTimeout(() => navigate(destination), 300)
+      return
     }
 
     if (user && !isAdmin) {
-      setError('Usuário não possui permissão de administrador.');
-      setTimeout(() => navigate('/minha-conta'), 300);
+      setError('Nao foi possivel validar o acesso por esta rota.')
+      setTimeout(() => navigate('/minha-conta'), 300)
     }
-  }, [user, isAdmin, navigate]);
+  }, [adminMfaState.currentLevel, adminMfaState.isLoaded, isAdmin, isAuthLoading, navigate, user])
 
   useEffect(() => {
     if (remainingAttempts <= 3 && remainingAttempts > 0) {
-      setShowCaptcha(true);
+      setShowCaptcha(true)
     }
-  }, [remainingAttempts]);
+  }, [remainingAttempts])
 
   useEffect(() => {
-    if (timeUntilUnblock <= 0) return;
+    if (timeUntilUnblock <= 0) return
 
     const intervalId = window.setInterval(() => {
       setTimeUntilUnblock((current) => {
         if (current <= 1) {
-          window.clearInterval(intervalId);
+          window.clearInterval(intervalId)
           setRateLimitStatus((previous) => ({
             ...previous,
             is_blocked: false,
             blocked_until: null,
-            time_until_unblock_seconds: 0,
-          }));
-          return 0;
+            time_until_unblock_seconds: 0
+          }))
+          return 0
         }
 
-        return current - 1;
-      });
-    }, 1000);
+        return current - 1
+      })
+    }, 1000)
 
-    return () => window.clearInterval(intervalId);
-  }, [timeUntilUnblock]);
+    return () => window.clearInterval(intervalId)
+  }, [timeUntilUnblock])
 
   useEffect(() => {
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!normalizedEmail) {
-      setRateLimitStatus(defaultRateLimitStatus);
-      setTimeUntilUnblock(0);
-      setShowCaptcha(false);
-      return;
+    if (!email.trim()) {
+      applyRateLimitStatus(defaultRateLimitStatus)
+      setCaptchaToken(null)
+      setCaptchaRenderKey(0)
     }
-
-    const timeoutId = window.setTimeout(() => {
-      void loadRateLimitStatus(normalizedEmail).catch((rpcError) => {
-        console.warn('[AdminLogin] Falha ao carregar rate limit do servidor:', rpcError);
-      });
-    }, 250);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [email]);
+  }, [email])
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
 
-    const normalizedEmail = email.trim().toLowerCase();
-    let latestStatus = rateLimitStatus;
+    const normalizedEmail = email.trim().toLowerCase()
+    if (showCaptcha && !captchaToken) {
+      setError('Complete a verificacao de seguranca (captcha).')
+      return
+    }
+
+    setLoading(true)
+    setError('')
 
     try {
-      latestStatus = await loadRateLimitStatus(normalizedEmail);
-    } catch (rpcError) {
-      console.error('[AdminLogin] Erro ao validar rate limit no servidor:', rpcError);
-      setError('⚠️ Não foi possível validar a segurança do login agora. Tente novamente.');
-      return;
-    }
+      const { data, error: invokeError, response } = await supabase.functions.invoke('admin-login', {
+        method: 'POST',
+        body: {
+          email: normalizedEmail,
+          password,
+          captchaToken: captchaToken || null,
+          captchaProvider: resolveCaptchaProvider(),
+        },
+      })
 
-    if (latestStatus.is_blocked || latestStatus.remaining_attempts <= 0) {
-      setError(`🔒 Bloqueado por segurança. Tente novamente em ${formatTimeRemaining(latestStatus.time_until_unblock_seconds)}`);
-      return;
-    }
+      if (invokeError) {
+        const payload = await readAdminLoginErrorPayload(response)
+        applyRateLimitStatus(payload?.rateLimitStatus || defaultRateLimitStatus)
+        setError(
+          toSafeAdminLoginErrorMessage(
+            payload?.errorCode || invokeError.name,
+            payload?.error || invokeError.message,
+            payload?.rateLimitStatus || null,
+          )
+        )
 
-    if (latestStatus.should_show_captcha && !captchaToken) {
-      setError('⚠️ Complete a verificação de segurança (captcha)');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const { error: signInError } = await signIn(email, password);
-
-      if (signInError) {
-        const updatedStatus = await registerLoginAttempt(
-          normalizedEmail,
-          false,
-          `Login falhou: ${signInError.message}`
-        );
-
-        try {
-          await logAction({
-            action: ADMIN_ACTIONS.FORCE_LOGOUT,
-            resourceType: RESOURCE_TYPES.SYSTEM,
-            reason: `Login falhou: ${signInError.message}`,
-            oldValue: { email, timestamp: new Date().toISOString() }
-          });
-        } catch (auditError) {
-          console.warn('[AdminLogin] Falha ao registrar tentativa em auditoria:', auditError);
+        if (showCaptcha || payload?.rateLimitStatus?.should_show_captcha) {
+          setCaptchaToken(null)
+          setCaptchaRenderKey((current) => current + 1)
         }
 
-        if (updatedStatus.is_blocked || updatedStatus.remaining_attempts <= 0) {
-          setError(`🔒 Bloqueado por segurança. Tente novamente em ${formatTimeRemaining(updatedStatus.time_until_unblock_seconds)}`);
-        } else if (signInError.message.includes('Invalid')) {
-          setError('❌ Credenciais inválidas. Verifique e-mail e senha.');
-        } else if (signInError.message.includes('Email not confirmed')) {
-          setError('⚠️ E-mail não verificado. Verifique sua caixa de entrada.');
-        } else if (signInError.message === 'USER_SUSPENDED') {
-          setError('❌ Sua conta administrativa está suspensa.');
-        } else {
-          setError(`❌ ${signInError.message}`);
-        }
-
-        setCaptchaToken(null);
-        setLoading(false);
-      } else {
-        await registerLoginAttempt(normalizedEmail, true, 'Login administrativo concluido com sucesso.');
-      debugLog('[AdminLogin] Login bem-sucedido');
+        setLoading(false)
+        return
       }
+
+      const payload = data as AdminLoginFunctionSuccessPayload | null
+      if (!payload?.success || !payload.session?.accessToken || !payload.session?.refreshToken) {
+        setError('Nao foi possivel concluir o acesso. Tente novamente.')
+        setLoading(false)
+        return
+      }
+
+      applyRateLimitStatus(payload.rateLimitStatus || defaultRateLimitStatus)
+
+      const { error: sessionApplyError } = await supabase.auth.setSession({
+        access_token: payload.session.accessToken,
+        refresh_token: payload.session.refreshToken,
+      })
+
+      if (sessionApplyError) {
+        console.error('[AdminLogin] Falha ao aplicar sessao administrativa:', sessionApplyError)
+        setError('Nao foi possivel concluir o acesso agora. Tente novamente em instantes.')
+        setLoading(false)
+        return
+      }
+
+      debugLog(
+        payload.admin.requiresMfa
+          ? '[AdminLogin] Primeira etapa validada no servidor; aguardando MFA'
+          : '[AdminLogin] Login administrativo concluido com MFA valido'
+      )
+
+      navigate(payload.admin.requiresMfa ? '/admin/mfa' : '/admin', { replace: true })
     } catch (err) {
-      console.error('[AdminLogin] Erro inesperado:', err);
-      setError('❌ Erro de conexão. Tente novamente.');
-      setLoading(false);
+      console.error('[AdminLogin] Erro inesperado:', err)
+      setError('Erro de conexao. Tente novamente.')
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
@@ -250,7 +304,7 @@ const AdminLoginView: React.FC = () => {
           <div className="bg-red-500 text-white p-4 rounded-xl mb-6 text-center border-2 border-red-600 animate-shake">
             <div className="flex items-center justify-center gap-2 mb-2">
               <ShieldAlert className="w-5 h-5" />
-              <p className="text-sm font-black uppercase tracking-wider">Bloqueado por Segurança</p>
+              <p className="text-sm font-black uppercase tracking-wider">Bloqueado por Seguranca</p>
             </div>
             <p className="text-xs font-semibold">
               Muitas tentativas falhadas. Aguarde {formatTimeRemaining(timeUntilUnblock)}
@@ -262,7 +316,7 @@ const AdminLoginView: React.FC = () => {
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded-xl mb-6 text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <AlertTriangle className="w-4 h-4" />
-              <p className="text-xs font-bold uppercase tracking-wider">Atenção</p>
+              <p className="text-xs font-bold uppercase tracking-wider">Atencao</p>
             </div>
             <p className="text-xs font-semibold">
               {remainingAttempts} tentativa{remainingAttempts !== 1 ? 's' : ''} restante{remainingAttempts !== 1 ? 's' : ''}
@@ -279,7 +333,7 @@ const AdminLoginView: React.FC = () => {
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-              E-mail Administrativo
+              E-mail
             </label>
             <input
               type="email"
@@ -295,7 +349,7 @@ const AdminLoginView: React.FC = () => {
 
           <div>
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">
-              Senha Mestra
+              Senha
             </label>
             <input
               type="password"
@@ -305,7 +359,7 @@ const AdminLoginView: React.FC = () => {
               onChange={(e) => setPassword(e.target.value)}
               disabled={isBlocked}
               className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-slate-900 outline-none transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              placeholder="••••••••"
+              placeholder="********"
             />
           </div>
 
@@ -314,21 +368,22 @@ const AdminLoginView: React.FC = () => {
               <div className="flex items-center gap-2 mb-3">
                 <CheckCircle2 className="w-4 h-4 text-slate-600" />
                 <p className="text-xs font-black text-slate-600 uppercase tracking-wider">
-                  Verificação de Segurança
+                  Verificacao de Seguranca
                 </p>
               </div>
               <CaptchaWidget
+                key={captchaRenderKey}
                 onVerify={(token) => {
-                  setCaptchaToken(token);
-                  setError('');
+                  setCaptchaToken(token)
+                  setError('')
                 }}
                 onError={() => {
-                  setCaptchaToken(null);
-                  setError('⚠️ Erro na verificação. Tente novamente.');
+                  setCaptchaToken(null)
+                  setError('Nao foi possivel concluir a verificacao de seguranca. Tente novamente.')
                 }}
                 onExpire={() => {
-                  setCaptchaToken(null);
-                  setError('⚠️ Verificação expirada. Complete novamente.');
+                  setCaptchaToken(null)
+                  setError('A verificacao de seguranca expirou. Tente novamente.')
                 }}
                 theme="light"
                 size="normal"
@@ -378,7 +433,7 @@ const AdminLoginView: React.FC = () => {
         }
       `}</style>
     </div>
-  );
-};
+  )
+}
 
-export default AdminLoginView;
+export default AdminLoginView

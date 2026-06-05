@@ -3,7 +3,8 @@ create table if not exists public.payments (
   user_id uuid not null references public.users(id) on delete cascade,
   subscription_id uuid references public.user_subscriptions(id) on delete set null,
   plan_id uuid references public.plans(id) on delete set null,
-  provider text not null default 'stripe',
+  booster_id uuid references public.highlight_boosters(id) on delete set null,
+  provider text not null default 'asaas',
   provider_payment_id text not null unique,
   provider_preference_id text,
   provider_customer_id text,
@@ -11,6 +12,7 @@ create table if not exists public.payments (
   provider_invoice_id text,
   provider_checkout_session_id text,
   external_reference text,
+  billing_model text check (billing_model in ('one_time', 'recurring')),
   billing_cycle text check (billing_cycle in ('monthly', 'yearly')),
   description text,
   amount numeric(12,2) not null,
@@ -24,29 +26,29 @@ create table if not exists public.payments (
   invoice_number text,
   invoice_pdf_url text,
   invoice_storage_path text,
+  invoice_xml_url text,
+  invoice_xml_storage_path text,
   invoice_status text not null default 'pending' check (
     invoice_status in ('pending', 'available', 'failed', 'not_applicable')
   ),
   invoice_issued_at timestamptz,
   invoice_issued_on date,
   invoice_notes text,
+  fiscal_provider text,
+  fiscal_external_id text,
+  fiscal_status text not null default 'not_requested' check (
+    fiscal_status in ('not_requested', 'queued', 'processing', 'issued', 'failed', 'manual')
+  ),
+  fiscal_last_attempt_at timestamptz,
+  fiscal_error_message text,
   paid_at timestamptz,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
-alter table public.payments
-  add column if not exists invoice_storage_path text;
-
-alter table public.payments
-  add column if not exists invoice_issued_at timestamptz;
-
-alter table public.payments
-  add column if not exists invoice_issued_on date;
-
-alter table public.payments
-  add column if not exists invoice_notes text;
+alter table if exists public.payments
+  add column if not exists billing_model text;
 
 create or replace function public.sync_payments_invoice_issued_on()
 returns trigger
@@ -72,13 +74,6 @@ begin
       when new.invoice_issued_on is null then null
       else (new.invoice_issued_on::timestamp at time zone 'America/Sao_Paulo')
     end;
-  elsif new.invoice_issued_at is not null then
-    new.invoice_issued_on := (new.invoice_issued_at at time zone 'America/Sao_Paulo')::date;
-  elsif new.invoice_issued_on is not null then
-    new.invoice_issued_at := (new.invoice_issued_on::timestamp at time zone 'America/Sao_Paulo');
-  else
-    new.invoice_issued_at := null;
-    new.invoice_issued_on := null;
   end if;
 
   return new;
@@ -92,6 +87,22 @@ on public.payments
 for each row
 execute function public.sync_payments_invoice_issued_on();
 
+create or replace function public.update_payments_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_update_payments_updated_at on public.payments;
+create trigger trg_update_payments_updated_at
+before update on public.payments
+for each row
+execute function public.update_payments_updated_at();
+
 create index if not exists idx_payments_user_id_created_at
   on public.payments(user_id, created_at desc);
 
@@ -100,6 +111,12 @@ create index if not exists idx_payments_status
 
 create index if not exists idx_payments_plan_id
   on public.payments(plan_id);
+
+create index if not exists idx_payments_billing_model
+  on public.payments(billing_model);
+
+create index if not exists idx_payments_booster_id
+  on public.payments(booster_id);
 
 create index if not exists idx_payments_provider_customer_id
   on public.payments(provider, provider_customer_id)

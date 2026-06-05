@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
+import { extractBearerToken, isAdminAal2Profile } from '../_shared/security.ts';
 import {
   buildCepeaUrl,
   CommodityKey,
@@ -35,9 +36,9 @@ type RequestBody = {
   cepeaIndicatorId?: number | null;
 };
 
-const isAdminUser = async (supabaseAdmin: any, userId: string) => {
+const isAdminUser = async (supabaseAdmin: any, userId: string, token: string) => {
   const { data: userProfile } = await supabaseAdmin.from('users').select('role, is_admin').eq('id', userId).maybeSingle();
-  return !!userProfile?.is_admin || (userProfile?.role || '').toLowerCase() === 'admin';
+  return isAdminAal2Profile(userProfile, token);
 };
 
 const resolveSource = async (
@@ -100,12 +101,10 @@ serve(async (req) => {
     const authClient = createClient(supabaseUrl, anonKey);
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    const authHeader = req.headers.get('Authorization') || '';
-    if (!authHeader.startsWith('Bearer ')) {
+    const token = extractBearerToken(req);
+    if (!token) {
       return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
     }
-
-    const token = authHeader.slice(7).trim();
     const {
       data: { user },
       error: authError,
@@ -115,7 +114,7 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
     }
 
-    if (!(await isAdminUser(supabaseAdmin, user.id))) {
+    if (!(await isAdminUser(supabaseAdmin, user.id, token))) {
       return jsonResponse({ success: false, error: 'Admin access required' }, 403);
     }
 

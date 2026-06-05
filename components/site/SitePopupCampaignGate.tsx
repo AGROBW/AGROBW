@@ -135,22 +135,31 @@ const SitePopupCampaignGate: React.FC = () => {
     return () => { window.clearTimeout(timeoutId); };
   }, [activePopup, location.pathname, user?.id]);
 
-  const handleClose = () => {
+  const dismissActivePopup = () => {
+    if (dismissedKey) {
+      window.localStorage.setItem(dismissedKey, 'true');
+    }
+
     if (activePopup) {
       void recordSitePopupEvent(activePopup.id, 'dismiss', location.pathname, getPopupSessionKey());
+      if (user?.id) {
+        void syncSitePopupUserState(activePopup.id, user.id, 'dismiss');
+      }
     }
+
     setIsAnimatingIn(false);
-    setTimeout(() => setIsVisible(false), 280);
+    setTimeout(() => {
+      setIsVisible(false);
+      setActivePopup(null);
+    }, 280);
+  };
+
+  const handleClose = () => {
+    dismissActivePopup();
   };
 
   const handleDecline = () => {
-    if (dismissedKey) window.localStorage.setItem(dismissedKey, 'true');
-    if (activePopup) {
-      void recordSitePopupEvent(activePopup.id, 'dismiss', location.pathname, getPopupSessionKey());
-      if (user?.id) void syncSitePopupUserState(activePopup.id, user.id, 'dismiss');
-    }
-    setIsAnimatingIn(false);
-    setTimeout(() => setIsVisible(false), 280);
+    dismissActivePopup();
   };
 
   const handlePrimaryAction = () => {

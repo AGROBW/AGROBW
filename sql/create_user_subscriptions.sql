@@ -1,303 +1,249 @@
 -- =====================================================
--- Tabela de Assinaturas de Usuarios
--- =====================================================
--- Esta tabela gerencia as assinaturas ativas dos usuarios
--- apos checkout aprovado.
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM information_schema.tables
-    WHERE table_schema = 'public'
-      AND table_name = 'user_subscriptions'
-  ) THEN
-    CREATE TABLE public.user_subscriptions (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-      -- Relacionamentos
-      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      plan_id UUID NOT NULL REFERENCES plans(id) ON DELETE SET NULL,
-
-      -- Detalhes da assinatura
-      billing_cycle VARCHAR(20) NOT NULL CHECK (billing_cycle IN ('monthly', 'yearly')),
-      status VARCHAR(20) NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'active', 'trialing', 'past_due', 'canceled', 'cancelled', 'expired')),
-      provider VARCHAR(20) NOT NULL DEFAULT 'stripe'
-        CHECK (provider IN ('stripe', 'legacy')),
-
-      -- Valores
-      amount_paid NUMERIC(10, 2) NOT NULL,
-      currency VARCHAR(3) DEFAULT 'BRL',
-
-      -- Datas
-      starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      expires_at TIMESTAMPTZ NOT NULL,
-      cancelled_at TIMESTAMPTZ,
-
-      -- Identificadores genericos de gateway
-      provider_customer_id VARCHAR(150),
-      provider_subscription_id VARCHAR(150),
-      provider_price_id VARCHAR(150),
-      provider_checkout_session_id VARCHAR(150),
-
-      -- Metadados
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-
-      CONSTRAINT unique_active_subscription UNIQUE (user_id, plan_id, status)
-    );
-
-    CREATE INDEX idx_user_subscriptions_user_id ON user_subscriptions(user_id);
-    CREATE INDEX idx_user_subscriptions_plan_id ON user_subscriptions(plan_id);
-    CREATE INDEX idx_user_subscriptions_status ON user_subscriptions(status);
-    CREATE INDEX idx_user_subscriptions_provider ON user_subscriptions(provider);
-    CREATE INDEX idx_user_subscriptions_expires_at ON user_subscriptions(expires_at DESC);
-    CREATE INDEX idx_user_subscriptions_provider_subscription_id ON user_subscriptions(provider_subscription_id);
-    CREATE INDEX idx_user_subscriptions_provider_price_id ON user_subscriptions(provider_price_id);
-    CREATE INDEX idx_user_subscriptions_provider_checkout_session_id ON user_subscriptions(provider_checkout_session_id);
-
-    RAISE NOTICE 'Tabela user_subscriptions criada com sucesso';
-  ELSE
-    RAISE NOTICE 'Tabela user_subscriptions ja existe';
-  END IF;
-END $$;
-
--- =====================================================
--- RLS
+-- Tabela de Assinaturas de Usuarios (ASAAS + LEGACY)
 -- =====================================================
 
-ALTER TABLE user_subscriptions ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Users can view own subscriptions" ON user_subscriptions;
-CREATE POLICY "Users can view own subscriptions"
-ON user_subscriptions
-FOR SELECT
-TO authenticated
-USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Admins can view all subscriptions" ON user_subscriptions;
-CREATE POLICY "Admins can view all subscriptions"
-ON user_subscriptions
-FOR SELECT
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM users
-    WHERE id = auth.uid() AND role = 'admin'
-  )
+create table if not exists public.user_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  plan_id uuid null references public.plans(id) on delete set null,
+  billing_model text not null default 'one_time'
+    check (billing_model in ('one_time', 'recurring')),
+  billing_cycle text not null check (billing_cycle in ('monthly', 'yearly')),
+  status text not null default 'pending'
+    check (status in ('pending', 'active', 'trialing', 'past_due', 'canceled', 'cancelled', 'expired')),
+  provider text not null default 'asaas'
+    check (provider in ('asaas', 'legacy')),
+  amount_paid numeric(10,2) not null default 0,
+  currency text not null default 'BRL',
+  current_period_start timestamptz not null default now(),
+  current_period_end timestamptz not null,
+  category_highlights_carryover integer not null default 0,
+  home_highlights_carryover integer not null default 0,
+  cancel_at_period_end boolean not null default false,
+  trial_end_date timestamptz null,
+  provider_customer_id text,
+  provider_subscription_id text,
+  provider_price_id text,
+  provider_checkout_session_id text,
+  source text null,
+  promotion_code_id uuid null references public.promotion_plan_codes(id) on delete set null,
+  promotion_redemption_id uuid null references public.promotion_plan_redemptions(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
-DROP POLICY IF EXISTS "Only admins can create subscriptions" ON user_subscriptions;
-CREATE POLICY "Only admins can create subscriptions"
-ON user_subscriptions
-FOR INSERT
-TO authenticated
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM users
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+alter table public.user_subscriptions
+  add column if not exists billing_model text not null default 'one_time';
 
-DROP POLICY IF EXISTS "Admins can update subscriptions" ON user_subscriptions;
-CREATE POLICY "Admins can update subscriptions"
-ON user_subscriptions
-FOR UPDATE
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM users
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-)
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM users
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+alter table public.user_subscriptions
+  add column if not exists current_period_start timestamptz not null default now();
 
-DROP POLICY IF EXISTS "Admins can delete subscriptions" ON user_subscriptions;
-CREATE POLICY "Admins can delete subscriptions"
-ON user_subscriptions
-FOR DELETE
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM users
-    WHERE id = auth.uid() AND role = 'admin'
-  )
-);
+alter table public.user_subscriptions
+  add column if not exists current_period_end timestamptz;
 
--- =====================================================
--- Trigger para updated_at
--- =====================================================
+alter table public.user_subscriptions
+  add column if not exists category_highlights_carryover integer not null default 0;
 
-CREATE OR REPLACE FUNCTION update_user_subscriptions_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+alter table public.user_subscriptions
+  add column if not exists home_highlights_carryover integer not null default 0;
 
-DROP TRIGGER IF EXISTS trigger_update_user_subscriptions_updated_at ON user_subscriptions;
-CREATE TRIGGER trigger_update_user_subscriptions_updated_at
-BEFORE UPDATE ON user_subscriptions
-FOR EACH ROW
-EXECUTE FUNCTION update_user_subscriptions_updated_at();
+alter table public.user_subscriptions
+  add column if not exists cancel_at_period_end boolean not null default false;
 
--- =====================================================
--- Funcoes utilitarias
--- =====================================================
+alter table public.user_subscriptions
+  add column if not exists trial_end_date timestamptz null;
 
-CREATE OR REPLACE FUNCTION cancel_subscription(p_subscription_id UUID)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  v_user_id UUID;
-BEGIN
-  SELECT user_id
-    INTO v_user_id
-  FROM user_subscriptions
-  WHERE id = p_subscription_id;
+alter table public.user_subscriptions
+  add column if not exists source text null;
 
-  IF auth.uid() != v_user_id
-     AND NOT EXISTS (
-       SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'
-     ) THEN
-    RAISE EXCEPTION 'Unauthorized to cancel this subscription';
-  END IF;
+alter table public.user_subscriptions
+  add column if not exists promotion_code_id uuid null references public.promotion_plan_codes(id) on delete set null;
 
-  UPDATE user_subscriptions
-  SET
+alter table public.user_subscriptions
+  add column if not exists promotion_redemption_id uuid null references public.promotion_plan_redemptions(id) on delete set null;
+
+create index if not exists idx_user_subscriptions_user_id on public.user_subscriptions(user_id);
+create index if not exists idx_user_subscriptions_plan_id on public.user_subscriptions(plan_id);
+create index if not exists idx_user_subscriptions_billing_model on public.user_subscriptions(billing_model);
+create index if not exists idx_user_subscriptions_status on public.user_subscriptions(status);
+create index if not exists idx_user_subscriptions_provider on public.user_subscriptions(provider);
+create index if not exists idx_user_subscriptions_period_end on public.user_subscriptions(current_period_end desc);
+create index if not exists idx_user_subscriptions_provider_subscription_id on public.user_subscriptions(provider_subscription_id);
+create index if not exists idx_user_subscriptions_provider_customer_id on public.user_subscriptions(provider_customer_id);
+
+create unique index if not exists idx_user_subscriptions_one_active_per_user
+  on public.user_subscriptions (user_id)
+  where status = 'active';
+
+alter table public.user_subscriptions enable row level security;
+
+drop policy if exists "Users can view own subscriptions" on public.user_subscriptions;
+create policy "Users can view own subscriptions"
+on public.user_subscriptions
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "Admins can view all subscriptions" on public.user_subscriptions;
+create policy "Admins can view all subscriptions"
+on public.user_subscriptions
+for select
+to authenticated
+using (public.is_admin() = true);
+
+drop policy if exists "Only admins can create subscriptions" on public.user_subscriptions;
+create policy "Only admins can create subscriptions"
+on public.user_subscriptions
+for insert
+to authenticated
+with check (public.is_admin() = true);
+
+drop policy if exists "Admins can update subscriptions" on public.user_subscriptions;
+create policy "Admins can update subscriptions"
+on public.user_subscriptions
+for update
+to authenticated
+using (public.is_admin() = true)
+with check (public.is_admin() = true);
+
+drop policy if exists "Admins can delete subscriptions" on public.user_subscriptions;
+create policy "Admins can delete subscriptions"
+on public.user_subscriptions
+for delete
+to authenticated
+using (public.is_admin() = true);
+
+create or replace function public.update_user_subscriptions_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trigger_update_user_subscriptions_updated_at on public.user_subscriptions;
+create trigger trigger_update_user_subscriptions_updated_at
+before update on public.user_subscriptions
+for each row
+execute function public.update_user_subscriptions_updated_at();
+
+create or replace function public.cancel_subscription(p_subscription_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid;
+begin
+  select user_id into v_user_id
+  from public.user_subscriptions
+  where id = p_subscription_id;
+
+  if auth.uid() != v_user_id and not public.is_admin() then
+    raise exception 'Unauthorized to cancel this subscription';
+  end if;
+
+  update public.user_subscriptions
+  set
     status = 'cancelled',
-    cancelled_at = NOW()
-  WHERE id = p_subscription_id;
+    cancel_at_period_end = true,
+    current_period_end = least(coalesce(current_period_end, now()), now()),
+    updated_at = now()
+  where id = p_subscription_id;
 
-  RETURN true;
-END;
+  return true;
+end;
 $$;
 
-GRANT EXECUTE ON FUNCTION cancel_subscription(UUID) TO authenticated;
+grant execute on function public.cancel_subscription(uuid) to authenticated;
 
-CREATE OR REPLACE FUNCTION has_active_subscription(p_user_id UUID)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  v_has_active BOOLEAN;
-BEGIN
-  SELECT EXISTS (
-    SELECT 1
-    FROM user_subscriptions
-    WHERE user_id = p_user_id
-      AND status = 'active'
-      AND expires_at > NOW()
+create or replace function public.has_active_subscription(p_user_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_has_active boolean;
+begin
+  select exists (
+    select 1
+    from public.user_subscriptions
+    where user_id = p_user_id
+      and status in ('active', 'trialing', 'past_due')
+      and current_period_end > now()
   )
-  INTO v_has_active;
+  into v_has_active;
 
-  RETURN v_has_active;
-END;
+  return v_has_active;
+end;
 $$;
 
-GRANT EXECUTE ON FUNCTION has_active_subscription(UUID) TO authenticated, anon;
+grant execute on function public.has_active_subscription(uuid) to authenticated, anon;
 
-CREATE OR REPLACE FUNCTION get_active_subscription(p_user_id UUID)
-RETURNS TABLE (
-  id UUID,
-  plan_id UUID,
-  plan_name VARCHAR,
-  billing_cycle VARCHAR,
-  status VARCHAR,
-  starts_at TIMESTAMPTZ,
-  expires_at TIMESTAMPTZ,
-  amount_paid NUMERIC
+create or replace function public.get_active_subscription(p_user_id uuid)
+returns table (
+  id uuid,
+  plan_id uuid,
+  plan_name text,
+  billing_cycle text,
+  status text,
+  current_period_start timestamptz,
+  current_period_end timestamptz,
+  amount_paid numeric
 )
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-  RETURN QUERY
-  SELECT
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return query
+  select
     s.id,
     s.plan_id,
-    p.name AS plan_name,
+    p.name as plan_name,
     s.billing_cycle,
     s.status,
-    s.starts_at,
-    s.expires_at,
+    s.current_period_start,
+    s.current_period_end,
     s.amount_paid
-  FROM user_subscriptions s
-  JOIN plans p ON s.plan_id = p.id
-  WHERE s.user_id = p_user_id
-    AND s.status = 'active'
-    AND s.expires_at > NOW()
-  ORDER BY s.expires_at DESC
-  LIMIT 1;
-END;
+  from public.user_subscriptions s
+  left join public.plans p on p.id = s.plan_id
+  where s.user_id = p_user_id
+    and s.status in ('active', 'trialing', 'past_due')
+    and s.current_period_end > now()
+  order by s.current_period_end desc
+  limit 1;
+end;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_active_subscription(UUID) TO authenticated, anon;
+grant execute on function public.get_active_subscription(uuid) to authenticated, anon;
 
-CREATE OR REPLACE FUNCTION expire_old_subscriptions()
-RETURNS INTEGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  v_expired_count INTEGER;
-BEGIN
-  WITH expired AS (
-    UPDATE user_subscriptions
-    SET status = 'expired'
-    WHERE status = 'active'
-      AND expires_at < NOW()
-    RETURNING id
+create or replace function public.expire_old_subscriptions()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_expired_count integer;
+begin
+  with expired_rows as (
+    update public.user_subscriptions
+    set
+      status = 'expired',
+      updated_at = now()
+    where status in ('active', 'trialing', 'past_due')
+      and current_period_end < now()
+    returning id
   )
-  SELECT COUNT(*) INTO v_expired_count FROM expired;
+  select count(*) into v_expired_count from expired_rows;
 
-  RAISE NOTICE 'Expired % subscriptions', v_expired_count;
-  RETURN v_expired_count;
-END;
+  return v_expired_count;
+end;
 $$;
 
-GRANT EXECUTE ON FUNCTION expire_old_subscriptions() TO authenticated;
-
--- =====================================================
--- Comentarios
--- =====================================================
-
-COMMENT ON TABLE user_subscriptions IS 'Assinaturas de usuarios dos planos de pagamento';
-COMMENT ON FUNCTION cancel_subscription(UUID) IS 'Cancela uma assinatura (usuario ou admin)';
-COMMENT ON FUNCTION has_active_subscription(UUID) IS 'Verifica se usuario tem assinatura ativa';
-COMMENT ON FUNCTION get_active_subscription(UUID) IS 'Retorna assinatura ativa do usuario';
-COMMENT ON FUNCTION expire_old_subscriptions() IS 'Job para expirar assinaturas vencidas';
-
--- =====================================================
--- Verificacao
--- =====================================================
-
-SELECT
-  column_name,
-  data_type,
-  is_nullable,
-  column_default
-FROM information_schema.columns
-WHERE table_name = 'user_subscriptions'
-ORDER BY ordinal_position;
-
-SELECT
-  schemaname,
-  tablename,
-  policyname,
-  permissive,
-  roles,
-  cmd,
-  qual
-FROM pg_policies
-WHERE tablename = 'user_subscriptions';
+grant execute on function public.expire_old_subscriptions() to authenticated;

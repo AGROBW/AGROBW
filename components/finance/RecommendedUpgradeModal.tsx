@@ -8,8 +8,7 @@ import {
   getCustomPlanContactLink,
   isCustomPlan,
 } from '../../services/paymentUtils';
-import { initiatePlatformPlanCheckout, openStripeCustomerPortal } from '../../services/paymentCheckoutService';
-import { requestSubscriptionChangeNextCycle } from '../../services/subscriptionChangeService';
+import { initiatePlatformPlanCheckout } from '../../services/paymentCheckoutService';
 import toast from 'react-hot-toast';
 
 type BillingCycle = 'monthly' | 'yearly';
@@ -66,7 +65,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
     }
 
     if (nextPlan.has_seller_store && !currentPlan?.has_seller_store) {
-      items.push('Loja parceira e perfil mais profissional');
+      items.push('Loja parceira e perfil profissional');
     }
 
     if (nextPlan.has_email_marketing && !currentPlan?.has_email_marketing) {
@@ -77,11 +76,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
       items.push(`Radar com até ${nextPlan.radar_max_alerts} alertas`);
     }
 
-    if (items.length === 0) {
-      return (nextPlan.display_features || []).filter(Boolean).slice(0, 4);
-    }
-
-    return items.slice(0, 4);
+    return items.length > 0 ? items.slice(0, 4) : (nextPlan.display_features || []).filter(Boolean).slice(0, 4);
   }, [currentPlan, nextPlan]);
 
   if (!isOpen || !nextPlan) {
@@ -97,18 +92,33 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
 
   const yearlySavings = calculateYearlySavings(nextPlan.monthly_price, nextPlan.yearly_price);
   const checkoutSummary =
-    billingCycle === 'monthly'
-      ? `Assinatura mensal de R$ ${formatCurrency(nextPlan.monthly_price)}.`
-      : `Assinatura anual de R$ ${formatCurrency(calculateYearlyTotal(nextPlan.monthly_price, nextPlan.yearly_price))} cobrados de uma vez.`;
+    nextPlan.billing_model === 'recurring'
+      ? billingCycle === 'monthly'
+        ? `Plano com cobrança recorrente mensal de R$ ${formatCurrency(nextPlan.monthly_price)}.`
+        : `Plano com cobrança recorrente anual de R$ ${formatCurrency(calculateYearlyTotal(nextPlan.monthly_price, nextPlan.yearly_price))} cobrados de uma vez.`
+      : billingCycle === 'monthly'
+        ? `Compra avulsa com vigência mensal de R$ ${formatCurrency(nextPlan.monthly_price)}.`
+        : `Compra avulsa com vigência anual de R$ ${formatCurrency(calculateYearlyTotal(nextPlan.monthly_price, nextPlan.yearly_price))} cobrados de uma vez.`;
+  const checkoutActionLabel =
+    nextPlan.billing_model === 'recurring'
+      ? `Contratar ${getBillingCycleLabel(billingCycle)}`
+      : `Comprar ${getBillingCycleLabel(billingCycle)}`;
 
   const handleSubscribe = async () => {
     if (!userId) {
-      toast.error('Você precisa estar logado para assinar um plano.');
+      toast.error('Você precisa estar logado para contratar um plano.');
       return;
     }
 
     if (isCustomPlan(nextPlan.name)) {
       window.open(getCustomPlanContactLink(nextPlan.name), '_blank');
+      return;
+    }
+
+    if (currentPlan) {
+      toast('Os ajustes de planos com cobrança recorrente em andamento ficam centralizados na aba Financeiro.');
+      onClose();
+      window.location.href = '/minha-conta/financeiro';
       return;
     }
 
@@ -132,58 +142,18 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
 
       toast.dismiss('upgrade-checkout-loading');
 
-      if (!result.success && result.action === 'schedule_subscription_change') {
-        const changeKind =
-          currentPlan && nextPlan.position < currentPlan.position ? 'downgrade' : 'upgrade';
-
-        const scheduleResult = await requestSubscriptionChangeNextCycle({
-          changeKind,
-          targetPlanId: nextPlan.id,
-          targetBillingCycle: billingCycle,
-        });
-
-        if (!scheduleResult.success) {
-          toast.error(scheduleResult.error || result.error || 'Não foi possível agendar a alteração do plano.');
-          return;
-        }
-
-        toast.success(
-          changeKind === 'upgrade'
-            ? 'Upgrade agendado para o próximo ciclo.'
-            : 'Downgrade agendado para o próximo ciclo.'
-        );
-        if (scheduleResult.warning) {
-          toast.warning(`A mudança foi registrada, mas a sincronização com a Stripe ainda precisa de revisão: ${scheduleResult.warning}`);
-        }
-        await onScheduledChangeCreated?.();
-        onClose();
-        return;
-      }
-
-      if (!result.success && result.action === 'open_stripe_portal') {
-        const portalResult = await openStripeCustomerPortal('/minha-conta/assinatura');
-
-        if (!portalResult.success) {
-          toast.error(portalResult.error || result.error || 'Não foi possível abrir o portal Stripe.');
-          return;
-        }
-
-        toast.success('Portal Stripe aberto para gerenciar sua assinatura atual.');
-        onClose();
-        return;
-      }
-
       if (!result.success) {
-        toast.error(result.error || 'Não foi possível iniciar o upgrade.');
+        toast.error(result.error || 'Não foi possível iniciar a contratação.');
         return;
       }
 
-      toast.success(`Redirecionando para o checkout Stripe ${getBillingCycleLabel(billingCycle).toLowerCase()}...`);
+      toast.success(`Redirecionando para o checkout Asaas ${getBillingCycleLabel(billingCycle).toLowerCase()}...`);
+      await onScheduledChangeCreated?.();
       onClose();
     } catch (error) {
-      console.error('Erro ao iniciar upgrade:', error);
+      console.error('Erro ao iniciar contratação no modal de upgrade:', error);
       toast.dismiss('upgrade-checkout-loading');
-      toast.error('Não foi possível iniciar o upgrade agora.');
+      toast.error('Não foi possível iniciar a contratação agora.');
     } finally {
       setLoading(false);
     }
@@ -200,14 +170,17 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
         >
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.28em]" style={{ color: `color-mix(in srgb, ${settings.primaryColor} 70%, white)` }}>
+              <p
+                className="text-[11px] font-black uppercase tracking-[0.28em]"
+                style={{ color: `color-mix(in srgb, ${settings.primaryColor} 70%, white)` }}
+              >
                 Upgrade recomendado
               </p>
               <h3 className="mt-2 text-xl md:text-2xl font-black tracking-tight">
                 {currentPlan?.name ? `${currentPlan.name} para ${nextPlan.name}` : nextPlan.name}
               </h3>
               <p className="mt-2 text-xs md:text-sm text-slate-200">
-                Assine o próximo plano da sua jornada e ganhe mais alcance, recursos e visibilidade.
+                Use o checkout hospedado do Asaas para ativar uma nova contratação com mais alcance e recursos.
               </p>
             </div>
             <button
@@ -249,7 +222,10 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
 
           <div
             className="flex min-h-0 flex-col rounded-[1.5rem] md:rounded-[2rem] border bg-white p-4 md:p-6 lg:p-7 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.35)]"
-            style={{ borderColor: settings.primaryColor, boxShadow: `0 0 0 4px color-mix(in srgb, ${settings.primaryColor} 16%, white)` }}
+            style={{
+              borderColor: settings.primaryColor,
+              boxShadow: `0 0 0 4px color-mix(in srgb, ${settings.primaryColor} 16%, white)`,
+            }}
           >
             <div className="mb-4 md:mb-6 flex items-start justify-between gap-3 md:gap-4">
               <div>
@@ -259,103 +235,54 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
                 <h3 className="text-xl md:text-2xl font-black text-slate-950">{nextPlan.name}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-500">{nextPlan.description}</p>
               </div>
-              {nextPlan.is_popular && (
-                <span
-                  className="whitespace-nowrap rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-white"
-                  style={{ backgroundColor: settings.primaryColor }}
-                >
-                  Escolha segura
-                </span>
-              )}
             </div>
 
-            <div className="rounded-[1.25rem] md:rounded-[1.5rem] bg-slate-950 p-4 md:p-5 text-white">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <span
-                  className="inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]"
-                  style={{
-                    backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)`,
-                    color: settings.primaryColor,
-                  }}
-                >
-                  {getBillingCycleLabel(billingCycle)}
+            <div className="rounded-[1.5rem] bg-slate-950 px-5 py-5 text-white">
+              <div className="flex items-end gap-2">
+                <span className="text-4xl md:text-5xl font-black tracking-tighter">
+                  R$ {formatCurrency(displayPrice)}
                 </span>
-                {billingCycle === 'yearly' ? (
-                  <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                    Pagamento a vista anual
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                    Renovacao mensal
-                  </span>
-                )}
+                <span className="pb-1 text-sm text-slate-300">
+                  {billingCycle === 'yearly' ? '/mês (cobrado anual)' : '/mês'}
+                </span>
               </div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-base font-bold text-slate-400">R$</span>
-                <span className="text-4xl md:text-5xl font-black tracking-tighter">{formatCurrency(displayPrice)}</span>
-                <span className="text-sm font-medium text-slate-400">/mês</span>
-              </div>
-              {billingCycle === 'yearly' && nextPlan.yearly_price > 0 ? (
-                <p className="mt-3 text-sm font-semibold" style={{ color: `color-mix(in srgb, ${settings.primaryColor} 55%, white)` }}>
-                  Cobrança anual: R$ {formatCurrency(nextPlan.yearly_price)}
-                  {yearlySavings.amount > 0 ? ` | economia de ${yearlySavings.percentage}%` : ''}
-                </p>
-              ) : nextPlan.price_caption?.trim() ? (
-                <p className="mt-3 text-sm font-semibold text-slate-400">
-                  {nextPlan.price_caption.trim()}
+              <p className="mt-3 text-sm text-slate-300">{checkoutSummary}</p>
+              {billingCycle === 'yearly' && yearlySavings.amount > 0 ? (
+                <p
+                  className="mt-2 text-xs font-black uppercase tracking-[0.18em]"
+                  style={{ color: `color-mix(in srgb, ${settings.primaryColor} 65%, white)` }}
+                >
+                  Economia de {yearlySavings.percentage}% no ciclo anual
                 </p>
               ) : null}
-              <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-                {checkoutSummary}
-              </p>
             </div>
 
-            <div className="mt-4 md:mt-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">O que você ganha no upgrade</p>
-              <ul className="mt-3 md:mt-4 space-y-2.5 md:space-y-3">
+            <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 px-5 py-4">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                Destaques do plano
+              </p>
+              <ul className="mt-3 space-y-2">
                 {highlights.map((item) => (
                   <li key={item} className="flex items-start gap-3 text-sm font-medium text-slate-700">
-                    <Check className="mt-0.5 h-4 w-4 flex-shrink-0" strokeWidth={2} style={{ color: settings.primaryColor }} />
+                    <Check className="mt-0.5 h-4 w-4 flex-shrink-0" strokeWidth={2.5} style={{ color: settings.primaryColor }} />
                     <span>{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
 
-            {currentPlan && (
-              <div className="mt-4 md:mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plano atual</p>
-                  <p className="mt-2 text-lg font-bold text-slate-900">{currentPlan.name}</p>
-                  <p className="mt-1 text-slate-500">
-                    {currentPlan.max_ads ?? 0} anúncios, {currentPlan.category_highlights_count || 0} destaques em categoria
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Próximo plano</p>
-                  <p className="mt-2 text-lg font-bold text-slate-900">{nextPlan.name}</p>
-                  <p className="mt-1 text-slate-500">
-                    {nextPlan.max_ads ?? 0} anúncios, {nextPlan.category_highlights_count || 0} destaques em categoria
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-4 md:mt-auto pt-2 md:pt-6 flex flex-col-reverse sm:flex-row gap-3">
+            <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <p className="max-w-xl text-xs leading-5 text-slate-500">
+                Novas contratações passam pelo checkout hospedado do Asaas. Mudanças em um plano com cobrança recorrente em andamento ficam centralizadas na aba Financeiro.
+              </p>
               <button
-                onClick={onClose}
-                className="h-11 px-5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Agora não
-              </button>
-              <button
-                onClick={handleSubscribe}
+                onClick={() => void handleSubscribe()}
                 disabled={loading}
-                className="h-11 px-5 rounded-xl text-sm font-semibold text-white inline-flex items-center justify-center gap-2"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black text-white shadow-[0_18px_30px_-20px_rgba(22,163,74,0.75)] transition disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ backgroundColor: settings.primaryColor }}
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {loading ? 'Preparando checkout...' : `Assinar ${nextPlan.name} ${getBillingCycleLabel(billingCycle)}`}
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {loading ? 'Processando...' : checkoutActionLabel}
               </button>
             </div>
           </div>

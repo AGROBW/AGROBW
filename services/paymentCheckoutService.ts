@@ -20,23 +20,55 @@ export interface BoosterCheckoutRequest {
   userId: string;
 }
 
-type CheckoutAction = 'open_stripe_portal' | 'schedule_subscription_change';
-
-type CheckoutResult = {
+export type CheckoutResult = {
   success: boolean;
   error?: string;
-  provider?: 'stripe';
-  action?: CheckoutAction;
+  provider?: 'asaas';
+  url?: string;
 };
 
-export interface CheckoutGatewayConfig {
-  preferred_checkout_provider: 'stripe';
-  stripe_enabled: boolean;
-  stripe_rollout_mode: 'all_customers';
-  stripe_checkout_allowed_for_current_user: boolean;
-  stripe_checkout_reason: string;
-  is_production: boolean;
-}
+const stringifyUnknownError = (value: unknown): string | null => {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => stringifyUnknownError(item))
+      .filter((item): item is string => Boolean(item));
+    return parts.length > 0 ? parts.join(' | ') : null;
+  }
+
+  if (value && typeof value === 'object') {
+    const maybeDescription = (value as Record<string, unknown>).description;
+    const maybeMessage = (value as Record<string, unknown>).message;
+    const maybeError = (value as Record<string, unknown>).error;
+    const maybeDetails = (value as Record<string, unknown>).details;
+    const maybeCode = (value as Record<string, unknown>).code;
+
+    const preferred =
+      stringifyUnknownError(maybeDescription) ||
+      stringifyUnknownError(maybeMessage) ||
+      stringifyUnknownError(maybeError) ||
+      stringifyUnknownError(maybeDetails);
+
+    if (preferred) {
+      return preferred;
+    }
+
+    if (typeof maybeCode === 'string' && maybeCode.trim()) {
+      return maybeCode.trim();
+    }
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+};
 
 const readFunctionErrorResponse = async (response?: Response): Promise<string | null> => {
   if (!response) {
@@ -48,7 +80,12 @@ const readFunctionErrorResponse = async (response?: Response): Promise<string | 
 
     if (contentType.includes('application/json')) {
       const payload = await response.clone().json();
-      return payload?.details || payload?.error || payload?.message || JSON.stringify(payload);
+      return (
+        stringifyUnknownError(payload?.error) ||
+        stringifyUnknownError(payload?.message) ||
+        stringifyUnknownError(payload?.details) ||
+        stringifyUnknownError(payload)
+      );
     }
 
     const text = await response.clone().text();
@@ -59,50 +96,7 @@ const readFunctionErrorResponse = async (response?: Response): Promise<string | 
   }
 };
 
-export const getCheckoutGatewayConfig = async (): Promise<CheckoutGatewayConfig | null> => {
-  try {
-    const { data, error } = await supabase.rpc('get_checkout_gateway_public_safe');
-
-    if (error) {
-      console.error('Erro ao buscar gateway de checkout:', error);
-      return null;
-    }
-
-    return (Array.isArray(data) ? data[0] : data) || null;
-  } catch (err) {
-    console.error('Erro inesperado ao buscar gateway de checkout:', err);
-    return null;
-  }
-};
-
-const ACTIVE_STRIPE_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due'];
-
-const hasExistingStripePlanSubscription = async (userId: string): Promise<boolean> => {
-  try {
-    const { data, error } = await supabase
-      .from('user_subscriptions')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('provider', 'stripe')
-      .in('status', ACTIVE_STRIPE_SUBSCRIPTION_STATUSES)
-      .not('provider_subscription_id', 'is', null)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.warn('Erro ao verificar assinatura Stripe existente:', error);
-      return false;
-    }
-
-    return Boolean(data?.id);
-  } catch (error) {
-    console.warn('Erro inesperado ao verificar assinatura Stripe existente:', error);
-    return false;
-  }
-};
-
-const initiateStripeCheckout = async (
+const initiateAsaasCheckout = async (
   request: CheckoutRequest
 ): Promise<CheckoutResult> => {
   try {
@@ -125,16 +119,6 @@ const initiateStripeCheckout = async (
       };
     }
 
-    try {
-      await supabase.rpc('log_checkout_attempt', {
-        p_plan_id: request.planId,
-        p_billing_cycle: request.billingCycle,
-        p_amount: request.amount,
-      });
-    } catch (logError) {
-      console.warn('Erro ao registrar log de checkout Stripe:', logError);
-    }
-
     const {
       data: { session },
       error: sessionError,
@@ -147,7 +131,7 @@ const initiateStripeCheckout = async (
       };
     }
 
-    const { data, error, response } = await supabase.functions.invoke('create-stripe-checkout-session', {
+    const { data, error, response } = await supabase.functions.invoke('create-asaas-checkout-session', {
       method: 'POST',
       body: request,
       headers: {
@@ -158,13 +142,13 @@ const initiateStripeCheckout = async (
 
     if (error) {
       const errorDetails = await readFunctionErrorResponse(response);
-      console.error('Erro ao criar sessao Stripe:', error, errorDetails);
+      console.error('Erro ao criar checkout Asaas:', error, errorDetails);
       return {
         success: false,
         error:
           errorDetails ||
           error.message ||
-          `Erro ao criar sessao Stripe${response?.status ? ` (HTTP ${response.status})` : ''}.`,
+          `Erro ao criar checkout Asaas${response?.status ? ` (HTTP ${response.status})` : ''}.`,
       };
     }
 
@@ -179,12 +163,14 @@ const initiateStripeCheckout = async (
 
     return {
       success: true,
+      provider: 'asaas',
+      url: data.url,
     };
   } catch (err) {
-    console.error('Erro inesperado ao iniciar checkout Stripe:', err);
+    console.error('Erro inesperado ao iniciar checkout Asaas:', err);
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Erro inesperado ao processar checkout Stripe.',
+      error: err instanceof Error ? err.message : 'Erro inesperado ao processar checkout Asaas.',
     };
   }
 };
@@ -192,45 +178,18 @@ const initiateStripeCheckout = async (
 export const initiatePlatformPlanCheckout = async (
   request: CheckoutRequest
 ): Promise<CheckoutResult> => {
-  const hasExistingStripeSubscription = await hasExistingStripePlanSubscription(request.userId);
-  if (hasExistingStripeSubscription) {
-    return {
-      success: false,
-      provider: 'stripe',
-      action: 'schedule_subscription_change',
-      error: 'Sua conta já possui uma assinatura Stripe ativa. A alteração do plano será agendada para o próximo ciclo.',
-    };
-  }
+  const result = await initiateAsaasCheckout({
+    ...request,
+    itemType: 'plan',
+  });
 
-  const gatewayConfig = await getCheckoutGatewayConfig();
-  if (!gatewayConfig?.stripe_enabled) {
-    return {
-      success: false,
-      provider: 'stripe',
-      error: 'Stripe nao esta configurada no momento. Entre em contato com o suporte.',
-    };
-  }
-
-  if (!gatewayConfig.stripe_checkout_allowed_for_current_user) {
-    return {
-      success: false,
-      provider: 'stripe',
-      error:
-        gatewayConfig.stripe_checkout_reason === 'existing_paid_customer'
-          ? 'Sua conta ainda precisa de sincronizacao final para operar 100% via Stripe. A equipe pode concluir essa liberacao pelo admin.'
-          : 'O checkout Stripe ainda nao esta liberado para esta conta.',
-    };
-  }
-
-  const result = await initiateStripeCheckout(request);
-  return { ...result, provider: 'stripe' };
+  return { ...result, provider: 'asaas' };
 };
 
 export const initiateBoosterCheckout = async (
   request: BoosterCheckoutRequest
 ): Promise<CheckoutResult> => {
-  const gatewayConfig = await getCheckoutGatewayConfig();
-  const checkoutRequest: CheckoutRequest = {
+  const result = await initiateAsaasCheckout({
     planId: request.boosterId,
     planName: request.boosterName,
     planDescription: request.boosterDescription,
@@ -240,84 +199,7 @@ export const initiateBoosterCheckout = async (
     itemType: 'booster',
     boosterId: request.boosterId,
     itemName: request.boosterName,
-  };
+  });
 
-  if (!gatewayConfig?.stripe_enabled) {
-    return {
-      success: false,
-      provider: 'stripe',
-      error: 'Stripe nao esta configurada no momento. Entre em contato com o suporte.',
-    };
-  }
-
-  if (!gatewayConfig.stripe_checkout_allowed_for_current_user) {
-    return {
-      success: false,
-      provider: 'stripe',
-      error:
-        gatewayConfig.stripe_checkout_reason === 'existing_paid_customer'
-          ? 'Sua conta ainda precisa de sincronizacao final para operar 100% via Stripe. A equipe pode concluir essa liberacao pelo admin.'
-          : 'O checkout Stripe ainda nao esta liberado para esta conta.',
-    };
-  }
-
-  const result = await initiateStripeCheckout(checkoutRequest);
-  return { ...result, provider: 'stripe' };
-};
-
-export const openStripeCustomerPortal = async (
-  returnPath = '/minha-conta/financeiro'
-): Promise<{ success: boolean; error?: string }> => {
-  try {
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
-
-    if (sessionError || !session?.access_token) {
-      return {
-        success: false,
-        error: sessionError?.message || 'Sessao invalida para abrir o portal.',
-      };
-    }
-
-    const { data, error, response } = await supabase.functions.invoke('create-stripe-customer-portal-session', {
-      method: 'POST',
-      body: { returnPath },
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-      },
-    });
-
-    if (error) {
-      const errorDetails = await readFunctionErrorResponse(response);
-      return {
-        success: false,
-        error:
-          errorDetails ||
-          error.message ||
-          `Erro ao abrir portal Stripe${response?.status ? ` (HTTP ${response.status})` : ''}.`,
-      };
-    }
-
-    if (!data?.url) {
-      return {
-        success: false,
-        error: data?.error || 'Resposta invalida do servidor.',
-      };
-    }
-
-    window.location.assign(data.url);
-
-    return {
-      success: true,
-    };
-  } catch (err) {
-    console.error('Erro ao abrir portal Stripe:', err);
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : 'Erro ao abrir portal Stripe.',
-    };
-  }
+  return { ...result, provider: 'asaas' };
 };

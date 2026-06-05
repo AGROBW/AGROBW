@@ -1,236 +1,215 @@
 -- ==================================================
--- TABELAS PARA INTEGRACOES DE PAGAMENTO
--- ==================================================
--- payment_settings: Credenciais do gateway de pagamento (singleton)
--- webhook_logs: Logs de webhooks recebidos (debug)
+-- TABELAS PARA INTEGRACOES DE PAGAMENTO (ASAAS-ONLY)
 -- ==================================================
 
--- ==================================================
--- TABELA: payment_settings (Singleton)
--- ==================================================
-
-CREATE TABLE IF NOT EXISTS public.payment_settings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-  -- Credenciais Stripe
-  stripe_secret_key TEXT,
-  stripe_publishable_key TEXT,
-  stripe_webhook_secret TEXT,
-
-  -- Rollout controlado
-  preferred_checkout_provider TEXT NOT NULL DEFAULT 'stripe'
-    CHECK (preferred_checkout_provider IN ('stripe')),
-  stripe_rollout_mode TEXT NOT NULL DEFAULT 'all_customers'
-    CHECK (stripe_rollout_mode IN ('all_customers', 'new_customers')),
-
-  -- Ambiente
-  is_production BOOLEAN NOT NULL DEFAULT false,
-
-  -- Metadata
-  last_updated_by UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-  -- Garantir apenas 1 registro (singleton)
-  CONSTRAINT single_row CHECK (id = '00000000-0000-0000-0000-000000000005')
+create table if not exists public.payment_settings (
+  id uuid primary key default gen_random_uuid(),
+  asaas_api_key text,
+  asaas_webhook_token text,
+  preferred_checkout_provider text not null default 'asaas'
+    check (preferred_checkout_provider in ('asaas')),
+  is_production boolean not null default false,
+  last_updated_by uuid references public.users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint payment_settings_singleton check (id = '00000000-0000-0000-0000-000000000005')
 );
 
-COMMENT ON TABLE public.payment_settings IS 'Configuracoes de integracao com o gateway de pagamento (singleton)';
-COMMENT ON COLUMN public.payment_settings.stripe_secret_key IS 'Secret Key da Stripe (sensivel)';
-COMMENT ON COLUMN public.payment_settings.stripe_publishable_key IS 'Publishable Key da Stripe';
-COMMENT ON COLUMN public.payment_settings.stripe_webhook_secret IS 'Secret para validar webhooks da Stripe (sensivel)';
-COMMENT ON COLUMN public.payment_settings.preferred_checkout_provider IS 'Gateway operacional principal do checkout';
-COMMENT ON COLUMN public.payment_settings.stripe_rollout_mode IS 'Controla se a Stripe atende toda a base ou apenas contas sem historico pago';
-COMMENT ON COLUMN public.payment_settings.is_production IS 'false = Sandbox, true = Producao';
+comment on table public.payment_settings is 'Configuracoes do gateway de pagamento (Asaas only).';
+comment on column public.payment_settings.asaas_api_key is 'API key do Asaas (sensivel).';
+comment on column public.payment_settings.asaas_webhook_token is 'Token validado no header asaas-access-token.';
+comment on column public.payment_settings.preferred_checkout_provider is 'Gateway unico de checkout da plataforma.';
+comment on column public.payment_settings.is_production is 'false = sandbox, true = producao.';
 
--- ==================================================
--- TABELA: webhook_logs
--- ==================================================
-
-CREATE TABLE IF NOT EXISTS public.webhook_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-  -- Dados do webhook
-  provider VARCHAR(50) NOT NULL DEFAULT 'stripe',
-  event_type VARCHAR(100),
-  payload JSONB NOT NULL,
-
-  -- Resposta/Status
-  status_code INT,
-  processed BOOLEAN NOT NULL DEFAULT false,
-  error_message TEXT,
-
-  -- Metadata
-  received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  processed_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+create table if not exists public.webhook_logs (
+  id uuid primary key default gen_random_uuid(),
+  provider varchar(50) not null default 'asaas',
+  event_type varchar(100),
+  payload jsonb not null,
+  status_code int,
+  processed boolean not null default false,
+  error_message text,
+  received_at timestamptz not null default now(),
+  processed_at timestamptz,
+  created_at timestamptz not null default now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_webhook_logs_provider ON public.webhook_logs(provider);
-CREATE INDEX IF NOT EXISTS idx_webhook_logs_received_at ON public.webhook_logs(received_at DESC);
-CREATE INDEX IF NOT EXISTS idx_webhook_logs_processed ON public.webhook_logs(processed);
+create index if not exists idx_webhook_logs_provider on public.webhook_logs(provider);
+create index if not exists idx_webhook_logs_received_at on public.webhook_logs(received_at desc);
+create index if not exists idx_webhook_logs_processed on public.webhook_logs(processed);
 
-COMMENT ON TABLE public.webhook_logs IS 'Logs de webhooks recebidos (debug e auditoria)';
-COMMENT ON COLUMN public.webhook_logs.provider IS 'Provedor do webhook (stripe, legacy, etc)';
-COMMENT ON COLUMN public.webhook_logs.event_type IS 'Tipo de evento do webhook';
-COMMENT ON COLUMN public.webhook_logs.payload IS 'Payload completo do webhook';
-COMMENT ON COLUMN public.webhook_logs.processed IS 'Se o webhook foi processado com sucesso';
+comment on table public.webhook_logs is 'Logs de webhooks recebidos do Asaas e de provedores legados.';
+comment on column public.webhook_logs.provider is 'Provedor emissor do webhook.';
 
--- ==================================================
--- TABELA: stripe_rollout_overrides
--- ==================================================
-
-CREATE TABLE IF NOT EXISTS public.stripe_rollout_overrides (
-  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
-  reason TEXT,
-  created_by UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_stripe_rollout_overrides_created_at
-  ON public.stripe_rollout_overrides(created_at DESC);
-
-COMMENT ON TABLE public.stripe_rollout_overrides IS 'Allowlist operacional para liberar checkout Stripe a contas legadas especificas';
-COMMENT ON COLUMN public.stripe_rollout_overrides.reason IS 'Observacao interna sobre a liberacao manual da conta legada';
-
--- ==================================================
--- TRIGGERS
--- ==================================================
-
-CREATE OR REPLACE FUNCTION public.update_payment_settings_updated_at()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
+create or replace function public.update_payment_settings_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
 $$;
 
-DROP TRIGGER IF EXISTS trigger_update_payment_settings_updated_at ON public.payment_settings;
-CREATE TRIGGER trigger_update_payment_settings_updated_at
-BEFORE UPDATE ON public.payment_settings
-FOR EACH ROW
-EXECUTE FUNCTION public.update_payment_settings_updated_at();
+drop trigger if exists trigger_update_payment_settings_updated_at on public.payment_settings;
+create trigger trigger_update_payment_settings_updated_at
+before update on public.payment_settings
+for each row
+execute function public.update_payment_settings_updated_at();
 
-CREATE OR REPLACE FUNCTION public.update_stripe_rollout_overrides_updated_at()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$;
+alter table public.payment_settings enable row level security;
+alter table public.webhook_logs enable row level security;
 
-DROP TRIGGER IF EXISTS trigger_update_stripe_rollout_overrides_updated_at ON public.stripe_rollout_overrides;
-CREATE TRIGGER trigger_update_stripe_rollout_overrides_updated_at
-BEFORE UPDATE ON public.stripe_rollout_overrides
-FOR EACH ROW
-EXECUTE FUNCTION public.update_stripe_rollout_overrides_updated_at();
+drop policy if exists "Admins can view webhook logs" on public.webhook_logs;
+drop policy if exists "Admins can delete webhook logs" on public.webhook_logs;
 
--- ==================================================
--- RLS: payment_settings
--- ==================================================
+create policy "Admins can view webhook logs"
+on public.webhook_logs
+for select
+to authenticated
+using (public.is_admin() = true);
 
-ALTER TABLE public.payment_settings ENABLE ROW LEVEL SECURITY;
+create policy "Admins can delete webhook logs"
+on public.webhook_logs
+for delete
+to authenticated
+using (public.is_admin() = true);
 
-DROP POLICY IF EXISTS "Admins can view payment settings" ON public.payment_settings;
-DROP POLICY IF EXISTS "Admins can update payment settings" ON public.payment_settings;
-
--- Acesso direto do frontend a payment_settings deve permanecer bloqueado.
--- O painel admin deve usar RPCs seguras que nao devolvem os segredos brutos.
-
--- ==================================================
--- RLS: webhook_logs
--- ==================================================
-
-ALTER TABLE public.webhook_logs ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Admins can view webhook logs" ON public.webhook_logs;
-DROP POLICY IF EXISTS "Service can insert webhook logs" ON public.webhook_logs;
-
-CREATE POLICY "Admins can view webhook logs"
-ON public.webhook_logs
-FOR SELECT
-TO authenticated
-USING (public.is_admin() = true);
-
-CREATE POLICY "Admins can delete webhook logs"
-ON public.webhook_logs
-FOR DELETE
-TO authenticated
-USING (public.is_admin() = true);
-
--- ==================================================
--- RLS: stripe_rollout_overrides
--- ==================================================
-
-ALTER TABLE public.stripe_rollout_overrides ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Admins can view stripe rollout overrides" ON public.stripe_rollout_overrides;
-DROP POLICY IF EXISTS "Admins can insert stripe rollout overrides" ON public.stripe_rollout_overrides;
-DROP POLICY IF EXISTS "Admins can update stripe rollout overrides" ON public.stripe_rollout_overrides;
-DROP POLICY IF EXISTS "Admins can delete stripe rollout overrides" ON public.stripe_rollout_overrides;
-
-CREATE POLICY "Admins can view stripe rollout overrides"
-ON public.stripe_rollout_overrides
-FOR SELECT
-TO authenticated
-USING (public.is_admin() = true);
-
-CREATE POLICY "Admins can insert stripe rollout overrides"
-ON public.stripe_rollout_overrides
-FOR INSERT
-TO authenticated
-WITH CHECK (public.is_admin() = true);
-
-CREATE POLICY "Admins can update stripe rollout overrides"
-ON public.stripe_rollout_overrides
-FOR UPDATE
-TO authenticated
-USING (public.is_admin() = true)
-WITH CHECK (public.is_admin() = true);
-
-CREATE POLICY "Admins can delete stripe rollout overrides"
-ON public.stripe_rollout_overrides
-FOR DELETE
-TO authenticated
-USING (public.is_admin() = true);
-
--- ==================================================
--- DADOS INICIAIS: payment_settings
--- ==================================================
-
-INSERT INTO public.payment_settings (
+insert into public.payment_settings (
   id,
-  stripe_secret_key,
-  stripe_publishable_key,
-  stripe_webhook_secret,
+  asaas_api_key,
+  asaas_webhook_token,
   preferred_checkout_provider,
-  stripe_rollout_mode,
   is_production
-) VALUES (
+) values (
   '00000000-0000-0000-0000-000000000005',
-  NULL,
-  NULL,
-  NULL,
-  'stripe',
-  'all_customers',
+  null,
+  null,
+  'asaas',
   false
-) ON CONFLICT (id) DO NOTHING;
+)
+on conflict (id) do nothing;
 
--- ==================================================
--- VERIFICACAO
--- ==================================================
+drop function if exists public.get_payment_settings_admin_safe();
+create or replace function public.get_payment_settings_admin_safe()
+returns table (
+  id uuid,
+  asaas_api_key_configured boolean,
+  asaas_webhook_token_configured boolean,
+  preferred_checkout_provider text,
+  is_production boolean,
+  last_updated_by uuid,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Unauthorized';
+  end if;
 
-SELECT
-  table_name,
-  column_name,
-  data_type,
-  is_nullable
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND table_name IN ('payment_settings', 'webhook_logs', 'stripe_rollout_overrides')
-ORDER BY table_name, ordinal_position;
+  return query
+  select
+    ps.id,
+    coalesce(nullif(trim(ps.asaas_api_key), '') is not null, false) as asaas_api_key_configured,
+    coalesce(nullif(trim(ps.asaas_webhook_token), '') is not null, false) as asaas_webhook_token_configured,
+    'asaas'::text as preferred_checkout_provider,
+    ps.is_production,
+    ps.last_updated_by,
+    ps.created_at,
+    ps.updated_at
+  from public.payment_settings ps
+  where ps.id = '00000000-0000-0000-0000-000000000005';
+end;
+$$;
+
+grant execute on function public.get_payment_settings_admin_safe() to authenticated;
+
+drop function if exists public.update_payment_settings_admin_safe(text, text, boolean);
+create or replace function public.update_payment_settings_admin_safe(
+  p_asaas_api_key text default null,
+  p_asaas_webhook_token text default null,
+  p_is_production boolean default null
+)
+returns table (
+  id uuid,
+  asaas_api_key_configured boolean,
+  asaas_webhook_token_configured boolean,
+  preferred_checkout_provider text,
+  is_production boolean,
+  last_updated_by uuid,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+begin
+  if not public.is_admin() then
+    raise exception 'Unauthorized';
+  end if;
+
+  update public.payment_settings ps
+  set
+    asaas_api_key = case
+      when p_asaas_api_key is null or trim(p_asaas_api_key) = '' then ps.asaas_api_key
+      else trim(p_asaas_api_key)
+    end,
+    asaas_webhook_token = case
+      when p_asaas_webhook_token is null or trim(p_asaas_webhook_token) = '' then ps.asaas_webhook_token
+      else trim(p_asaas_webhook_token)
+    end,
+    preferred_checkout_provider = 'asaas',
+    is_production = coalesce(p_is_production, ps.is_production),
+    last_updated_by = v_user_id,
+    updated_at = now()
+  where ps.id = '00000000-0000-0000-0000-000000000005';
+
+  return query
+  select
+    ps.id,
+    coalesce(nullif(trim(ps.asaas_api_key), '') is not null, false) as asaas_api_key_configured,
+    coalesce(nullif(trim(ps.asaas_webhook_token), '') is not null, false) as asaas_webhook_token_configured,
+    'asaas'::text as preferred_checkout_provider,
+    ps.is_production,
+    ps.last_updated_by,
+    ps.created_at,
+    ps.updated_at
+  from public.payment_settings ps
+  where ps.id = '00000000-0000-0000-0000-000000000005';
+end;
+$$;
+
+grant execute on function public.update_payment_settings_admin_safe(text, text, boolean) to authenticated;
+
+drop function if exists public.get_checkout_gateway_public_safe();
+create or replace function public.get_checkout_gateway_public_safe()
+returns table (
+  preferred_checkout_provider text,
+  asaas_enabled boolean,
+  checkout_reason text,
+  is_production boolean
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    'asaas'::text as preferred_checkout_provider,
+    coalesce(nullif(trim(ps.asaas_api_key), '') is not null, false) as asaas_enabled,
+    case
+      when not coalesce(nullif(trim(ps.asaas_api_key), '') is not null, false) then 'asaas_not_configured'
+      else 'ok'
+    end as checkout_reason,
+    ps.is_production
+  from public.payment_settings ps
+  where ps.id = '00000000-0000-0000-0000-000000000005';
+$$;
+
+grant execute on function public.get_checkout_gateway_public_safe() to authenticated, anon;

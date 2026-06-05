@@ -215,7 +215,7 @@ serve(async (req) => {
         type: 'SYSTEM',
         title: 'Nota fiscal disponivel',
         content: 'Sua NFS-e foi emitida e ja pode ser baixada na central financeira.',
-        link: '/minha-conta/financeiro',
+        link: '/minha-conta/assinatura',
       });
     }
 

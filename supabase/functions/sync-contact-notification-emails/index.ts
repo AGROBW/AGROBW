@@ -7,7 +7,7 @@ import {
   sendSmtpEmail,
 } from '../_shared/smtpSettings.ts';
 import { getCorsHeadersInternal } from '../_shared/cors.ts';
-import { isAdminProfile, extractBearerToken } from '../_shared/security.ts';
+import { isAdminAal2Profile, extractBearerToken } from '../_shared/security.ts';
 
 // VULN-002 fix: Função interna/cron - sem acesso de browser
 const corsHeaders = getCorsHeadersInternal();
@@ -189,7 +189,7 @@ serve(async (req) => {
         .eq('id', user.id)
         .maybeSingle();
 
-      if (!isAdminProfile(adminProfile)) {
+      if (!isAdminAal2Profile(adminProfile, token)) {
         return jsonResponse({ success: false, error: 'Admin access required' }, 403);
       }
     }

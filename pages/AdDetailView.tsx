@@ -1,7 +1,7 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, ChevronRight, Clock, DollarSign, Eye, Flag, Heart, MessageCircle, Share2, ShieldCheck, Calendar, Gauge, Ruler, Weight, Wrench, Hammer, Cog, Circle, MapPin, Package, Truck, Droplet, Zap, Thermometer, Wind } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Clock, DollarSign, Eye, Flag, Heart, MessageCircle, Share2, ShieldCheck, Calendar, Gauge, Ruler, Weight, Wrench, Hammer, Cog, Circle, MapPin, Package, Truck, Droplet, Zap, Thermometer, Wind, X } from 'lucide-react';
 import { useAd } from '../src/hooks/useAds';
 import { useAuth } from '../src/contexts/AuthContext';
 import ContactSellerModal from '../components/ContactSellerModal';
@@ -15,11 +15,19 @@ import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { useAnnouncementReports } from '../src/hooks/useAnnouncementReports';
 import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
+import { getCategoryGroupBySlug, getCategoryGroupForCategorySlug } from '../src/lib/categoryHierarchy';
 
 // Mapa de ícones para renderizar dinamicamente
 const iconMap: Record<string, React.ComponentType<any>> = {
   Calendar, Gauge, Ruler, Weight, Wrench, Hammer, Cog, Circle, MapPin, Package, Truck, Droplet, Zap, Thermometer, Wind
 };
+
+const humanizeSlug = (value?: string | null) =>
+  String(value || '')
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 
 const AdDetailView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,8 +38,12 @@ const AdDetailView: React.FC = () => {
   const { settings } = useLayout();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const { snapshot: reportSnapshot, isSubmitting: isSubmittingReport, submitReport } = useAnnouncementReports(ad?.id);
   const hasAutoOpenedContactModalRef = useRef(false);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchCurrentXRef = useRef<number | null>(null);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -51,6 +63,78 @@ const AdDetailView: React.FC = () => {
     const nextUrl = `${location.pathname}${cleanedSearch ? `?${cleanedSearch}` : ''}${location.hash}`;
     navigate(nextUrl, { replace: true });
   }, [ad, location.hash, location.pathname, location.search, navigate, user]);
+
+  useEffect(() => {
+    setSelectedImageIndex(0);
+    setIsLightboxOpen(false);
+  }, [ad?.id]);
+
+  const primaryImage = getPrimaryImageFromList(ad?.images, settings.defaultAdImageUrl);
+  const galleryImages = ad?.images?.length > 0 ? ad.images.filter(Boolean) : (primaryImage ? [primaryImage] : []);
+  const currentGalleryImage = galleryImages[selectedImageIndex] || primaryImage;
+  const canNavigateGallery = galleryImages.length > 1;
+  const goToPreviousImage = useCallback(() => {
+    if (!canNavigateGallery) return;
+    setSelectedImageIndex((current) => (current - 1 + galleryImages.length) % galleryImages.length);
+  }, [canNavigateGallery, galleryImages.length]);
+  const goToNextImage = useCallback(() => {
+    if (!canNavigateGallery) return;
+    setSelectedImageIndex((current) => (current + 1) % galleryImages.length);
+  }, [canNavigateGallery, galleryImages.length]);
+  const handleGalleryTouchStart = (event: React.TouchEvent<HTMLElement>) => {
+    touchStartXRef.current = event.touches[0]?.clientX ?? null;
+    touchCurrentXRef.current = touchStartXRef.current;
+  };
+  const handleGalleryTouchMove = (event: React.TouchEvent<HTMLElement>) => {
+    touchCurrentXRef.current = event.touches[0]?.clientX ?? touchCurrentXRef.current;
+  };
+  const handleGalleryTouchEnd = () => {
+    if (!canNavigateGallery || touchStartXRef.current === null || touchCurrentXRef.current === null) {
+      touchStartXRef.current = null;
+      touchCurrentXRef.current = null;
+      return;
+    }
+
+    const deltaX = touchCurrentXRef.current - touchStartXRef.current;
+    const swipeThreshold = 40;
+
+    if (deltaX <= -swipeThreshold) {
+      goToNextImage();
+    } else if (deltaX >= swipeThreshold) {
+      goToPreviousImage();
+    }
+
+    touchStartXRef.current = null;
+    touchCurrentXRef.current = null;
+  };
+
+  useEffect(() => {
+    if (!isLightboxOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsLightboxOpen(false);
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        goToPreviousImage();
+      } else if (event.key === 'ArrowRight') {
+        goToNextImage();
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [goToNextImage, goToPreviousImage, isLightboxOpen]);
 
   const handleContactSeller = () => {
     if (!user) {
@@ -156,7 +240,13 @@ const AdDetailView: React.FC = () => {
         currency: 'BRL',
       }).format(priceToDisplay);
   const safeDescription = censorContactData(ad.description || '').censored;
-  const primaryImage = getPrimaryImageFromList(ad.images, settings.defaultAdImageUrl);
+  const categoryGroup =
+    getCategoryGroupForCategorySlug(ad.categorySlug) ||
+    getCategoryGroupBySlug(ad.categorySlug);
+  const breadcrumbCategoryLabel = categoryGroup?.name || humanizeSlug(ad.categorySlug) || 'Anúncios';
+  const breadcrumbCategoryHref = categoryGroup?.slug
+    ? `/anuncios?categoria=${encodeURIComponent(categoryGroup.slug)}`
+    : '/anuncios';
   const commercialHighlights = [
     ad.productCondition ? { label: 'Condição', value: ad.productCondition === 'novo' ? 'Novo' : ad.productCondition === 'seminovo' ? 'Seminovo' : 'Usado' } : null,
     ad.availability ? { label: 'Disponibilidade', value: ad.availability === 'pronta_entrega' ? 'Pronta entrega' : ad.availability === 'sob_encomenda' ? 'Sob encomenda' : 'Consultar estoque' } : null,
@@ -179,8 +269,8 @@ const AdDetailView: React.FC = () => {
         {
           '@type': 'ListItem',
           position: 2,
-          name: 'Anúncios',
-          item: buildAbsoluteSiteUrl('/anuncios'),
+          name: breadcrumbCategoryLabel,
+          item: buildAbsoluteSiteUrl(breadcrumbCategoryHref),
         },
         {
           '@type': 'ListItem',
@@ -236,7 +326,9 @@ const AdDetailView: React.FC = () => {
         <div className="flex items-center gap-2 text-sm text-slate-400 font-medium">
           <Link to="/" className="hover:text-green-700">Início</Link>
           <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
-          <span className="text-slate-600">Anúncio</span>
+          <Link to={breadcrumbCategoryHref} className="hover:text-green-700">
+            {breadcrumbCategoryLabel}
+          </Link>
           <ChevronRight className="w-4 h-4" strokeWidth={1.5} />
           <span className="text-slate-900 font-bold truncate max-w-[200px] md:max-w-none">{ad.title}</span>
         </div>
@@ -251,28 +343,91 @@ const AdDetailView: React.FC = () => {
           <div className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 p-2">
             {primaryImage ? (
               <>
-                <div className="relative aspect-video rounded-[1.8rem] overflow-hidden">
+                <div
+                  className="relative aspect-video rounded-[1.8rem] overflow-hidden cursor-zoom-in"
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Abrir galeria de imagens em tela cheia"
+                  onClick={() => setIsLightboxOpen(true)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setIsLightboxOpen(true);
+                    }
+                  }}
+                  onTouchStart={handleGalleryTouchStart}
+                  onTouchMove={handleGalleryTouchMove}
+                  onTouchEnd={handleGalleryTouchEnd}
+                >
                   <img 
-                    src={primaryImage} 
+                    src={currentGalleryImage} 
                     alt={ad.title} 
                     className="w-full h-full object-cover"
                   />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/35 via-transparent to-transparent" />
+                  {canNavigateGallery && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          goToPreviousImage();
+                        }}
+                        className="absolute left-4 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm backdrop-blur-md transition hover:bg-white"
+                        aria-label="Ver imagem anterior"
+                      >
+                        <ChevronLeft className="w-5 h-5" strokeWidth={1.8} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          goToNextImage();
+                        }}
+                        className="absolute right-4 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm backdrop-blur-md transition hover:bg-white"
+                        aria-label="Ver próxima imagem"
+                      >
+                        <ChevronRight className="w-5 h-5" strokeWidth={1.8} />
+                      </button>
+                    </>
+                  )}
+                  {canNavigateGallery && (
+                    <div className="absolute bottom-5 left-5 rounded-full bg-slate-950/65 px-3 py-1 text-xs font-black text-white backdrop-blur-md">
+                      {selectedImageIndex + 1} / {galleryImages.length}
+                    </div>
+                  )}
                   <div className="absolute top-6 right-6 flex gap-2">
-                     <button className="bg-white/90 backdrop-blur-md p-3 rounded-lg text-slate-700 hover:text-red-500 transition-colors">
+                     <button
+                       type="button"
+                       onClick={(event) => event.stopPropagation()}
+                       className="bg-white/90 backdrop-blur-md p-3 rounded-lg text-slate-700 hover:text-red-500 transition-colors"
+                     >
                        <Heart className="w-5 h-5" strokeWidth={1.5} />
                     </button>
-                     <button className="bg-white/90 backdrop-blur-md p-3 rounded-lg text-slate-700 hover:text-blue-500 transition-colors">
+                     <button
+                       type="button"
+                       onClick={(event) => event.stopPropagation()}
+                       className="bg-white/90 backdrop-blur-md p-3 rounded-lg text-slate-700 hover:text-blue-500 transition-colors"
+                     >
                        <Share2 className="w-5 h-5" strokeWidth={1.5} />
                     </button>
                   </div>
                 </div>
                 {/* Gallery Thumbnails */}
-                {ad.images.length > 1 && (
+                {canNavigateGallery && (
                   <div className="flex gap-4 p-6 overflow-x-auto custom-scrollbar">
-                    {ad.images.map((img, i) => (
-                      <div key={i} className={`flex-shrink-0 w-24 h-20 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${i === 0 ? 'border-green-600' : 'border-transparent opacity-70 hover:opacity-100'}`}>
+                    {galleryImages.map((img, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setSelectedImageIndex(i)}
+                        className={`flex-shrink-0 w-24 h-20 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                          i === selectedImageIndex ? 'border-green-600 ring-2 ring-green-100' : 'border-transparent opacity-70 hover:opacity-100'
+                        }`}
+                        aria-label={`Ver imagem ${i + 1} do anúncio`}
+                      >
                         <img src={img} alt={`${ad.title} - ${i + 1}`} className="w-full h-full object-cover" />
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -283,6 +438,92 @@ const AdDetailView: React.FC = () => {
               </div>
             )}
           </div>
+
+          {isLightboxOpen && primaryImage ? (
+            <div
+              className="fixed inset-0 z-[90] bg-slate-950/95 px-4 py-6 md:px-8"
+              onClick={() => setIsLightboxOpen(false)}
+            >
+              <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4">
+                <div className="flex items-center justify-between gap-4 text-white">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.22em] text-white/60">Galeria do anúncio</p>
+                    <h2 className="mt-2 text-lg font-black md:text-2xl">{ad.title}</h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setIsLightboxOpen(false);
+                    }}
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+                    aria-label="Fechar galeria"
+                  >
+                    <X className="h-5 w-5" strokeWidth={1.8} />
+                  </button>
+                </div>
+
+                <div
+                  className="relative flex-1 overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950"
+                  onClick={(event) => event.stopPropagation()}
+                  onTouchStart={handleGalleryTouchStart}
+                  onTouchMove={handleGalleryTouchMove}
+                  onTouchEnd={handleGalleryTouchEnd}
+                >
+                  <img
+                    src={currentGalleryImage}
+                    alt={ad.title}
+                    className="h-full w-full object-contain"
+                  />
+
+                  {canNavigateGallery && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={goToPreviousImage}
+                        className="absolute left-4 top-1/2 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition hover:bg-white/20"
+                        aria-label="Imagem anterior"
+                      >
+                        <ChevronLeft className="h-6 w-6" strokeWidth={1.8} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={goToNextImage}
+                        className="absolute right-4 top-1/2 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition hover:bg-white/20"
+                        aria-label="Próxima imagem"
+                      >
+                        <ChevronRight className="h-6 w-6" strokeWidth={1.8} />
+                      </button>
+                      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-slate-900/80 px-4 py-2 text-sm font-black text-white">
+                        {selectedImageIndex + 1} / {galleryImages.length}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {canNavigateGallery && (
+                  <div
+                    className="flex gap-3 overflow-x-auto pb-1"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {galleryImages.map((img, i) => (
+                      <button
+                        key={`lightbox-thumb-${i}`}
+                        type="button"
+                        onClick={() => setSelectedImageIndex(i)}
+                        className={`h-20 w-24 flex-shrink-0 overflow-hidden rounded-xl border-2 transition ${
+                          i === selectedImageIndex ? 'border-green-500 ring-2 ring-green-500/30' : 'border-white/10 opacity-70 hover:opacity-100'
+                        }`}
+                        aria-label={`Abrir imagem ${i + 1}`}
+                      >
+                        <img src={img} alt={`${ad.title} - ampliada ${i + 1}`} className="h-full w-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
 
           {ad.videoUrl && (
             <div className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 p-6 space-y-4">

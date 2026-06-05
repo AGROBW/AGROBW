@@ -1,218 +1,31 @@
-create table if not exists public.highlight_boosters (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  description text null,
-  monthly_price numeric(10,2) not null default 0,
-  category_credits integer not null default 0,
-  home_credits integer not null default 0,
-  category_highlight_days integer not null default 30,
-  home_highlight_days integer not null default 15,
-  max_purchases_per_30_days integer not null default 2,
-  button_text text not null default 'Comprar booster',
-  is_active boolean not null default true,
-  position integer not null default 1,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+alter table if exists public.user_subscriptions
+  add column if not exists category_highlights_carryover integer not null default 0;
 
-create table if not exists public.user_highlight_booster_purchases (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.users(id) on delete cascade,
-  booster_id uuid not null references public.highlight_boosters(id) on delete restrict,
-  payment_id uuid null references public.payments(id) on delete set null,
-  provider_payment_id text null,
-  status text not null default 'credited' check (status in ('credited', 'cancelled', 'refunded')),
-  booster_name text not null,
-  amount numeric(10,2) not null default 0,
-  category_credits_total integer not null default 0,
-  category_credits_remaining integer not null default 0,
-  home_credits_total integer not null default 0,
-  home_credits_remaining integer not null default 0,
-  credited_at timestamptz not null default now(),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+alter table if exists public.user_subscriptions
+  add column if not exists home_highlights_carryover integer not null default 0;
 
-create index if not exists idx_highlight_boosters_active
-  on public.highlight_boosters(is_active, position);
+update public.user_subscriptions
+set
+  category_highlights_carryover = greatest(coalesce(category_highlights_carryover, 0), 0),
+  home_highlights_carryover = greatest(coalesce(home_highlights_carryover, 0), 0)
+where category_highlights_carryover is null
+   or home_highlights_carryover is null
+   or category_highlights_carryover < 0
+   or home_highlights_carryover < 0;
 
-create index if not exists idx_booster_purchases_user_id
-  on public.user_highlight_booster_purchases(user_id, created_at desc);
+alter table if exists public.user_subscriptions
+  drop constraint if exists user_subscriptions_category_highlights_carryover_check;
 
-create index if not exists idx_booster_purchases_status
-  on public.user_highlight_booster_purchases(status);
+alter table if exists public.user_subscriptions
+  add constraint user_subscriptions_category_highlights_carryover_check
+  check (category_highlights_carryover >= 0);
 
-alter table public.payments
-  add column if not exists booster_id uuid null references public.highlight_boosters(id) on delete set null;
+alter table if exists public.user_subscriptions
+  drop constraint if exists user_subscriptions_home_highlights_carryover_check;
 
-create index if not exists idx_payments_booster_id
-  on public.payments(booster_id);
-
-alter table public.highlight_boosters enable row level security;
-alter table public.user_highlight_booster_purchases enable row level security;
-
-drop policy if exists "Anyone can view active highlight boosters" on public.highlight_boosters;
-create policy "Anyone can view active highlight boosters"
-  on public.highlight_boosters
-  for select
-  using (is_active = true or auth.uid() is not null);
-
-drop policy if exists "Admins can manage highlight boosters" on public.highlight_boosters;
-create policy "Admins can manage highlight boosters"
-  on public.highlight_boosters
-  for all
-  to authenticated
-  using (public.is_admin() = true)
-  with check (public.is_admin() = true);
-
-drop policy if exists "Users can view their own booster purchases" on public.user_highlight_booster_purchases;
-create policy "Users can view their own booster purchases"
-  on public.user_highlight_booster_purchases
-  for select
-  using (auth.uid() = user_id);
-
-drop policy if exists "Admins can view all booster purchases" on public.user_highlight_booster_purchases;
-create policy "Admins can view all booster purchases"
-  on public.user_highlight_booster_purchases
-  for select
-  to authenticated
-  using (public.is_admin() = true);
-
-alter table public.announcement_highlights_history
-  add column if not exists credit_source text not null default 'plan'
-    check (credit_source in ('plan', 'booster'));
-
-alter table public.announcement_highlights_history
-  add column if not exists booster_purchase_id uuid null references public.user_highlight_booster_purchases(id) on delete set null;
-
-create index if not exists idx_announcement_highlights_history_credit_source
-  on public.announcement_highlights_history(credit_source);
-
-create or replace function public.register_highlight_booster_purchase(
-  p_user_id uuid,
-  p_booster_id uuid,
-  p_payment_id uuid default null,
-  p_provider_payment_id text default null,
-  p_amount numeric default 0
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_recent_purchases_count integer := 0;
-  v_booster record;
-  v_purchase_id uuid;
-begin
-  select *
-  into v_booster
-  from public.highlight_boosters
-  where id = p_booster_id
-    and is_active = true
-  limit 1;
-
-  if v_booster is null then
-    return jsonb_build_object(
-      'success', false,
-      'error', 'Booster nao encontrado ou inativo'
-    );
-  end if;
-
-  select count(*)
-  into v_recent_purchases_count
-  from public.user_highlight_booster_purchases
-  where user_id = p_user_id
-    and booster_id = p_booster_id
-    and status = 'credited'
-    and created_at >= (now() - interval '30 days');
-
-  if v_recent_purchases_count >= coalesce(v_booster.max_purchases_per_30_days, 2) then
-    return jsonb_build_object(
-      'success', false,
-      'error', format('Limite de %s booster(s) a cada 30 dias atingido.', coalesce(v_booster.max_purchases_per_30_days, 2))
-    );
-  end if;
-
-  insert into public.user_highlight_booster_purchases (
-    user_id,
-    booster_id,
-    payment_id,
-    provider_payment_id,
-    status,
-    booster_name,
-    amount,
-    category_credits_total,
-    category_credits_remaining,
-    home_credits_total,
-    home_credits_remaining
-  ) values (
-    p_user_id,
-    p_booster_id,
-    p_payment_id,
-    p_provider_payment_id,
-    'credited',
-    v_booster.name,
-    coalesce(p_amount, v_booster.monthly_price, 0),
-    coalesce(v_booster.category_credits, 0),
-    coalesce(v_booster.category_credits, 0),
-    coalesce(v_booster.home_credits, 0),
-    coalesce(v_booster.home_credits, 0)
-  )
-  returning id into v_purchase_id;
-
-  return jsonb_build_object(
-    'success', true,
-    'purchase_id', v_purchase_id,
-    'booster_name', v_booster.name,
-    'category_credits', coalesce(v_booster.category_credits, 0),
-    'home_credits', coalesce(v_booster.home_credits, 0)
-  );
-end;
-$$;
-
-create or replace function public.get_my_highlight_booster_summary()
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_user_id uuid := auth.uid();
-  v_category_remaining integer := 0;
-  v_home_remaining integer := 0;
-  v_recent_purchases integer := 0;
-begin
-  if v_user_id is null then
-    return jsonb_build_object(
-      'success', false,
-      'error', 'Usuario nao autenticado'
-    );
-  end if;
-
-  select
-    coalesce(sum(category_credits_remaining), 0),
-    coalesce(sum(home_credits_remaining), 0)
-  into v_category_remaining, v_home_remaining
-  from public.user_highlight_booster_purchases
-  where user_id = v_user_id
-    and status = 'credited';
-
-  select count(*)
-  into v_recent_purchases
-  from public.user_highlight_booster_purchases
-  where user_id = v_user_id
-    and status = 'credited'
-    and created_at >= (now() - interval '30 days');
-
-  return jsonb_build_object(
-    'success', true,
-    'category_remaining', v_category_remaining,
-    'home_remaining', v_home_remaining,
-    'purchases_last_30_days', v_recent_purchases
-  );
-end;
-$$;
+alter table if exists public.user_subscriptions
+  add constraint user_subscriptions_home_highlights_carryover_check
+  check (home_highlights_carryover >= 0);
 
 drop function if exists public.apply_announcement_highlight(uuid, text);
 
@@ -230,6 +43,7 @@ declare
   v_announcement_record record;
   v_subscription_record record;
   v_plan_record record;
+  v_usage_window record;
   v_has_subscription boolean := false;
   v_has_plan boolean := false;
   v_last_highlight record;
@@ -241,6 +55,7 @@ declare
   v_booster_home_highlight_days int := 15;
   v_booster_remaining int := 0;
   v_expires_at timestamptz;
+  v_available_after timestamptz;
   v_credit_source text := 'plan';
   v_booster_purchase_id uuid := null;
 begin
@@ -306,18 +121,26 @@ begin
       v_category_highlight_days := coalesce(v_plan_record.category_highlight_days, 7);
       v_home_highlight_days := coalesce(v_plan_record.home_highlight_days, 7);
     end if;
+
+    select *
+    into v_usage_window
+    from public.calculate_subscription_usage_window(
+      v_subscription_record.current_period_start,
+      v_subscription_record.current_period_end,
+      now()
+    );
   end if;
 
   if p_highlight_type = 'category' then
     v_highlights_limit := case
       when v_has_subscription and v_has_plan
-        then coalesce(v_plan_record.category_highlights_count, 0)
+        then coalesce(v_plan_record.category_highlights_count, 0) + coalesce(v_subscription_record.category_highlights_carryover, 0)
       else 0
     end;
   else
     v_highlights_limit := case
       when v_has_subscription and v_has_plan
-        then coalesce(v_plan_record.home_highlight_count, 0)
+        then coalesce(v_plan_record.home_highlight_count, 0) + coalesce(v_subscription_record.home_highlights_carryover, 0)
       else 0
     end;
   end if;
@@ -329,7 +152,7 @@ begin
     where user_id = v_user_id
       and highlight_type = p_highlight_type
       and credit_source = 'plan'
-      and applied_at between v_subscription_record.current_period_start and v_subscription_record.current_period_end;
+      and applied_at between v_usage_window.usage_period_start and v_usage_window.usage_period_end;
   else
     v_highlights_used := 0;
   end if;
@@ -351,17 +174,21 @@ begin
   from public.announcement_highlights_history
   where announcement_id = p_announcement_id
     and highlight_type = p_highlight_type
-    and applied_at > (now() - interval '15 days')
-  order by applied_at desc
+  order by coalesce(expires_at, applied_at) desc
   limit 1;
 
   if v_last_highlight is not null then
-    return jsonb_build_object(
-      'success', false,
-      'error', 'Este anuncio ja foi destacado nos ultimos 15 dias. Aguarde o periodo minimo.',
-      'last_highlight_date', v_last_highlight.applied_at,
-      'available_after', v_last_highlight.applied_at + interval '15 days'
-    );
+    v_available_after := coalesce(v_last_highlight.expires_at, v_last_highlight.applied_at) + interval '15 days';
+
+    if now() < v_available_after then
+      return jsonb_build_object(
+        'success', false,
+        'error', 'Este anuncio ainda esta em cooldown para este tipo de destaque. O novo prazo de 15 dias comeca apos o vencimento do destaque anterior.',
+        'last_highlight_date', v_last_highlight.applied_at,
+        'last_highlight_expires_at', v_last_highlight.expires_at,
+        'available_after', v_available_after
+      );
+    end if;
   end if;
 
   if v_highlights_used >= v_highlights_limit then
@@ -479,8 +306,8 @@ begin
     p_highlight_type,
     now(),
     v_expires_at,
-    case when v_has_subscription then v_subscription_record.current_period_start else now() end,
-    case when v_has_subscription then v_subscription_record.current_period_end else now() end,
+    case when v_has_subscription then v_usage_window.usage_period_start else now() end,
+    case when v_has_subscription then v_usage_window.usage_period_end else now() end,
     v_credit_source,
     v_booster_purchase_id
   );
@@ -504,6 +331,7 @@ begin
       case when p_highlight_type = 'category' then 'categoria' else 'home' end
     ),
     'expires_at', v_expires_at,
+    'available_after', v_expires_at + interval '15 days',
     'used', case when v_credit_source = 'plan' then v_highlights_used + 1 else v_highlights_used end,
     'limit', v_highlights_limit,
     'remaining', greatest(v_highlights_limit - (case when v_credit_source = 'plan' then v_highlights_used + 1 else v_highlights_used end), 0),
@@ -519,33 +347,4 @@ exception
 end;
 $$;
 
-insert into public.highlight_boosters (
-  name,
-  description,
-  monthly_price,
-  category_credits,
-  home_credits,
-  category_highlight_days,
-  home_highlight_days,
-  max_purchases_per_30_days,
-  button_text,
-  is_active,
-  position
-)
-select
-  'Impulso Safra Premium',
-  'Pacote exclusivo com 5 destaques em categoria e 5 destaques na home para campanhas pontuais de maior alcance.',
-  249.00,
-  5,
-  5,
-  30,
-  15,
-  2,
-  'Comprar booster',
-  true,
-  1
-where not exists (
-  select 1
-  from public.highlight_boosters
-  where name = 'Impulso Safra Premium'
-);
+grant execute on function public.apply_announcement_highlight(uuid, text) to authenticated;

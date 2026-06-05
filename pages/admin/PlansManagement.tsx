@@ -27,6 +27,7 @@ import {
 import { usePlans, Plan, UpdatePlanData } from '../../src/hooks/usePlans';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
+import { BillingModel } from '../../types';
 import toast from 'react-hot-toast';
 
 const FieldShell: React.FC<{
@@ -73,14 +74,13 @@ const ToggleSwitch: React.FC<{
 const makeEmptyForm = (position: number): UpdatePlanData => ({
   name: '',
   description: '',
+  billing_model: 'one_time',
   card_eyebrow: 'Plano BWAGRO',
   price_caption: '',
   footer_caption: '',
   show_footer_card: true,
   monthly_price: 0,
   yearly_price: 0,
-  stripe_monthly_price_id: '',
-  stripe_yearly_price_id: '',
   button_text: 'Escolher Plano',
   position,
   is_active: true,
@@ -114,14 +114,13 @@ const makeEmptyForm = (position: number): UpdatePlanData => ({
 const mapPlanToForm = (plan: Plan): UpdatePlanData => ({
   name: plan.name,
   description: plan.description || '',
+  billing_model: plan.billing_model || 'one_time',
   card_eyebrow: plan.card_eyebrow || 'Plano BWAGRO',
   price_caption: plan.price_caption || '',
   footer_caption: plan.footer_caption || '',
   show_footer_card: plan.show_footer_card ?? true,
   monthly_price: plan.monthly_price,
   yearly_price: plan.yearly_price,
-  stripe_monthly_price_id: plan.stripe_monthly_price_id || '',
-  stripe_yearly_price_id: plan.stripe_yearly_price_id || '',
   button_text: plan.button_text,
   position: plan.position,
   is_active: plan.is_active,
@@ -188,6 +187,11 @@ const PlansManagement: React.FC = () => {
 
   const handleChange = (field: keyof UpdatePlanData, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const billingModelLabel: Record<BillingModel, string> = {
+    one_time: 'Cobrança avulsa',
+    recurring: 'Assinatura recorrente',
   };
 
   const handleCancel = () => {
@@ -397,11 +401,18 @@ const PlansManagement: React.FC = () => {
               <FieldShell label="Preco Anual (R$)">
                 <input type="number" value={formData.yearly_price ?? 0} onChange={(e) => handleChange('yearly_price', parseFloat(e.target.value) || 0)} placeholder="0,00" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
               </FieldShell>
-              <FieldShell label="Stripe Price ID - Mensal" hint="Obrigatorio quando o checkout Stripe estiver ativo para este plano.">
-                <input value={formData.stripe_monthly_price_id || ''} onChange={(e) => handleChange('stripe_monthly_price_id', e.target.value)} placeholder="price_..." className="w-full rounded-lg border border-gray-300 px-4 py-2 font-mono text-sm" />
-              </FieldShell>
-              <FieldShell label="Stripe Price ID - Anual" hint="Use o price anual correspondente na Stripe.">
-                <input value={formData.stripe_yearly_price_id || ''} onChange={(e) => handleChange('stripe_yearly_price_id', e.target.value)} placeholder="price_..." className="w-full rounded-lg border border-gray-300 px-4 py-2 font-mono text-sm" />
+              <FieldShell
+                label="Modelo de cobrança"
+                hint="Essa escolha vale para novas compras deste plano. Contratações antigas continuam com o modelo registrado na compra."
+              >
+                <select
+                  value={formData.billing_model || 'one_time'}
+                  onChange={(e) => handleChange('billing_model', e.target.value as BillingModel)}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2"
+                >
+                  <option value="one_time">Cobrança avulsa</option>
+                  <option value="recurring">Assinatura recorrente</option>
+                </select>
               </FieldShell>
               <FieldShell label="Texto do Botao">
                 <input value={formData.button_text || ''} onChange={(e) => handleChange('button_text', e.target.value)} placeholder="Ex.: Assinar agora" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
@@ -697,6 +708,9 @@ const PlansManagement: React.FC = () => {
                       Oculto na vitrine
                     </span>
                   )}
+                  <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                    {billingModelLabel[plan.billing_model || 'one_time']}
+                  </span>
                 </div>
                 <p className="text-sm text-gray-600">{plan.description}</p>
               </div>

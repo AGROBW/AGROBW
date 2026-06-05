@@ -13,7 +13,6 @@ const mapBooster = (row: any): HighlightBoosterRecord => ({
   name: row.name,
   description: row.description ?? null,
   monthlyPrice: Number(row.monthly_price ?? 0),
-  stripePriceId: row.stripe_price_id ?? null,
   categoryCredits: Number(row.category_credits ?? 0),
   homeCredits: Number(row.home_credits ?? 0),
   categoryHighlightDays: Number(row.category_highlight_days ?? 30),

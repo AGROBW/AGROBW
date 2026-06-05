@@ -15,7 +15,7 @@ type HelpItem = {
   description: string;
   details: string[];
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  group: 'Comecando agora' | 'Anuncios e visibilidade' | 'Atendimento e financeiro';
+  group: 'Comecando agora' | 'Anuncios e visibilidade' | 'Atendimento e planos';
   action: HelpAction;
   highlight?: boolean;
 };
@@ -81,7 +81,7 @@ const helpItems: HelpItem[] = [
       'Leads e contatos seguem a regra do plano e da situacao do anuncio.',
     ],
     icon: MessageSquare,
-    group: 'Atendimento e financeiro',
+    group: 'Atendimento e planos',
     action: {
       label: 'Abrir mensagens',
       to: '/minha-conta/mensagens',
@@ -91,14 +91,14 @@ const helpItems: HelpItem[] = [
     title: 'Pagamentos e notas fiscais',
     description: 'Acompanhe cobrancas, comprovantes e documentos fiscais do seu plano.',
     details: [
-      'A area Financeiro mostra pagamentos aprovados, comprovantes e notas fiscais.',
+      'A área Financeiro mostra pagamentos aprovados, comprovantes, vigência e notas fiscais.',
       'Quando a nota fiscal estiver pronta, ela fica disponivel para download.',
       'Use essa area para conferir status de cobranca e historico financeiro.',
     ],
     icon: CreditCard,
-    group: 'Atendimento e financeiro',
+    group: 'Atendimento e planos',
     action: {
-      label: 'Abrir financeiro',
+      label: 'Abrir Financeiro',
       to: '/minha-conta/financeiro',
     },
     highlight: true,
@@ -112,7 +112,7 @@ const helpItems: HelpItem[] = [
       'Tickets resolvidos ficam encerrados para novas mensagens, mas continuam no historico.',
     ],
     icon: LifeBuoy,
-    group: 'Atendimento e financeiro',
+    group: 'Atendimento e planos',
     action: {
       label: 'Abrir novo ticket',
       onClick: undefined,
@@ -124,7 +124,7 @@ const helpItems: HelpItem[] = [
 const groupOrder: Array<HelpItem['group']> = [
   'Comecando agora',
   'Anuncios e visibilidade',
-  'Atendimento e financeiro',
+  'Atendimento e planos',
 ];
 
 const HelpCenterQuickHelpTab: React.FC<HelpCenterQuickHelpTabProps> = ({

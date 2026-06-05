@@ -5,8 +5,7 @@ import { usePlans } from '../src/hooks/usePlans';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useSubscription } from '../src/hooks/useSubscription';
 import { calculateYearlySavings, calculateYearlyTotal, getCustomPlanContactLink, isCustomPlan } from '../services/paymentUtils';
-import { initiateBoosterCheckout, initiatePlatformPlanCheckout, openStripeCustomerPortal } from '../services/paymentCheckoutService';
-import { requestSubscriptionChangeNextCycle } from '../services/subscriptionChangeService';
+import { initiateBoosterCheckout, initiatePlatformPlanCheckout } from '../services/paymentCheckoutService';
 import toast from 'react-hot-toast';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { Plan } from '../src/hooks/usePlans';
@@ -133,31 +132,36 @@ const PricingView: React.FC = () => {
     () => plansRaw.find((plan) => plan.id === subscription?.plan_id) || null,
     [plansRaw, subscription?.plan_id]
   );
-  const hasManagedStripeSubscription = Boolean(
+  const hasActiveManagedPlan = Boolean(
     user &&
     subscription &&
-    subscription.provider === 'stripe' &&
     ['active', 'trialing', 'past_due'].includes(subscription.status)
   );
+  const hasManagedRecurringSubscription = Boolean(
+    hasActiveManagedPlan && subscription?.billing_model === 'recurring'
+  );
+
+  const getPlanCheckoutVerb = (plan: Plan) =>
+    plan.billing_model === 'recurring' ? 'Contratar' : 'Comprar';
 
   const getPlanActionLabel = (plan: Plan) => {
-    if (!hasManagedStripeSubscription || !currentPlanRecord) {
-      return `${plan.button_text || 'Assinar'} ${getBillingCycleLabel(billingCycle)}`;
+    if (!hasActiveManagedPlan || !currentPlanRecord) {
+      return `${getPlanCheckoutVerb(plan)} ${getBillingCycleLabel(billingCycle)}`;
     }
 
-    if (plan.id === currentPlanRecord.id) {
+    if (hasManagedRecurringSubscription && plan.id === currentPlanRecord.id) {
       return 'Plano atual';
     }
 
-    if (plan.position > currentPlanRecord.position) {
-      return `Agendar upgrade ${getBillingCycleLabel(billingCycle)}`;
+    if (hasManagedRecurringSubscription) {
+      return 'Gerenciar em Financeiro';
     }
 
-    if (plan.position < currentPlanRecord.position) {
-      return `Agendar downgrade ${getBillingCycleLabel(billingCycle)}`;
+    if (plan.id === currentPlanRecord.id && subscription?.billing_cycle === billingCycle) {
+      return 'Comprar novamente agora';
     }
 
-    return 'Trocar ciclo no Portal Stripe';
+    return 'Trocar agora';
   };
   const getDisplayPrice = (monthlyPrice: number, yearlyPrice: number) =>
     billingCycle === 'monthly'
@@ -165,6 +169,13 @@ const PricingView: React.FC = () => {
       : yearlyPrice > 0
         ? yearlyPrice
         : monthlyPrice;
+  const getDisplayPriceSuffix = (plan: Plan) => {
+    if (plan.billing_model === 'recurring') {
+      return billingCycle === 'yearly' ? '/ano' : '/mês';
+    }
+
+    return billingCycle === 'yearly' ? '/vigência anual' : '/vigência mensal';
+  };
   const getPlanSummary = (plan: Plan) => {
     if (plan.display_features?.length) return plan.display_features.filter(Boolean);
     const summary = [`Até ${formatNumericValue(plan.max_ads)} anúncios ativos`, `${plan.category_highlights_count || 0} destaques por categoria`, `${formatNumericValue(getEffectivePlanValidityDays(plan, billingCycle), ' dias')} de vigência no ciclo`];
@@ -221,6 +232,7 @@ const PricingView: React.FC = () => {
 
   const handleSubscribe = async (planId: string, planName: string, monthlyPrice: number, yearlyPrice: number, description?: string | null) => {
     const selectedPlan = plansRaw.find((plan) => plan.id === planId);
+    const planCheckoutVerb = selectedPlan?.billing_model === 'recurring' ? 'contratar' : 'comprar';
     if (selectedPlan && isStartPlanLockedForUser(selectedPlan)) {
       toast.error('O plano Start está disponível apenas no cadastro.', {
         duration: 5000,
@@ -230,24 +242,18 @@ const PricingView: React.FC = () => {
 
     if (isCustomPlan(planName)) return void window.open(getCustomPlanContactLink(planName), '_blank');
     if (!user) {
-      toast.error('Você precisa estar logado para assinar um plano.');
+      toast.error(`Você precisa estar logado para ${planCheckoutVerb} um plano.`);
       setTimeout(() => { window.location.href = '/login?redirect=/planos'; }, 1500);
       return;
     }
 
-    if (hasManagedStripeSubscription && currentPlanRecord?.id === planId) {
-      if (subscription?.billing_cycle === billingCycle) {
-        toast('Esse já é o seu plano e ciclo atuais.');
-        return;
+    if (hasManagedRecurringSubscription) {
+      if (currentPlanRecord?.id === planId && subscription?.billing_cycle === billingCycle) {
+        toast('Esse já é o seu plano atual.');
+      } else {
+        toast('Os ajustes de planos com cobrança recorrente em andamento ficam centralizados na aba Financeiro.');
       }
-
-      const portalResult = await openStripeCustomerPortal('/minha-conta/assinatura');
-      if (!portalResult.success) {
-        toast.error(portalResult.error || 'Não foi possível abrir o Portal Stripe.');
-        return;
-      }
-
-      toast.success('Portal Stripe aberto para alterar apenas o ciclo da assinatura.');
+      window.location.href = '/minha-conta/financeiro';
       return;
     }
 
@@ -258,62 +264,8 @@ const PricingView: React.FC = () => {
       const result = await initiatePlatformPlanCheckout({ planId, planName, planDescription: description || `Plano ${planName}`, billingCycle, amount, userId: user.id });
       toast.dismiss('checkout-loading');
 
-      if (!result.success && result.action === 'schedule_subscription_change') {
-        const targetPlan = plansRaw.find((plan) => plan.id === planId) || null;
-
-        if (!currentPlanRecord || !targetPlan) {
-          toast.error('Não foi possível identificar a alteração. Use o Portal Stripe.');
-          return;
-        }
-
-        const changeKind =
-          targetPlan.position > currentPlanRecord.position
-            ? 'upgrade'
-            : targetPlan.position < currentPlanRecord.position
-              ? 'downgrade'
-              : null;
-
-        if (!changeKind) {
-          toast.error('Troca apenas de ciclo ainda deve ser feita pelo Portal Stripe.');
-          return;
-        }
-
-        const scheduleResult = await requestSubscriptionChangeNextCycle({
-          changeKind,
-          targetPlanId: targetPlan.id,
-          targetBillingCycle: billingCycle,
-        });
-
-        if (!scheduleResult.success) {
-          toast.error(scheduleResult.error || result.error || 'Não foi possível agendar a alteração do plano.');
-          return;
-        }
-
-        toast.success(
-          changeKind === 'upgrade'
-            ? 'Upgrade agendado para o próximo ciclo.'
-            : 'Downgrade agendado para o próximo ciclo.'
-        );
-        if (scheduleResult.warning) {
-          toast.warning(`A mudança foi registrada, mas a sincronização com a Stripe ainda precisa de revisão: ${scheduleResult.warning}`);
-        }
-        return;
-      }
-
-      if (!result.success && result.action === 'open_stripe_portal') {
-        const portalResult = await openStripeCustomerPortal('/minha-conta/assinatura');
-
-        if (!portalResult.success) {
-          toast.error(portalResult.error || result.error || 'Não foi possível abrir o portal Stripe.');
-          return;
-        }
-
-        toast.success('Portal Stripe aberto para gerenciar sua assinatura atual.');
-        return;
-      }
-
       result.success
-        ? toast.success('Redirecionando para checkout Stripe...')
+        ? toast.success('Redirecionando para o checkout Asaas...')
         : toast.error(result.error || 'Erro ao processar checkout.');
     } catch (err) {
       toast.dismiss('checkout-loading');
@@ -542,7 +494,7 @@ const PricingView: React.FC = () => {
                         <div className="flex items-baseline gap-1">
                           <span className="text-sm font-bold text-slate-400">R$</span>
                           <span className="text-5xl font-black tracking-tighter text-white">{formatCurrency(displayPrice)}</span>
-                          <span className="text-sm font-medium text-slate-400">{billingCycle === 'yearly' ? '/ano' : '/mês'}</span>
+                          <span className="text-sm font-medium text-slate-400">{getDisplayPriceSuffix(plan)}</span>
                         </div>
                         {billingCycle === 'yearly' && plan.yearly_price > 0 ? (
                           <p className="mt-2 text-xs font-semibold" style={{ color: `color-mix(in srgb, ${settings.primaryColor} 60%, white)` }}>
@@ -583,7 +535,7 @@ const PricingView: React.FC = () => {
                       <div className="mt-auto px-7 pb-7 pt-6">
                         <button
                           onClick={() => handleSubscribe(plan.id, plan.name, plan.monthly_price, plan.yearly_price, plan.description)}
-                          disabled={loadingPlanId === plan.id || startPlanLocked || (hasManagedStripeSubscription && currentPlanRecord?.id === plan.id && subscription?.billing_cycle === billingCycle)}
+                          disabled={loadingPlanId === plan.id || startPlanLocked || (hasManagedRecurringSubscription && currentPlanRecord?.id === plan.id && subscription?.billing_cycle === billingCycle)}
                           className={`flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-4 text-sm font-black transition-all disabled:cursor-not-allowed disabled:opacity-70 ${
                             startPlanLocked
                               ? 'bg-slate-200 text-slate-500'
@@ -597,7 +549,7 @@ const PricingView: React.FC = () => {
                             ? <><Loader2 className="h-4 w-4 animate-spin" />Processando...</>
                             : startPlanLocked
                               ? <>Disponível apenas no cadastro</>
-                              : hasManagedStripeSubscription && currentPlanRecord?.id === plan.id && subscription?.billing_cycle === billingCycle
+                              : hasManagedRecurringSubscription && currentPlanRecord?.id === plan.id && subscription?.billing_cycle === billingCycle
                                 ? <>Plano atual</>
                                 : <>{getPlanActionLabel(plan)} <ArrowRight className="h-4 w-4" /></>}
                         </button>
@@ -837,7 +789,7 @@ const PricingView: React.FC = () => {
           <div className="mb-12 text-center">
             <p className="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">Dúvidas</p>
             <h2 className="mt-3 font-display text-3xl font-black text-slate-950">Perguntas Frequentes</h2>
-            <p className="mt-3 text-sm text-slate-500">Tudo o que você precisa saber sobre os planos e assinaturas BWAGRO.</p>
+            <p className="mt-3 text-sm text-slate-500">Tudo o que você precisa saber sobre os planos e formas de contratação da BWAGRO.</p>
           </div>
           <div className="space-y-3">
               {visiblePricingFaq.map((faq, idx) => (
@@ -904,7 +856,7 @@ const PricingView: React.FC = () => {
             {[
               { icon: Zap, text: 'Ativação imediata' },
               { icon: ShieldCheck, text: 'Pagamento seguro' },
-              { icon: Sparkles, text: 'Cancele quando quiser' },
+              { icon: Sparkles, text: 'Ajuste quando quiser' },
             ].map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-2 text-sm font-semibold text-slate-300">
                 <Icon className="h-4 w-4" style={{ color: settings.primaryColor }} />

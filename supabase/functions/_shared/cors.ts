@@ -2,7 +2,7 @@
  * Utilitário CORS seguro para Supabase Edge Functions
  *
  * Substitui o inseguro `Access-Control-Allow-Origin: *` por uma allowlist
- * de origens conhecidas. Edge Functions de webhook (Stripe, Fiscal) devem
+ * de origens conhecidas. Edge Functions de webhook (Asaas, Fiscal) devem
  * usar corsHeadersWebhook, que bloqueia origens de browser completamente.
  *
  * VULN-002 fix: CORS wildcard removido
@@ -46,14 +46,14 @@ export const getCorsHeaders = (req: Request): Record<string, string> => ({
 });
 
 /**
- * Headers CORS para endpoints de webhook (Stripe, Fiscal, MercadoPago).
+ * Headers CORS para endpoints de webhook (Asaas, Fiscal, MercadoPago).
  * Webhooks são chamados diretamente por servidores externos, nunca por browsers —
  * portanto bloqueamos origens de browser completamente.
  */
 export const getCorsHeadersWebhook = (): Record<string, string> => ({
   'Access-Control-Allow-Origin': 'null', // Bloqueia browsers
   'Access-Control-Allow-Methods': 'POST',
-  'Access-Control-Allow-Headers': 'Content-Type, stripe-signature, x-webhook-secret',
+  'Access-Control-Allow-Headers': 'Content-Type, x-webhook-secret, asaas-access-token',
 });
 
 /**

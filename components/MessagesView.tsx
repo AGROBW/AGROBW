@@ -21,6 +21,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const navigate = useNavigate();
   const { chats, isLoading: chatsLoading } = useChats();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(initialChatId || null);
+  const [highlightedChatId, setHighlightedChatId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MessageTab>('sent');
   const [searchQuery, setSearchQuery] = useState('');
   const [messageText, setMessageText] = useState('');
@@ -88,13 +89,19 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
       location.state && typeof location.state === 'object' && 'chatId' in location.state
         ? String((location.state as { chatId?: string }).chatId || '')
         : '';
-    const incomingChatId = chatIdFromState || searchParams.get('chat') || '';
+    const highlightChatIdFromState =
+      location.state && typeof location.state === 'object' && 'highlightChatId' in location.state
+        ? String((location.state as { highlightChatId?: string }).highlightChatId || '')
+        : '';
+    const chatIdFromSearch = searchParams.get('chat') || '';
+    const incomingChatId = chatIdFromState;
+    const incomingHighlightChatId = highlightChatIdFromState || chatIdFromSearch;
 
-    if (!incomingChatId) {
+    if (!incomingChatId && !incomingHighlightChatId) {
       return;
     }
 
-    const targetChat = chats.find((chat) => chat.id === incomingChatId);
+    const targetChat = chats.find((chat) => chat.id === (incomingChatId || incomingHighlightChatId));
     if (targetChat) {
       const targetTab = (targetChat.direction || 'received') as MessageTab;
       if (activeTab !== targetTab) {
@@ -102,12 +109,17 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
       }
     }
 
-    if (incomingChatId !== selectedChatId) {
+    if (incomingChatId && incomingChatId !== selectedChatId) {
       setSelectedChatId(incomingChatId);
+      setHighlightedChatId(null);
     }
 
-    if (searchParams.get('chat')) {
-      navigate(location.pathname, { replace: true });
+    if (incomingHighlightChatId) {
+      setHighlightedChatId(incomingHighlightChatId);
+    }
+
+    if (targetChat && (chatIdFromSearch || incomingChatId || incomingHighlightChatId)) {
+      navigate(location.pathname, { replace: true, state: null });
     }
   }, [location.pathname, location.search, location.state, chats, activeTab, navigate, selectedChatId]);
 
@@ -125,6 +137,17 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
       setSelectedChatId(replacementChat?.id || null);
     }
   }, [activeTab, chats, selectedChatId]);
+
+  useEffect(() => {
+    if (!highlightedChatId) return;
+
+    const targetChat = chats.find(chat => chat.id === highlightedChatId);
+    if (!targetChat) return;
+
+    if ((targetChat.direction || 'received') !== activeTab) {
+      setActiveTab((targetChat.direction || 'received') as MessageTab);
+    }
+  }, [activeTab, chats, highlightedChatId]);
   
   const handleSendMessage = async () => {
     if (!messageText.trim() || !selectedChatId || isSelectedChatFrozen) return;
@@ -259,10 +282,17 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                 return (
               <button
                 key={chat.id}
-                onClick={() => setSelectedChatId(chat.id)}
+                onClick={() => {
+                  setSelectedChatId(chat.id);
+                  if (highlightedChatId === chat.id) {
+                    setHighlightedChatId(null);
+                  }
+                }}
                 className={`w-full p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors text-left ${
                   selectedChatId === chat.id
                     ? 'bg-green-50 border-l-4 border-l-green-600'
+                    : highlightedChatId === chat.id
+                      ? 'bg-emerald-50/70 border-l-4 border-l-emerald-400'
                     : isUnreadConversation
                       ? 'bg-emerald-50/60 border-l-4 border-l-emerald-500'
                       : ''

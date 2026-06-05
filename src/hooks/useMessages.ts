@@ -66,6 +66,49 @@ const getLeadContactExpirationMap = async (chatIds: string[]) => {
   )
 }
 
+const getUnreadCountsByChatId = async (chatIds: string[]) => {
+  if (chatIds.length === 0) {
+    return new Map<
+      string,
+      {
+        buyerId: string | null
+        sellerId: string | null
+        unreadCountBuyer: number
+        unreadCountSeller: number
+      }
+    >()
+  }
+
+  const { data, error } = await supabase
+    .from('chats')
+    .select('id, buyer_id, seller_id, unread_count_buyer, unread_count_seller')
+    .in('id', chatIds)
+
+  if (error) {
+    throw error
+  }
+
+  return new Map<
+    string,
+    {
+      buyerId: string | null
+      sellerId: string | null
+      unreadCountBuyer: number
+      unreadCountSeller: number
+    }
+  >(
+    (data || []).map((chat) => [
+      String(chat.id),
+      {
+        buyerId: chat.buyer_id ? String(chat.buyer_id) : null,
+        sellerId: chat.seller_id ? String(chat.seller_id) : null,
+        unreadCountBuyer: Number(chat.unread_count_buyer || 0),
+        unreadCountSeller: Number(chat.unread_count_seller || 0)
+      }
+    ])
+  )
+}
+
 export const useChats = (announcementId?: string | null) => {
   const { user } = useAuth()
   const [chats, setChats] = useState<Chat[]>([])
@@ -138,6 +181,15 @@ export const useChats = (announcementId?: string | null) => {
         setError(null)
         const chatRows = data || []
         let leadExpirationByChat = new Map<string, string | null>()
+        let unreadCountsByChatId = new Map<
+          string,
+          {
+            buyerId: string | null
+            sellerId: string | null
+            unreadCountBuyer: number
+            unreadCountSeller: number
+          }
+        >()
 
         try {
           // Use the lead record itself as the source of truth for contact locking.
@@ -148,9 +200,36 @@ export const useChats = (announcementId?: string | null) => {
           appError('[useChats] Erro ao buscar expiracao dos leads', leadError, { userId: user.id })
         }
 
+        try {
+          // Avoid relying on an outdated chats_full projection for unread counts.
+          unreadCountsByChatId = await getUnreadCountsByChatId(
+            chatRows.map((chat) => String(chat.id)).filter(Boolean)
+          )
+        } catch (unreadError) {
+          appError('[useChats] Erro ao buscar contadores reais de nao lidas', unreadError, { userId: user.id })
+        }
+
         const mappedChats: Chat[] = chatRows.map(chat => {
           const leadContactExpiresAt =
             leadExpirationByChat.get(chat.id) ?? chat.lead_contact_expires_at ?? null
+
+          const unreadCountEntry = unreadCountsByChatId.get(String(chat.id))
+          const unreadCountFromView =
+            typeof chat.unread_count === 'number'
+              ? chat.unread_count
+              : chat.buyer_id === user.id
+                ? Number(chat.unread_count_buyer || 0)
+                : chat.seller_id === user.id
+                  ? Number(chat.unread_count_seller || 0)
+                  : 0
+
+          const unreadCount = unreadCountEntry
+            ? unreadCountEntry.buyerId === user.id
+              ? unreadCountEntry.unreadCountBuyer
+              : unreadCountEntry.sellerId === user.id
+                ? unreadCountEntry.unreadCountSeller
+                : 0
+            : unreadCountFromView
 
           return {
           ...getChatFreezeState(
@@ -175,7 +254,7 @@ export const useChats = (announcementId?: string | null) => {
           buyerName: chat.buyer_name,
           lastMessage: chat.last_message || '',
           lastMessageTime: chat.last_message_time || chat.created_at,
-          unreadCount: chat.unread_count || 0,
+          unreadCount,
           status: chat.status,
           createdAt: chat.created_at
         }})

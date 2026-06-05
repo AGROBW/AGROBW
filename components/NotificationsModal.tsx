@@ -144,9 +144,23 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
       await markAsRead(notification.id);
     }
 
+    const isMessageNotification =
+      notification.type === 'new_message' || notification.type === 'NEW_MESSAGE';
+    const relatedChatId = extractChatIdFromLink(notification.link);
+
     // Navegar se tiver link
     if (notification.link) {
       onClose();
+      if (isMessageNotification && relatedChatId) {
+        navigate('/minha-conta/mensagens', {
+          state: {
+            highlightChatId: relatedChatId,
+            source: 'notification'
+          }
+        });
+        return;
+      }
+
       navigate(notification.link);
     }
   };

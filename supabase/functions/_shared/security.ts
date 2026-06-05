@@ -62,6 +62,39 @@ export const isAdminProfile = (
   return (profile.role ?? '').toLowerCase() === 'admin';
 };
 
+const decodeBase64Url = (value: string): string | null => {
+  try {
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    return atob(padded);
+  } catch {
+    return null;
+  }
+};
+
+export const extractAuthenticatorAssuranceLevel = (token: string): string | null => {
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+
+  const decoded = decodeBase64Url(parts[1]);
+  if (!decoded) return null;
+
+  try {
+    const payload = JSON.parse(decoded) as { aal?: unknown };
+    return typeof payload.aal === 'string' ? payload.aal : null;
+  } catch {
+    return null;
+  }
+};
+
+export const hasAal2Token = (token: string): boolean =>
+  extractAuthenticatorAssuranceLevel(token) === 'aal2';
+
+export const isAdminAal2Profile = (
+  profile: { role?: string | null; is_admin?: boolean | null } | null | undefined,
+  token: string,
+): boolean => isAdminProfile(profile) && hasAal2Token(token);
+
 /**
  * Obtém e valida o token Bearer do header Authorization.
  * Retorna o token ou null se ausente/malformado.

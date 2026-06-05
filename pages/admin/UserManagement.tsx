@@ -207,7 +207,6 @@ const UserManagement: React.FC = () => {
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
   const [subscriptionsPage, setSubscriptionsPage] = useState(0);
   const [subscriptionsTotalCount, setSubscriptionsTotalCount] = useState(0);
-  const [syncingStripeSubscriptionId, setSyncingStripeSubscriptionId] = useState<string | null>(null);
   const [subscriptionSearchTerm, setSubscriptionSearchTerm] = useState('');
   const [subscriptionStatusFilter, setSubscriptionStatusFilter] = useState<string>('all');
   const [subscriptionTypeFilter, setSubscriptionTypeFilter] = useState<string>('all');
@@ -1281,46 +1280,6 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const handleSyncStripeSubscription = async (subscription: SubscriptionRow) => {
-    if (subscription.provider !== 'stripe') {
-      toast.error('Sincronização manual disponível apenas para assinaturas Stripe.');
-      return;
-    }
-
-    if (!subscription.provider_subscription_id) {
-      toast.error('Esta assinatura ainda não possui ID Stripe salvo.');
-      return;
-    }
-
-    try {
-      setSyncingStripeSubscriptionId(subscription.id);
-
-      const { data, error } = await supabase.functions.invoke('admin-sync-stripe-subscription', {
-        method: 'POST',
-        body: { userSubscriptionId: subscription.id },
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data?.success) {
-        throw new Error(data?.error || 'Falha ao sincronizar a assinatura Stripe.');
-      }
-
-      toast.success('Assinatura Stripe sincronizada com sucesso.');
-      await loadSubscriptions();
-    } catch (error) {
-      appError('[UserManagement] Erro ao sincronizar assinatura Stripe', error, {
-        subscriptionId: subscription.id,
-        providerSubscriptionId: subscription.provider_subscription_id,
-      });
-      toast.error(error instanceof Error ? error.message : 'Erro ao sincronizar a assinatura Stripe.');
-    } finally {
-      setSyncingStripeSubscriptionId(null);
-    }
-  };
-
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
   const subscriptionsTotalPages = Math.ceil(subscriptionsTotalCount / PAGE_SIZE);
 
@@ -1775,11 +1734,7 @@ const UserManagement: React.FC = () => {
                           </td>
                           <td className="px-6 py-4">
                             <div className="space-y-2">
-                              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                subscription.provider === 'stripe'
-                                  ? 'bg-violet-100 text-violet-700'
-                                  : 'bg-slate-100 text-slate-700'
-                              }`}>
+                              <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                                 {subscription.provider}
                               </span>
                               {subscription.provider_subscription_id && (
@@ -1812,19 +1767,7 @@ const UserManagement: React.FC = () => {
                             )}
                           </td>
                           <td className="px-6 py-4">
-                            {subscription.provider === 'stripe' ? (
-                              <button
-                                onClick={() => void handleSyncStripeSubscription(subscription)}
-                                disabled={syncingStripeSubscriptionId === subscription.id}
-                                className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                title="Sincronizar dados desta assinatura com a Stripe"
-                              >
-                                <RefreshCw className={`h-3.5 w-3.5 ${syncingStripeSubscriptionId === subscription.id ? 'animate-spin' : ''}`} />
-                                {syncingStripeSubscriptionId === subscription.id ? 'Sincronizando...' : 'Sincronizar Stripe'}
-                              </button>
-                            ) : (
-                              <span className="text-xs text-slate-400">Sem ação extra</span>
-                            )}
+                            <span className="text-xs text-slate-400">Sem ação extra</span>
                           </td>
                         </tr>
                       );

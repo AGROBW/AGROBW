@@ -28,6 +28,31 @@ export const clampLimit = (value, fallback = 25) => {
   return Math.floor(parsed);
 };
 
+const decodeBase64Url = (value) => {
+  try {
+    const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+    const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
+    return Buffer.from(`${normalized}${padding}`, 'base64').toString('utf8');
+  } catch {
+    return null;
+  }
+};
+
+const extractAuthenticatorAssuranceLevel = (token) => {
+  const parts = String(token || '').split('.');
+  if (parts.length < 2) return null;
+
+  const decoded = decodeBase64Url(parts[1]);
+  if (!decoded) return null;
+
+  try {
+    const payload = JSON.parse(decoded);
+    return typeof payload?.aal === 'string' ? payload.aal : null;
+  } catch {
+    return null;
+  }
+};
+
 export const requireAdminByToken = async (token) => {
   if (!token) {
     return { ok: false, status: 401, body: { success: false, message: 'Unauthorized' } };
@@ -52,6 +77,10 @@ export const requireAdminByToken = async (token) => {
   const isAdmin = (adminProfile?.role || '').toLowerCase() === 'admin';
 
   if (!isAdmin) {
+    return { ok: false, status: 403, body: { success: false, message: 'Admin access required' } };
+  }
+
+  if (extractAuthenticatorAssuranceLevel(token) !== 'aal2') {
     return { ok: false, status: 403, body: { success: false, message: 'Admin access required' } };
   }
 

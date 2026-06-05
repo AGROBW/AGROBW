@@ -8,7 +8,7 @@ import {
   sendSmtpEmail,
 } from '../_shared/smtpSettings.ts';
 import { getCorsHeaders, handleCorsPreflightBrowser } from '../_shared/cors.ts';
-import { isAdminProfile, extractBearerToken } from '../_shared/security.ts';
+import { isAdminAal2Profile, extractBearerToken } from '../_shared/security.ts';
 
 // VULN-002 fix: CORS dinâmico com allowlist
 const jsonResponse = (req: Request, body: Record<string, unknown>, status = 200) =>
@@ -77,7 +77,7 @@ serve(async (req) => {
       .eq('id', user.id)
       .maybeSingle();
 
-    if (!isAdminProfile(adminProfile)) {
+    if (!isAdminAal2Profile(adminProfile, token)) {
       return jsonResponse(req, { success: false, message: 'Admin access required' }, 403);
     }
 
