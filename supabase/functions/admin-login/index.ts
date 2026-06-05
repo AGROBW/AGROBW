@@ -26,6 +26,11 @@ interface AdminLoginRateLimitStatus {
   server_now: string;
 }
 
+interface PendingAdminMfaTicket {
+  token: string;
+  expiresAt: string;
+}
+
 const defaultRateLimitStatus = (): AdminLoginRateLimitStatus => ({
   attempts_used: 0,
   remaining_attempts: 5,
@@ -35,6 +40,56 @@ const defaultRateLimitStatus = (): AdminLoginRateLimitStatus => ({
   should_show_captcha: false,
   server_now: new Date().toISOString(),
 });
+
+const bytesToHex = (bytes: Uint8Array) =>
+  Array.from(bytes)
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+
+const bytesToBase64Url = (bytes: Uint8Array) =>
+  btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+
+const hashTicket = async (value: string) => {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return bytesToHex(new Uint8Array(digest));
+};
+
+const issuePendingAdminMfaTicket = async (
+  supabaseAdmin: any,
+  userId: string,
+  req: Request,
+): Promise<PendingAdminMfaTicket> => {
+  const now = Date.now();
+  const rawBytes = crypto.getRandomValues(new Uint8Array(32));
+  const token = bytesToBase64Url(rawBytes);
+  const tokenHash = await hashTicket(token);
+  const expiresAt = new Date(now + 15 * 60 * 1000).toISOString();
+
+  await supabaseAdmin
+    .from('admin_mfa_login_tickets')
+    .delete()
+    .eq('user_id', userId);
+
+  const { error: insertError } = await supabaseAdmin
+    .from('admin_mfa_login_tickets')
+    .insert({
+      user_id: userId,
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+      user_agent: req.headers.get('user-agent'),
+      ip_address: getClientIp(req),
+    });
+
+  if (insertError) {
+    throw new Error(insertError.message || 'Falha ao iniciar a verificacao em duas etapas.');
+  }
+
+  return { token, expiresAt };
+};
 
 const jsonResponse = (req: Request, body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -53,10 +108,9 @@ const getClientIp = (req: Request): string | null =>
   req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
   null;
 
-const isLocalRequest = (req: Request) => {
-  const origin = req.headers.get('origin') || req.headers.get('Origin') || '';
-  const host = req.headers.get('host') || '';
-  return /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(origin) || /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(host);
+const isLocalSupabaseRuntime = () => {
+  const supabaseUrl = String(Deno.env.get('SUPABASE_URL') || '').trim().toLowerCase();
+  return /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(supabaseUrl);
 };
 
 const readRequestBody = async (req: Request): Promise<AdminLoginRequest> => {
@@ -173,7 +227,8 @@ const verifyCaptcha = async (
 
   if (provider === 'mock') {
     const allowDevMock =
-      isLocalRequest(req) || String(Deno.env.get('ALLOW_DEV_MOCK_CAPTCHA') || '').toLowerCase() === 'true';
+      isLocalSupabaseRuntime() &&
+      String(Deno.env.get('ALLOW_DEV_MOCK_CAPTCHA') || '').toLowerCase() === 'true';
 
     if (allowDevMock && normalizedToken === 'mock-token-dev') {
       return { ok: true };
@@ -399,6 +454,10 @@ serve(async (req) => {
     }
 
     const currentAal = extractAuthenticatorAssuranceLevel(authData.session.access_token) || 'aal1';
+    const pendingMfaTicket =
+      currentAal === 'aal2'
+        ? null
+        : await issuePendingAdminMfaTicket(supabaseAdmin, authData.user.id, req);
     const nextRateLimitStatus =
       currentAal === 'aal2'
         ? await registerLoginAttempt(
@@ -420,9 +479,11 @@ serve(async (req) => {
         tokenType: authData.session.token_type,
       },
       admin: {
+        userId: authData.user.id,
         currentLevel: currentAal,
         requiresMfa: currentAal !== 'aal2',
       },
+      pendingMfaTicket,
       rateLimitStatus: nextRateLimitStatus,
     });
   } catch (error) {

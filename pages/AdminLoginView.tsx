@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react'
 import { CaptchaWidget } from '../components/CaptchaWidget'
 import { useAuth } from '../src/contexts/AuthContext'
+import { clearPendingAdminMfaSession, storePendingAdminMfaSession } from '../src/lib/adminMfa'
+import { applyAdminBrowserSession, requestAdminServerLogin } from '../src/lib/adminHttpOnlySession'
 import { formatTimeRemaining } from '../src/hooks/useRateLimit'
-import { supabase } from '../src/lib/supabaseClient'
-import { debugLog } from '../src/utils/debugLog'
 
 interface AdminLoginRateLimitStatus {
   attempts_used: number
@@ -27,9 +27,14 @@ interface AdminLoginFunctionSuccessPayload {
     tokenType?: string | null
   }
   admin: {
+    userId: string
     currentLevel: string | null
     requiresMfa: boolean
   }
+  pendingMfaTicket?: {
+    token: string
+    expiresAt?: string | null
+  } | null
   rateLimitStatus?: AdminLoginRateLimitStatus
 }
 
@@ -60,23 +65,6 @@ const resolveCaptchaProvider = (): 'turnstile' | 'hcaptcha' | 'mock' => {
   }
 
   return 'mock'
-}
-
-const readAdminLoginErrorPayload = async (response?: Response): Promise<AdminLoginFunctionErrorPayload | null> => {
-  if (!response) {
-    return null
-  }
-
-  try {
-    const contentType = response.headers.get('content-type') || ''
-    if (!contentType.includes('application/json')) {
-      return null
-    }
-
-    return (await response.clone().json()) as AdminLoginFunctionErrorPayload
-  } catch {
-    return null
-  }
 }
 
 const toSafeAdminLoginErrorMessage = (
@@ -224,23 +212,20 @@ const AdminLoginView: React.FC = () => {
     setError('')
 
     try {
-      const { data, error: invokeError, response } = await supabase.functions.invoke('admin-login', {
-        method: 'POST',
-        body: {
-          email: normalizedEmail,
-          password,
-          captchaToken: captchaToken || null,
-          captchaProvider: resolveCaptchaProvider(),
-        },
+      const { response, data } = await requestAdminServerLogin({
+        email: normalizedEmail,
+        password,
+        captchaToken: captchaToken || null,
+        captchaProvider: resolveCaptchaProvider(),
       })
 
-      if (invokeError) {
-        const payload = await readAdminLoginErrorPayload(response)
+      if (!response.ok || !data?.success) {
+        const payload = data as AdminLoginFunctionErrorPayload | null
         applyRateLimitStatus(payload?.rateLimitStatus || defaultRateLimitStatus)
         setError(
           toSafeAdminLoginErrorMessage(
-            payload?.errorCode || invokeError.name,
-            payload?.error || invokeError.message,
+            payload?.errorCode || response.statusText,
+            payload?.error || response.statusText,
             payload?.rateLimitStatus || null,
           )
         )
@@ -255,31 +240,32 @@ const AdminLoginView: React.FC = () => {
       }
 
       const payload = data as AdminLoginFunctionSuccessPayload | null
-      if (!payload?.success || !payload.session?.accessToken || !payload.session?.refreshToken) {
+      if (
+        !payload?.success ||
+        !payload.session?.accessToken ||
+        !payload.session?.refreshToken ||
+        !String(payload.admin?.userId || '').trim()
+      ) {
         setError('Nao foi possivel concluir o acesso. Tente novamente.')
         setLoading(false)
         return
       }
 
       applyRateLimitStatus(payload.rateLimitStatus || defaultRateLimitStatus)
+      if (payload.admin.requiresMfa) {
+        storePendingAdminMfaSession(payload.admin.userId, payload.pendingMfaTicket?.token || '')
+      } else {
+        clearPendingAdminMfaSession()
+      }
 
-      const { error: sessionApplyError } = await supabase.auth.setSession({
-        access_token: payload.session.accessToken,
-        refresh_token: payload.session.refreshToken,
-      })
-
-      if (sessionApplyError) {
-        console.error('[AdminLogin] Falha ao aplicar sessao administrativa:', sessionApplyError)
+      const appliedSession = await applyAdminBrowserSession(payload.session)
+      if (!appliedSession.success) {
+        clearPendingAdminMfaSession()
+        console.error('[AdminLogin] Falha ao aplicar sessao administrativa:', appliedSession.error)
         setError('Nao foi possivel concluir o acesso agora. Tente novamente em instantes.')
         setLoading(false)
         return
       }
-
-      debugLog(
-        payload.admin.requiresMfa
-          ? '[AdminLogin] Primeira etapa validada no servidor; aguardando MFA'
-          : '[AdminLogin] Login administrativo concluido com MFA valido'
-      )
 
       navigate(payload.admin.requiresMfa ? '/admin/mfa' : '/admin', { replace: true })
     } catch (err) {

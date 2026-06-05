@@ -383,6 +383,12 @@ const LegalConsentsManagement: React.FC = () => {
         return;
       }
 
+      try {
+        reportWindow.opener = null;
+      } catch {
+        // noop
+      }
+
       const dateLabel = new Date().toLocaleString('pt-BR');
 
       reportWindow.document.open();
@@ -428,17 +434,15 @@ const LegalConsentsManagement: React.FC = () => {
               </thead>
               <tbody>${rowsHtml}</tbody>
             </table>
-            <script>
-              window.onload = function () {
-                setTimeout(function () {
-                  window.print();
-                }, 150);
-              };
-            </script>
           </body>
         </html>
       `);
       reportWindow.document.close();
+      reportWindow.onload = () => {
+        window.setTimeout(() => {
+          reportWindow.print();
+        }, 150);
+      };
 
       toast.success('Relatório em PDF preparado com sucesso.');
     } catch (error) {

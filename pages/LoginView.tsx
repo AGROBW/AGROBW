@@ -81,6 +81,15 @@ const LoginView: React.FC = () => {
     const { error } = await signIn(formData.email, formData.password, rememberDevice);
 
     if (error) {
+      if (error.message === 'ADMIN_PORTAL_REQUIRED') {
+        toast.error('Use o portal administrativo para continuar.', {
+          description: 'Contas administrativas precisam concluir a verificacao em duas etapas no login do painel.'
+        });
+        setLoading(false);
+        navigate('/admin/login', { replace: true });
+        return;
+      }
+
       if (error.message === 'USER_SUSPENDED') {
         setLoading(false);
         setSuspendedModal({

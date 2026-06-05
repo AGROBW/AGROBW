@@ -1,5 +1,8 @@
 export type AuthenticatorAssuranceLevel = 'aal1' | 'aal2' | null
 
+const PENDING_ADMIN_MFA_KEY = 'bwagro-admin-mfa-pending'
+const PENDING_ADMIN_MFA_MAX_AGE_MS = 15 * 60 * 1000
+
 export type AdminMfaFactorSummary = {
   id: string
   friendlyName: string | null
@@ -14,6 +17,12 @@ export type AdminMfaState = {
   unverifiedTotpFactors: AdminMfaFactorSummary[]
   requiresEnrollment: boolean
   requiresChallenge: boolean
+}
+
+type PendingAdminMfaState = {
+  ticket: string
+  userId: string
+  issuedAt: number
 }
 
 const normalizeLevel = (value: unknown): AuthenticatorAssuranceLevel => {
@@ -73,6 +82,85 @@ export const toQrImageSrc = (value?: string | null) => {
   }
 
   return trimmed
+}
+
+const hasWindow = () => typeof window !== 'undefined'
+
+const readPendingAdminMfaState = (): PendingAdminMfaState | null => {
+  if (!hasWindow()) return null
+
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_ADMIN_MFA_KEY)
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw) as Partial<PendingAdminMfaState>
+    const ticket = String(parsed?.ticket || '').trim()
+    const userId = String(parsed?.userId || '').trim()
+    const issuedAt = Number(parsed?.issuedAt || 0)
+
+    if (!ticket || !userId || !Number.isFinite(issuedAt) || issuedAt <= 0) {
+      window.sessionStorage.removeItem(PENDING_ADMIN_MFA_KEY)
+      return null
+    }
+
+    if (Date.now() - issuedAt > PENDING_ADMIN_MFA_MAX_AGE_MS) {
+      window.sessionStorage.removeItem(PENDING_ADMIN_MFA_KEY)
+      return null
+    }
+
+    return { ticket, userId, issuedAt }
+  } catch {
+    window.sessionStorage.removeItem(PENDING_ADMIN_MFA_KEY)
+    return null
+  }
+}
+
+export const storePendingAdminMfaSession = (userId?: string | null, ticket?: string | null) => {
+  if (!hasWindow()) return
+
+  const normalizedUserId = String(userId || '').trim()
+  const normalizedTicket = String(ticket || '').trim()
+
+  if (!normalizedUserId || !normalizedTicket) {
+    window.sessionStorage.removeItem(PENDING_ADMIN_MFA_KEY)
+    return
+  }
+
+  window.sessionStorage.setItem(
+    PENDING_ADMIN_MFA_KEY,
+    JSON.stringify({
+      ticket: normalizedTicket,
+      userId: normalizedUserId,
+      issuedAt: Date.now()
+    } satisfies PendingAdminMfaState)
+  )
+}
+
+export const clearPendingAdminMfaSession = () => {
+  if (!hasWindow()) return
+  window.sessionStorage.removeItem(PENDING_ADMIN_MFA_KEY)
+}
+
+export const hasPendingAdminMfaSession = (userId?: string | null) => {
+  const pending = readPendingAdminMfaState()
+  if (!pending) return false
+
+  const normalizedUserId = String(userId || '').trim()
+  if (!normalizedUserId) return true
+
+  return pending.userId === normalizedUserId
+}
+
+export const getPendingAdminMfaTicket = (userId?: string | null) => {
+  const pending = readPendingAdminMfaState()
+  if (!pending) return null
+
+  const normalizedUserId = String(userId || '').trim()
+  if (!normalizedUserId || pending.userId === normalizedUserId) {
+    return pending.ticket
+  }
+
+  return null
 }
 
 const decodeBase64Url = (value: string) => {

@@ -1,7 +1,16 @@
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import { User as SupabaseUser } from '@supabase/supabase-js'
-import { setRememberDevicePreference, supabase } from '../lib/supabaseClient'
-import { AdminMfaState, buildAdminMfaState, createEmptyAdminMfaState, extractAalFromJwt } from '../lib/adminMfa'
+import { clearAdminSessionCookie, restoreAdminSessionFromCookie, syncAdminSessionToCookie } from '../lib/adminHttpOnlySession'
+import {
+  AdminMfaState,
+  buildAdminMfaState,
+  clearPendingAdminMfaSession,
+  createEmptyAdminMfaState,
+  extractAalFromJwt,
+  getPendingAdminMfaTicket,
+  hasPendingAdminMfaSession
+} from '../lib/adminMfa'
+import { clearForcedAdminAuthStorageMode, forceAdminMemoryAuthStorage, setRememberDevicePreference, supabase } from '../lib/supabaseClient'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { isSupabaseUnauthorizedError, refreshSupabaseSession, startIdleSessionMonitor, stopIdleSessionMonitor } from '../lib/supabaseAuthGuard'
 import { User, UserRole } from '../../types'
@@ -93,6 +102,10 @@ const normalizeUserRole = (role?: string | null): UserRole => {
   }
 }
 
+const ADMIN_PORTAL_REQUIRED_ERROR = {
+  message: 'ADMIN_PORTAL_REQUIRED'
+}
+
 const touchLastLogin = async (userId?: string | null) => {
   const targetUserId = String(userId || '').trim()
   if (!targetUserId) return
@@ -112,6 +125,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchingRef = useRef(false)
   const retryTimeoutRef = useRef<number | null>(null)
   const sessionExpiredToastShownRef = useRef(false)
+  const adminSessionBootstrapStartedRef = useRef(false)
+  const lastSyncedAdminRefreshTokenRef = useRef<string | null>(null)
 
   const clearRetryTimeout = () => {
     if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
@@ -120,9 +135,42 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }
 
+  const clearServerSideAdminSession = async () => {
+    lastSyncedAdminRefreshTokenRef.current = null
+    clearForcedAdminAuthStorageMode()
+    await clearAdminSessionCookie().catch(() => ({ success: false }))
+  }
+
+  const syncCurrentAdminSessionCookie = async () => {
+    const {
+      data: { session }
+    } = await supabase.auth.getSession()
+
+    const refreshToken = String(session?.refresh_token || '').trim()
+    const accessToken = String(session?.access_token || '').trim()
+    if (!refreshToken || !accessToken) {
+      return
+    }
+
+    if (lastSyncedAdminRefreshTokenRef.current === refreshToken) {
+      return
+    }
+
+    const result = await syncAdminSessionToCookie({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    }).catch(() => ({ success: false as const }))
+
+    if (result?.success) {
+      lastSyncedAdminRefreshTokenRef.current = refreshToken
+    }
+  }
+
   const handleExpiredSession = async (canSetState?: () => boolean) => {
     clearRetryTimeout()
+    clearPendingAdminMfaSession()
     await supabase.auth.signOut()
+    await clearServerSideAdminSession()
 
     if (!sessionExpiredToastShownRef.current) {
       sessionExpiredToastShownRef.current = true
@@ -355,7 +403,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const isAdminUser =
         Boolean(userData?.is_admin) || normalizeUserRole(userData?.role) === UserRole.ADMIN
 
-      await loadAdminMfaState(isAdminUser, options?.canSetState)
+      if (isAdminUser) {
+        await forceAdminMemoryAuthStorage()
+        await syncCurrentAdminSessionCookie()
+      }
+
+      const nextAdminMfaState = await loadAdminMfaState(isAdminUser, options?.canSetState)
+
+      if (isAdminUser && nextAdminMfaState.currentLevel !== 'aal2') {
+        const hasPendingTicket = hasPendingAdminMfaSession(userId)
+        const pendingTicketIsValid = hasPendingTicket
+          ? await validatePendingAdminMfaSession(userId)
+          : false
+
+        if (!pendingTicketIsValid) {
+          await supabase.auth.signOut()
+          await clearServerSideAdminSession()
+
+          if (!options?.silent) {
+            toast.error('Sessao administrativa interrompida', {
+              description: 'Entre novamente pelo portal admin para concluir a verificacao em duas etapas.'
+            })
+          }
+
+          if (!options?.canSetState || options.canSetState()) {
+            setUser(null)
+            setSupabaseUser(null)
+            setStats(null)
+            setAdminMfaState(createEmptyAdminMfaState())
+            setIsLoading(false)
+          }
+
+          return
+        }
+      }
+
+      if (isAdminUser && nextAdminMfaState.currentLevel === 'aal2') {
+        clearPendingAdminMfaSession()
+      }
 
       if (!userData || !statsLoaded) {
         const { data: currentSession } = await supabase.auth.getSession()
@@ -388,9 +473,70 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return loadAdminMfaState(isAdminUser)
   }
 
+  const validatePendingAdminMfaSession = async (userId: string) => {
+    const pendingTicket = getPendingAdminMfaTicket(userId)
+    if (!pendingTicket) {
+      return false
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-mfa-ticket', {
+        method: 'POST',
+        body: {
+          action: 'validate',
+          ticket: pendingTicket
+        }
+      })
+
+      if (error) {
+        return false
+      }
+
+      return Boolean((data as { success?: boolean } | null)?.success)
+    } catch {
+      return false
+    }
+  }
+
+  const consumePendingAdminMfaSession = async (userId?: string | null) => {
+    const pendingTicket = getPendingAdminMfaTicket(userId)
+    if (!pendingTicket) return
+
+    try {
+      await supabase.functions.invoke('admin-mfa-ticket', {
+        method: 'POST',
+        body: {
+          action: 'consume',
+          ticket: pendingTicket
+        }
+      })
+    } catch {
+      // consumicao de ticket e melhor esforco; a limpeza local segue acontecendo
+    }
+  }
+
   const recordCompletedLogin = async () => {
     const targetUserId = supabaseUser?.id || user?.id
+    await consumePendingAdminMfaSession(targetUserId)
+    clearPendingAdminMfaSession()
+    await syncCurrentAdminSessionCookie()
     await touchLastLogin(targetUserId)
+  }
+
+  const bootstrapAdminSessionFromCookie = async () => {
+    if (typeof window === 'undefined') return false
+    if (!/^\/admin(?:\/|$)/.test(window.location.pathname)) return false
+
+    const {
+      data: { session }
+    } = await supabase.auth.getSession()
+
+    if (session?.user?.id) {
+      return true
+    }
+
+    const result = await restoreAdminSessionFromCookie().catch(() => ({ restored: false as const }))
+    return Boolean(result?.restored)
   }
 
   useEffect(() => {
@@ -438,7 +584,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else if (event === 'SIGNED_OUT') {
         // VULN-013: Parar monitoramento de inatividade ao fazer logout
         stopIdleSessionMonitor();
+        adminSessionBootstrapStartedRef.current = false
+        clearPendingAdminMfaSession()
         clearRetryTimeout()
+        void clearServerSideAdminSession()
         if (isMounted) {
           setUser(null)
           setStats(null)
@@ -457,6 +606,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       subscription.unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (supabaseUser?.id) return
+    if (!/^\/admin(?:\/|$)/.test(window.location.pathname)) return
+    if (adminSessionBootstrapStartedRef.current) return
+
+    adminSessionBootstrapStartedRef.current = true
+    let cancelled = false
+
+    setIsLoading(true)
+    void bootstrapAdminSessionFromCookie()
+      .catch(() => false)
+      .then((restored) => {
+        if (!cancelled && !restored) {
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [supabaseUser?.id])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -506,8 +678,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const isAdminUser =
         Boolean(userData?.is_admin) || normalizeUserRole(userData?.role) === UserRole.ADMIN
+
+      if (isAdminUser) {
+        await forceAdminMemoryAuthStorage()
+      }
+
       const currentAal = extractAalFromJwt(data.session?.access_token)
       const completedAdminLogin = isAdminUser && currentAal === 'aal2'
+
+      if (isAdminUser && !completedAdminLogin) {
+        clearPendingAdminMfaSession()
+        await supabase.auth.signOut()
+        await clearServerSideAdminSession()
+
+        return {
+          error: ADMIN_PORTAL_REQUIRED_ERROR,
+          isAdminUser: true,
+          completedAdminLogin: false
+        }
+      }
 
       if (!isAdminUser || completedAdminLogin) {
         await touchLastLogin(data.user.id)
@@ -600,6 +789,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signOut = async () => {
     clearRetryTimeout()
+    const shouldClearAdminSession = isAdminResolved || adminMfaState.currentLevel === 'aal1' || adminMfaState.currentLevel === 'aal2'
+    clearPendingAdminMfaSession()
+    if (shouldClearAdminSession) {
+      await clearServerSideAdminSession()
+    }
     await supabase.auth.signOut()
     setUser(null)
     setStats(null)

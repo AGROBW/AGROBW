@@ -67,3 +67,8 @@ entrypoint = "./functions/sync-sponsor-metric-emails/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/admin-login/index.ts"
+
+[functions.admin-mfa-ticket]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/admin-mfa-ticket/index.ts"
