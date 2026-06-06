@@ -72,3 +72,8 @@ entrypoint = "./functions/admin-login/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/admin-mfa-ticket/index.ts"
+
+[functions.admin-security-event]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/admin-security-event/index.ts"

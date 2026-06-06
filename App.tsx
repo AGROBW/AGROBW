@@ -63,6 +63,7 @@ const PromotionsManagement = lazy(() => import('./pages/admin/PromotionsManageme
 const PublicationRulesManagement = lazy(() => import('./pages/admin/PublicationRulesManagement'));
 const LayoutManagement = lazy(() => import('./pages/admin/LayoutManagement'));
 const SupportTicketsManagement = lazy(() => import('./pages/admin/SupportTicketsManagement'));
+const SecurityCenter = lazy(() => import('./pages/admin/SecurityCenter'));
 const AuditLogs = lazy(() => import('./pages/admin/AuditLogs'));
 const SettingsView = lazy(() => import('./pages/admin/SettingsView'));
 
@@ -300,6 +301,7 @@ const AppContent: React.FC = () => {
               <Route path="publication-rules" element={<PublicationRulesManagement />} />
               <Route path="layout" element={<LayoutManagement />} />
               <Route path="support" element={<SupportTicketsManagement />} />
+              <Route path="security" element={<SecurityCenter />} />
               <Route path="audit" element={<AuditLogs />} />
               <Route path="settings" element={<SettingsView />} />
             </Route>

@@ -60,6 +60,28 @@ const AdminMfaView: React.FC = () => {
     ])
   }
 
+  const reportSecuritySignal = async (
+    action:
+      | 'admin_mfa_enrollment_failed'
+      | 'admin_mfa_challenge_failed'
+      | 'admin_mfa_verify_failed'
+      | 'admin_mfa_duplicate_factor_detected',
+    reason: string,
+    metadata?: Record<string, unknown>
+  ) => {
+    try {
+      await supabase.functions.invoke('admin-security-event', {
+        body: {
+          action,
+          reason,
+          metadata: metadata || {},
+        },
+      })
+    } catch (reportError) {
+      console.error('[AdminMfa] Falha ao registrar sinal de seguranca:', reportError)
+    }
+  }
+
   const toSafeMfaErrorMessage = (
     err: any,
     fallback: string,
@@ -180,6 +202,14 @@ const AdminMfaView: React.FC = () => {
     const verifiedFactor = sameNameFactors.find((factor: any) => factor?.status === 'verified')
 
     if (verifiedFactor?.id) {
+      void reportSecuritySignal(
+        'admin_mfa_duplicate_factor_detected',
+        'A conta administrativa ja possuia um autenticador ativo durante a tentativa de reconfiguracao.',
+        {
+          factorStatus: verifiedFactor.status || 'verified',
+          factorId: String(verifiedFactor.id || ''),
+        }
+      )
       await activateExistingAuthenticatorFlow(String(verifiedFactor.id))
       return { resolved: true, shouldRetryEnrollment: false }
     }
@@ -241,6 +271,9 @@ const AdminMfaView: React.FC = () => {
     } catch (err: any) {
       enrollmentRequestedRef.current = false
       resetEnrollmentState()
+      void reportSecuritySignal('admin_mfa_enrollment_failed', 'Nao foi possivel iniciar a verificacao do autenticador.', {
+        mode: 'enrollment',
+      })
       setError(toSafeMfaErrorMessage(err, 'Nao foi possivel iniciar a verificacao. Tente novamente.'))
     } finally {
       setIsBusy(false)
@@ -255,6 +288,7 @@ const AdminMfaView: React.FC = () => {
 
     setIsBusy(true)
     setError('')
+    let failureAction: 'admin_mfa_challenge_failed' | 'admin_mfa_verify_failed' = 'admin_mfa_verify_failed'
 
     try {
       const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
@@ -262,6 +296,7 @@ const AdminMfaView: React.FC = () => {
       })
 
       if (challengeError) {
+        failureAction = 'admin_mfa_challenge_failed'
         throw challengeError
       }
 
@@ -272,6 +307,7 @@ const AdminMfaView: React.FC = () => {
       })
 
       if (verifyError) {
+        failureAction = 'admin_mfa_verify_failed'
         throw verifyError
       }
 
@@ -280,6 +316,10 @@ const AdminMfaView: React.FC = () => {
       await finalizeCompletedAdminLogin()
       navigate('/admin', { replace: true })
     } catch (err: any) {
+      void reportSecuritySignal(failureAction, 'Nao foi possivel concluir a verificacao do autenticador.', {
+        mode: 'enrollment_verify',
+        factorId: pendingFactorId,
+      })
       setError(
         toSafeMfaErrorMessage(err, 'Nao foi possivel concluir a verificacao. Tente novamente.', {
           invalidCodeMessage: 'Nao foi possivel validar o codigo. Confira o app autenticador e tente novamente.',
@@ -304,6 +344,7 @@ const AdminMfaView: React.FC = () => {
 
     setIsBusy(true)
     setError('')
+    let failureAction: 'admin_mfa_challenge_failed' | 'admin_mfa_verify_failed' = 'admin_mfa_verify_failed'
 
     try {
       const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
@@ -311,6 +352,7 @@ const AdminMfaView: React.FC = () => {
       })
 
       if (challengeError) {
+        failureAction = 'admin_mfa_challenge_failed'
         throw challengeError
       }
 
@@ -321,6 +363,7 @@ const AdminMfaView: React.FC = () => {
       })
 
       if (verifyError) {
+        failureAction = 'admin_mfa_verify_failed'
         throw verifyError
       }
 
@@ -329,6 +372,10 @@ const AdminMfaView: React.FC = () => {
       await finalizeCompletedAdminLogin()
       navigate('/admin', { replace: true })
     } catch (err: any) {
+      void reportSecuritySignal(failureAction, 'Nao foi possivel validar o codigo do autenticador para acesso ao painel.', {
+        mode: 'challenge',
+        factorId: activeChallengeFactorId,
+      })
       setError(
         toSafeMfaErrorMessage(err, 'Nao foi possivel validar o codigo. Tente novamente.', {
           invalidCodeMessage: 'Nao foi possivel validar o codigo. Confira o app autenticador e tente novamente.',
