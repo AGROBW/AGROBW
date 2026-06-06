@@ -4238,9 +4238,9 @@ const UserDashboardView: React.FC = () => {
         canonicalPath={location.pathname}
         noIndex
       />
-      <aside className="sticky top-0 hidden h-screen w-[92px] flex-col border-r border-slate-800/80 bg-[#0f172a] px-3 py-5 text-slate-100 shadow-[30px_0_60px_-45px_rgba(15,23,42,0.75)] lg:flex 2xl:w-72 2xl:px-5 2xl:py-6">
+      <aside className="sticky top-0 hidden h-screen w-[220px] flex-col border-r border-slate-800/80 bg-[#0f172a] px-3 py-5 text-slate-100 shadow-[30px_0_60px_-45px_rgba(15,23,42,0.75)] lg:flex xl:w-[236px] 2xl:w-72 2xl:px-5 2xl:py-6">
         <div className="mb-6 rounded-[24px] border border-white/10 bg-white/5 px-3 py-4 backdrop-blur 2xl:mb-8 2xl:px-4">
-          <div className="flex items-center justify-center gap-3 2xl:justify-start">
+          <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#16a34a_0%,#15803d_100%)] text-base font-black text-white shadow-[0_18px_35px_-18px_rgba(22,163,74,0.8)]">
               {user?.avatar ? (
                 <img src={user.avatar} alt={user.name || 'Usuário'} className="h-full w-full object-cover" />
@@ -4248,8 +4248,8 @@ const UserDashboardView: React.FC = () => {
                 <span>{(user?.name || 'A').charAt(0).toUpperCase()}</span>
               )}
             </div>
-            <div className="hidden 2xl:block">
-              <span className="block text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300/90">
+            <div className="min-w-0">
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-300/90 2xl:text-[11px] 2xl:tracking-[0.24em]">
                 Painel AGRO BW
               </span>
               <span className="block text-base font-bold text-white">Operação do usuário</span>
@@ -4268,15 +4268,15 @@ const UserDashboardView: React.FC = () => {
                 to={item.path}
                 title={item.label}
                 aria-label={item.label}
-                className={`group relative flex items-center justify-center rounded-2xl border px-3 py-3 text-sm transition-all 2xl:justify-between 2xl:px-4 ${
+                className={`group relative flex items-center justify-between rounded-2xl border px-3 py-2.5 text-[13px] transition-all xl:px-3.5 2xl:px-4 2xl:py-3 2xl:text-sm ${
                   location.pathname === item.path
                     ? 'border-emerald-400/30 bg-[linear-gradient(135deg,rgba(22,163,74,0.22)_0%,rgba(15,23,42,0.08)_100%)] text-white shadow-[0_18px_35px_-24px_rgba(22,163,74,0.65)]'
                     : 'border-transparent text-slate-300/88 hover:border-white/10 hover:bg-white/5 hover:text-white'
                 }`}
               >
-                <div className="flex items-center justify-center gap-3 2xl:justify-start">
+                <div className="flex min-w-0 items-center gap-3">
                   <span
-                    className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
+                    className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl transition-all xl:h-9 xl:w-9 ${
                       location.pathname === item.path
                         ? 'bg-white/10 text-emerald-300'
                         : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-emerald-200'
@@ -4284,11 +4284,11 @@ const UserDashboardView: React.FC = () => {
                   >
                     {item.icon}
                   </span>
-                  <span className="hidden items-center gap-2 2xl:flex">
-                    <span>{item.label}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{item.label}</span>
                     {item.path === '/minha-conta' && !hasPerformancePanelAccess ? (
                       <span
-                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-amber-300/25 bg-amber-400/15 text-amber-200"
+                        className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border border-amber-300/25 bg-amber-400/15 text-amber-200"
                         title="Disponível nos planos pagos"
                         aria-label="Disponível nos planos pagos"
                       >
@@ -4298,7 +4298,7 @@ const UserDashboardView: React.FC = () => {
                   </span>
                 </div>
                 {item.badge > 0 && (
-                  <span className="absolute right-1.5 top-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#f59e0b] px-2 text-xs font-bold text-slate-950 shadow-[0_10px_20px_-12px_rgba(245,158,11,0.9)] 2xl:static">
+                  <span className="ml-2 flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[#f59e0b] px-1.5 text-[10px] font-bold text-slate-950 shadow-[0_10px_20px_-12px_rgba(245,158,11,0.9)] xl:px-2 xl:text-xs">
                     {item.badge}
                   </span>
                 )}
@@ -4309,8 +4309,8 @@ const UserDashboardView: React.FC = () => {
           {showSidebarScrollHint ? (
             <div className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-[22px] bg-gradient-to-t from-[#0f172a] via-[#0f172a]/95 to-transparent px-3 pb-1 pt-12">
               <div className="mx-auto flex w-fit items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-slate-300">
-                <span className="hidden 2xl:inline">Role para ver mais</span>
-                <ChevronDown className="h-3.5 w-3.5 2xl:hidden" strokeWidth={2.2} />
+                <span>Role para ver mais</span>
+                <ChevronDown className="h-3.5 w-3.5" strokeWidth={2.2} />
               </div>
             </div>
           ) : null}
@@ -4321,10 +4321,10 @@ const UserDashboardView: React.FC = () => {
             onClick={handleLogout}
             title="Sair"
             aria-label="Sair"
-            className="flex w-full items-center justify-center gap-3 rounded-2xl border border-transparent px-3 py-3 text-sm font-medium text-slate-300 transition-all hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-200 2xl:justify-start 2xl:px-4"
+            className="flex w-full items-center gap-3 rounded-2xl border border-transparent px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-all hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-200 xl:px-3.5 2xl:px-4 2xl:py-3 2xl:text-sm"
           >
             <Icons.Logout />
-            <span className="hidden 2xl:inline">Sair</span>
+            <span>Sair</span>
           </button>
         </div>
       </aside>
