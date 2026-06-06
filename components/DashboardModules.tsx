@@ -124,7 +124,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
           <p className="text-sm">Nenhum clique registrado ainda</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Lista de Estados com Scroll */}
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
             {clicksByState.map((item, index) => {
