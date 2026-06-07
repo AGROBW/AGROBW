@@ -19,6 +19,32 @@ const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
  * Valida que a URL não aponta para um endpoint interno/privado.
  * Lança Error com mensagem descritiva se a URL for inválida/bloqueada.
  */
+/**
+ * ACH-06 follow-up: rejeita hostnames numéricos OFUSCADOS que escapam da
+ * blocklist textual e do DNS (resolveDns falha em host numérico), mas que o
+ * fetch pode normalizar para um IP interno. Cobre:
+ *  - inteiro decimal (ex.: 2130706433 == 127.0.0.1)
+ *  - hex (ex.: 0x7f000001)
+ *  - octetos octais/hex ou fora de 0-255 (ex.: 0177.0.0.1, 127.1)
+ * IPv4 pontilhado decimal "normal" (ex.: 8.8.8.8) continua permitido — a
+ * validação de IP privado por DNS/IP cuida das faixas reservadas.
+ */
+const isObfuscatedNumericHost = (host: string): boolean => {
+  const h = host.trim().toLowerCase();
+  if (/^0x[0-9a-f]+$/.test(h)) return true; // hex integer
+  if (/^\d+$/.test(h)) return true;         // decimal/integer
+
+  const labels = h.split('.');
+  if (labels.length > 1 && labels.every((l) => /^(0x[0-9a-f]+|\d+)$/.test(l))) {
+    for (const l of labels) {
+      if (/^0x/.test(l)) return true;       // octeto hex
+      if (/^0\d+/.test(l)) return true;     // octeto octal (zero à esquerda)
+      if (Number(l) > 255) return true;     // octeto inválido => forma ofuscada
+    }
+  }
+  return false;
+};
+
 const validateSafeUrl = (rawUrl: string): URL => {
   let parsed: URL;
   try {
@@ -35,6 +61,10 @@ const validateSafeUrl = (rawUrl: string): URL => {
     throw new Error('Endereço de destino não permitido (host privado/reservado)');
   }
 
+  if (isObfuscatedNumericHost(parsed.hostname)) {
+    throw new Error('Endereço de destino não permitido (host numérico ofuscado)');
+  }
+
   // Bloquear números de porta incomuns (possivel SSRF em serviços internos)
   const port = parsed.port ? Number(parsed.port) : (parsed.protocol === 'https:' ? 443 : 80);
   const BLOCKED_PORTS = new Set([22, 25, 110, 143, 587, 993, 995, 3306, 5432, 6379, 8080, 8443, 9200, 27017]);
@@ -43,6 +73,56 @@ const validateSafeUrl = (rawUrl: string): URL => {
   }
 
   return parsed;
+};
+
+const isPrivateIpV4 = (ip: string): boolean => {
+  const parts = ip.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return false;
+  const [a, b] = parts;
+  if (a === 0 || a === 10 || a === 127) return true;
+  if (a === 169 && b === 254) return true;            // link-local / cloud metadata
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;  // CGNAT (RFC6598)
+  return false;
+};
+
+const isPrivateIpV6 = (ip: string): boolean => {
+  const v = ip.toLowerCase();
+  return (
+    v === '::1' ||
+    v.startsWith('fc') ||
+    v.startsWith('fd') ||
+    v.startsWith('fe80') ||
+    v.startsWith('::ffff:') // IPv4-mapped
+  );
+};
+
+/**
+ * VULN-003 / ACH-06 fix: resolve o hostname e valida os IPs REAIS contra
+ * faixas privadas/reservadas. Fecha bypass por DNS rebinding e por IP em
+ * formato decimal/octal (a blocklist textual sobre hostname não cobria).
+ * Fail-safe: se o resolvedor de DNS não estiver disponível no runtime,
+ * mantém-se a blocklist textual já aplicada em validateSafeUrl().
+ */
+const assertResolvedHostIsPublic = async (hostname: string): Promise<void> => {
+  let addresses: string[] = [];
+  try {
+    const [v4, v6] = await Promise.allSettled([
+      Deno.resolveDns(hostname, 'A'),
+      Deno.resolveDns(hostname, 'AAAA'),
+    ]);
+    if (v4.status === 'fulfilled') addresses = addresses.concat(v4.value);
+    if (v6.status === 'fulfilled') addresses = addresses.concat(v6.value);
+  } catch {
+    return; // resolvedor indisponível: barreira textual permanece em vigor
+  }
+
+  for (const ip of addresses) {
+    if (isPrivateIpV4(ip) || isPrivateIpV6(ip)) {
+      throw new Error('Endereço de destino resolveu para IP privado/reservado');
+    }
+  }
 };
 
 const jsonResponse = (req: Request, body: Record<string, unknown>, status = 200) =>
@@ -219,6 +299,7 @@ serve(async (req) => {
     let parsedUrl: URL;
     try {
       parsedUrl = validateSafeUrl(sourceUrl);
+      await assertResolvedHostIsPublic(parsedUrl.hostname);
     } catch (err) {
       await logSecurityEvent(supabaseAdmin, {
         req,
@@ -253,7 +334,8 @@ serve(async (req) => {
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get('location') || '';
       try {
-        validateSafeUrl(location);
+        const redirectUrl = validateSafeUrl(location);
+        await assertResolvedHostIsPublic(redirectUrl.hostname);
       } catch {
         return jsonResponse(req, {
           success: false,

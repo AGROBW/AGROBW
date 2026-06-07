@@ -26,6 +26,7 @@ type ExistingSubscriptionRow = {
   provider: string;
   provider_customer_id: string | null;
   provider_subscription_id: string | null;
+  provider_checkout_session_id: string | null;
   current_period_start: string | null;
   current_period_end: string | null;
 };
@@ -38,8 +39,10 @@ type ExistingPaymentRow = {
   billing_model: BillingModel | null;
   billing_cycle: 'monthly' | 'yearly' | null;
   subscription_id: string | null;
+  provider_payment_id: string | null;
   provider_customer_id: string | null;
   provider_subscription_id: string | null;
+  provider_checkout_session_id: string | null;
   metadata: Record<string, unknown> | null;
 };
 
@@ -70,6 +73,18 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) =>
       'Content-Type': 'application/json',
     },
   });
+
+/**
+ * Comparação de strings resistente a timing attacks (ACH-05).
+ */
+const timingSafeEqual = (a: string, b: string): boolean => {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+};
 
 const asRecord = (value: unknown): JsonRecord =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : {};
@@ -208,7 +223,7 @@ const parseExternalReference = (externalReference: string | null): ResolvedCheck
 const mapPaymentStatus = (asaasStatus: string | null): string => {
   const normalized = asaasStatus?.toUpperCase() || '';
 
-  if (APPROVED_PAYMENT_STATUSES.has(normalized)) return 'approved';
+  if (APPROVED_PAYMENT_STATUSES.has(normalized) || normalized === 'PAID') return 'approved';
   if (REFUNDED_PAYMENT_STATUSES.has(normalized)) return 'refunded';
   if (CANCELLED_PAYMENT_STATUSES.has(normalized)) return 'cancelled';
   if (CHARGEDBACK_PAYMENT_STATUSES.has(normalized)) return 'charged_back';
@@ -230,7 +245,7 @@ const mapSubscriptionStatus = (eventType: string | null, asaasStatus: string | n
     return 'past_due';
   }
 
-  if (APPROVED_PAYMENT_STATUSES.has(normalizedStatus)) {
+  if (normalizedEvent === 'CHECKOUT_PAID' || APPROVED_PAYMENT_STATUSES.has(normalizedStatus) || normalizedStatus === 'PAID') {
     return 'active';
   }
 
@@ -256,6 +271,66 @@ const buildWebhookError = (error: unknown): string => {
 const shouldCreditBooster = (paymentStatus: string, eventType: string | null) => {
   const normalizedEvent = (eventType || '').toUpperCase();
   return paymentStatus === 'approved' || normalizedEvent === 'PAYMENT_RECEIVED' || normalizedEvent === 'PAYMENT_CONFIRMED';
+};
+
+/**
+ * Reconciliação da corrida de ordem de eventos (PAYMENT_* antes do CHECKOUT_PAID):
+ * quando o evento atual (CHECKOUT_PAID) não traz payment.id, procuramos em
+ * webhook_logs um evento PAYMENT_* já recebido do MESMO fluxo e devolvemos o
+ * payment.id real, para a linha em payments nascer/atualizar com o id correto.
+ *
+ * Prioridade de match:
+ *  1) checkout session (payment.checkoutSession / checkout_session / checkout)
+ *     igual ao checkout session do evento atual;
+ *  2) fallback: externalReference EXATO e inequívoco (só 1 candidato).
+ */
+const findRealPaymentIdFromLogs = async (
+  supabaseAdmin: any,
+  checkoutSessionId: string | null,
+  externalReference: string | null,
+): Promise<string | null> => {
+  if (!checkoutSessionId && !externalReference) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from('webhook_logs')
+    .select('payload, received_at')
+    .eq('provider', 'asaas')
+    .ilike('event_type', 'PAYMENT%')
+    .order('received_at', { ascending: false })
+    .limit(100);
+
+  if (error || !Array.isArray(data)) return null;
+
+  const candidates = data
+    .map((row: { payload?: unknown }) => asRecord(asRecord(row?.payload).payment))
+    .filter((paymentObj) => readString(paymentObj.id));
+
+  // 1) Match por checkout session
+  if (checkoutSessionId) {
+    for (const paymentObj of candidates) {
+      const sessionInLog = readString(
+        paymentObj.checkoutSession,
+        paymentObj.checkout_session,
+        paymentObj.checkout,
+      );
+      if (sessionInLog && sessionInLog === checkoutSessionId) {
+        return readString(paymentObj.id);
+      }
+    }
+  }
+
+  // 2) Fallback por externalReference EXATO e inequívoco (exatamente 1 candidato)
+  if (externalReference) {
+    const matches = candidates.filter((paymentObj) => {
+      const ref = readString(paymentObj.externalReference, paymentObj.external_reference);
+      return ref && ref === externalReference;
+    });
+    if (matches.length === 1) {
+      return readString(matches[0].id);
+    }
+  }
+
+  return null;
 };
 
 serve(async (req) => {
@@ -298,6 +373,31 @@ serve(async (req) => {
     payload = asRecord(await req.json());
     eventType = readString(payload.event, payload.type);
 
+    // ACH-05 fix: autenticar o webhook ANTES de qualquer escrita em
+    // webhook_logs (evita poluição/DoS por requisições não autenticadas).
+    const { data: settings, error: settingsError } = await supabaseAdmin
+      .from('payment_settings')
+      .select('asaas_webhook_token')
+      .eq('id', PAYMENT_SETTINGS_SINGLETON_ID)
+      .single();
+
+    if (settingsError) {
+      // Sem como autenticar — não registramos nada (evita log não autenticado).
+      return jsonResponse({ success: false, error: 'Configuracao de webhook indisponivel.' }, 500);
+    }
+
+    const expectedToken = readString(settings?.asaas_webhook_token);
+    const receivedToken = readString(
+      req.headers.get('asaas-access-token'),
+      req.headers.get('x-webhook-secret')
+    );
+
+    // ACH-05 fix: comparação em tempo constante.
+    if (!expectedToken || !receivedToken || !timingSafeEqual(receivedToken, expectedToken)) {
+      return jsonResponse({ success: false, error: 'Unauthorized webhook token' }, 401);
+    }
+
+    // Autenticado: agora sim registramos o evento para auditoria.
     const { data: insertedLog } = await supabaseAdmin
       .from('webhook_logs')
       .insert({
@@ -311,31 +411,19 @@ serve(async (req) => {
 
     logId = insertedLog?.id ?? null;
 
-    const { data: settings, error: settingsError } = await supabaseAdmin
-      .from('payment_settings')
-      .select('asaas_webhook_token')
-      .eq('id', PAYMENT_SETTINGS_SINGLETON_ID)
-      .single();
-
-    if (settingsError) {
-      await updateWebhookLog(500, false, settingsError.message);
-      return jsonResponse({ success: false, error: settingsError.message }, 500);
-    }
-
-    const expectedToken = readString(settings?.asaas_webhook_token);
-    const receivedToken = readString(
-      req.headers.get('asaas-access-token'),
-      req.headers.get('x-webhook-secret')
-    );
-
-    if (!expectedToken || receivedToken !== expectedToken) {
-      await updateWebhookLog(401, false, 'Webhook token invalido.');
-      return jsonResponse({ success: false, error: 'Unauthorized webhook token' }, 401);
-    }
-
     const payment = asRecord(payload.payment);
     const subscription = asRecord(payload.subscription);
-    const paymentStatus = mapPaymentStatus(readString(payment.status, payload.status));
+    const checkout = asRecord(payload.checkout);
+    const checkoutItems = asArray(checkout.items);
+    const primaryCheckoutItem = asRecord(checkoutItems[0]);
+    const eventName = (eventType || '').toUpperCase();
+    const paymentStatusSource = readString(
+      payment.status,
+      subscription.status,
+      checkout.status,
+      payload.status
+    );
+    const paymentStatus = mapPaymentStatus(paymentStatusSource);
 
     const lineItems = asArray(payment.installmentDetails);
 
@@ -344,6 +432,10 @@ serve(async (req) => {
       payment.external_reference,
       subscription.externalReference,
       subscription.external_reference,
+      checkout.externalReference,
+      checkout.external_reference,
+      primaryCheckoutItem.externalReference,
+      primaryCheckoutItem.external_reference,
       payload.externalReference,
       payload.external_reference
     );
@@ -357,14 +449,23 @@ serve(async (req) => {
       subscription.id,
       subscription.subscription
     );
+    const providerCheckoutSessionId = readString(
+      payment.checkoutSession,
+      payment.checkout_session,
+      checkout.id,
+      payload.checkoutSession,
+      payload.checkout_session
+    );
     const providerCustomerId = readString(
       payment.customer,
       payment.customerId,
-      subscription.customer
+      subscription.customer,
+      checkout.customer
     );
     const providerInvoiceId = readString(payment.invoiceNumber, payment.invoiceId);
     const paymentMethod = readString(payment.billingType, payment.paymentMethod);
-    const amount = readNumber(payment.value, payment.netValue, payment.amount) ?? 0;
+    const amount =
+      readNumber(payment.value, payment.netValue, payment.amount, primaryCheckoutItem.value) ?? 0;
     const currency = readString(payment.currency)?.toUpperCase() || 'BRL';
     const receiptUrl = readString(
       payment.transactionReceiptUrl,
@@ -373,7 +474,12 @@ serve(async (req) => {
       payment.pixTransaction,
       payment.receiptUrl
     );
-    const paymentDescription = readString(payment.description, subscription.description);
+    const paymentDescription = readString(
+      payment.description,
+      subscription.description,
+      primaryCheckoutItem.description,
+      primaryCheckoutItem.name
+    );
     const paidAt = toIsoDateTime(
       payment.clientPaymentDate,
       payment.paymentDate,
@@ -381,7 +487,7 @@ serve(async (req) => {
       payment.creditDate
     );
     const currentPeriodStart =
-      toIsoDateTime(payment.dateCreated, subscription.dateCreated) ||
+      toIsoDateTime(payment.dateCreated, subscription.dateCreated, payload.dateCreated) ||
       new Date().toISOString();
     const normalizedBillingCycle =
       parsedReference.billingCycle ||
@@ -393,6 +499,15 @@ serve(async (req) => {
       toIsoDateTime(payment.nextDueDate, { endOfDay: true }) ||
       toIsoDateTime(payment.dueDate, { endOfDay: true }) ||
       addBillingCycleFallbackEnd(currentPeriodStart, normalizedBillingCycle);
+
+    if (eventName.startsWith('CHECKOUT_') && eventName !== 'CHECKOUT_PAID') {
+      await updateWebhookLog(200, true, 'Evento de checkout recebido apenas para auditoria.');
+      return jsonResponse({
+        success: true,
+        ignored: true,
+        reason: 'checkout_audit_only',
+      });
+    }
 
     let userId = parsedReference.userId;
     let planId = parsedReference.planId;
@@ -408,8 +523,20 @@ serve(async (req) => {
     if (providerSubscriptionId) {
       const { data } = await supabaseAdmin
         .from('user_subscriptions')
-        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,current_period_start,current_period_end')
+        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end')
         .eq('provider_subscription_id', providerSubscriptionId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      existingSubscription = (data as ExistingSubscriptionRow | null) ?? null;
+    }
+
+    if (!existingSubscription && providerCheckoutSessionId) {
+      const { data } = await supabaseAdmin
+        .from('user_subscriptions')
+        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end')
+        .eq('provider_checkout_session_id', providerCheckoutSessionId)
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -420,7 +547,7 @@ serve(async (req) => {
     if (!existingSubscription && providerCustomerId) {
       const { data } = await supabaseAdmin
         .from('user_subscriptions')
-        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,current_period_start,current_period_end')
+        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end')
         .eq('provider_customer_id', providerCustomerId)
         .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
         .order('updated_at', { ascending: false })
@@ -433,8 +560,21 @@ serve(async (req) => {
     if (providerPaymentId) {
       const { data } = await supabaseAdmin
         .from('payments')
-        .select('id,user_id,plan_id,booster_id,billing_model,billing_cycle,subscription_id,provider_customer_id,provider_subscription_id,metadata')
+        .select('id,user_id,plan_id,booster_id,billing_model,billing_cycle,subscription_id,provider_payment_id,provider_customer_id,provider_subscription_id,provider_checkout_session_id,metadata')
         .eq('provider_payment_id', providerPaymentId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      existingPayment = (data as ExistingPaymentRow | null) ?? null;
+    }
+
+    if (!existingPayment && providerCheckoutSessionId) {
+      const { data } = await supabaseAdmin
+        .from('payments')
+        .select('id,user_id,plan_id,booster_id,billing_model,billing_cycle,subscription_id,provider_payment_id,provider_customer_id,provider_subscription_id,provider_checkout_session_id,metadata')
+        .eq('provider', 'asaas')
+        .eq('provider_checkout_session_id', providerCheckoutSessionId)
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -445,7 +585,7 @@ serve(async (req) => {
     if (!existingSubscription && existingPayment?.subscription_id) {
       const { data } = await supabaseAdmin
         .from('user_subscriptions')
-        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,current_period_start,current_period_end')
+        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end')
         .eq('id', existingPayment.subscription_id)
         .maybeSingle();
 
@@ -609,7 +749,7 @@ serve(async (req) => {
 
       const { data: activeUserSubscription } = await supabaseAdmin
         .from('user_subscriptions')
-        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,current_period_start,current_period_end')
+        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end')
         .eq('user_id', userId)
         .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
         .order('updated_at', { ascending: false })
@@ -658,6 +798,7 @@ serve(async (req) => {
         provider: 'asaas',
         provider_customer_id: providerCustomerId,
         provider_subscription_id: providerSubscriptionId,
+        provider_checkout_session_id: providerCheckoutSessionId,
         amount_paid: amount,
         currency,
         current_period_start: currentPeriodStart,
@@ -718,17 +859,62 @@ serve(async (req) => {
 
     const subscriptionRowId = await resolveSubscriptionRowId();
 
-    if (providerPaymentId) {
+    // Fix payments/CHECKOUT_PAID: o evento que ATIVA a assinatura (CHECKOUT_PAID)
+    // não traz payment.id, então a gravação de payments era pulada. Geramos um
+    // id sintético ESTÁVEL a partir do checkout session para criar a linha já na
+    // ativação. Quando o PAYMENT_* chegar depois (com payment.id real e o mesmo
+    // checkout session), o existingPayment é localizado por
+    // provider_checkout_session_id (lookup já existente acima) e a MESMA linha é
+    // atualizada com o id real — sem duplicar.
+    //
+    // Idempotência:
+    //  - replay de CHECKOUT_PAID  -> match por checkout session -> UPDATE (sem dup)
+    //  - PAYMENT_* com session    -> match por checkout session -> UPDATE p/ id real
+    //  - PAYMENT_* replay (id real)-> match por provider_payment_id -> UPDATE
+    //
+    // Escopo restrito a 'plan' para NÃO alterar o comportamento de boosters
+    // (boosters são pagamento direto e sempre trazem payment.id real).
+    // Não rebaixar um payment.id real já gravado para o id sintético, caso o
+    // PAYMENT_* (id real) tenha chegado ANTES do CHECKOUT_PAID.
+    const existingRealPaymentId =
+      existingPayment?.provider_payment_id &&
+      !existingPayment.provider_payment_id.startsWith('checkout:')
+        ? existingPayment.provider_payment_id
+        : null;
+
+    // Reconciliação da corrida: se este evento (ex.: CHECKOUT_PAID) não trouxe
+    // payment.id e ainda não temos um id real gravado, tenta recuperar o
+    // payment.id real de um PAYMENT_* já recebido (webhook_logs). Só para planos.
+    const reconciledRealPaymentId =
+      !providerPaymentId && !existingRealPaymentId && itemType === 'plan'
+        ? await findRealPaymentIdFromLogs(supabaseAdmin, providerCheckoutSessionId, externalReference)
+        : null;
+
+    const effectivePaymentId =
+      providerPaymentId ||
+      existingRealPaymentId ||
+      reconciledRealPaymentId ||
+      (itemType === 'plan' && providerCheckoutSessionId
+        ? `checkout:${providerCheckoutSessionId}`
+        : null);
+
+    // CHECKOUT_PAID ativa a assinatura -> o pagamento correspondente deve
+    // refletir 'approved' (e não ficar 'pending') mesmo se o PAYMENT_* não vier.
+    const effectivePaymentStatus =
+      eventName === 'CHECKOUT_PAID' && itemType === 'plan' ? 'approved' : paymentStatus;
+
+    if (effectivePaymentId) {
       const paymentPayload = {
         user_id: userId,
         subscription_id: subscriptionRowId,
         plan_id: planId,
         booster_id: boosterId,
         provider: 'asaas',
-        provider_payment_id: providerPaymentId,
+        provider_payment_id: effectivePaymentId,
         provider_customer_id: providerCustomerId,
         provider_subscription_id: providerSubscriptionId,
         provider_invoice_id: providerInvoiceId,
+        provider_checkout_session_id: providerCheckoutSessionId,
         external_reference: externalReference,
         billing_model: itemType === 'plan' ? billingModel || 'one_time' : 'one_time',
         billing_cycle: itemType === 'plan' ? billingCycle : null,
@@ -741,10 +927,10 @@ serve(async (req) => {
               : 'Pagamento Asaas'),
         amount,
         currency,
-        status: paymentStatus,
+        status: effectivePaymentStatus,
         payment_method: paymentMethod,
         receipt_url: receiptUrl,
-        paid_at: paymentStatus === 'approved' ? paidAt || new Date().toISOString() : null,
+        paid_at: effectivePaymentStatus === 'approved' ? paidAt || new Date().toISOString() : null,
         invoice_status: itemType === 'plan' ? 'pending' : 'not_applicable',
         metadata: {
           ...(existingPayment?.metadata || {}),
@@ -753,7 +939,7 @@ serve(async (req) => {
           billing_model: itemType === 'plan' ? billingModel || 'one_time' : 'one_time',
           external_reference: externalReference,
           asaas_event: eventType,
-          asaas_status: readString(payment.status, subscription.status),
+          asaas_status: paymentStatusSource,
         },
       };
 
