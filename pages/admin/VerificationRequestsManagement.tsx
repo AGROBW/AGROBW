@@ -75,13 +75,13 @@ const VerificationRequestsManagement: React.FC = () => {
           .createSignedUrl(selectedItem.document_path!, 60 * 60);
 
         if (!cancelled) {
+          // verification_docs é PRIVADO: usar somente signed URL.
+          // (getPublicUrl não serve arquivo de bucket privado e mascarava erros.)
           if (!signedError && signedData?.signedUrl) {
             setDocumentUrl(signedData.signedUrl);
           } else {
-            const { data: publicData } = supabase.storage
-              .from('verification_docs')
-              .getPublicUrl(selectedItem.document_path!);
-            setDocumentUrl(publicData.publicUrl || null);
+            setDocumentUrl(null);
+            toast.error('Não foi possível gerar o link seguro do documento.');
           }
         }
       } catch (error) {

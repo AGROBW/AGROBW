@@ -536,9 +536,9 @@ const UserDashboardView: React.FC = () => {
     setIsUploadingAvatar(true);
     
     try {
-      const userName = slugify(user.name);
+      // Segurança (S-HIGH-2): pasta = auth.uid() (imutável), nunca slug do nome.
       const fileExt = file.name.split('.').pop();
-      const filePath = `${userName}/perfil.${fileExt}`;
+      const filePath = `${user.id}/perfil.${fileExt}`;
 
       // Upload para o Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage

@@ -1,129 +1,100 @@
-const ALLOWED_TAGS = new Set([
-  'a',
-  'b',
-  'blockquote',
-  'br',
-  'code',
-  'div',
-  'em',
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'h5',
-  'h6',
-  'hr',
-  'i',
-  'li',
-  'ol',
-  'p',
-  'pre',
-  'span',
-  'strong',
-  'u',
-  'ul',
-]);
+import DOMPurify from 'dompurify';
 
-const sanitizeLinkHref = (href: string): string | null => {
-  const trimmed = href.trim();
-  if (!trimmed) return null;
+/**
+ * Sanitizador de HTML rico (CMS / páginas institucionais / documentos legais).
+ *
+ * Endurecido com DOMPurify (motor testado), preservando a allowlist e o
+ * comportamento do sanitizador caseiro anterior:
+ *   - mesmo conjunto de tags permitidas;
+ *   - apenas <a> mantém href/target/rel (removidos das demais tags);
+ *   - <a target="_blank"> recebe rel="noopener noreferrer nofollow";
+ *   - protocolos perigosos (javascript:, data:) bloqueados (default do DOMPurify);
+ *   - texto de tags removidas é preservado (KEEP_CONTENT).
+ *
+ * Fail-closed: em ambiente SEM DOM (SSR/Node), retorna TEXTO escapado — nunca
+ * HTML cru (substitui o antigo fallback por regex, que era burlável).
+ *
+ * A assinatura pública é mantida: sanitizeRichTextHtml(html: string): string.
+ */
 
-  if (trimmed.startsWith('/') || trimmed.startsWith('#')) {
-    return trimmed;
-  }
+const ALLOWED_TAGS = [
+  'a', 'b', 'blockquote', 'br', 'code', 'div', 'em',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'hr', 'i', 'li', 'ol', 'p', 'pre', 'span', 'strong', 'u', 'ul',
+];
 
-  try {
-    const parsed = new URL(trimmed, 'https://bwagro.com.br');
-    if (['http:', 'https:', 'mailto:', 'tel:'].includes(parsed.protocol)) {
-      return trimmed;
+// Atributos permitidos globalmente; o hook abaixo restringe-os a <a>.
+const ALLOWED_ATTR = ['href', 'target', 'rel'];
+const ANCHOR_ONLY_ATTR = ['href', 'target', 'rel'];
+
+let hooksConfigured = false;
+const ensureHooks = () => {
+  if (hooksConfigured) return;
+  hooksConfigured = true;
+
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    const el = node as Element;
+    const tag = (el.tagName || '').toLowerCase();
+
+    // Paridade exata: href/target/rel só fazem sentido em <a>.
+    if (tag !== 'a') {
+      for (const attr of ANCHOR_ONLY_ATTR) el.removeAttribute(attr);
+      return;
     }
-  } catch {
-    return null;
-  }
 
-  return null;
+    // Endurecimento de links que abrem em nova aba.
+    if (el.getAttribute('target') === '_blank') {
+      el.setAttribute('rel', 'noopener noreferrer nofollow');
+    }
+  });
 };
 
-const sanitizeNode = (node: Node, doc: Document): Node | null => {
-  if (node.nodeType === Node.TEXT_NODE) {
-    return doc.createTextNode(node.textContent || '');
-  }
+const escapeHtmlText = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
-  if (node.nodeType !== Node.ELEMENT_NODE) {
-    return null;
-  }
-
-  const element = node as HTMLElement;
-  const tagName = element.tagName.toLowerCase();
-
-  if (!ALLOWED_TAGS.has(tagName)) {
-    const fragment = doc.createDocumentFragment();
-    for (const child of Array.from(element.childNodes)) {
-      const sanitizedChild = sanitizeNode(child, doc);
-      if (sanitizedChild) {
-        fragment.appendChild(sanitizedChild);
-      }
-    }
-    return fragment;
-  }
-
-  const cleanElement = doc.createElement(tagName);
-
-  if (tagName === 'a') {
-    const href = element.getAttribute('href');
-    const safeHref = href ? sanitizeLinkHref(href) : null;
-
-    if (safeHref) {
-      cleanElement.setAttribute('href', safeHref);
-      cleanElement.setAttribute('rel', 'noopener noreferrer nofollow');
-
-      if (element.getAttribute('target') === '_blank') {
-        cleanElement.setAttribute('target', '_blank');
-      }
-    }
-  }
-
-  for (const child of Array.from(element.childNodes)) {
-    const sanitizedChild = sanitizeNode(child, doc);
-    if (sanitizedChild) {
-      cleanElement.appendChild(sanitizedChild);
-    }
-  }
-
-  return cleanElement;
-};
-
-const sanitizeWithDomParser = (html: string): string => {
-  const parser = new DOMParser();
-  const parsed = parser.parseFromString(`<div>${html}</div>`, 'text/html');
-  const sourceRoot = parsed.body.firstElementChild;
-  const cleanDoc = document.implementation.createHTMLDocument('');
-  const cleanRoot = cleanDoc.createElement('div');
-
-  for (const child of Array.from(sourceRoot?.childNodes || [])) {
-    const sanitizedChild = sanitizeNode(child, cleanDoc);
-    if (sanitizedChild) {
-      cleanRoot.appendChild(sanitizedChild);
-    }
-  }
-
-  return cleanRoot.innerHTML.trim();
-};
-
-const sanitizeWithoutDomParser = (html: string): string =>
-  html
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-    .replace(/\son\w+="[^"]*"/gi, '')
-    .replace(/\son\w+='[^']*'/gi, '')
-    .replace(/javascript:/gi, '')
-    .trim();
+/**
+ * Fail-closed: escapa TODO o conteúdo como texto. Nunca devolve HTML ativo e
+ * preserva o texto integralmente (sem strip de tags, que perderia conteúdo
+ * legítimo entre `<` e `>`). Exportado apenas para testes (T-C).
+ */
+export const __failClosedTextOnly = (html: string): string =>
+  escapeHtmlText(String(html ?? ''));
 
 export const sanitizeRichTextHtml = (html: string): string => {
-  const content = String(html || '');
+  const content = String(html ?? '');
+  if (!content) return '';
 
-  if (typeof window === 'undefined' || typeof DOMParser === 'undefined' || typeof document === 'undefined') {
-    return sanitizeWithoutDomParser(content);
+  // DOMPurify só é seguro com DOM real. Sem DOM (ou instância não suportada),
+  // ele faria PASSTHROUGH do input — por isso falhamos fechado aqui.
+  const domAvailable =
+    typeof window !== 'undefined' &&
+    Boolean((DOMPurify as unknown as { isSupported?: boolean }).isSupported);
+
+  if (!domAvailable) {
+    return __failClosedTextOnly(content);
   }
 
-  return sanitizeWithDomParser(content);
+  ensureHooks();
+
+  const clean = DOMPurify.sanitize(content, {
+    ALLOWED_TAGS,
+    ALLOWED_ATTR,
+    KEEP_CONTENT: true,
+    ALLOW_DATA_ATTR: false,
+    ALLOW_ARIA_ATTR: false,
+    // Redundante com a allowlist, mas explícito como defesa em profundidade:
+    FORBID_TAGS: ['style', 'svg', 'math', 'script', 'iframe', 'object', 'embed', 'form', 'img', 'input', 'template'],
+    FORBID_ATTR: ['style'],
+    // Mantém o default seguro de URIs (bloqueia javascript:/data:; permite
+    // http/https/mailto/tel e caminhos relativos).
+  });
+
+  return String(clean).trim();
 };
+
+export default sanitizeRichTextHtml;
