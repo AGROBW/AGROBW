@@ -27,3 +27,9 @@ dist-ssr
 .env*.local
 
 corpus.json
+backup*
+*.zip
+01_roles.sql
+02_schema.sql
+03_data.sql
+*_data.sql
