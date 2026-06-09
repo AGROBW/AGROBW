@@ -1222,7 +1222,7 @@ const AdCreationView: React.FC = () => {
       // R3: contato do vendedor vai para tabela privada (RLS dono/admin)
       await supabase
         .from('announcement_contacts')
-        .upsert({ announcement_id: newId, whatsapp: user?.whatsapp || user?.phone || null });
+        .upsert({ announcement_id: newId, whatsapp: user?.whatsapp || user?.phone || null }, { onConflict: 'announcement_id' });
     }
     
     // Liberar bloqueio
@@ -2042,7 +2042,7 @@ const AdCreationView: React.FC = () => {
         // R3: contato do vendedor (não moderado) gravado direto na tabela privada
         await supabase
           .from('announcement_contacts')
-          .upsert({ announcement_id: editAdId, whatsapp: r3SellerWhatsapp });
+          .upsert({ announcement_id: editAdId, whatsapp: r3SellerWhatsapp }, { onConflict: 'announcement_id' });
         toast.success(
           effectiveModerationResult.reviewRequired && originalAnnouncementStatus === 'ACTIVE'
             ? 'Alterações enviadas para análise. O anúncio atual segue publicado até a revisão.'
@@ -2125,7 +2125,7 @@ const AdCreationView: React.FC = () => {
       // R3: contato do vendedor na tabela privada (RLS dono/admin)
       await supabase
         .from('announcement_contacts')
-        .upsert({ announcement_id: announcementId, whatsapp: r3SellerWhatsapp });
+        .upsert({ announcement_id: announcementId, whatsapp: r3SellerWhatsapp }, { onConflict: 'announcement_id' });
 
       if (cleanCep) {
         const geoUpdated = await updateAnnouncementCoordinates(

@@ -320,7 +320,7 @@ export const useMySellerStore = () => {
       // R3: persistir o email no contato privado da loja (RLS dono/admin)
       await supabase
         .from('seller_store_contacts')
-        .upsert({ store_id: (data as SellerStoreRow).id, email: r3StoreEmail });
+        .upsert({ store_id: (data as SellerStoreRow).id, email: r3StoreEmail }, { onConflict: 'store_id' });
       mappedStore.email = r3StoreEmail;
       setStore(mappedStore);
       setIsSaving(false);
