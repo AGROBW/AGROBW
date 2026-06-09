@@ -83,7 +83,7 @@ interface PublicationModerationRuleRecord {
 type ModerationTab = 'announcements' | 'edits';
 const PAGE_SIZE = 20;
 const ANNOUNCEMENT_EDIT_SELECT =
-  'id,title,description,price,unit_price,quantity,unit,currency,category_id,category_slug,sub_category_id,sub_category_label,status,created_at,user_id,city,state,cep,product_condition,availability,accepts_trade,has_warranty,warranty_details,has_invoice,images,video_url,video_storage_path,video_thumbnail_url,video_thumbnail_storage_path,video_duration_seconds,video_size_bytes,is_premium,whatsapp,publication_review_reasons,publication_review_severity';
+  'id,title,description,price,unit_price,quantity,unit,currency,category_id,category_slug,sub_category_id,sub_category_label,status,created_at,user_id,city,state,cep,product_condition,availability,accepts_trade,has_warranty,warranty_details,has_invoice,images,video_url,video_storage_path,video_thumbnail_url,video_thumbnail_storage_path,video_duration_seconds,video_size_bytes,is_premium,publication_review_reasons,publication_review_severity,announcement_contacts(whatsapp)';
 const EDITABLE_ANNOUNCEMENT_FIELDS = new Set([
   'title',
   'description',
@@ -113,7 +113,6 @@ const EDITABLE_ANNOUNCEMENT_FIELDS = new Set([
   'video_duration_seconds',
   'video_size_bytes',
   'is_premium',
-  'whatsapp',
 ]);
 
 const sanitizeAnnouncementPayload = (payload: Record<string, any> = {}) =>
@@ -316,7 +315,13 @@ const ModerationQueue: React.FC = () => {
       .select(ANNOUNCEMENT_EDIT_SELECT)
       .in('id', ids);
     if (error) throw error;
-    return new Map(((data || []) as PendingAnnouncement[]).map((item) => [item.id, item]));
+    // R3: achatar o whatsapp vindo do embed announcement_contacts (contexto admin/RLS)
+    return new Map(
+      ((data || []) as any[]).map((item) => [
+        item.id,
+        { ...item, whatsapp: item.announcement_contacts?.whatsapp ?? null } as PendingAnnouncement,
+      ]),
+    );
   };
 
   const fetchTechnicalDetailsMap = async (announcementIds: string[]) => {
@@ -471,7 +476,12 @@ const ModerationQueue: React.FC = () => {
 
       if (refreshedAnnouncementError) throw refreshedAnnouncementError;
 
-      const updatedAnnouncement = (refreshedAnnouncement as PendingAnnouncement | null) || request.announcement;
+      const updatedAnnouncement = refreshedAnnouncement
+        ? ({
+            ...(refreshedAnnouncement as any),
+            whatsapp: (refreshedAnnouncement as any).announcement_contacts?.whatsapp ?? null,
+          } as PendingAnnouncement)
+        : request.announcement;
 
       if (
         Object.prototype.hasOwnProperty.call(request.payload || {}, 'video_url') &&

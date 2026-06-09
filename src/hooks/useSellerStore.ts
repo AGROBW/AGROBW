@@ -148,7 +148,7 @@ const mapAnnouncement = (ad: any): Ad => ({
   expiresAt: ad.expires_at,
   expiredAt: ad.expired_at,
   deletionScheduledAt: ad.deletion_scheduled_at,
-  whatsapp: ad.whatsapp,
+  whatsapp: null, // R3: contato vive em announcement_contacts (owner/admin)
   highlightCategory: ad.highlight_category || false,
   highlightCategoryUntil: ad.highlight_category_until,
   highlightHome: ad.highlight_home || false,
@@ -209,7 +209,19 @@ export const useMySellerStore = () => {
       setError(fetchError.message);
       setStore(null);
     } else {
-      setStore(data ? mapStoreRow(data as SellerStoreRow) : null);
+      if (data) {
+        const mapped = mapStoreRow(data as SellerStoreRow);
+        // R3: email vem do contato privado da loja (não da coluna-base)
+        const { data: contact } = await supabase
+          .from('seller_store_contacts')
+          .select('email')
+          .eq('store_id', mapped.id)
+          .maybeSingle();
+        mapped.email = contact?.email ?? null;
+        setStore(mapped);
+      } else {
+        setStore(null);
+      }
     }
 
     setIsLoading(false);
@@ -230,7 +242,7 @@ export const useMySellerStore = () => {
 
     const { data, error: announcementsError } = await supabase
       .from('announcements')
-      .select('id,title,description,price,unit_price,city,state,cep,category_id,sub_category_id,sub_category_label,images,user_id,status,views,is_premium,created_at,store_display_order,expires_at,expired_at,deletion_scheduled_at,whatsapp,highlight_category,highlight_category_until,highlight_home,highlight_home_until,categories(slug)')
+      .select('id,title,description,price,unit_price,city,state,cep,category_id,sub_category_id,sub_category_label,images,user_id,status,views,is_premium,created_at,store_display_order,expires_at,expired_at,deletion_scheduled_at,highlight_category,highlight_category_until,highlight_home,highlight_home_until,categories(slug)')
       .eq('user_id', user.id)
       .eq('status', 'ACTIVE')
       .order('store_display_order', { ascending: true, nullsFirst: false })
@@ -270,6 +282,8 @@ export const useMySellerStore = () => {
         throw new Error('Informe um nome válido para gerar o endereço da loja.');
       }
 
+      // R3: email da loja é privado (seller_store_contacts), não vai mais no payload base.
+      const r3StoreEmail = input.email?.trim() || user.email || null;
       const payload = {
         user_id: user.id,
         slug: normalizedSlug,
@@ -280,7 +294,6 @@ export const useMySellerStore = () => {
         cover_position_x: normalizeCoverPosition(input.coverPositionX),
         cover_position_y: normalizeCoverPosition(input.coverPositionY),
         whatsapp: null,
-        email: input.email?.trim() || user.email || null,
         facebook_url: normalizeExternalUrl(input.facebookUrl),
         instagram_url: normalizeExternalUrl(input.instagramUrl),
         linkedin_url: normalizeExternalUrl(input.linkedinUrl),
@@ -304,6 +317,11 @@ export const useMySellerStore = () => {
       }
 
       const mappedStore = mapStoreRow(data as SellerStoreRow);
+      // R3: persistir o email no contato privado da loja (RLS dono/admin)
+      await supabase
+        .from('seller_store_contacts')
+        .upsert({ store_id: (data as SellerStoreRow).id, email: r3StoreEmail });
+      mappedStore.email = r3StoreEmail;
       setStore(mappedStore);
       setIsSaving(false);
       return mappedStore;

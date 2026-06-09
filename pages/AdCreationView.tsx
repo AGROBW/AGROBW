@@ -1193,8 +1193,7 @@ const AdCreationView: React.FC = () => {
       video_size_bytes: media.videoSizeBytes,
       user_id: user.id,
       status: AdStatus.PENDING,
-      is_premium: !!formData.isPremium,
-      whatsapp: user?.whatsapp || user?.phone || null
+      is_premium: !!formData.isPremium
     };
 
     const { data, error } = await supabase
@@ -1220,6 +1219,10 @@ const AdCreationView: React.FC = () => {
       setDraftAdId(newId);
       localStorage.setItem('bwagro_ad_draft_id', newId);
       debugLog('[AdCreation] Rascunho criado com sucesso:', newId);
+      // R3: contato do vendedor vai para tabela privada (RLS dono/admin)
+      await supabase
+        .from('announcement_contacts')
+        .upsert({ announcement_id: newId, whatsapp: user?.whatsapp || user?.phone || null });
     }
     
     // Liberar bloqueio
@@ -1814,9 +1817,11 @@ const AdCreationView: React.FC = () => {
         video_thumbnail_storage_path: hasStoreListingAccess ? (formData.videoThumbnailStoragePath || null) : null,
         video_duration_seconds: hasStoreListingAccess ? (formData.videoDurationSeconds || null) : null,
         video_size_bytes: hasStoreListingAccess ? (formData.videoSizeBytes || null) : null,
-        is_premium: !!formData.isPremium,
-        whatsapp: user?.whatsapp || user?.phone || null
+        is_premium: !!formData.isPremium
       };
+      // R3: whatsapp do vendedor não vai mais no payload de announcements;
+      // é gravado em announcement_contacts após persistir (ver abaixo).
+      const r3SellerWhatsapp = user?.whatsapp || user?.phone || null;
 
       const { data: cooldownRows, error: cooldownError } = await supabase.rpc(
         'get_announcement_similarity_cooldown',
@@ -2034,6 +2039,10 @@ const AdCreationView: React.FC = () => {
         localStorage.removeItem('bwagro_ad_draft_id');
         setDraftAdId(null);
         draftIdRef.current = null;
+        // R3: contato do vendedor (não moderado) gravado direto na tabela privada
+        await supabase
+          .from('announcement_contacts')
+          .upsert({ announcement_id: editAdId, whatsapp: r3SellerWhatsapp });
         toast.success(
           effectiveModerationResult.reviewRequired && originalAnnouncementStatus === 'ACTIVE'
             ? 'Alterações enviadas para análise. O anúncio atual segue publicado até a revisão.'
@@ -2113,6 +2122,10 @@ const AdCreationView: React.FC = () => {
 
       const announcementId = data.id;
       debugLog('[AdCreation] AnÃºncio publicado com sucesso:', announcementId);
+      // R3: contato do vendedor na tabela privada (RLS dono/admin)
+      await supabase
+        .from('announcement_contacts')
+        .upsert({ announcement_id: announcementId, whatsapp: r3SellerWhatsapp });
 
       if (cleanCep) {
         const geoUpdated = await updateAnnouncementCoordinates(
