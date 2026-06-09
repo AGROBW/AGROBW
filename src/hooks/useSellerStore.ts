@@ -410,7 +410,8 @@ export const usePublicSellerStore = (slug: string | undefined) => {
 
       const { data: storeRow, error: storeError } = await supabase
         .from('seller_stores')
-        .select('*')
+        // R3: loja pública (anon) lê colunas explícitas — SEM `email` (privado).
+        .select('id,user_id,slug,store_name,description,logo_url,cover_url,cover_position_x,cover_position_y,whatsapp,facebook_url,instagram_url,linkedin_url,website_url,city,state,is_active,is_verified,created_at,updated_at,is_store_feature_enabled,is_paused_due_to_plan')
         .eq('slug', slug)
         .eq('is_active', true)
         .eq('is_store_feature_enabled', true)
@@ -486,7 +487,8 @@ export const usePublicSellerStoresCatalog = () => {
 
     const { data: storeRows, error: storesError } = await supabase
       .from('seller_stores')
-      .select('*')
+      // R3: vitrine pública (anon) lê colunas explícitas — SEM `email` (privado).
+      .select('id,user_id,slug,store_name,description,logo_url,cover_url,cover_position_x,cover_position_y,whatsapp,facebook_url,instagram_url,linkedin_url,website_url,city,state,is_active,is_verified,created_at,updated_at,is_store_feature_enabled,is_paused_due_to_plan')
       .eq('is_active', true)
       .eq('is_store_feature_enabled', true)
       .eq('is_paused_due_to_plan', false)

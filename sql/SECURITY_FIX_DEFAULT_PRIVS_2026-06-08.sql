@@ -69,6 +69,7 @@ declare
     'get_public_about_stats',
     'get_public_active_site_sponsors',
     'increment_ad_views',
+    'get_announcement_report_snapshot',
     -- utilitário puro
     'calculate_distance_km'
   ];
