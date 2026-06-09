@@ -48,8 +48,7 @@ export const useFavorites = () => {
           created_at,
           expires_at,
           expired_at,
-          deletion_scheduled_at,
-          whatsapp
+          deletion_scheduled_at
         )
       `)
       .eq('user_id', user.id)
@@ -88,7 +87,7 @@ export const useFavorites = () => {
             expiresAt: fav.announcements.expires_at,
             expiredAt: fav.announcements.expired_at,
             deletionScheduledAt: fav.announcements.deletion_scheduled_at,
-            whatsapp: fav.announcements.whatsapp
+            whatsapp: null // R3: contato do vendedor vive em announcement_contacts (owner/admin)
           },
           priceAtFavorite: parseFloat(fav.price_at_favorite),
           favoritedAt: fav.created_at
