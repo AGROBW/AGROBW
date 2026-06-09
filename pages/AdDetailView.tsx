@@ -338,7 +338,10 @@ const AdDetailView: React.FC = () => {
         
         {/* Left Column: Gallery & Description */}
         <div className="lg:col-span-8 space-y-10">
-          
+
+          {/* Ad Title (heading principal da página) */}
+          <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight leading-tight">{ad.title}</h1>
+
           {/* Gallery Card */}
           <div className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-gray-100 p-2">
             {primaryImage ? (
@@ -620,7 +623,7 @@ const AdDetailView: React.FC = () => {
             <div className="p-8 space-y-8">
               <div>
                 <span className="bg-green-100 text-green-700 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest mb-3 inline-block">Valor de Venda</span>
-                <h1 className="text-4xl font-black text-slate-900 tracking-tighter">{formattedPrice}</h1>
+                <p className="text-4xl font-black text-slate-900 tracking-tighter">{formattedPrice}</p>
                 <p className="text-slate-400 text-sm mt-2 font-medium flex items-center gap-2">
                   <Eye className="w-4 h-4" strokeWidth={1.5} />
                   {ad.views.toLocaleString()} visualizações totais
