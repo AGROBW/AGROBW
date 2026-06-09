@@ -310,15 +310,19 @@ export const useActiveSitePopups = () => {
     const fetchActivePopups = async () => {
       setIsLoading(true);
 
-      const [{ data, error }, metricsResult] = await Promise.all([
-        supabase
-          .from('site_popups')
-          .select('*')
-          .eq('is_active', true)
-          .order('display_order', { ascending: true })
-          .order('updated_at', { ascending: false }),
-        supabase.from('site_popup_metrics').select('*'),
-      ]);
+      // Caminho PÚBLICO: lê apenas colunas públicas de popups ativos.
+      // NÃO busca site_popup_metrics (analytics admin-only) nem colunas
+      // internas (updated_by, name, timestamps).
+      const { data, error } = await supabase
+        .from('site_popups')
+        .select(
+          'id, title, message, support_text, primary_button_label, primary_button_link, ' +
+            'delay_seconds, is_active, show_once, audience, page_scope, custom_path, ' +
+            'display_order, starts_at, ends_at',
+        )
+        .eq('is_active', true)
+        .order('display_order', { ascending: true })
+        .order('updated_at', { ascending: false });
 
       if (!isMounted) return;
 
@@ -326,12 +330,8 @@ export const useActiveSitePopups = () => {
         appError('[useActiveSitePopups] Erro ao carregar pop-ups ativos', error);
         setPopups([]);
       } else {
-        const metricsMap = buildMetricsMap(metricsResult.data);
-        setPopups(
-          (data || []).map((row) =>
-            mapSitePopup(row, metricsMap.get(row.id) ?? { ...EMPTY_METRICS, popupId: row.id }),
-          ),
-        );
+        // Público não consome métricas → metrics: null.
+        setPopups((data || []).map((row) => mapSitePopup(row, null)));
       }
 
       setIsLoading(false);
