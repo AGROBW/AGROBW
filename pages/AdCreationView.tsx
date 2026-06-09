@@ -599,6 +599,15 @@ const AdCreationView: React.FC = () => {
           .limit(1)
           .maybeSingle<AnnouncementEditRequestRecord>();
 
+        // Bloqueio de concorrência (ponta a ponta): não editar anúncio em análise
+        // (PENDING/UNDER_REVIEW) nem com edição já pendente (EDIT_PENDING).
+        const r3NormalizedStatus = String(adData.status || '').toUpperCase();
+        if (r3NormalizedStatus === 'PENDING' || r3NormalizedStatus === 'UNDER_REVIEW' || pendingEditRequestData?.id) {
+          toast.error('Este anúncio está em análise pela moderação. A edição ficará disponível após a aprovação ou rejeição.');
+          navigate('/minha-conta/anuncios');
+          return;
+        }
+
         const fetchedTechnicalDetails = Array.isArray(adData.announcement_technical_details)
           ? adData.announcement_technical_details
           : [];

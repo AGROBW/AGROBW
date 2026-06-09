@@ -1924,12 +1924,19 @@ const UserDashboardView: React.FC = () => {
                       )}
                       {/* Botão Editar */}
                       {(() => {
+                        const inReview =
+                          ad.status === AdStatus.PENDING
+                          || String(ad.status) === 'UNDER_REVIEW'
+                          || hasPendingEditReview(ad); // EDIT_PENDING: já há edição em análise
                         const editBlocked =
-                          (ad.status === AdStatus.REJECTED && isReanalysisBlocked(ad.reanalysisAvailableAt))
+                          inReview
+                          || (ad.status === AdStatus.REJECTED && isReanalysisBlocked(ad.reanalysisAvailableAt))
                           || (ad.latestEditRequestStatus === 'rejected' && isReanalysisBlocked(ad.latestEditReanalysisAvailableAt));
-                        const editBlockedTitle = ad.status === AdStatus.REJECTED
-                          ? getReanalysisBlockedLabel(ad) || 'Novo envio temporariamente bloqueado'
-                          : getReanalysisBlockedLabel(ad) || 'Nova alteração temporariamente bloqueada';
+                        const editBlockedTitle = inReview
+                          ? 'Em análise pela moderação — edição disponível após aprovação ou rejeição.'
+                          : ad.status === AdStatus.REJECTED
+                            ? getReanalysisBlockedLabel(ad) || 'Novo envio temporariamente bloqueado'
+                            : getReanalysisBlockedLabel(ad) || 'Nova alteração temporariamente bloqueada';
 
                         return (
                       <button
