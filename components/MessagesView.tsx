@@ -30,10 +30,12 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [messageText, setMessageText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  const { messages, isLoading: messagesLoading, sendMessage } = useMessages(selectedChatId);
-  
   const selectedChat = chats.find(c => c.id === selectedChatId);
+  const selectedChatOtherUserName = selectedChat
+    ? (user?.id === selectedChat.buyerId ? selectedChat.sellerName : selectedChat.buyerName)
+    : undefined;
+  
+  const { messages, isLoading: messagesLoading, sendMessage } = useMessages(selectedChatId, selectedChatOtherUserName);
   const isSellerInSelectedChat = selectedChat?.sellerId === user?.id;
   const isLeadContactExpired = selectedChat?.freezeReason === 'lead_contact_expired';
   const isReceivedTab = activeTab === 'received';

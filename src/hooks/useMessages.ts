@@ -47,22 +47,56 @@ const getChatFreezeState = (
   }
 }
 
-const getLeadContactExpirationMap = async (chatIds: string[]) => {
+const normalizeDisplayName = (value?: string | null) => {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmedValue = value.trim()
+  return trimmedValue ? trimmedValue : null
+}
+
+const getLeadDetailsByChatId = async (chatIds: string[]) => {
   if (chatIds.length === 0) {
-    return new Map<string, string | null>()
+    return new Map<string, { contactExpiresAt: string | null; buyerName: string | null }>()
   }
 
   const { data, error } = await supabase
     .from('leads')
-    .select('chat_id, contact_expires_at')
+    .select('chat_id, contact_expires_at, buyer_name')
     .in('chat_id', chatIds)
 
   if (error) {
     throw error
   }
 
+  return new Map<string, { contactExpiresAt: string | null; buyerName: string | null }>(
+    (data || []).map((lead) => [
+      lead.chat_id as string,
+      {
+        contactExpiresAt: lead.contact_expires_at as string | null,
+        buyerName: normalizeDisplayName(lead.buyer_name)
+      }
+    ])
+  )
+}
+
+const getPublicProfileNamesByUserId = async (userIds: string[]) => {
+  if (userIds.length === 0) {
+    return new Map<string, string | null>()
+  }
+
+  const { data, error } = await supabase
+    .from('vendedores_publicos')
+    .select('id, name')
+    .in('id', userIds)
+
+  if (error) {
+    throw error
+  }
+
   return new Map<string, string | null>(
-    (data || []).map((lead) => [lead.chat_id as string, lead.contact_expires_at as string | null])
+    (data || []).map((profile) => [String(profile.id), normalizeDisplayName(profile.name)])
   )
 }
 
@@ -180,7 +214,7 @@ export const useChats = (announcementId?: string | null) => {
         clearRetry()
         setError(null)
         const chatRows = data || []
-        let leadExpirationByChat = new Map<string, string | null>()
+        let leadDetailsByChat = new Map<string, { contactExpiresAt: string | null; buyerName: string | null }>()
         let unreadCountsByChatId = new Map<
           string,
           {
@@ -190,14 +224,15 @@ export const useChats = (announcementId?: string | null) => {
             unreadCountSeller: number
           }
         >()
+        let publicProfileNamesByUserId = new Map<string, string | null>()
 
         try {
-          // Use the lead record itself as the source of truth for contact locking.
-          leadExpirationByChat = await getLeadContactExpirationMap(
+          // Use the lead record itself as the source of truth for contact locking and buyer display name.
+          leadDetailsByChat = await getLeadDetailsByChatId(
             chatRows.map((chat) => chat.id).filter(Boolean)
           )
         } catch (leadError) {
-          appError('[useChats] Erro ao buscar expiracao dos leads', leadError, { userId: user.id })
+          appError('[useChats] Erro ao buscar dados dos leads', leadError, { userId: user.id })
         }
 
         try {
@@ -209,9 +244,24 @@ export const useChats = (announcementId?: string | null) => {
           appError('[useChats] Erro ao buscar contadores reais de nao lidas', unreadError, { userId: user.id })
         }
 
+        try {
+          publicProfileNamesByUserId = await getPublicProfileNamesByUserId(
+            Array.from(
+              new Set(
+                chatRows
+                  .flatMap((chat) => [String(chat.seller_id || ''), String(chat.buyer_id || '')])
+                  .filter(Boolean)
+              )
+            )
+          )
+        } catch (profileError) {
+          appWarn('[useChats] Erro ao buscar perfis publicos para os nomes das conversas', { userId: user.id, error: profileError })
+        }
+
         const mappedChats: Chat[] = chatRows.map(chat => {
+          const leadDetails = leadDetailsByChat.get(chat.id)
           const leadContactExpiresAt =
-            leadExpirationByChat.get(chat.id) ?? chat.lead_contact_expires_at ?? null
+            leadDetails?.contactExpiresAt ?? chat.lead_contact_expires_at ?? null
 
           const unreadCountEntry = unreadCountsByChatId.get(String(chat.id))
           const unreadCountFromView =
@@ -235,13 +285,18 @@ export const useChats = (announcementId?: string | null) => {
             ? chat.ad_title
             : 'Anuncio indisponivel'
 
-          const sellerName = typeof chat.seller_name === 'string' && chat.seller_name.trim()
-            ? chat.seller_name
-            : 'Usuario indisponivel'
+          const sellerName =
+            normalizeDisplayName(chat.seller_name) ||
+            publicProfileNamesByUserId.get(String(chat.seller_id)) ||
+            (chat.seller_id === user.id ? normalizeDisplayName(user.name) : null) ||
+            'Usuario indisponivel'
 
-          const buyerName = typeof chat.buyer_name === 'string' && chat.buyer_name.trim()
-            ? chat.buyer_name
-            : 'Usuario indisponivel'
+          const buyerName =
+            normalizeDisplayName(chat.buyer_name) ||
+            leadDetails?.buyerName ||
+            publicProfileNamesByUserId.get(String(chat.buyer_id)) ||
+            (chat.buyer_id === user.id ? normalizeDisplayName(user.name) : null) ||
+            'Usuario indisponivel'
 
           return {
           ...getChatFreezeState(
@@ -380,13 +435,27 @@ export const useChats = (announcementId?: string | null) => {
   return { chats, isLoading, error, refreshChats: fetchChats }
 }
 
-export const useMessages = (chatId: string | null) => {
+export const useMessages = (chatId: string | null, fallbackOtherUserName?: string) => {
   const { user } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
   const retryTimeoutRef = useRef<number | null>(null)
+
+  const resolveSenderName = useCallback((senderId: string, rawSenderName?: string | null) => {
+    const senderName = normalizeDisplayName(rawSenderName)
+
+    if (senderName && !['Usuário', 'UsuÃ¡rio', 'Usuario'].includes(senderName)) {
+      return senderName
+    }
+
+    if (senderId === user?.id) {
+      return normalizeDisplayName(user?.name) || 'Usuário'
+    }
+
+    return normalizeDisplayName(fallbackOtherUserName) || 'Usuário'
+  }, [fallbackOtherUserName, user?.id, user?.name])
 
   const mapMessages = useCallback((data: any[] | null | undefined): Message[] => {
     return (data || []).map(msg => ({
@@ -401,6 +470,13 @@ export const useMessages = (chatId: string | null) => {
       isFiltered: msg.is_filtered
     }))
   }, [])
+
+  const mapMessagesWithResolvedNames = useCallback((data: any[] | null | undefined): Message[] => {
+    return mapMessages(data).map((message) => ({
+      ...message,
+      senderName: resolveSenderName(message.senderId, message.senderName)
+    }))
+  }, [mapMessages, resolveSenderName])
 
   const clearRetry = () => {
     if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
@@ -505,7 +581,7 @@ export const useMessages = (chatId: string | null) => {
       } else {
         clearRetry()
         setError(null)
-        setMessages(mapMessages(data))
+        setMessages(mapMessagesWithResolvedNames(data))
         await markAsRead(chatId)
       }
 
@@ -545,6 +621,8 @@ export const useMessages = (chatId: string | null) => {
             senderAvatar: userData?.avatar,
             isFiltered: payload.new.is_filtered
           }
+
+          newMessage.senderName = resolveSenderName(payload.new.sender_id, newMessage.senderName)
 
           setMessages(prev => {
             if (prev.some(message => message.id === newMessage.id)) {
@@ -624,7 +702,7 @@ export const useMessages = (chatId: string | null) => {
       }
       newChannel.unsubscribe()
     }
-  }, [chatId, user?.id, mapMessages])
+  }, [chatId, user?.id, mapMessagesWithResolvedNames, resolveSenderName])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !chatId || !user?.id) return
@@ -658,7 +736,7 @@ export const useMessages = (chatId: string | null) => {
 
           clearRetry()
           setError(null)
-          setMessages(mapMessages(data))
+          setMessages(mapMessagesWithResolvedNames(data))
           await markAsRead(chatId)
           setIsLoading(false)
           endAppSync()
@@ -667,7 +745,7 @@ export const useMessages = (chatId: string | null) => {
 
     window.addEventListener('online', handleOnline)
     return () => window.removeEventListener('online', handleOnline)
-  }, [chatId, user?.id, mapMessages])
+  }, [chatId, user?.id, mapMessagesWithResolvedNames])
 
   const sendMessage = async (content: string): Promise<boolean> => {
     if (!chatId || !user || !content.trim()) return false
