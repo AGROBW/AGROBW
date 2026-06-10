@@ -231,6 +231,18 @@ export const useChats = (announcementId?: string | null) => {
                 : 0
             : unreadCountFromView
 
+          const adTitle = typeof chat.ad_title === 'string' && chat.ad_title.trim()
+            ? chat.ad_title
+            : 'Anuncio indisponivel'
+
+          const sellerName = typeof chat.seller_name === 'string' && chat.seller_name.trim()
+            ? chat.seller_name
+            : 'Usuario indisponivel'
+
+          const buyerName = typeof chat.buyer_name === 'string' && chat.buyer_name.trim()
+            ? chat.buyer_name
+            : 'Usuario indisponivel'
+
           return {
           ...getChatFreezeState(
             chat.announcement_status,
@@ -240,18 +252,18 @@ export const useChats = (announcementId?: string | null) => {
           direction: chat.buyer_id === user.id ? 'sent' : 'received',
           id: chat.id,
           adId: chat.announcement_id,
-          adTitle: chat.ad_title,
+          adTitle,
           adPrice: parseFloat(chat.ad_price) || 0,
-          adImage: chat.ad_image,
+          adImage: chat.ad_image || '',
           adStatus: chat.announcement_status,
           adExpiresAt: chat.announcement_expires_at,
           adExpiredAt: chat.announcement_expired_at,
           adDeletionScheduledAt: chat.announcement_deletion_scheduled_at,
           leadContactExpiresAt,
           sellerId: chat.seller_id,
-          sellerName: chat.seller_name,
+          sellerName,
           buyerId: chat.buyer_id,
-          buyerName: chat.buyer_name,
+          buyerName,
           lastMessage: chat.last_message || '',
           lastMessageTime: chat.last_message_time || chat.created_at,
           unreadCount,

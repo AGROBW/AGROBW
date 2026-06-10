@@ -15,6 +15,10 @@ interface MessagesViewProps {
 
 type MessageTab = 'sent' | 'received';
 
+const normalizeSearchValue = (value?: string | null) => (value || '').toLowerCase();
+const fallbackChatTitle = 'Anuncio indisponivel';
+const fallbackUserName = 'Usuario indisponivel';
+
 const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const { user } = useAuth();
   const location = useLocation();
@@ -65,12 +69,12 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
 
   // Filtrar chats por busca
   const filteredChats = chatsByTab.filter(chat => {
-    const query = searchQuery.toLowerCase();
+    const query = normalizeSearchValue(searchQuery);
     return (
-      chat.adTitle.toLowerCase().includes(query) ||
-      chat.buyerName.toLowerCase().includes(query) ||
-      chat.sellerName.toLowerCase().includes(query) ||
-      chat.lastMessage.toLowerCase().includes(query)
+      normalizeSearchValue(chat.adTitle).includes(query) ||
+      normalizeSearchValue(chat.buyerName).includes(query) ||
+      normalizeSearchValue(chat.sellerName).includes(query) ||
+      normalizeSearchValue(chat.lastMessage).includes(query)
     );
   });
 
@@ -166,7 +170,8 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   };
   
   const getOtherUserName = (chat: typeof chats[0]) => {
-    return user?.id === chat.buyerId ? chat.sellerName : chat.buyerName;
+    const otherUserName = user?.id === chat.buyerId ? chat.sellerName : chat.buyerName;
+    return otherUserName || fallbackUserName;
   };
   
   const getOtherUserId = (chat: typeof chats[0]) => {
@@ -302,7 +307,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                   {/* Avatar do anúncio */}
                   <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100">
                     {chat.adImage ? (
-                      <img src={chat.adImage} alt={chat.adTitle} className="w-full h-full object-cover" />
+                      <img src={chat.adImage} alt={chat.adTitle || fallbackChatTitle} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-400">
                         <Circle className="w-6 h-6" />
@@ -321,7 +326,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                     </div>
                     
                     <p className="text-xs text-slate-500 font-medium truncate mb-1">
-                      {chat.adTitle}
+                      {chat.adTitle || fallbackChatTitle}
                     </p>
                     
                     <div className="flex items-center justify-between">
@@ -366,7 +371,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
             
             <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-slate-100">
               {selectedChat.adImage ? (
-                <img src={selectedChat.adImage} alt={selectedChat.adTitle} className="w-full h-full object-cover" />
+                <img src={selectedChat.adImage} alt={selectedChat.adTitle || fallbackChatTitle} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-400">
                   <Circle className="w-5 h-5" />
@@ -379,7 +384,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                 {isSelectedChatFrozen ? 'Interacao congelada' : getOtherUserName(selectedChat)}
               </h3>
               <p className="text-xs text-slate-500 truncate">
-                {selectedChat.adTitle}
+                {selectedChat.adTitle || fallbackChatTitle}
               </p>
             </div>
             
@@ -497,10 +502,10 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                       {showAvatar && !isOwn && (
                         <div className="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 overflow-hidden">
                           {message.senderAvatar ? (
-                            <img src={message.senderAvatar} alt={message.senderName} className="w-full h-full object-cover" />
+                            <img src={message.senderAvatar} alt={message.senderName || fallbackUserName} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs font-bold">
-                              {message.senderName[0].toUpperCase()}
+                              {(message.senderName || fallbackUserName)[0].toUpperCase()}
                             </div>
                           )}
                         </div>
