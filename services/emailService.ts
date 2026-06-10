@@ -6,19 +6,6 @@ const supabaseFunctionsUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const emailBackendUrl = import.meta.env.VITE_EMAIL_BACKEND_URL?.replace(/\/$/, '');
 
-const mapRowToConfig = (row: any): SMTPConfig => ({
-  id: row.id,
-  host: row.host,
-  port: row.port,
-  user: row.user_name,
-  password: row.password,
-  encryption: row.encryption,
-  fromEmail: row.from_email,
-  fromName: row.from_name,
-  isActive: row.is_active,
-  updatedAt: row.updated_at,
-});
-
 export const getSMTPConfig = async (): Promise<SMTPConfig | null> => {
   const {
     data: { session },
@@ -41,17 +28,8 @@ export const getSMTPConfig = async (): Promise<SMTPConfig | null> => {
     return payload?.data ? (payload.data as SMTPConfig) : null;
   }
 
-  const { data, error } = await supabase
-    .from('smtp_settings')
-    .select('*')
-    .eq('id', SMTP_CONFIG_ID)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data ? mapRowToConfig(data) : null;
+  // Credencial SMTP NUNCA é lida no browser: exige backend server-side.
+  throw new Error('Backend de e-mail não configurado (VITE_EMAIL_BACKEND_URL). Leitura de SMTP indisponível no cliente.');
 };
 
 export const saveSMTPConfig = async (config: SMTPConfig): Promise<void> => {
@@ -86,21 +64,8 @@ export const saveSMTPConfig = async (config: SMTPConfig): Promise<void> => {
     return;
   }
 
-  const { error } = await supabase.from('smtp_settings').upsert({
-    id: SMTP_CONFIG_ID,
-    host: config.host,
-    port: config.port,
-    user_name: config.user,
-    password: config.password,
-    encryption: config.encryption,
-    from_email: config.fromEmail,
-    from_name: config.fromName,
-    is_active: config.isActive,
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  // Gravação de credencial SMTP só via backend server-side.
+  throw new Error('Backend de e-mail não configurado (VITE_EMAIL_BACKEND_URL). Gravação de SMTP indisponível no cliente.');
 };
 
 const invokeSmtpFunction = async (body: Record<string, unknown>) => {
