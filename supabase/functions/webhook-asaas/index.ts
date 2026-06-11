@@ -273,6 +273,91 @@ const shouldCreditBooster = (paymentStatus: string, eventType: string | null) =>
   return paymentStatus === 'approved' || normalizedEvent === 'PAYMENT_RECEIVED' || normalizedEvent === 'PAYMENT_CONFIRMED';
 };
 
+// ── Achado 2 — Confirmação via API Asaas antes de ATIVAR/CREDITAR ──────────────
+type AsaasConfirmation = 'confirmed' | 'divergent' | 'not_found' | 'transient';
+
+const isActivatingEvent = (paymentStatus: string, eventName: string): boolean =>
+  paymentStatus === 'approved' ||
+  eventName === 'CHECKOUT_PAID' ||
+  eventName === 'PAYMENT_RECEIVED' ||
+  eventName === 'PAYMENT_CONFIRMED';
+
+const asaasBaseUrl = (isProduction: boolean | null) =>
+  isProduction ? 'https://api.asaas.com/v3' : 'https://api-sandbox.asaas.com/v3';
+
+const asaasGet = async (url: string, apiKey: string): Promise<Response | null> => {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return resp;
+  } catch {
+    return null; // timeout/rede -> transitorio
+  }
+};
+
+// Confirma um payment.id REAL já conhecido (fail-open em transitório).
+const confirmAsaasPayment = async (
+  paymentId: string,
+  apiKey: string | null,
+  isProduction: boolean | null,
+): Promise<AsaasConfirmation> => {
+  if (!apiKey) return 'transient';
+  const resp = await asaasGet(`${asaasBaseUrl(isProduction)}/payments/${encodeURIComponent(paymentId)}`, apiKey);
+  if (!resp) return 'transient';
+  if (resp.status === 404) return 'not_found';
+  if (!resp.ok) return 'transient';
+  const status = (readString(asRecord(await resp.json()).status) || '').toUpperCase();
+  return (APPROVED_PAYMENT_STATUSES.has(status) || status === 'PAID') ? 'confirmed' : 'divergent';
+};
+
+// Resolve o payment REAL e APROVADO correlacionado ao CHECKOUT ATUAL.
+// Chave principal: checkoutSession. externalReference é só fonte de busca (NÃO é único
+// por transação) -> filtra local por checkoutSession e exige match ÚNICO + aprovado.
+// Qualquer incerteza -> null (sem fail-open de ativação).
+const resolveApprovedAsaasPayment = async (
+  checkoutSessionId: string | null,
+  externalReference: string | null,
+  apiKey: string | null,
+  isProduction: boolean | null,
+): Promise<string | null> => {
+  if (!apiKey || !checkoutSessionId) return null; // sem checkoutSession não há correlação confiável
+
+  const base = asaasBaseUrl(isProduction);
+
+  // 1) tentar filtro direto por checkoutSession (se a conta Asaas suportar).
+  let list: JsonRecord[] | null = null;
+  const direct = await asaasGet(`${base}/payments?checkoutSession=${encodeURIComponent(checkoutSessionId)}&limit=50`, apiKey);
+  if (direct && direct.ok) {
+    list = asArray(asRecord(await direct.json()).data).map(asRecord);
+  }
+
+  // 2) fallback: buscar por externalReference e filtrar LOCAL por checkoutSession.
+  if (list === null) {
+    if (!externalReference) return null;
+    const byRef = await asaasGet(`${base}/payments?externalReference=${encodeURIComponent(externalReference)}&limit=100`, apiKey);
+    if (!byRef || !byRef.ok) return null; // transitório/erro -> null -> NÃO ativa (item 7)
+    list = asArray(asRecord(await byRef.json()).data).map(asRecord);
+  }
+
+  // correlação estrita: mesmo checkoutSession E aprovado.
+  const matches = list.filter((p) => {
+    const cs = readString(p.checkoutSession, p.checkout_session, p.checkout);
+    const s = (readString(p.status) || '').toUpperCase();
+    return cs === checkoutSessionId && (APPROVED_PAYMENT_STATUSES.has(s) || s === 'PAID');
+  });
+
+  // aceitar SÓ com match único e aprovado.
+  if (matches.length !== 1) return null;
+  return readString(matches[0].id);
+};
+// ──────────────────────────────────────────────────────────────────────────────
+
 /**
  * Reconciliação da corrida de ordem de eventos (PAYMENT_* antes do CHECKOUT_PAID):
  * quando o evento atual (CHECKOUT_PAID) não traz payment.id, procuramos em
@@ -377,7 +462,7 @@ serve(async (req) => {
     // webhook_logs (evita poluição/DoS por requisições não autenticadas).
     const { data: settings, error: settingsError } = await supabaseAdmin
       .from('payment_settings')
-      .select('asaas_webhook_token')
+      .select('asaas_webhook_token, asaas_api_key, is_production')
       .eq('id', PAYMENT_SETTINGS_SINGLETON_ID)
       .single();
 
@@ -410,6 +495,39 @@ serve(async (req) => {
       .single();
 
     logId = insertedLog?.id ?? null;
+
+    // ── Achado 1 — Idempotência por event-id (anti-replay) ─────────────────────
+    // Camada ADICIONAL à dedup por provider_payment_id (mantida, não substituída).
+    // request_id = id do evento Asaas (payload.id, ex.: "evt_..."). A registry tem
+    // UNIQUE(provider, request_id): a 2ª chegada do MESMO evento colide e é ignorada.
+    const eventId = readString(payload.id);
+    if (eventId) {
+      const { error: registryError } = await supabaseAdmin
+        .from('webhook_request_registry')
+        .insert({
+          provider: 'asaas',
+          request_id: eventId,
+          event_type: eventType,
+          payment_id: readString(asRecord(payload.payment).id, payload.paymentId),
+          webhook_log_id: logId,
+        });
+
+      if (registryError) {
+        // 23505 = unique_violation -> evento já processado (replay): responder 200
+        // SEM reaplicar nenhum efeito de pagamento.
+        if ((registryError as { code?: string }).code === '23505') {
+          await updateWebhookLog(200, true, 'Evento duplicado (replay) ignorado por idempotencia.');
+          return jsonResponse({ success: true, duplicate: true, message: 'Evento ja processado.' }, 200);
+        }
+        // Outro erro na registry: NÃO bloquear pagamento legítimo. Segue confiando na
+        // dedup por provider_payment_id (camada existente). Apenas auditar.
+        console.warn('[webhook-asaas] Falha ao registrar idempotencia; seguindo com dedup por provider_payment_id:', registryError);
+      }
+    } else {
+      // Asaas sempre envia id de evento; ausência é anômala. Segue com dedup por provider_payment_id.
+      console.warn('[webhook-asaas] Evento sem payload.id — idempotencia por event-id pulada (mantida dedup por provider_payment_id).');
+    }
+    // ───────────────────────────────────────────────────────────────────────────
 
     const payment = asRecord(payload.payment);
     const subscription = asRecord(payload.subscription);
@@ -508,6 +626,45 @@ serve(async (req) => {
         reason: 'checkout_audit_only',
       });
     }
+
+    // ── Achado 2 (v2) — Confirmação obrigatória + correlação por checkout ──────────
+    // Declarado aqui para injetar no effectivePaymentId mais adiante.
+    let apiResolvedRealPaymentId: string | null = null;
+
+    if (isActivatingEvent(paymentStatus, eventName)) {
+      const apiKey = readString(settings?.asaas_api_key);
+      const isProd = Boolean(settings?.is_production);
+      const realPaymentId =
+        providerPaymentId && !providerPaymentId.startsWith('checkout:') ? providerPaymentId : null;
+
+      if (realPaymentId) {
+        // Caminho com payment.id REAL -> confirmar (fail-open só em transitório: item 6).
+        const confirmation = await confirmAsaasPayment(realPaymentId, apiKey, isProd);
+        if (confirmation === 'divergent' || confirmation === 'not_found') {
+          await updateWebhookLog(200, true, `Pagamento ${realPaymentId} nao confirmado pela API Asaas (${confirmation}); ativacao ignorada.`);
+          return jsonResponse({ success: true, confirmed: false, reason: confirmation }, 200);
+        }
+        if (confirmation === 'transient') {
+          console.warn('[webhook-asaas] API transitoria COM payment.id real; seguindo (fail-open, item 6).');
+        }
+        // 'confirmed' (ou transitório com id real) -> segue.
+      } else {
+        // CHECKOUT_PAID (ativador) SEM payment.id real -> exigir correlação confiável.
+        apiResolvedRealPaymentId = await resolveApprovedAsaasPayment(
+          providerCheckoutSessionId,
+          externalReference,
+          apiKey,
+          isProd,
+        );
+        if (!apiResolvedRealPaymentId) {
+          // Itens 1/3/4/7: sem correlação confiável (checkoutSession) -> NÃO ativa agora.
+          await updateWebhookLog(200, true, 'CHECKOUT_PAID sem pagamento aprovado correlacionado ao checkout (checkoutSession) via API; ativacao adiada ate PAYMENT_RECEIVED/CONFIRMED.');
+          return jsonResponse({ success: true, confirmed: false, pending: true, reason: 'no_correlated_payment' }, 200);
+        }
+        // Resolvido um pagamento aprovado real DESTE checkout -> injetado no effectivePaymentId.
+      }
+    }
+    // ──────────────────────────────────────────────────────────────────────────────
 
     let userId = parsedReference.userId;
     let planId = parsedReference.planId;
@@ -894,6 +1051,7 @@ serve(async (req) => {
       providerPaymentId ||
       existingRealPaymentId ||
       reconciledRealPaymentId ||
+      apiResolvedRealPaymentId ||            // Achado 2: id real correlacionado via API (CHECKOUT_PAID)
       (itemType === 'plan' && providerCheckoutSessionId
         ? `checkout:${providerCheckoutSessionId}`
         : null);
