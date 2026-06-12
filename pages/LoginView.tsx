@@ -133,18 +133,18 @@ const LoginView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-white overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] flex flex-col md:flex-row bg-white overflow-hidden">
       <SeoHead
         title="Entrar"
         description="Acesse sua conta na AGRO BW."
         canonicalPath="/login"
         noIndex
       />
-      <div className="hidden md:flex md:w-[60%] relative h-screen">
+      <div className="hidden md:flex md:w-[60%] relative bg-[#0a1628]">
         <img
           src={loginHeroImage}
           alt="Agronegócio de alta performance"
-          className="absolute inset-0 w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover object-center"
         />
         <div
           className="absolute inset-0"

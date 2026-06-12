@@ -128,6 +128,27 @@ serve(async (req) => {
       return textResponse('Webhook payload missing ref', 400);
     }
 
+    // Idempotência (padrão Achado 1, adaptado ao fiscal): chave = ref + status.
+    // Bloqueia replay do MESMO (ref,status); transições (ref + status novo) têm
+    // request_id diferente e seguem processando. webhook_request_registry tem
+    // UNIQUE(provider, request_id).
+    const fiscalRequestId = `${reference}:${providerStatus || ''}`;
+    const { error: registryError } = await supabaseAdmin
+      .from('webhook_request_registry')
+      .insert({
+        provider: 'focusnfe',
+        request_id: fiscalRequestId,
+        event_type: providerStatus,
+        payment_id: reference,
+      });
+    if (registryError) {
+      if ((registryError as { code?: string }).code === '23505') {
+        return textResponse('ok'); // ja processado (replay do mesmo ref+status)
+      }
+      // Outro erro na registry: nao bloquear emissao fiscal legitima.
+      console.warn('[webhook-fiscal] Falha ao registrar idempotencia; seguindo:', registryError);
+    }
+
     const { data: payment } = await supabaseAdmin
       .from('payments')
       .select('*')
