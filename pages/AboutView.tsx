@@ -1,8 +1,43 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Target, Telescope, Gem, Loader2 } from 'lucide-react';
+import { Target, Telescope, Gem, Loader2, CheckCircle2 } from 'lucide-react';
 import { useAboutPage, ABOUT_PAGE_FALLBACK } from '../src/hooks/useAboutPage';
 import { supabase } from '../src/lib/supabaseClient';
+
+// Renderiza o texto de "Valores" como lista: um valor por linha no admin.
+// Cada linha no formato "Rótulo: descrição" exibe o rótulo em destaque.
+// Fallback seguro: se o texto vier em uma única linha, mantém parágrafo normal.
+const renderValuesContent = (text?: string) => {
+  const lines = (text || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  if (lines.length <= 1) {
+    return <p className="text-slate-500 leading-relaxed text-left">{text}</p>;
+  }
+
+  return (
+    <ul className="space-y-3 text-left">
+      {lines.map((line, i) => {
+        const idx = line.indexOf(':');
+        const hasLabel = idx > 0 && idx <= 60;
+        const label = hasLabel ? line.slice(0, idx).trim() : '';
+        const desc = hasLabel ? line.slice(idx + 1).trim() : line;
+        return (
+          <li key={i} className="flex gap-2 text-slate-500 leading-relaxed">
+            <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" strokeWidth={2} />
+            <span>
+              {hasLabel && <strong className="font-bold text-slate-900">{label}</strong>}
+              {hasLabel ? ' — ' : ''}
+              {desc}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
 
 interface AboutStats {
   activeUsers: number | null;
@@ -16,6 +51,18 @@ interface PublicAboutStatsRow {
   generated_deals: number;
 }
 
+// Cores de fundo para o fallback de iniciais (quando o produtor não tem foto).
+const TRUST_AVATAR_COLORS = ['#15803d', '#b45309', '#1d4ed8', '#7c3aed', '#0f766e'];
+
+const getInitials = (name?: string) =>
+  (name || '')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase() || '?';
+
 const AboutView: React.FC = () => {
   const { content, isLoading } = useAboutPage();
   const [scrolled, setScrolled] = useState(false);
@@ -24,6 +71,8 @@ const AboutView: React.FC = () => {
     createdAds: null,
     generatedDeals: null,
   });
+  const [trustUsers, setTrustUsers] = useState<{ name: string; avatar: string | null }[]>([]);
+  const [failedAvatars, setFailedAvatars] = useState<Record<number, boolean>>({});
 
   const data = content || ABOUT_PAGE_FALLBACK;
 
@@ -81,7 +130,28 @@ const AboutView: React.FC = () => {
       });
     };
 
+    // Avatares de prova social: produtores reais (view pública vendedores_publicos),
+    // verificados primeiro e priorizando quem tem foto; fallback de iniciais.
+    const loadTrustUsers = async () => {
+      const { data: rows, error } = await supabase
+        .from('vendedores_publicos')
+        .select('name, avatar, document_verified')
+        .order('document_verified', { ascending: false })
+        .limit(12);
+
+      if (error || !isMounted || !rows) return;
+
+      const withPhoto = rows.filter((r: any) => r.avatar && String(r.avatar).trim());
+      const withoutPhoto = rows.filter((r: any) => !r.avatar || !String(r.avatar).trim());
+      const ordered = [...withPhoto, ...withoutPhoto].slice(0, 4);
+
+      setTrustUsers(
+        ordered.map((r: any) => ({ name: r.name || 'Produtor', avatar: r.avatar || null })),
+      );
+    };
+
     loadRealStats();
+    loadTrustUsers();
 
     return () => {
       isMounted = false;
@@ -181,48 +251,37 @@ const AboutView: React.FC = () => {
             <h2 className="text-3xl font-black text-slate-900 mb-4 font-display">Nossos Pilares</h2>
             <p className="text-slate-500">O que nos guia todos os dias no campo e na cidade.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-            <div className="bg-white rounded-[2.5rem] p-12 shadow-sm border border-slate-100 text-center group hover:bg-green-700 transition-colors duration-500">
-              <div className="text-6xl mb-8 group-hover:scale-110 transition-transform duration-500">
-                <Target
-                  className="w-16 h-16 mx-auto text-green-700 group-hover:text-white transition-colors"
-                  strokeWidth={1.5}
-                />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 items-start">
+            <div className="group bg-white rounded-[2.5rem] p-12 shadow-sm border border-slate-100 flex flex-col transition-all duration-300 hover:-translate-y-1.5 hover:border-green-600 hover:shadow-xl">
+              <div className="w-20 h-20 rounded-full bg-green-100 text-green-700 flex items-center justify-center mx-auto mb-8 transition-transform duration-300 group-hover:scale-110">
+                <Target className="w-9 h-9" strokeWidth={1.5} />
               </div>
-              <h3 className="text-2xl font-black text-slate-900 mb-6 font-display group-hover:text-white transition-colors">
+              <h3 className="text-2xl font-black text-slate-900 mb-6 font-display text-center">
                 {data.mission_title}
               </h3>
-              <p className="text-slate-500 group-hover:text-green-50 transition-colors leading-relaxed text-justify">
+              <p className="text-slate-500 leading-relaxed text-left">
                 {data.mission_text}
               </p>
             </div>
-            <div className="bg-white rounded-[2.5rem] p-12 shadow-sm border border-slate-100 text-center group hover:bg-green-700 transition-colors duration-500">
-              <div className="text-6xl mb-8 group-hover:scale-110 transition-transform duration-500">
-                <Telescope
-                  className="w-16 h-16 mx-auto text-green-700 group-hover:text-white transition-colors"
-                  strokeWidth={1.5}
-                />
+            <div className="group bg-white rounded-[2.5rem] p-12 shadow-sm border border-slate-100 flex flex-col transition-all duration-300 hover:-translate-y-1.5 hover:border-green-600 hover:shadow-xl">
+              <div className="w-20 h-20 rounded-full bg-green-100 text-green-700 flex items-center justify-center mx-auto mb-8 transition-transform duration-300 group-hover:scale-110">
+                <Telescope className="w-9 h-9" strokeWidth={1.5} />
               </div>
-              <h3 className="text-2xl font-black text-slate-900 mb-6 font-display group-hover:text-white transition-colors">
+              <h3 className="text-2xl font-black text-slate-900 mb-6 font-display text-center">
                 {data.vision_title}
               </h3>
-              <p className="text-slate-500 group-hover:text-green-50 transition-colors leading-relaxed text-justify">
+              <p className="text-slate-500 leading-relaxed text-left">
                 {data.vision_text}
               </p>
             </div>
-            <div className="bg-white rounded-[2.5rem] p-12 shadow-sm border border-slate-100 text-center group hover:bg-green-700 transition-colors duration-500">
-              <div className="text-6xl mb-8 group-hover:scale-110 transition-transform duration-500">
-                <Gem
-                  className="w-16 h-16 mx-auto text-green-700 group-hover:text-white transition-colors"
-                  strokeWidth={1.5}
-                />
+            <div className="group bg-white rounded-[2.5rem] p-12 shadow-sm border border-slate-100 flex flex-col transition-all duration-300 hover:-translate-y-1.5 hover:border-green-600 hover:shadow-xl">
+              <div className="w-20 h-20 rounded-full bg-green-100 text-green-700 flex items-center justify-center mx-auto mb-8 transition-transform duration-300 group-hover:scale-110">
+                <Gem className="w-9 h-9" strokeWidth={1.5} />
               </div>
-              <h3 className="text-2xl font-black text-slate-900 mb-6 font-display group-hover:text-white transition-colors">
+              <h3 className="text-2xl font-black text-slate-900 mb-6 font-display text-center">
                 {data.values_title}
               </h3>
-              <p className="text-slate-500 group-hover:text-green-50 transition-colors leading-relaxed text-justify">
-                {data.values_text}
-              </p>
+              {renderValuesContent(data.values_text)}
             </div>
           </div>
         </div>
@@ -269,11 +328,29 @@ const AboutView: React.FC = () => {
             </p>
             <div className="flex gap-4">
               <div className="flex -space-x-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="w-12 h-12 rounded-full border-4 border-white overflow-hidden bg-slate-200">
-                    <img src={`https://i.pravatar.cc/150?u=${i + 10}`} className="w-full h-full object-cover" />
-                  </div>
-                ))}
+                {trustUsers.map((u, i) => {
+                  const showPhoto = Boolean(u.avatar) && !failedAvatars[i];
+                  return (
+                    <div
+                      key={i}
+                      className="w-12 h-12 rounded-full border-4 border-white overflow-hidden flex items-center justify-center text-white font-bold text-sm"
+                      style={{ backgroundColor: showPhoto ? '#e2e8f0' : TRUST_AVATAR_COLORS[i % TRUST_AVATAR_COLORS.length] }}
+                      title={u.name}
+                    >
+                      {showPhoto ? (
+                        <img
+                          src={u.avatar as string}
+                          alt={u.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={() => setFailedAvatars((prev) => ({ ...prev, [i]: true }))}
+                        />
+                      ) : (
+                        <span>{getInitials(u.name)}</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <div className="text-sm font-bold text-slate-400 self-center">
                 {formatTrustLine(realStats.activeUsers)}

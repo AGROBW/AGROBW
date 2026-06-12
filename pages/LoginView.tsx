@@ -333,19 +333,6 @@ const LoginView: React.FC = () => {
             </div>
           </form>
 
-          <div className="my-10 flex items-center gap-4">
-            <div className="h-px bg-slate-200 flex-grow"></div>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Ou entre com</span>
-            <div className="h-px bg-slate-200 flex-grow"></div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4">
-            <button className="flex items-center justify-center gap-3 py-4 border-2 border-slate-100 rounded-2xl hover:bg-slate-50 transition-all active:scale-95 group">
-              <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
-              <span className="text-sm font-bold text-slate-700">Google</span>
-            </button>
-          </div>
-
           <div className="mt-12 text-center">
             <p className="text-slate-500 font-medium">
               Não tem uma conta?{' '}

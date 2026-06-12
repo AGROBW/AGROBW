@@ -1175,20 +1175,19 @@ const SponsorLandingView: React.FC = () => {
       </section>
 
       {/* -- CTA FINAL ------------------------------------------------------- */}
-      <section
-        className="relative overflow-hidden py-24"
-        style={{
-          background: `linear-gradient(135deg, ${settings.secondaryColor} 0%, #12213e 50%, #10361f 100%)`,
-        }}
-      >
-        <div className="pointer-events-none absolute top-0 right-0 h-full w-1/2">
-          <img
-            src={agro_images.finalCta}
-            alt=""
-            className="w-full h-full object-cover opacity-15"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 to-transparent" />
-        </div>
+      <section className="relative overflow-hidden py-24">
+        {/* Imagem de fundo definida no admin (CTA final da Vitrine) */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${agro_images.finalCta})` }}
+        />
+        {/* Overlay de marca: a imagem aparece por trás, texto continua legível */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `linear-gradient(135deg, color-mix(in srgb, ${settings.secondaryColor} 88%, transparent) 0%, rgba(18,33,62,0.84) 50%, rgba(16,54,31,0.80) 100%)`,
+          }}
+        />
         <div className="relative mx-auto max-w-5xl px-4 sm:px-6 text-center">
           <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-400 mb-5">Última chamada</p>
           <h2 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">
