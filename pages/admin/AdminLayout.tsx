@@ -21,6 +21,7 @@ import {
   MessageCircle,
   MonitorSmartphone,
   Newspaper,
+  UserCircle,
   Receipt,
   Search,
   Settings,
@@ -148,6 +149,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const handleLogout = async () => {
     await signOut();
     navigate('/admin/login');
+  };
+
+  const handleBackToUserPanel = () => {
+    navigate('/minha-conta');
   };
 
   const handleGlobalSearch = (event: React.FormEvent) => {
@@ -387,6 +392,24 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         </div>
 
         <div className="border-t border-white/10 p-4">
+          {sidebarOpen ? (
+            <button
+              onClick={handleBackToUserPanel}
+              className="mb-3 flex w-full items-center gap-3 rounded-[18px] border border-emerald-400/30 bg-emerald-500/10 px-3 py-2.5 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20 hover:text-white"
+              title="Voltar ao painel do usuário (continua logado)"
+            >
+              <UserCircle className="h-5 w-5 flex-shrink-0" />
+              <span className="min-w-0 flex-1 text-left leading-5">Voltar ao painel do usuário</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleBackToUserPanel}
+              className="mb-3 w-full rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-2 text-emerald-200 transition-colors hover:bg-emerald-500/20 hover:text-white"
+              title="Voltar ao painel do usuário (continua logado)"
+            >
+              <UserCircle className="mx-auto h-5 w-5" />
+            </button>
+          )}
           {sidebarOpen ? (
             <div className="flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/5 p-3 backdrop-blur">
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-700 text-sm font-bold ring-2 ring-white/10">

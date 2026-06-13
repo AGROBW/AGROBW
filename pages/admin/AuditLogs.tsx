@@ -178,6 +178,13 @@ const AuditLogs: React.FC = () => {
       const { data, error, count } = await query;
 
       if (error) {
+        // Rede de segurança: se o range pedido ficou fora do conjunto atual
+        // (ex.: o filtro reduziu o total enquanto estávamos numa página alta),
+        // o PostgREST responde 416. Em vez de quebrar, voltamos à 1ª página.
+        if (page > 0 && ((error as any).code === 'PGRST103' || /range/i.test((error as any).message || ''))) {
+          setPage(0);
+          return;
+        }
         throw error;
       }
 
@@ -429,7 +436,7 @@ const AuditLogs: React.FC = () => {
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}
                 placeholder="Buscar por motivo ou ID do recurso..."
                 className="w-full rounded-lg border border-slate-200 py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
@@ -440,7 +447,7 @@ const AuditLogs: React.FC = () => {
             <Filter className="h-5 w-5 text-slate-400" />
             <select
               value={filterAction}
-              onChange={(e) => setFilterAction(e.target.value)}
+              onChange={(e) => { setFilterAction(e.target.value); setPage(0); }}
               className="rounded-lg border border-slate-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value="all">Todas as ações</option>
@@ -456,7 +463,7 @@ const AuditLogs: React.FC = () => {
 
           <select
             value={filterResource}
-            onChange={(e) => setFilterResource(e.target.value)}
+            onChange={(e) => { setFilterResource(e.target.value); setPage(0); }}
             className="rounded-lg border border-slate-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             <option value="all">Todos os recursos</option>

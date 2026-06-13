@@ -1706,7 +1706,16 @@ const UserDashboardView: React.FC = () => {
         </div>
 
         {boosters[0] && (
-          <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#fff7ed_100%)] p-5 shadow-[0_22px_60px_-42px_rgba(245,158,11,0.35)]">
+          <>
+          <style>{`
+            @keyframes boosterHaloPulse {
+              0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0), 0 22px 60px -42px rgba(245,158,11,0.35); }
+              50% { box-shadow: 0 0 0 6px rgba(245,158,11,0.18), 0 22px 60px -38px rgba(245,158,11,0.55); }
+            }
+            .booster-halo { animation: boosterHaloPulse 2.4s ease-in-out infinite; }
+            @media (prefers-reduced-motion: reduce) { .booster-halo { animation: none; } }
+          `}</style>
+          <div className={`rounded-[24px] border border-amber-200 bg-[linear-gradient(180deg,#ffffff_0%,#fff7ed_100%)] p-5 shadow-[0_22px_60px_-42px_rgba(245,158,11,0.35)] ${isBoosterExpanded ? '' : 'booster-halo'}`}>
             <button
               type="button"
               onClick={() => setIsBoosterExpanded((prev) => !prev)}
@@ -1749,6 +1758,7 @@ const UserDashboardView: React.FC = () => {
               )}
             </AnimatePresence>
           </div>
+          </>
         )}
 
         <AnimatePresence mode="wait">

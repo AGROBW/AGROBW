@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlertTriangle, ExternalLink, Globe, Image, Link as LinkIcon, MapPin, Save, ShieldCheck, ShoppingBag, Store, UploadCloud, UserRound } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Globe, Image, MapPin, Save, ShieldCheck, ShoppingBag, Store, UploadCloud, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -593,45 +593,6 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
                 value={formData.email}
                 onChange={(event) => handleChange('email', event.target.value)}
                 placeholder="contato@sualoja.com.br"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <LinkIcon className="h-4 w-4 text-slate-400" strokeWidth={1.5} />
-                Facebook
-              </span>
-              <input
-                value={formData.facebookUrl}
-                onChange={(event) => handleChange('facebookUrl', event.target.value)}
-                placeholder="facebook.com/sualoja"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <LinkIcon className="h-4 w-4 text-slate-400" strokeWidth={1.5} />
-                Instagram
-              </span>
-              <input
-                value={formData.instagramUrl}
-                onChange={(event) => handleChange('instagramUrl', event.target.value)}
-                placeholder="https://instagram.com/sualoja"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <LinkIcon className="h-4 w-4 text-slate-400" strokeWidth={1.5} />
-                LinkedIn
-              </span>
-              <input
-                value={formData.linkedinUrl}
-                onChange={(event) => handleChange('linkedinUrl', event.target.value)}
-                placeholder="linkedin.com/company/sualoja"
                 className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
               />
             </label>
