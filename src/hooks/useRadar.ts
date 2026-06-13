@@ -40,7 +40,7 @@ export interface OpportunityMatch {
   match_score: number;
   match_reason: any;
   created_at: string;
-  // Dados do anÃºncio (via join)
+  // Dados do anúncio (via join)
   announcement?: {
     id: string;
     title: string;
@@ -73,7 +73,7 @@ interface RadarLocationStatus {
   geoUpdatedAt: string | null;
 }
 
-// Limites padrÃ£o (fallback se nÃ£o conseguir buscar do banco)
+// Limites padrão (fallback se não conseguir buscar do banco)
 const DEFAULT_LIMITS: PlanLimits = {
   alerts: 1,
   radius: false,
@@ -209,7 +209,7 @@ export const useRadar = () => {
     }
   }, [user?.id]);
 
-  // Buscar alertas do usuÃ¡rio
+  // Buscar alertas do usuário
   const fetchAlerts = useCallback(async () => {
     if (!user?.id) return;
 
@@ -229,7 +229,7 @@ export const useRadar = () => {
     }
   }, [user?.id]);
 
-  // Buscar matches do usuÃ¡rio
+  // Buscar matches do usuário
   const fetchMatches = useCallback(async () => {
     if (!user?.id) return;
 
@@ -268,7 +268,7 @@ export const useRadar = () => {
     }
   }, [user?.id]);
 
-  // Buscar estatÃ­sticas (usando RPC para evitar erro 406)
+  // Buscar estatísticas (usando RPC para evitar erro 406)
   const fetchStats = useCallback(async () => {
     if (!user?.id) return;
 
@@ -278,7 +278,7 @@ export const useRadar = () => {
 
       if (error) throw error;
 
-      // A funÃ§Ã£o RPC retorna array, entÃ£o pegamos o primeiro elemento
+      // A função RPC retorna array, então pegamos o primeiro elemento
       const statsData = Array.isArray(data) && data.length > 0 ? data[0] : null;
 
       setStats(statsData || {
@@ -295,28 +295,28 @@ export const useRadar = () => {
 
   // Criar novo alerta
   const createAlert = async (alertData: Partial<OpportunityAlert>) => {
-    if (!user?.id) throw new Error('UsuÃ¡rio nÃ£o autenticado');
+    if (!user?.id) throw new Error('Usuário não autenticado');
 
     // Verificar limite do plano
     if (planLimits.alerts === 0) {
-      throw new Error('Seu plano nÃ£o tem acesso ao Radar de Oportunidades. FaÃ§a upgrade para usar.');
+      throw new Error('Seu plano não tem acesso ao Radar de Oportunidades. Faça upgrade para usar.');
     }
 
     if (alerts.length >= planLimits.alerts) {
-      throw new Error(`Seu plano permite apenas ${planLimits.alerts} alerta(s). FaÃ§a upgrade para criar mais.`);
+      throw new Error(`Seu plano permite apenas ${planLimits.alerts} alerta(s). Faça upgrade para criar mais.`);
     }
 
     // Validar recursos do plano
     if (alertData.radius_km && alertData.radius_km > 0 && !planLimits.radius) {
-      throw new Error('Filtro por raio geogrÃ¡fico nÃ£o disponÃ­vel no seu plano. FaÃ§a upgrade.');
+      throw new Error('Filtro por raio geográfico não disponível no seu plano. Faça upgrade.');
     }
 
     if (alertData.keywords && alertData.keywords.length > 0 && !planLimits.keywords) {
-      throw new Error('Filtro por palavras-chave nÃ£o disponÃ­vel no seu plano. FaÃ§a upgrade.');
+      throw new Error('Filtro por palavras-chave não disponível no seu plano. Faça upgrade.');
     }
 
     if ((alertData.min_price || alertData.max_price) && !planLimits.price_filter) {
-      throw new Error('Filtro por preÃ§o nÃ£o disponÃ­vel no seu plano. FaÃ§a upgrade.');
+      throw new Error('Filtro por preço não disponível no seu plano. Faça upgrade.');
     }
 
     if (
@@ -330,9 +330,9 @@ export const useRadar = () => {
     }
 
     try {
-      // Se o alerta usa raio, garantir que o usuÃ¡rio tem coordenadas
+      // Se o alerta usa raio, garantir que o usuário tem coordenadas
       if (alertData.radius_km && alertData.radius_km > 0) {
-        // Buscar dados do usuÃ¡rio
+        // Buscar dados do usuário
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('cep, latitude, longitude, geo_updated_at')
@@ -341,18 +341,18 @@ export const useRadar = () => {
 
         if (userError) throw userError;
 
-        // Se nÃ£o tem coordenadas ou estÃ£o desatualizadas (mais de 30 dias)
+        // Se não tem coordenadas ou estão desatualizadas (mais de 30 dias)
         const needsUpdate = !userData?.latitude || 
                            !userData?.longitude || 
                            !userData?.geo_updated_at ||
                            (new Date().getTime() - new Date(userData.geo_updated_at).getTime()) > 30 * 24 * 60 * 60 * 1000;
 
         if (needsUpdate && userData?.cep) {
-          debugLog('Atualizando coordenadas do usuÃ¡rio...');
+          debugLog('Atualizando coordenadas do usuário...');
           await updateUserCoordinates(user.id, userData.cep, supabase);
           await fetchLocationStatus();
         } else if (!userData?.cep) {
-          throw new Error('CEP nÃ£o cadastrado no perfil. Atualize seu perfil para usar filtro por raio.');
+          throw new Error('CEP não cadastrado no perfil. Atualize seu perfil para usar filtro por raio.');
         }
       }
 
@@ -390,7 +390,7 @@ export const useRadar = () => {
 
   // Atualizar alerta
   const updateAlert = async (alertId: string, updates: Partial<OpportunityAlert>) => {
-    if (!user?.id) throw new Error('UsuÃ¡rio nÃ£o autenticado');
+    if (!user?.id) throw new Error('Usuário não autenticado');
 
     try {
       if (
@@ -418,11 +418,11 @@ export const useRadar = () => {
           (new Date().getTime() - new Date(userData.geo_updated_at).getTime()) > 30 * 24 * 60 * 60 * 1000;
 
         if (needsUpdate && userData?.cep) {
-          debugLog('Atualizando coordenadas do usuÃ¡rio para filtro por raio...');
+          debugLog('Atualizando coordenadas do usuário para filtro por raio...');
           await updateUserCoordinates(user.id, userData.cep, supabase);
           await fetchLocationStatus();
         } else if (!userData?.cep) {
-          throw new Error('CEP nÃ£o cadastrado no perfil. Atualize seu perfil para usar filtro por raio.');
+          throw new Error('CEP não cadastrado no perfil. Atualize seu perfil para usar filtro por raio.');
         }
       }
 
@@ -460,7 +460,7 @@ export const useRadar = () => {
 
   // Deletar alerta
   const deleteAlert = async (alertId: string) => {
-    if (!user?.id) throw new Error('UsuÃ¡rio nÃ£o autenticado');
+    if (!user?.id) throw new Error('Usuário não autenticado');
 
     try {
       const { error } = await supabase
@@ -481,7 +481,7 @@ export const useRadar = () => {
   // Alternar status do alerta (ativo/pausado)
   const toggleAlertStatus = async (alertId: string) => {
     const alert = alerts.find(a => a.id === alertId);
-    if (!alert) throw new Error('Alerta nÃ£o encontrado');
+    if (!alert) throw new Error('Alerta não encontrado');
 
     const newStatus = alert.status === 'ativo' ? 'pausado' : 'ativo';
     return updateAlert(alertId, { status: newStatus });
@@ -489,7 +489,7 @@ export const useRadar = () => {
 
   // Marcar match como visualizado
   const markMatchAsViewed = async (matchId: string) => {
-    if (!user?.id) throw new Error('UsuÃ¡rio nÃ£o autenticado');
+    if (!user?.id) throw new Error('Usuário não autenticado');
 
     try {
       const { error } = await supabase
@@ -513,7 +513,7 @@ export const useRadar = () => {
 
   // Descartar match
   const dismissMatch = async (matchId: string) => {
-    if (!user?.id) throw new Error('UsuÃ¡rio nÃ£o autenticado');
+    if (!user?.id) throw new Error('Usuário não autenticado');
 
     try {
       const { error } = await supabase
@@ -534,7 +534,7 @@ export const useRadar = () => {
     }
   };
 
-  // Obter limites do plano do usuÃ¡rio
+  // Obter limites do plano do usuário
   // Carregar dados iniciais
   useEffect(() => {
     if (!user?.id) {
@@ -561,7 +561,7 @@ export const useRadar = () => {
   useEffect(() => {
     if (!user?.id) return;
 
-    debugLog('[Radar] Iniciando subscription para matches do usuÃ¡rio:', user.id);
+    debugLog('[Radar] Iniciando subscription para matches do usuário:', user.id);
 
     // Subscribe a novos matches
     const matchesSubscription = supabase

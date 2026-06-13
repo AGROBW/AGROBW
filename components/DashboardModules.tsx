@@ -5,7 +5,7 @@ import { AttentionAnnouncement, DashboardStats, PriceAnalysis, StateClicks, TopP
 import { Ad } from '../types';
 import { useLayout } from '../src/contexts/LayoutContext';
 
-// AnimaÃ§Ã£o CSS para borda dourada pulsante (Golden Border Pulse)
+// Animação CSS para borda dourada pulsante (Golden Border Pulse)
 const goldBorderPulseAnimation = `
 @keyframes goldBorderPulse {
   0%, 100% {
@@ -21,7 +21,7 @@ const goldBorderPulseAnimation = `
 }
 `;
 
-// Injetar animaÃ§Ã£o no head (apenas uma vez)
+// Injetar animação no head (apenas uma vez)
 if (typeof document !== 'undefined') {
   const styleId = 'gold-border-pulse-animation';
   if (!document.getElementById(styleId)) {
@@ -115,7 +115,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
     <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 xl:p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
       <h3 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-900 xl:mb-4 xl:text-lg">
         <TrendingUp className="h-4 w-4 text-green-600 xl:h-5 xl:w-5" />
-        Alcance por RegiÃ£o
+        Alcance por Região
       </h3>
 
       {clicksByState.length === 0 ? (
@@ -238,7 +238,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
                 className="transition-all duration-300 hover:fill-green-700 cursor-pointer"
               />
 
-              {/* CearÃ¡ - CE */}
+              {/* Ceará - CE */}
               <path 
                 stroke="#FFFFFF" 
                 strokeWidth="1.0404" 
@@ -250,7 +250,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
                 className="transition-all duration-300 hover:fill-green-700 cursor-pointer"
               />
 
-              {/* PiauÃ­ - PI */}
+              {/* Piauí - PI */}
               <path 
                 stroke="#FFFFFF" 
                 strokeWidth="1.0404" 
@@ -262,7 +262,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
                 className="transition-all duration-300 hover:fill-green-700 cursor-pointer"
               />
 
-              {/* MaranhÃ£o - MA */}
+              {/* Maranhão - MA */}
               <path 
                 stroke="#FFFFFF" 
                 strokeWidth="1.0404" 
@@ -274,7 +274,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
                 className="transition-all duration-300 hover:fill-green-700 cursor-pointer"
               />
 
-              {/* AmapÃ¡ - AP */}
+              {/* Amapá - AP */}
               <path 
                 stroke="#FFFFFF" 
                 strokeWidth="1.0404" 
@@ -286,7 +286,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
                 className="transition-all duration-300 hover:fill-green-700 cursor-pointer"
               />
 
-              {/* ParÃ¡ - PA */}
+              {/* Pará - PA */}
               <path 
                 stroke="#FFFFFF" 
                 strokeWidth="1.0404" 
@@ -334,7 +334,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
                 className="transition-all duration-300 hover:fill-green-700 cursor-pointer"
               />
 
-              {/* RondÃ´nia - RO */}
+              {/* Rondônia - RO */}
               <path 
                 stroke="#FFFFFF" 
                 strokeWidth="1.0404" 
@@ -370,7 +370,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
                 className="transition-all duration-300 hover:fill-green-700 cursor-pointer"
               />
 
-              {/* GoiÃ¡s - GO */}
+              {/* Goiás - GO */}
               <path 
                 stroke="#FFFFFF" 
                 strokeWidth="1.0404" 
@@ -394,7 +394,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
                 className="transition-all duration-300 hover:fill-green-700 cursor-pointer"
               />
 
-              {/* ParaÃ­ba - PB */}
+              {/* Paraíba - PB */}
               <path 
                 stroke="#FFFFFF" 
                 strokeWidth="1.0404" 
@@ -406,7 +406,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
                 className="transition-all duration-300 hover:fill-green-700 cursor-pointer"
               />
 
-              {/* ParanÃ¡ - PR */}
+              {/* Paraná - PR */}
               <path 
                 stroke="#FFFFFF" 
                 strokeWidth="1.0404" 
@@ -442,7 +442,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
                 className="transition-all duration-300 hover:fill-green-700 cursor-pointer"
               />
 
-              {/* SÃ£o Paulo - SP */}
+              {/* São Paulo - SP */}
               <path 
                 stroke="#FFFFFF" 
                 strokeWidth="1.0404" 
@@ -466,7 +466,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
                 className="transition-all duration-300 hover:fill-green-700 cursor-pointer"
               />
 
-              {/* EspÃ­rito Santo - ES */}
+              {/* Espírito Santo - ES */}
               <path 
                 stroke="#FFFFFF" 
                 strokeWidth="1.0404" 
@@ -514,7 +514,7 @@ export const ReachModule: React.FC<ReachModuleProps> = ({ clicksByState, loading
 };
 
 // ============================================
-// 3. PRICE INTELLIGENCE MODULE (TermÃ´metro)
+// 3. PRICE INTELLIGENCE MODULE (Termômetro)
 // ============================================
 
 interface PriceIntelligenceModuleProps {
@@ -544,7 +544,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
               onChange={(e) => onAdChange(e.target.value || null)}
               className="w-full sm:w-auto px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             >
-              <option value="">Todos os AnÃºncios</option>
+              <option value="">Todos os Anúncios</option>
               {ads.map((ad) => (
                 <option key={ad.id} value={ad.id}>
                   {ad.title} - R$ {ad.price.toLocaleString('pt-BR')}
@@ -569,7 +569,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <h3 className="flex items-center gap-2 text-base font-bold text-slate-900 xl:text-lg">
             <Sparkles className="h-4 w-4 text-blue-600 xl:h-5 xl:w-5" />
-            InteligÃªncia de PreÃ§o
+            Inteligência de Preço
           </h3>
           {ads && ads.length > 0 && onAdChange && (
             <select
@@ -577,7 +577,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
               onChange={(e) => onAdChange(e.target.value || null)}
               className="w-full sm:w-auto px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             >
-              <option value="">Todos os AnÃºncios</option>
+              <option value="">Todos os Anúncios</option>
               {ads.map((ad) => (
                 <option key={ad.id} value={ad.id}>
                   {ad.title} - R$ {ad.price.toLocaleString('pt-BR')}
@@ -588,7 +588,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
         </div>
         <div className="py-7 text-center text-slate-500 xl:py-8">
           <AlertCircle className="mx-auto mb-3 h-10 w-10 opacity-50 xl:h-12 xl:w-12" />
-          <p className="text-sm">Publique um anÃºncio com preÃ§o para ver a anÃ¡lise</p>
+          <p className="text-sm">Publique um anúncio com preço para ver a análise</p>
         </div>
       </div>
     );
@@ -596,7 +596,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
 
   const { user_price, market_avg_price, price_position, percentage, has_market_data } = priceAnalysis;
 
-  // Se nÃ£o houver dados de mercado, mostrar mensagem de aguardo
+  // Se não houver dados de mercado, mostrar mensagem de aguardo
   if (!has_market_data || !market_avg_price || !percentage) {
     return (
       <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 xl:p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
@@ -604,7 +604,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <h3 className="flex items-center gap-2 text-base font-bold text-slate-900 xl:text-lg">
             <Sparkles className="h-4 w-4 text-blue-600 xl:h-5 xl:w-5" />
-            InteligÃªncia de PreÃ§o
+            Inteligência de Preço
           </h3>
           {ads && ads.length > 0 && onAdChange && (
             <select
@@ -612,7 +612,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
               onChange={(e) => onAdChange(e.target.value || null)}
               className="w-full sm:w-auto px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             >
-              <option value="">Todos os AnÃºncios</option>
+              <option value="">Todos os Anúncios</option>
               {ads.map((ad) => (
                 <option key={ad.id} value={ad.id}>
                   {ad.title} - R$ {ad.price.toLocaleString('pt-BR')}
@@ -626,12 +626,12 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 xl:h-16 xl:w-16">
               <Sparkles className="h-7 w-7 text-blue-600 xl:h-8 xl:w-8" />
             </div>
-            <p className="text-lg font-semibold text-slate-900 mb-2">Seu PreÃ§o: R$ {user_price.toLocaleString('pt-BR')}</p>
+            <p className="text-lg font-semibold text-slate-900 mb-2">Seu Preço: R$ {user_price.toLocaleString('pt-BR')}</p>
             <p className="text-sm text-slate-600">
               Aguardando dados de mercado para este item
             </p>
             <p className="text-xs text-slate-500 mt-2">
-              A anÃ¡lise comparativa serÃ¡ exibida assim que houver dados suficientes
+              A análise comparativa será exibida assim que houver dados suficientes
             </p>
           </div>
         </div>
@@ -639,28 +639,28 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
     );
   }
 
-  // Determinar posiÃ§Ã£o, cor e label
-  let positionLabel = 'Na MÃ©dia';
+  // Determinar posição, cor e label
+  let positionLabel = 'Na Média';
   let positionColor = 'text-green-600';
   let bgColor = 'bg-green-50';
-  let barPosition = 50; // PosiÃ§Ã£o do marcador na barra (0-100%)
+  let barPosition = 50; // Posição do marcador na barra (0-100%)
 
-  // CÃ¡lculo preciso da posiÃ§Ã£o baseado no percentual
+  // Cálculo preciso da posição baseado no percentual
   if (percentage < 90) {
-    // Azul - Abaixo da mÃ©dia (0-90% = 0-33% da barra)
-    positionLabel = 'Abaixo da MÃ©dia';
+    // Azul - Abaixo da média (0-90% = 0-33% da barra)
+    positionLabel = 'Abaixo da Média';
     positionColor = 'text-blue-600';
     bgColor = 'bg-blue-50';
     barPosition = Math.max(0, Math.min(33, (percentage / 90) * 33));
   } else if (percentage >= 90 && percentage <= 110) {
-    // Verde - Na mÃ©dia (90-110% = 33-66% da barra)
-    positionLabel = 'Na MÃ©dia';
+    // Verde - Na média (90-110% = 33-66% da barra)
+    positionLabel = 'Na Média';
     positionColor = 'text-green-600';
     bgColor = 'bg-green-50';
     barPosition = 33 + ((percentage - 90) / 20) * 33;
   } else {
-    // Vermelho - Acima da mÃ©dia (110%+ = 66-100% da barra)
-    positionLabel = 'Acima da MÃ©dia';
+    // Vermelho - Acima da média (110%+ = 66-100% da barra)
+    positionLabel = 'Acima da Média';
     positionColor = 'text-red-600';
     bgColor = 'bg-red-50';
     barPosition = Math.min(100, 66 + ((percentage - 110) / 40) * 34);
@@ -668,21 +668,21 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
 
   return (
     <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 xl:p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
-      {/* Header com Seletor de AnÃºncios */}
+      {/* Header com Seletor de Anúncios */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
         <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-blue-600" />
-          AnÃ¡lise de Competitividade
+          Análise de Competitividade
         </h3>
         
-        {/* Seletor de AnÃºncios */}
+        {/* Seletor de Anúncios */}
         {ads && ads.length > 0 && onAdChange && (
           <select
             value={selectedAdId || ''}
             onChange={(e) => onAdChange(e.target.value || null)}
             className="w-full sm:w-auto px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
           >
-            <option value="">Todos os AnÃºncios</option>
+            <option value="">Todos os Anúncios</option>
             {ads.map((ad) => (
               <option key={ad.id} value={ad.id}>
                 {ad.title} - R$ {ad.price.toLocaleString('pt-BR')}
@@ -692,23 +692,23 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
         )}
       </div>
 
-      {/* ComparaÃ§Ã£o de PreÃ§os */}
+      {/* Comparação de Preços */}
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className={`${bgColor} rounded-[20px] border border-slate-200 p-4`}>
-          <p className="text-xs text-slate-600 mb-1">Seu PreÃ§o</p>
+          <p className="text-xs text-slate-600 mb-1">Seu Preço</p>
           <p className="text-2xl font-bold text-slate-900">
             R$ {user_price.toLocaleString('pt-BR')}
           </p>
         </div>
         <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs text-slate-600 mb-1">MÃ©dia do Mercado</p>
+          <p className="text-xs text-slate-600 mb-1">Média do Mercado</p>
           <p className="text-2xl font-bold text-slate-900">
             R$ {market_avg_price.toLocaleString('pt-BR')}
           </p>
         </div>
       </div>
 
-      {/* TermÃ´metro/Barra de Competitividade */}
+      {/* Termômetro/Barra de Competitividade */}
       <div className="space-y-3">
         <div className="flex items-center justify-between text-sm">
           <span className={`font-semibold ${positionColor}`}>{positionLabel}</span>
@@ -720,7 +720,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
           {/* Gradiente de fundo (Azul -> Verde -> Vermelho) */}
           <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-green-400 to-red-400" />
           
-          {/* Marcador de PosiÃ§Ã£o (travado em 95%) */}
+          {/* Marcador de Posição (travado em 95%) */}
           <div
             className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-all duration-500"
             style={{ left: `${Math.min(95, barPosition)}%` }}
@@ -740,7 +740,7 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
             <TrendingDown className="w-3 h-3" />
             Abaixo
           </span>
-          <span>MÃ©dia</span>
+          <span>Média</span>
           <span className="flex items-center gap-1">
             Acima
             <TrendingUp className="w-3 h-3" />
@@ -748,12 +748,12 @@ export const PriceIntelligenceModule: React.FC<PriceIntelligenceModuleProps> = (
         </div>
       </div>
 
-      {/* InterpretaÃ§Ã£o */}
+      {/* Interpretação */}
       <div className={`mt-4 ${bgColor} rounded-[18px] border border-slate-200 p-3`}>
         <p className="text-xs text-slate-700">
-          {price_position === 'LOW' && 'ðŸ’¡ Seu preÃ§o estÃ¡ competitivo! Pode atrair mais compradores.'}
-          {price_position === 'MED' && 'âœ… Seu preÃ§o estÃ¡ equilibrado com o mercado.'}
-          {price_position === 'HIGH' && 'âš ï¸ Seu preÃ§o estÃ¡ acima da mÃ©dia. Considere ajustar para aumentar vendas.'}
+          {price_position === 'LOW' && '💡 Seu preço está competitivo! Pode atrair mais compradores.'}
+          {price_position === 'MED' && '✅ Seu preço está equilibrado com o mercado.'}
+          {price_position === 'HIGH' && '⚠️ Seu preço está acima da média. Considere ajustar para aumentar vendas.'}
         </p>
       </div>
     </div>
@@ -793,7 +793,7 @@ export const PerformanceRankingModule: React.FC<PerformanceRankingModuleProps> =
             </p>
             <h4 className="mt-1 truncate text-sm font-bold text-slate-900">{item.title}</h4>
             <p className="mt-1 text-xs text-slate-500">
-              {item.conversion_rate.toFixed(1)}% de conversÃ£o
+              {item.conversion_rate.toFixed(1)}% de conversão
             </p>
           </div>
           <div className="rounded-2xl bg-slate-900 px-3 py-2 text-right text-white shadow-sm">
@@ -847,9 +847,9 @@ export const PerformanceRankingModule: React.FC<PerformanceRankingModuleProps> =
     <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 xl:p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-base font-bold text-slate-900 xl:text-lg">Ranking dos anÃºncios</h3>
+          <h3 className="text-base font-bold text-slate-900 xl:text-lg">Ranking dos anúncios</h3>
           <p className="mt-1 text-sm text-slate-500">
-            Veja quais anÃºncios estÃ£o puxando sua exposiÃ§Ã£o e seus contatos.
+            Veja quais anúncios estão puxando sua exposição e seus contatos.
           </p>
         </div>
         <div className="inline-flex items-center gap-2 rounded-full border border-rose-100 bg-rose-50 px-3 py-1.5 text-[13px] font-semibold text-rose-700 xl:text-sm">
@@ -866,7 +866,7 @@ export const PerformanceRankingModule: React.FC<PerformanceRankingModuleProps> =
           </div>
           {topAdsByViews.length === 0 ? (
             <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              Ainda nÃ£o hÃ¡ anÃºncios com visualizaÃ§Ãµes suficientes para ranking.
+              Ainda não há anúncios com visualizações suficientes para ranking.
             </div>
           ) : (
             topAdsByViews.slice(0, 3).map((item, index) => renderRow(item, index, 'views'))
@@ -880,7 +880,7 @@ export const PerformanceRankingModule: React.FC<PerformanceRankingModuleProps> =
           </div>
           {topAdsByLeads.length === 0 ? (
             <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              Ainda nÃ£o hÃ¡ anÃºncios com leads suficientes para ranking.
+              Ainda não há anúncios com leads suficientes para ranking.
             </div>
           ) : (
             topAdsByLeads.slice(0, 3).map((item, index) => renderRow(item, index, 'leads'))
@@ -919,15 +919,15 @@ export const PerformanceAttentionModule: React.FC<PerformanceAttentionModuleProp
   return (
     <div className="rounded-[26px] border border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-5 xl:p-6 shadow-[0_24px_55px_-40px_rgba(15,23,42,0.42)]">
       <div className="mb-5">
-        <h3 className="text-base font-bold text-slate-900 xl:text-lg">AnÃºncios que precisam de atenÃ§Ã£o</h3>
+        <h3 className="text-base font-bold text-slate-900 xl:text-lg">Anúncios que precisam de atenção</h3>
         <p className="mt-1 text-sm text-slate-500">
-          Priorizamos os anÃºncios com sinais claros de oportunidade ou baixa eficiÃªncia.
+          Priorizamos os anúncios com sinais claros de oportunidade ou baixa eficiência.
         </p>
       </div>
 
       {attentionAds.length === 0 ? (
         <div className="rounded-[20px] border border-emerald-100 bg-emerald-50 px-4 py-6 text-sm text-emerald-800">
-          Seus anÃºncios nÃ£o tÃªm alertas de atenÃ§Ã£o no momento. Continue acompanhando a performance.
+          Seus anúncios não têm alertas de atenção no momento. Continue acompanhando a performance.
         </div>
       ) : (
         <div className="space-y-3">
@@ -989,7 +989,7 @@ interface PlanModuleProps {
   boosterMaxPurchasesPer30Days?: number;
   periodEndDate?: string;
   loading?: boolean;
-  // Dados opcionais da RPC (priorizados quando disponÃ­veis)
+  // Dados opcionais da RPC (priorizados quando disponíveis)
   rpcAdsCount?: number;
   rpcHomeHighlights?: number;
 }
@@ -1019,7 +1019,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
   rpcHomeHighlights
 }) => {
   const { settings } = useLayout();
-  // Priorizar dados da RPC quando disponÃ­veis
+  // Priorizar dados da RPC quando disponíveis
   const finalAdsUsed = rpcAdsCount !== undefined ? rpcAdsCount : adsUsed;
   const finalHomeHighlightsUsed = rpcHomeHighlights !== undefined ? rpcHomeHighlights : homeHighlightsUsed;
 
@@ -1068,16 +1068,16 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
       </div>
 
       <div className="space-y-4">
-        {/* AnÃºncios */}
+        {/* Anúncios */}
         <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
           <div className="flex items-center gap-2 mb-2">
             <Package className="w-4 h-4" style={{ color: settings.primaryColor }} />
-            <span className="text-xs font-medium text-slate-700">AnÃºncios</span>
+            <span className="text-xs font-medium text-slate-700">Anúncios</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2">
             <span className="text-2xl font-bold text-slate-900">{finalAdsUsed}</span>
             <span className="text-[13px] text-slate-500 xl:text-sm">de</span>
-            <span className="text-2xl font-bold text-slate-600">{adsLimit || 'âˆž'}</span>
+            <span className="text-2xl font-bold text-slate-600">{adsLimit || '∞'}</span>
           </div>
           {adsLimit > 0 && (
             <p className={`mb-3 text-[11px] ${adsOverLimit ? 'text-amber-700' : 'text-slate-500'}`}>
@@ -1218,7 +1218,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
             </div>
           )}
           <p className="mt-2 text-[11px] text-slate-500">
-            MÃ¡ximo de alertas disponÃ­veis no plano
+            Máximo de alertas disponíveis no plano
           </p>
         </div>
 
@@ -1270,7 +1270,7 @@ export const PlanModule: React.FC<PlanModuleProps> = ({
         )}
       </div>
 
-      {/* BotÃ£o de Upgrade em Destaque */}
+      {/* Botão de Upgrade em Destaque */}
       <Link
         to="/minha-conta/financeiro"
         className="block w-full text-center mt-6 px-4 py-3 text-white rounded-lg text-sm font-bold transition-colors uppercase tracking-wider shadow-lg hover:shadow-xl"

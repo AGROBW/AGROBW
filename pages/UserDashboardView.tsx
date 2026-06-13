@@ -440,17 +440,17 @@ const UserDashboardView: React.FC = () => {
     };
   }, [showSellerStoreMenu, location.pathname]);
 
-  // FunÃ§Ã£o para slugificar nome do usuÃ¡rio
+  // Função para slugificar nome do usuário
   const slugify = (text: string): string => {
     return text
       .toString()
       .toLowerCase()
       .trim()
-      .replace(/\s+/g, '_') // EspaÃ§os -> underscores
+      .replace(/\s+/g, '_') // Espaços -> underscores
       .replace(/[^\w\-]+/g, '') // Remove caracteres especiais
-      .replace(/\_\_+/g, '_') // MÃºltiplos underscores -> um
-      .replace(/^-+/, '') // Remove hÃ­fen do inÃ­cio
-      .replace(/-+$/, ''); // Remove hÃ­fen do fim
+      .replace(/\_\_+/g, '_') // Múltiplos underscores -> um
+      .replace(/^-+/, '') // Remove hífen do início
+      .replace(/-+$/, ''); // Remove hífen do fim
   };
 
   const getUserInitials = (name?: string | null) => {
@@ -516,20 +516,20 @@ const UserDashboardView: React.FC = () => {
     return `${documentLastFailureReason || 'Não foi possível validar seu documento automaticamente.'} Você poderá tentar novamente em ${retryLabel}.`;
   };
 
-  // FunÃ§Ã£o para upload de avatar
+  // Função para upload de avatar
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
     // Validar tipo de arquivo
     if (!file.type.startsWith('image/')) {
-      toast.error('Por favor, selecione uma imagem vÃ¡lida');
+      toast.error('Por favor, selecione uma imagem válida');
       return;
     }
 
     // Validar tamanho (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('A imagem deve ter no mÃ¡ximo 5MB');
+      toast.error('A imagem deve ter no máximo 5MB');
       return;
     }
 
@@ -550,7 +550,7 @@ const UserDashboardView: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
-      // Obter URL pÃºblica
+      // Obter URL pública
       const { data: urlData } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
@@ -563,7 +563,7 @@ const UserDashboardView: React.FC = () => {
 
       if (updateError) throw updateError;
 
-      // ForÃ§ar atualizaÃ§Ã£o do contexto (recarregar usuÃ¡rio)
+      // Forçar atualização do contexto (recarregar usuário)
       window.location.reload();
       
       toast.success('Foto de perfil atualizada com sucesso!');
@@ -577,7 +577,7 @@ const UserDashboardView: React.FC = () => {
     }
   };
 
-  // FunÃ§Ã£o para upload de documentos
+  // Função para upload de documentos
   const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
@@ -862,7 +862,7 @@ const UserDashboardView: React.FC = () => {
   const HeatmapWidget = ({ metrics }: { metrics: AdMetrics }) => (
     <div className="flex h-full flex-col rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.28)]">
       <div className="flex justify-between items-center mb-6">
-        <h4 className="text-sm font-bold text-gray-900">Alcance por RegiÃ£o</h4>
+        <h4 className="text-sm font-bold text-gray-900">Alcance por Região</h4>
         <Icons.Dashboard />
       </div>
       
@@ -891,7 +891,7 @@ const UserDashboardView: React.FC = () => {
   const PriceThermometer = ({ ad, metrics }: { ad: Ad, metrics: AdMetrics }) => (
     <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-6 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.28)]">
       <div className="flex justify-between items-center mb-6">
-        <h4 className="text-sm font-bold text-gray-900">AnÃ¡lise de PreÃ§o</h4>
+        <h4 className="text-sm font-bold text-gray-900">Análise de Preço</h4>
         <div className="text-[10px] font-bold text-green-700 px-2 py-0.5 bg-green-50 rounded uppercase">Competitivo</div>
       </div>
 
@@ -902,7 +902,7 @@ const UserDashboardView: React.FC = () => {
              <p className="text-xl font-bold text-gray-900">R$ {ad.price.toLocaleString('pt-BR')}</p>
            </div>
            <div className="text-right">
-             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">MÃ©dia Mercado</p>
+             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Média Mercado</p>
              <p className="text-lg font-semibold text-gray-600">R$ {metrics.marketAvgPrice.toLocaleString('pt-BR')}</p>
            </div>
         </div>
@@ -940,7 +940,7 @@ const UserDashboardView: React.FC = () => {
 
     return (
       <div className="space-y-6 animate-in fade-in duration-500 pb-20">
-        {/* Grid Superior: 4 Cards de EstatÃ­sticas */}
+        {/* Grid Superior: 4 Cards de Estatísticas */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 min-[1400px]:grid-cols-4">
           <DashboardStatsCard
             icon={<FileText className="w-6 h-6" strokeWidth={1.5} />}
@@ -999,7 +999,7 @@ const UserDashboardView: React.FC = () => {
           />
         </div>
 
-        {/* MÃ³dulo de InteligÃªncia de PreÃ§o (Full Width) */}
+        {/* Módulo de Inteligência de Preço (Full Width) */}
         <div className="grid grid-cols-1">
           <PriceIntelligenceModule
             priceAnalysis={dashboardStats?.price_analysis || null}

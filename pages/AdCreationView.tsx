@@ -382,7 +382,7 @@ const AdCreationView: React.FC = () => {
     return fallback || 'Este anúncio ainda está temporariamente bloqueado para novo envio à análise.';
   };
   
-  // A rota jÃ¡ Ã© protegida pelo RequireAuth no App.tsx.
+  // A rota já é protegida pelo RequireAuth no App.tsx.
   if (!user) return null;
 
   const [currentStep, setCurrentStep] = useState<Step>('CATEGORY');
@@ -516,7 +516,7 @@ const AdCreationView: React.FC = () => {
     });
   }, [user]);
 
-  // PersistÃªncia de rascunho
+  // Persistência de rascunho
   const categoryIconMap: Record<string, LucideIcon> = {
     animais: PawPrint,
     maquinas: Cog,
@@ -584,7 +584,7 @@ const AdCreationView: React.FC = () => {
 
         if (adError) throw adError;
         if (!adData) {
-          toast.error('AnÃºncio nÃ£o encontrado para ediÃ§Ã£o.');
+          toast.error('Anúncio não encontrado para edição.');
           navigate('/minha-conta/anuncios');
           return;
         }
@@ -701,7 +701,7 @@ const AdCreationView: React.FC = () => {
         setCurrentStep('DETAILS');
       } catch (error) {
         appError('[AdCreation] Erro ao carregar anúncio para edição', error, { editAnnouncementId: editAdId });
-        toast.error('NÃ£o foi possÃ­vel carregar o anÃºncio para ediÃ§Ã£o.');
+        toast.error('Não foi possível carregar o anúncio para edição.');
       } finally {
         if (isMountedRef.current) {
           setIsLoadingEditAd(false);
@@ -736,10 +736,10 @@ const AdCreationView: React.FC = () => {
     });
   }, [pendingTechnicalDetails, technicalFieldsSchema]);
 
-  // CÃ¡lculo automÃ¡tico: price = quantity * unitPrice
+  // Cálculo automático: price = quantity * unitPrice
   useEffect(() => {
     const calculatedPrice = (formData.quantity || 1) * (formData.unitPrice || 0);
-    // SÃ³ atualiza se o valor calculado for diferente do atual
+    // Só atualiza se o valor calculado for diferente do atual
     if (calculatedPrice !== formData.price) {
       setFormData(prev => ({ ...prev, price: calculatedPrice }));
     }
@@ -796,17 +796,17 @@ const AdCreationView: React.FC = () => {
     prefilledSubcategorySlug,
   ]);
 
-  // Atualizar schema de campos tÃ©cnicos quando categoria mudar
+  // Atualizar schema de campos técnicos quando categoria mudar
   useEffect(() => {
     if (formData.categoryId) {
       const selectedCategory = dbCategories.find(cat => cat.id === formData.categoryId);
       debugLog('[AdCreation] Categoria selecionada:', selectedCategory?.name, selectedCategory?.slug);
       
       if (selectedCategory?.technical_fields_schema) {
-        debugLog('[AdCreation] Schema de campos tÃ©cnicos carregado:', selectedCategory.technical_fields_schema);
+        debugLog('[AdCreation] Schema de campos técnicos carregado:', selectedCategory.technical_fields_schema);
         setTechnicalFieldsSchema(selectedCategory.technical_fields_schema);
       } else {
-        debugLog('[AdCreation] Nenhum schema de campos tÃ©cnicos definido para esta categoria');
+        debugLog('[AdCreation] Nenhum schema de campos técnicos definido para esta categoria');
         setTechnicalFieldsSchema([]);
       }
     } else {
@@ -824,25 +824,25 @@ const AdCreationView: React.FC = () => {
   }, [shouldShowStoreProductCondition, formData.productCondition]);
 
   const categoryIcons: Record<string, string> = {
-    animais: 'ðŸ‚',
+    animais: '🐂',
     maquinas: 'âš™ï¸',
-    insumos: 'ðŸ§ª',
-    imoveis: 'ðŸ¡',
-    servicos: 'ðŸ› ï¸',
-    sementes: 'ðŸŒ±',
-    pecas: 'ðŸ”©',
-    'maquinas-equipamentos': 'ðŸšœ',
-    implementos: 'ðŸ§°',
-    fazendas: 'ðŸŒ¾',
-    'imoveis-rurais': 'ðŸ¡',
-    'armazenagem-de-produtos': 'ðŸ¬',
-    'alimentos-em-geral': 'ðŸ¥•',
-    'arvores-adultas-mudas': 'ðŸŒ³',
-    'tratores-agricolas': 'ðŸšœ',
-    'maquinas-pesadas': 'ðŸš§',
-    'fertilizantes-agricolas': 'ðŸ§«',
-    'colheitadeiras-colhedoras': 'ðŸŒ¾',
-    'alimentos-para-nutricao-animal': 'ðŸ„'
+    insumos: '🧪',
+    imoveis: '🏡',
+    servicos: '🛠️',
+    sementes: '🌱',
+    pecas: '🔩',
+    'maquinas-equipamentos': '🚜',
+    implementos: '🧰',
+    fazendas: '🌾',
+    'imoveis-rurais': '🏡',
+    'armazenagem-de-produtos': '🏬',
+    'alimentos-em-geral': '🥕',
+    'arvores-adultas-mudas': '🌳',
+    'tratores-agricolas': '🚜',
+    'maquinas-pesadas': '🚧',
+    'fertilizantes-agricolas': '🧫',
+    'colheitadeiras-colhedoras': '🌾',
+    'alimentos-para-nutricao-animal': '🐄'
   };
 
   useEffect(() => {
@@ -1042,7 +1042,7 @@ const AdCreationView: React.FC = () => {
   const resolveCategoryId = async () => {
     if (isUuid(formData.categoryId)) return formData.categoryId;
     if (!formData.categorySlug) {
-      toast.error('Erro interno: Slug da categoria ausente. Recarregue a pÃ¡gina.');
+      toast.error('Erro interno: Slug da categoria ausente. Recarregue a página.');
       return null;
     }
     const { data, error } = await supabase
@@ -1051,7 +1051,7 @@ const AdCreationView: React.FC = () => {
       .eq('slug', formData.categorySlug)
       .single();
     if (error || !data?.id) {
-      toast.error('Categoria nÃ£o encontrada no banco.');
+      toast.error('Categoria não encontrada no banco.');
       return null;
     }
     return data.id as string;
@@ -1143,14 +1143,14 @@ const AdCreationView: React.FC = () => {
     if (!ensureAdCreationAllowed()) return null;
     if (draftIdRef.current) return draftIdRef.current;
 
-    // Singleton pattern: se jÃ¡ estÃ¡ criando, aguarda o ID
+    // Singleton pattern: se já está criando, aguarda o ID
     if (isCreatingDraft.current) {
-      debugLog('[AdCreation] Aguardando criaÃ§Ã£o do rascunho...');
-      // Aguarda atÃ© 5 segundos pelo ID (50 tentativas x 100ms)
+      debugLog('[AdCreation] Aguardando criação do rascunho...');
+      // Aguarda até 5 segundos pelo ID (50 tentativas x 100ms)
       for (let i = 0; i < 50; i++) {
         await new Promise(resolve => setTimeout(resolve, 100));
         if (draftIdRef.current) {
-          debugLog('[AdCreation] ID encontrado apÃ³s aguardar:', draftIdRef.current);
+          debugLog('[AdCreation] ID encontrado após aguardar:', draftIdRef.current);
           return draftIdRef.current;
         }
       }
@@ -1160,7 +1160,7 @@ const AdCreationView: React.FC = () => {
 
     // Bloquear outras tentativas
     isCreatingDraft.current = true;
-    debugLog('[AdCreation] Iniciando criaÃ§Ã£o de rascunho Ãºnico...');
+    debugLog('[AdCreation] Iniciando criação de rascunho único...');
 
     const numericPrice = parseFloat(String(formData.price || 0).replace(/[^0-9.,]/g, '').replace(/\./g, '').replace(',', '.'));
     const numericUnitPrice = parseFloat(String(formData.unitPrice || 0).replace(/[^0-9.,]/g, '').replace(/\./g, '').replace(',', '.'));
@@ -1330,7 +1330,7 @@ const AdCreationView: React.FC = () => {
   const handleImagesSelected = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     if (!user?.id) {
-      toast.error('SessÃ£o invÃ¡lida. FaÃ§a login novamente.');
+      toast.error('Sessão inválida. Faça login novamente.');
       return;
     }
 
@@ -1352,7 +1352,7 @@ const AdCreationView: React.FC = () => {
       toast.info('Algumas imagens foram ignoradas para respeitar o limite de 9.');
     }
 
-    // CRIAR PREVIEW INSTANTÃ‚NEO ANTES DE QUALQUER AWAIT
+    // CRIAR PREVIEW INSTANTÂNEO ANTES DE QUALQUER AWAIT
     const previewItems = fileArray.map(file => ({
       id: `${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 7)}`,
       previewUrl: URL.createObjectURL(file),
@@ -1366,7 +1366,7 @@ const AdCreationView: React.FC = () => {
       setIsUploadingImages(true);
     }
 
-    // VALIDAR CATEGORIA APÃ“S MOSTRAR PREVIEW
+    // VALIDAR CATEGORIA APÓS MOSTRAR PREVIEW
     if (!formData.categoryId) {
       const resolvedCategoryId = await resolveCategoryId();
       if (!resolvedCategoryId) {
@@ -1395,7 +1395,7 @@ const AdCreationView: React.FC = () => {
             clearInterval(progressTimer);
             return;
           }
-          // Agrupa atualizaÃ§Ã£o em um Ãºnico render
+          // Agrupa atualização em um único render
           setImageItems(prev => {
             const updated = prev.map(item => 
               item.id === itemId && item.progress < 90
@@ -1421,8 +1421,8 @@ const AdCreationView: React.FC = () => {
           appError('[Ads] Erro ao enviar imagem', uploadError, { fileName: compressedFile.name, draftId: draftIdRef.current || null });
           const isPermission = /permission|rls|not allowed|denied|unauthorized|400/i.test(uploadError.message || '');
           toast.error(
-            isPermission ? 'PermissÃ£o negada no envio.' : 'Falha ao enviar imagem.',
-            { description: isPermission ? 'Tente novamente ou verifique sua conexÃ£o.' : uploadError.message }
+            isPermission ? 'Permissão negada no envio.' : 'Falha ao enviar imagem.',
+            { description: isPermission ? 'Tente novamente ou verifique sua conexão.' : uploadError.message }
           );
           clearInterval(progressTimer);
           if (isMountedRef.current) {
@@ -1752,7 +1752,7 @@ const AdCreationView: React.FC = () => {
     }
     setIsSubmitting(true);
     
-    debugLog('[AdCreation] Iniciando publicaÃ§Ã£o com dados:', {
+    debugLog('[AdCreation] Iniciando publicação com dados:', {
       categoryId: formData.categoryId,
       technical: formData.technical,
       technicalFieldsSchemaLength: technicalFieldsSchema.length
@@ -1762,7 +1762,7 @@ const AdCreationView: React.FC = () => {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError) {
         appError('[Ads] Erro ao obter usuário autenticado', authError);
-        toast.error('NÃ£o foi possÃ­vel validar seu login.');
+        toast.error('Não foi possível validar seu login.');
         return;
       }
 
@@ -1771,7 +1771,7 @@ const AdCreationView: React.FC = () => {
 
       if (!userId) {
         appError('[Ads] user.id nulo, cancelando insert');
-        toast.error('SessÃ£o invÃ¡lida. FaÃ§a login novamente.');
+        toast.error('Sessão inválida. Faça login novamente.');
         return;
       }
 
@@ -1787,13 +1787,13 @@ const AdCreationView: React.FC = () => {
       const resolvedSubCategoryId = await resolveSubCategoryId(resolvedCategoryId);
 
       if (!resolvedCategoryId) {
-        toast.error('Categoria invÃ¡lida. Atualize a pÃ¡gina e tente novamente.');
+        toast.error('Categoria inválida. Atualize a página e tente novamente.');
         return;
       }
 
-      // Validar localizaÃ§Ã£o antes de publicar
+      // Validar localização antes de publicar
       if (!formData.location?.city || formData.location.city === 'A definir' || !formData.location?.state || formData.location.state === '--') {
-        toast.error('Preencha a localizaÃ§Ã£o completa antes de publicar.', { description: 'Informe o CEP para autocompletar cidade e estado.' });
+        toast.error('Preencha a localização completa antes de publicar.', { description: 'Informe o CEP para autocompletar cidade e estado.' });
         return;
       }
 
@@ -2090,7 +2090,7 @@ const AdCreationView: React.FC = () => {
         }
       } else {
         // Sem rascunho, fazer insert direto
-        debugLog('[AdCreation] Criando novo anÃºncio (sem rascunho)');
+        debugLog('[AdCreation] Criando novo anúncio (sem rascunho)');
         const insertResult = await supabase
           .from('announcements')
           .insert(payload)
@@ -2105,7 +2105,7 @@ const AdCreationView: React.FC = () => {
         }
       }
 
-      debugLog('[AdCreation] Resultado final da publicaÃ§Ã£o:', { data, error });
+      debugLog('[AdCreation] Resultado final da publicação:', { data, error });
 
       if (error) {
         const errorContext = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`;
@@ -2119,18 +2119,18 @@ const AdCreationView: React.FC = () => {
             description: getAdCapacityBlockedMessage(),
           });
         } else {
-          toast.error('Erro ao publicar anÃºncio.', { description: error.message });
+          toast.error('Erro ao publicar anúncio.', { description: error.message });
         }
         return;
       }
 
       if (!data?.id) {
-        toast.error('Erro ao obter ID do anÃºncio publicado.');
+        toast.error('Erro ao obter ID do anúncio publicado.');
         return;
       }
 
       const announcementId = data.id;
-      debugLog('[AdCreation] AnÃºncio publicado com sucesso:', announcementId);
+      debugLog('[AdCreation] Anúncio publicado com sucesso:', announcementId);
       // R3: contato do vendedor na tabela privada (RLS dono/admin)
       await supabase
         .from('announcement_contacts')
@@ -2158,12 +2158,12 @@ const AdCreationView: React.FC = () => {
           appWarn('[Ads] Não foi possível atualizar coordenadas do anúncio após publicação', { announcementId });
         }
       }
-      debugLog('[AdCreation] Dados tÃ©cnicos para salvar:', formData.technical);
-      debugLog('[AdCreation] Schema de campos tÃ©cnicos:', technicalFieldsSchema);
+      debugLog('[AdCreation] Dados técnicos para salvar:', formData.technical);
+      debugLog('[AdCreation] Schema de campos técnicos:', technicalFieldsSchema);
 
-      // Salvar especificaÃ§Ãµes tÃ©cnicas na tabela announcement_technical_details
+      // Salvar especificações técnicas na tabela announcement_technical_details
       if (technicalDetailsPayload.length > 0) {
-        // Limpar detalhes tÃ©cnicos antigos (caso seja ediÃ§Ã£o)
+        // Limpar detalhes técnicos antigos (caso seja edição)
         const { error: deleteError } = await supabase
           .from('announcement_technical_details')
           .delete()
@@ -2172,7 +2172,7 @@ const AdCreationView: React.FC = () => {
         if (deleteError) {
           appWarn('[Publish] Aviso ao limpar detalhes antigos', { announcementId, error: deleteError });
         } else {
-          debugLog('[AdCreation] Detalhes tÃ©cnicos antigos removidos (se existiam)');
+          debugLog('[AdCreation] Detalhes técnicos antigos removidos (se existiam)');
         }
 
         const technicalDetailsToInsert = technicalDetailsPayload.map(detail => ({
@@ -2182,7 +2182,7 @@ const AdCreationView: React.FC = () => {
           icon_name: detail.icon_name || 'Circle'
         }));
 
-        debugLog('[AdCreation] Detalhes tÃ©cnicos a serem inseridos:', technicalDetailsToInsert);
+        debugLog('[AdCreation] Detalhes técnicos a serem inseridos:', technicalDetailsToInsert);
 
         if (technicalDetailsToInsert.length > 0) {
           const { error: detailsError } = await supabase
@@ -2191,15 +2191,15 @@ const AdCreationView: React.FC = () => {
 
           if (detailsError) {
             appError('[Publish] Erro ao salvar especificações técnicas', detailsError, { announcementId });
-            toast.error('Erro ao salvar especificaÃ§Ãµes tÃ©cnicas', { description: detailsError.message });
+            toast.error('Erro ao salvar especificações técnicas', { description: detailsError.message });
           } else {
-            debugLog('[AdCreation] EspecificaÃ§Ãµes tÃ©cnicas salvas com sucesso:', technicalDetailsToInsert.length, 'registros');
+            debugLog('[AdCreation] Especificações técnicas salvas com sucesso:', technicalDetailsToInsert.length, 'registros');
           }
         } else {
-          debugLog('[AdCreation] Nenhuma especificaÃ§Ã£o tÃ©cnica para salvar (campos vazios)');
+          debugLog('[AdCreation] Nenhuma especificação técnica para salvar (campos vazios)');
         }
       } else {
-        debugLog('[AdCreation] Schema vazio ou dados tÃ©cnicos nÃ£o disponÃ­veis');
+        debugLog('[AdCreation] Schema vazio ou dados técnicos não disponíveis');
       }
 
       hasPublishedSuccessfullyRef.current = true;
@@ -2227,7 +2227,7 @@ const AdCreationView: React.FC = () => {
           description: getAdCapacityBlockedMessage(),
         });
       } else {
-        toast.error('Erro ao publicar anÃºncio', {
+        toast.error('Erro ao publicar anúncio', {
           description: error.message || 'Tente novamente mais tarde.'
         });
       }
@@ -2259,11 +2259,11 @@ const AdCreationView: React.FC = () => {
               >
                 {cat.icon ? (
                   <div className="hidden">
-                    {cat.icon || categoryIcons[cat.slug] || 'ðŸ“¦'}
+                    {cat.icon || categoryIcons[cat.slug] || '📦'}
                   </div>
                 ) : (
                   <div className="hidden">
-                    {CATEGORIES.find(base => base.slug === cat.slug)?.icon || categoryIcons[cat.slug] || 'ðŸ“¦'}
+                    {CATEGORIES.find(base => base.slug === cat.slug)?.icon || categoryIcons[cat.slug] || '📦'}
                   </div>
                 )}
                 <div className="mb-4 flex justify-center">

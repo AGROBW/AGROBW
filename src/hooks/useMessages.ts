@@ -446,7 +446,7 @@ export const useMessages = (chatId: string | null, fallbackOtherUserName?: strin
   const resolveSenderName = useCallback((senderId: string, rawSenderName?: string | null) => {
     const senderName = normalizeDisplayName(rawSenderName)
 
-    if (senderName && !['Usuário', 'UsuÃ¡rio', 'Usuario'].includes(senderName)) {
+    if (senderName && !['Usuário', 'Usuário', 'Usuario'].includes(senderName)) {
       return senderName
     }
 

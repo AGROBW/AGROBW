@@ -51,7 +51,7 @@ interface User {
   created_at: string;
   last_login: string | null; // Sincronizado via trigger do auth.users.last_sign_in_at
   start_plan_consumed_at?: string | null;
-  plan_name?: string; // Nome do plano ativo (extraÃ­do de user_subscriptions)
+  plan_name?: string; // Nome do plano ativo (extraído de user_subscriptions)
   active_subscription_id?: string | null;
   active_plan_id?: string | null;
   active_period_start?: string | null;
@@ -287,10 +287,10 @@ const UserManagement: React.FC = () => {
     }
   }, [location.search]);
 
-  // Debug: Log do usuÃ¡rio selecionado no modal de detalhes
+  // Debug: Log do usuário selecionado no modal de detalhes
   useEffect(() => {
     if (showDetailsModal && selectedUser) {
-      debugLog('[UserManagement] Dados do usuÃ¡rio selecionado:', {
+      debugLog('[UserManagement] Dados do usuário selecionado:', {
         id: selectedUser.id,
         name: selectedUser.name,
         email: selectedUser.email,
@@ -360,7 +360,7 @@ const UserManagement: React.FC = () => {
         );
       }
 
-      // Filtro de suspensÃ£o
+      // Filtro de suspensão
       if (filterStatus === 'suspended') {
         query = query.eq('is_suspended', true);
       } else if (filterStatus === 'active') {
@@ -385,8 +385,8 @@ const UserManagement: React.FC = () => {
         throw error;
       }
 
-      // ðŸ” DEBUG: Log completo dos dados brutos de TODOS os usuÃ¡rios
-      debugLog('[UserManagement] Dados brutos de todos os usuÃ¡rios:', 
+      // 🔍 DEBUG: Log completo dos dados brutos de TODOS os usuários
+      debugLog('[UserManagement] Dados brutos de todos os usuários:', 
         data?.map(u => ({
           id: u.id,
           name: u.name,
@@ -401,17 +401,17 @@ const UserManagement: React.FC = () => {
         }))
       );
 
-      // ðŸ” DEBUG: Log completo dos dados brutos
-      debugLog('[UserManagement] Dados brutos da query (primeiro usuÃ¡rio):', {
+      // 🔍 DEBUG: Log completo dos dados brutos
+      debugLog('[UserManagement] Dados brutos da query (primeiro usuário):', {
         total: data?.length,
         firstUser: data?.[0],
         subscriptions: data?.[0]?.user_subscriptions
       });
 
-      // Flattening: Extrair plano ativo e buscar contagem de anÃºncios
+      // Flattening: Extrair plano ativo e buscar contagem de anúncios
       const usersWithCounts = await Promise.all(
         (data || []).map(async (user) => {
-          // Buscar contagem de anÃºncios (Ãºnica sub-query necessÃ¡ria)
+          // Buscar contagem de anúncios (única sub-query necessária)
           const { count: announcementCount } = await supabase
             .from('announcements')
             .select('*', { count: 'exact', head: true })
@@ -428,7 +428,7 @@ const UserManagement: React.FC = () => {
             );
             
             if (activeSubscription?.plans) {
-              // plans pode ser objeto Ãºnico ou array dependendo da configuraÃ§Ã£o
+              // plans pode ser objeto único ou array dependendo da configuração
               if (Array.isArray(activeSubscription.plans)) {
                 planName = activeSubscription.plans[0]?.name || null;
               } else if (typeof activeSubscription.plans === 'object') {
@@ -449,8 +449,8 @@ const UserManagement: React.FC = () => {
         })
       );
 
-      // Log resumido para validaÃ§Ã£o
-      debugLog('[UserManagement] UsuÃ¡rios carregados:', usersWithCounts.length);
+      // Log resumido para validação
+      debugLog('[UserManagement] Usuários carregados:', usersWithCounts.length);
 
       setUsers(usersWithCounts);
       setTotalCount(count || 0);

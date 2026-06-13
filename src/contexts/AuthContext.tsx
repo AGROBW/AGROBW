@@ -123,6 +123,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [adminMfaState, setAdminMfaState] = useState<AdminMfaState>(() => createEmptyAdminMfaState())
   const [isLoading, setIsLoading] = useState(true)
   const fetchingRef = useRef(false)
+  // Marca que a autenticação inicial já foi resolvida uma vez. Depois disso,
+  // eventos de re-autenticação/refresh (ex.: ao voltar o foco da aba) NÃO devem
+  // reativar o spinner global (que desmontaria a tela atual e perderia o estado).
+  const authReadyRef = useRef(false)
   const retryTimeoutRef = useRef<number | null>(null)
   const sessionExpiredToastShownRef = useRef(false)
   const adminSessionBootstrapStartedRef = useRef(false)
@@ -554,9 +558,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setSupabaseUser(session?.user ?? null)
         if (session?.user) {
           sessionExpiredToastShownRef.current = false
-          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED') {
+          // Só mostra o spinner global na PRIMEIRA resolução de auth. Em re-auth/
+          // refresh (ex.: voltar o foco da aba), a sincronização ocorre em segundo
+          // plano sem desmontar a tela atual — preservando o progresso do usuário.
+          if (!authReadyRef.current && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED')) {
             setIsLoading(true)
           }
+          authReadyRef.current = true
           setUser(prev => prev ?? {
             id: session.user.id,
             email: session.user.email || '',
@@ -589,6 +597,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         clearRetryTimeout()
         void clearServerSideAdminSession()
         if (isMounted) {
+          authReadyRef.current = false
           setUser(null)
           setStats(null)
           setAdminMfaState(createEmptyAdminMfaState())
