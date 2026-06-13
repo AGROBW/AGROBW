@@ -6,7 +6,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPA
 const DEFAULT_TITLE = 'AGRO BW | Marketplace Rural';
 const DEFAULT_DESCRIPTION =
   'Marketplace rural para comprar, vender e anunciar no agronegócio com mais visibilidade.';
-const DEFAULT_OG_IMAGE = 'https://bwagro.com.br/og-default.svg';
+const OG_IMAGE_FILE = '/og-default.png';
 
 const escapeHtml = (value) =>
   String(value || '')
@@ -53,16 +53,21 @@ export default async function handler(req, res) {
   }
 
   let store = null;
+  let ogImageUrl = null;
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data } = await supabase
-      .from('seller_stores')
-      .select('slug, store_name, description, logo_url, cover_url, is_active, is_store_feature_enabled, is_paused_due_to_plan')
-      .eq('slug', slug)
-      .maybeSingle();
-    store = data;
+    const [{ data: storeData }, { data: layoutData }] = await Promise.all([
+      supabase
+        .from('seller_stores')
+        .select('slug, store_name, description, logo_url, cover_url, is_active, is_store_feature_enabled, is_paused_due_to_plan')
+        .eq('slug', slug)
+        .maybeSingle(),
+      supabase.from('layout_settings').select('og_default_image_url').limit(1).maybeSingle(),
+    ]);
+    store = storeData;
+    ogImageUrl = layoutData?.og_default_image_url || null;
   } catch {
     store = null;
   }
@@ -83,7 +88,9 @@ export default async function handler(req, res) {
     (store.description && store.description.trim()) ||
     `Conheça a loja ${store.store_name}, veja anúncios disponíveis e negocie oportunidades no agronegócio pela AGRO BW.`;
   const description = rawDescription.slice(0, 200);
-  const image = store.cover_url || store.logo_url || DEFAULT_OG_IMAGE;
+  // Imagem única de marca AGRO BW para todas as lojas (decisão de produto).
+  // Prioriza a imagem configurada no painel admin (Layout); senão usa o arquivo estático.
+  const image = ogImageUrl || `${baseUrl}${OG_IMAGE_FILE}`;
   const url = `${baseUrl}/loja/${store.slug}`;
 
   const ogBlock = `

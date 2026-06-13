@@ -743,6 +743,7 @@ export interface LayoutSettings {
   sponsorHarvestImageUrl?: string | null;
   sponsorFieldImageUrl?: string | null;
   sponsorFinalCtaImageUrl?: string | null;
+  ogDefaultImageUrl?: string | null;
   commercialIntelligenceEnabled: boolean;
   facebookUrl?: string | null;
   instagramUrl?: string | null;

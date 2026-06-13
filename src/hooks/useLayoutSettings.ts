@@ -25,6 +25,7 @@ const DEFAULT_LAYOUT_SETTINGS: Omit<LayoutSettings, 'id' | 'createdAt' | 'update
   sponsorHarvestImageUrl: null,
   sponsorFieldImageUrl: null,
   sponsorFinalCtaImageUrl: null,
+  ogDefaultImageUrl: null,
   commercialIntelligenceEnabled: false,
   facebookUrl: null,
   instagramUrl: null,
@@ -70,6 +71,7 @@ const mapLayoutSettings = (row: any): LayoutSettings => ({
   sponsorHarvestImageUrl: row.sponsor_harvest_image_url ?? null,
   sponsorFieldImageUrl: row.sponsor_field_image_url ?? null,
   sponsorFinalCtaImageUrl: row.sponsor_final_cta_image_url ?? null,
+  ogDefaultImageUrl: row.og_default_image_url ?? null,
   commercialIntelligenceEnabled: row.commercial_intelligence_enabled ?? DEFAULT_LAYOUT_SETTINGS.commercialIntelligenceEnabled,
   facebookUrl: row.facebook_url ?? null,
   instagramUrl: row.instagram_url ?? null,
@@ -143,6 +145,7 @@ export const useLayoutSettings = () => {
       sponsor_harvest_image_url: payload.sponsorHarvestImageUrl ?? settings?.sponsorHarvestImageUrl ?? null,
       sponsor_field_image_url: payload.sponsorFieldImageUrl ?? settings?.sponsorFieldImageUrl ?? null,
       sponsor_final_cta_image_url: payload.sponsorFinalCtaImageUrl ?? settings?.sponsorFinalCtaImageUrl ?? null,
+      og_default_image_url: payload.ogDefaultImageUrl ?? settings?.ogDefaultImageUrl ?? null,
       commercial_intelligence_enabled:
         payload.commercialIntelligenceEnabled ?? settings?.commercialIntelligenceEnabled ?? DEFAULT_LAYOUT_SETTINGS.commercialIntelligenceEnabled,
       facebook_url: payload.facebookUrl ?? settings?.facebookUrl ?? null,

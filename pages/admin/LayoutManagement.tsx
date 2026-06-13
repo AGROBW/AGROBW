@@ -106,6 +106,7 @@ const LayoutManagement: React.FC = () => {
     sponsorHarvestImageUrl: defaultSettings.sponsorHarvestImageUrl || '',
     sponsorFieldImageUrl: defaultSettings.sponsorFieldImageUrl || '',
     sponsorFinalCtaImageUrl: defaultSettings.sponsorFinalCtaImageUrl || '',
+    ogDefaultImageUrl: defaultSettings.ogDefaultImageUrl || '',
     commercialIntelligenceEnabled: defaultSettings.commercialIntelligenceEnabled ?? false,
     facebookUrl: defaultSettings.facebookUrl || '',
     instagramUrl: defaultSettings.instagramUrl || '',
@@ -152,6 +153,7 @@ const LayoutManagement: React.FC = () => {
       sponsorHarvestImageUrl: settings.sponsorHarvestImageUrl || '',
       sponsorFieldImageUrl: settings.sponsorFieldImageUrl || '',
       sponsorFinalCtaImageUrl: settings.sponsorFinalCtaImageUrl || '',
+      ogDefaultImageUrl: settings.ogDefaultImageUrl || '',
       commercialIntelligenceEnabled: settings.commercialIntelligenceEnabled ?? false,
       facebookUrl: settings.facebookUrl || '',
       instagramUrl: settings.instagramUrl || '',
@@ -262,6 +264,7 @@ const LayoutManagement: React.FC = () => {
       sponsorHarvestImageUrl: formData.sponsorHarvestImageUrl || null,
       sponsorFieldImageUrl: formData.sponsorFieldImageUrl || null,
       sponsorFinalCtaImageUrl: formData.sponsorFinalCtaImageUrl || null,
+      ogDefaultImageUrl: formData.ogDefaultImageUrl || null,
       commercialIntelligenceEnabled: formData.commercialIntelligenceEnabled,
       facebookUrl: normalizeOptionalUrl(formData.facebookUrl),
       instagramUrl: normalizeOptionalUrl(formData.instagramUrl),
@@ -352,6 +355,7 @@ const LayoutManagement: React.FC = () => {
               sponsorHarvestImageUrl: formData.sponsorHarvestImageUrl,
               sponsorFieldImageUrl: formData.sponsorFieldImageUrl,
               sponsorFinalCtaImageUrl: formData.sponsorFinalCtaImageUrl,
+              ogDefaultImageUrl: formData.ogDefaultImageUrl,
             }}
             onChange={handleChange}
             onUpload={handleAssetUpload}
@@ -364,7 +368,8 @@ const LayoutManagement: React.FC = () => {
               uploadingField === 'sponsorHeroImageUrl' ||
               uploadingField === 'sponsorHarvestImageUrl' ||
               uploadingField === 'sponsorFieldImageUrl' ||
-              uploadingField === 'sponsorFinalCtaImageUrl'
+              uploadingField === 'sponsorFinalCtaImageUrl' ||
+              uploadingField === 'ogDefaultImageUrl'
                 ? uploadingField
                 : null
             }

@@ -10,7 +10,8 @@ export type PageImageField =
   | 'sponsorHeroImageUrl'
   | 'sponsorHarvestImageUrl'
   | 'sponsorFieldImageUrl'
-  | 'sponsorFinalCtaImageUrl';
+  | 'sponsorFinalCtaImageUrl'
+  | 'ogDefaultImageUrl';
 
 type PageImagesFormData = {
   loginHeroImageUrl: string;
@@ -22,6 +23,7 @@ type PageImagesFormData = {
   sponsorHarvestImageUrl: string;
   sponsorFieldImageUrl: string;
   sponsorFinalCtaImageUrl: string;
+  ogDefaultImageUrl: string;
 };
 
 interface LayoutPageImagesSectionProps {
@@ -82,6 +84,15 @@ const SPONSOR_IMAGES: Array<{ field: PageImageField; label: string; helper: stri
     field: 'sponsorFinalCtaImageUrl',
     label: 'CTA final',
     helper: 'Imagem de fundo da ultima chamada da pagina de Patrocinadores.',
+  },
+];
+
+const SHARE_IMAGES: Array<{ field: PageImageField; label: string; helper: string }> = [
+  {
+    field: 'ogDefaultImageUrl',
+    label: 'Imagem de compartilhamento (Open Graph)',
+    helper:
+      'Imagem exibida no card ao compartilhar o site/lojas no Facebook, WhatsApp, X etc. Use PNG ou JPG (NAO use SVG) em 1200 x 630 px.',
   },
 ];
 
@@ -205,6 +216,21 @@ const LayoutPageImagesSection: React.FC<LayoutPageImagesSectionProps> = ({
         </div>
         <div className="space-y-3">
           {SPONSOR_IMAGES.map(({ field, label, helper }) => renderCard(field, label, helper))}
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <div className="mb-3 flex items-center gap-2">
+          <div className="h-px flex-1 bg-slate-100" />
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Compartilhamento</span>
+          <div className="h-px flex-1 bg-slate-100" />
+        </div>
+        <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+          Gere a arte em <span className="font-black">1200 x 630 px</span>, formato <span className="font-black">PNG ou JPG</span>.
+          O Facebook e o WhatsApp <span className="font-black">nao exibem imagens SVG</span>.
+        </div>
+        <div className="space-y-3">
+          {SHARE_IMAGES.map(({ field, label, helper }) => renderCard(field, label, helper))}
         </div>
       </div>
     </div>
