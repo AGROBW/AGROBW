@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Facebook, Instagram, Linkedin, Link as LinkIcon, Search, ShieldCheck, SlidersHorizontal, Store, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, Copy, Facebook, Link as LinkIcon, Mail, MessageCircle, Search, Share2, ShieldCheck, SlidersHorizontal, Store, X } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import AdCard from '../components/AdCard';
 import SeoHead from '../components/SeoHead';
@@ -45,6 +45,29 @@ const StorefrontView: React.FC = () => {
   >('all');
   const [sortBy, setSortBy] = useState<'store_order' | 'recent' | 'price_asc' | 'price_desc' | 'views'>('store_order');
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const shareRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isShareOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (shareRef.current && !shareRef.current.contains(event.target as Node)) {
+        setIsShareOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsShareOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isShareOpen]);
 
   const categoryOptions = useMemo(() => {
     const options = new Map<string, string>();
@@ -259,58 +282,45 @@ const StorefrontView: React.FC = () => {
     </div>
   );
 
-  const socialLinks = useMemo(() => {
-    if (!store) return [];
+  const shareUrl = useMemo(
+    () => (store ? buildAbsoluteSiteUrl(`/loja/${store.slug}`) : ''),
+    [store],
+  );
+  const shareTitle = store ? `${store.storeName} | Loja Parceira AGRO BW` : '';
+
+  const shareTargets = useMemo(() => {
+    if (!store || !shareUrl) return [];
+
+    const encodedUrl = encodeURIComponent(shareUrl);
+    const encodedTitle = encodeURIComponent(shareTitle);
 
     return [
-      store.facebookUrl
-        ? {
-            id: 'facebook',
-            label: 'Facebook',
-            href: store.facebookUrl,
-            icon: Facebook,
-            className:
-              'border-white/10 bg-white/10 text-emerald-200 hover:border-white/20 hover:bg-white/15 hover:text-white',
-          }
-        : null,
-      store.instagramUrl
-        ? {
-            id: 'instagram',
-            label: 'Instagram',
-            href: store.instagramUrl,
-            icon: Instagram,
-            className:
-              'border-white/10 bg-white/10 text-emerald-200 hover:border-white/20 hover:bg-white/15 hover:text-white',
-          }
-        : null,
-      store.linkedinUrl
-        ? {
-            id: 'linkedin',
-            label: 'LinkedIn',
-            href: store.linkedinUrl,
-            icon: Linkedin,
-            className:
-              'border-white/10 bg-white/10 text-emerald-200 hover:border-white/20 hover:bg-white/15 hover:text-white',
-          }
-        : null,
       store.websiteUrl
-        ? {
-            id: 'site',
-            label: 'Site',
-            href: store.websiteUrl,
-            icon: LinkIcon,
-            className:
-              'border-white/10 bg-white/10 text-emerald-200 hover:border-white/20 hover:bg-white/15 hover:text-white',
-          }
+        ? { id: 'site', label: 'Site da loja', href: store.websiteUrl, icon: LinkIcon, color: '#16a34a' }
         : null,
+      { id: 'facebook', label: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`, icon: Facebook, color: '#1877F2' },
+      { id: 'x', label: 'X', href: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}`, icon: X, color: '#0f172a' },
+      { id: 'whatsapp', label: 'WhatsApp', href: `https://wa.me/?text=${encodedTitle}%20${encodedUrl}`, icon: MessageCircle, color: '#25D366' },
+      { id: 'email', label: 'E-mail', href: `mailto:?subject=${encodedTitle}&body=${encodedUrl}`, icon: Mail, color: '#64748b' },
     ].filter(Boolean) as Array<{
       id: string;
       label: string;
       href: string;
       icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-      className: string;
+      color: string;
     }>;
-  }, [store]);
+  }, [store, shareUrl, shareTitle]);
+
+  const handleCopyShareLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      setShareCopied(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -366,27 +376,58 @@ const StorefrontView: React.FC = () => {
                 Loja Parceira
               </span>
             </div>
-            {socialLinks.length > 0 ? (
-              <div className="mt-4 flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
-                {socialLinks.map((socialLink) => {
-                  const Icon = socialLink.icon;
+            <div className="relative mt-4 inline-block" ref={shareRef}>
+              <button
+                type="button"
+                onClick={() => setIsShareOpen((prev) => !prev)}
+                aria-haspopup="true"
+                aria-expanded={isShareOpen}
+                className="inline-flex items-center gap-2 rounded-full border border-[#16a34a]/40 bg-[#16a34a] px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-white transition hover:bg-[#15803d]"
+              >
+                <Share2 className="h-4 w-4" strokeWidth={2} />
+                Compartilhar
+              </button>
 
-                  return (
-                    <a
-                      key={socialLink.id}
-                      href={socialLink.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={socialLink.label}
-                      title={socialLink.label}
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#16a34a]/25 bg-white/5 text-[#bbf7d0] transition hover:border-[#f59e0b]/45 hover:bg-[#f59e0b]/12 hover:text-[#fde68a]"
+              {isShareOpen ? (
+                <div className="absolute bottom-full left-1/2 z-30 mb-3 -translate-x-1/2">
+                  <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-white px-2 py-2 shadow-xl shadow-black/15">
+                    {shareTargets.map((target) => {
+                      const Icon = target.icon;
+
+                      return (
+                        <a
+                          key={target.id}
+                          href={target.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={target.label}
+                          title={target.label}
+                          onClick={() => setIsShareOpen(false)}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl transition hover:bg-slate-100"
+                          style={{ color: target.color }}
+                        >
+                          <Icon className="h-5 w-5" strokeWidth={2} />
+                        </a>
+                      );
+                    })}
+
+                    <span className="mx-0.5 h-6 w-px bg-slate-200" aria-hidden="true" />
+
+                    <button
+                      type="button"
+                      onClick={handleCopyShareLink}
+                      aria-label={shareCopied ? 'Link copiado' : 'Copiar link'}
+                      title={shareCopied ? 'Link copiado' : 'Copiar link'}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100"
+                      style={shareCopied ? { color: '#16a34a' } : undefined}
                     >
-                      <Icon className="h-4 w-4" strokeWidth={1.9} />
-                    </a>
-                  );
-                })}
-              </div>
-            ) : null}
+                      {shareCopied ? <Check className="h-5 w-5" strokeWidth={2.4} /> : <Copy className="h-5 w-5" strokeWidth={2} />}
+                    </button>
+                  </div>
+                  <div className="absolute left-1/2 top-full -mt-1.5 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-slate-200 bg-white" aria-hidden="true" />
+                </div>
+              ) : null}
+            </div>
 
           </div>
         </div>

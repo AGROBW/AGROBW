@@ -36,6 +36,10 @@
   ],
   "rewrites": [
     {
+      "source": "/loja/:slug",
+      "destination": "/api/og-loja?slug=:slug"
+    },
+    {
       "source": "/((?!api/|assets/|favicon.ico|robots.txt|sitemap.xml|meta-oauth-callback.html).*)",
       "destination": "/index.html"
     }
