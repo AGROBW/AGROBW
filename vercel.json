@@ -36,7 +36,25 @@
   ],
   "rewrites": [
     {
+      "source": "/",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|whatsapp|linkedinbot|slackbot|telegrambot|discordbot|pinterest|redditbot|googlebot|bingbot|applebot|embedly|skypeuripreview|vkshare|qwantify|bitlybot).*"
+        }
+      ],
+      "destination": "/api/og-loja"
+    },
+    {
       "source": "/loja/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|whatsapp|linkedinbot|slackbot|telegrambot|discordbot|pinterest|redditbot|googlebot|bingbot|applebot|embedly|skypeuripreview|vkshare|qwantify|bitlybot).*"
+        }
+      ],
       "destination": "/api/og-loja?slug=:slug"
     },
     {

@@ -44,54 +44,106 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Sem slug ou sem Supabase configurado: devolve o SPA cru (tags padrão).
-  if (!slug || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  const serveRaw = () => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60');
     res.status(200).send(html);
-    return;
-  }
+  };
 
+  const hasEnv = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+  // Busca: imagem OG do painel (sempre) + a loja (quando houver slug).
   let store = null;
   let ogImageUrl = null;
-  try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    const [{ data: storeData }, { data: layoutData }] = await Promise.all([
-      supabase
-        .from('seller_stores')
-        .select('slug, store_name, description, logo_url, cover_url, is_active, is_store_feature_enabled, is_paused_due_to_plan')
-        .eq('slug', slug)
-        .maybeSingle(),
-      supabase.from('layout_settings').select('og_default_image_url').limit(1).maybeSingle(),
-    ]);
-    store = storeData;
-    ogImageUrl = layoutData?.og_default_image_url || null;
-  } catch {
-    store = null;
+  let queryError = null;
+  if (hasEnv) {
+    try {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      if (slug) {
+        const [storeRes, layoutRes] = await Promise.all([
+          supabase
+            .from('seller_stores')
+            .select('slug, store_name, description, is_active, is_store_feature_enabled, is_paused_due_to_plan')
+            .eq('slug', slug)
+            .maybeSingle(),
+          supabase.from('layout_settings').select('og_default_image_url').limit(1).maybeSingle(),
+        ]);
+        store = storeRes.data;
+        queryError = storeRes.error?.message || layoutRes.error?.message || null;
+        ogImageUrl = layoutRes.data?.og_default_image_url || null;
+      } else {
+        const { data: layoutData, error } = await supabase
+          .from('layout_settings')
+          .select('og_default_image_url')
+          .limit(1)
+          .maybeSingle();
+        ogImageUrl = layoutData?.og_default_image_url || null;
+        queryError = error?.message || null;
+      }
+    } catch (err) {
+      store = null;
+      queryError = String(err?.message || err);
+    }
   }
 
-  // Loja inexistente ou indisponível publicamente: SPA cru (que mostra "loja não encontrada").
-  const isPublic =
-    store && store.is_active && store.is_store_feature_enabled && !store.is_paused_due_to_plan;
-
-  if (!isPublic) {
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60');
-    res.status(200).send(html);
+  // Modo debug: /api/og-loja?slug=...&debug=1  → diagnóstico em JSON (não cacheado).
+  if (req.query?.debug === '1') {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json({
+      slug: slug || null,
+      hasEnv,
+      storeFound: Boolean(store),
+      storeFlags: store
+        ? {
+            is_active: store.is_active,
+            is_store_feature_enabled: store.is_store_feature_enabled,
+            is_paused_due_to_plan: store.is_paused_due_to_plan,
+          }
+        : null,
+      ogImageUrl,
+      queryError,
+    });
     return;
   }
 
-  const title = `${store.store_name} | Loja Parceira AGRO BW`;
-  const rawDescription =
-    (store.description && store.description.trim()) ||
-    `Conheça a loja ${store.store_name}, veja anúncios disponíveis e negocie oportunidades no agronegócio pela AGRO BW.`;
-  const description = rawDescription.slice(0, 200);
-  // Imagem única de marca AGRO BW para todas as lojas (decisão de produto).
-  // Prioriza a imagem configurada no painel admin (Layout); senão usa o arquivo estático.
+  if (!hasEnv) {
+    serveRaw();
+    return;
+  }
+
+  // Imagem do card: prioriza a configurada no painel admin; senão o arquivo estático.
   const image = ogImageUrl || `${baseUrl}${OG_IMAGE_FILE}`;
-  const url = `${baseUrl}/loja/${store.slug}`;
+
+  const isPublicStore =
+    store && store.is_active && store.is_store_feature_enabled && !store.is_paused_due_to_plan;
+
+  // Slug informado mas loja inexistente/indisponível: SPA cru ("loja não encontrada").
+  if (slug && !isPublicStore) {
+    serveRaw();
+    return;
+  }
+
+  let title;
+  let description;
+  let url;
+
+  if (isPublicStore) {
+    title = `${store.store_name} | Loja Parceira AGRO BW`;
+    const rawDescription =
+      (store.description && store.description.trim()) ||
+      `Conheça a loja ${store.store_name}, veja anúncios disponíveis e negocie oportunidades no agronegócio pela AGRO BW.`;
+    description = rawDescription.slice(0, 200);
+    url = `${baseUrl}/loja/${store.slug}`;
+  } else {
+    // Home (sem slug).
+    title = DEFAULT_TITLE;
+    description = DEFAULT_DESCRIPTION;
+    url = `${baseUrl}/`;
+  }
 
   const ogBlock = `
     <title>${escapeHtml(title)}</title>
