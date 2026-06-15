@@ -3200,8 +3200,9 @@ const UserDashboardView: React.FC = () => {
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => downloadReceipt(payment)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
-                            title="Baixar comprovante"
+                            disabled={!payment.receiptUrl && !payment.invoicePdfUrl}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500"
+                            title={!payment.receiptUrl && !payment.invoicePdfUrl ? 'Comprovante indisponível' : 'Baixar comprovante'}
                           >
                             <Download className="h-4 w-4" strokeWidth={1.5} />
                           </button>
@@ -3247,7 +3248,9 @@ const UserDashboardView: React.FC = () => {
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => downloadReceipt(payment)}
-                      className="h-9 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+                      disabled={!payment.receiptUrl && !payment.invoicePdfUrl}
+                      title={!payment.receiptUrl && !payment.invoicePdfUrl ? 'Comprovante indisponível' : undefined}
+                      className="h-9 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Comprovante
                     </button>

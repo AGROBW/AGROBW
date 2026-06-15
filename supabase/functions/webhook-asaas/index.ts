@@ -43,6 +43,7 @@ type ExistingPaymentRow = {
   provider_customer_id: string | null;
   provider_subscription_id: string | null;
   provider_checkout_session_id: string | null;
+  receipt_url: string | null;
   metadata: Record<string, unknown> | null;
 };
 
@@ -314,6 +315,20 @@ const confirmAsaasPayment = async (
   if (!resp.ok) return 'transient';
   const status = (readString(asRecord(await resp.json()).status) || '').toUpperCase();
   return (APPROVED_PAYMENT_STATUSES.has(status) || status === 'PAID') ? 'confirmed' : 'divergent';
+};
+
+// Busca o link do comprovante na API do Asaas quando o evento não trouxe.
+// Falha silenciosa (retorna null) -> não bloqueia o processamento do webhook.
+const fetchAsaasReceiptUrl = async (
+  paymentId: string,
+  apiKey: string | null,
+  isProduction: boolean | null,
+): Promise<string | null> => {
+  if (!apiKey || !paymentId || paymentId.startsWith('checkout:')) return null;
+  const resp = await asaasGet(`${asaasBaseUrl(isProduction)}/payments/${encodeURIComponent(paymentId)}`, apiKey);
+  if (!resp || !resp.ok) return null;
+  const data = asRecord(await resp.json());
+  return readString(data.transactionReceiptUrl, data.invoiceUrl, data.bankSlipUrl) || null;
 };
 
 // Resolve o payment REAL e APROVADO correlacionado ao CHECKOUT ATUAL.
@@ -717,7 +732,7 @@ serve(async (req) => {
     if (providerPaymentId) {
       const { data } = await supabaseAdmin
         .from('payments')
-        .select('id,user_id,plan_id,booster_id,billing_model,billing_cycle,subscription_id,provider_payment_id,provider_customer_id,provider_subscription_id,provider_checkout_session_id,metadata')
+        .select('id,user_id,plan_id,booster_id,billing_model,billing_cycle,subscription_id,provider_payment_id,provider_customer_id,provider_subscription_id,provider_checkout_session_id,receipt_url,metadata')
         .eq('provider_payment_id', providerPaymentId)
         .order('updated_at', { ascending: false })
         .limit(1)
@@ -729,7 +744,7 @@ serve(async (req) => {
     if (!existingPayment && providerCheckoutSessionId) {
       const { data } = await supabaseAdmin
         .from('payments')
-        .select('id,user_id,plan_id,booster_id,billing_model,billing_cycle,subscription_id,provider_payment_id,provider_customer_id,provider_subscription_id,provider_checkout_session_id,metadata')
+        .select('id,user_id,plan_id,booster_id,billing_model,billing_cycle,subscription_id,provider_payment_id,provider_customer_id,provider_subscription_id,provider_checkout_session_id,receipt_url,metadata')
         .eq('provider', 'asaas')
         .eq('provider_checkout_session_id', providerCheckoutSessionId)
         .order('updated_at', { ascending: false })
@@ -1061,6 +1076,20 @@ serve(async (req) => {
     const effectivePaymentStatus =
       eventName === 'CHECKOUT_PAID' && itemType === 'plan' ? 'approved' : paymentStatus;
 
+    // Comprovante: se o evento não trouxe o link, busca na API pelo id real.
+    // Nunca apaga um comprovante já salvo (preserva o existente em transitório).
+    let resolvedReceiptUrl = receiptUrl;
+    if (!resolvedReceiptUrl && effectivePaymentId) {
+      resolvedReceiptUrl = await fetchAsaasReceiptUrl(
+        effectivePaymentId,
+        readString(settings?.asaas_api_key),
+        Boolean(settings?.is_production),
+      );
+    }
+    if (!resolvedReceiptUrl) {
+      resolvedReceiptUrl = existingPayment?.receipt_url ?? null;
+    }
+
     if (effectivePaymentId) {
       const paymentPayload = {
         user_id: userId,
@@ -1087,7 +1116,7 @@ serve(async (req) => {
         currency,
         status: effectivePaymentStatus,
         payment_method: paymentMethod,
-        receipt_url: receiptUrl,
+        receipt_url: resolvedReceiptUrl,
         paid_at: effectivePaymentStatus === 'approved' ? paidAt || new Date().toISOString() : null,
         invoice_status: itemType === 'plan' ? 'pending' : 'not_applicable',
         metadata: {
