@@ -46,7 +46,10 @@ const mapPaymentRecord = (row: any): PaymentRecord => ({
   metadata: row.metadata ?? {},
   planName: row.plan_name ?? row.plans?.name ?? null,
   itemType: row.metadata?.item_type ?? 'plan',
-  itemName: row.metadata?.item_name ?? row.plan_name ?? row.plans?.name ?? row.description ?? null,
+  itemName:
+    (row.metadata?.item_type ?? 'plan') === 'booster'
+      ? row.highlight_boosters?.name ?? row.metadata?.item_name ?? row.description ?? null
+      : row.metadata?.item_name ?? row.plan_name ?? row.plans?.name ?? row.description ?? null,
 });
 
 export const usePayments = () => {
@@ -68,7 +71,7 @@ export const usePayments = () => {
 
       const { data, error } = await supabase
         .from('payments')
-        .select('*, plans(name)')
+        .select('*, plans(name), highlight_boosters(name)')
         .eq('user_id', user.id)
         .order('paid_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
