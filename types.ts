@@ -744,6 +744,10 @@ export interface LayoutSettings {
   sponsorFieldImageUrl?: string | null;
   sponsorFinalCtaImageUrl?: string | null;
   ogDefaultImageUrl?: string | null;
+  radarHelpTitle?: string | null;
+  radarHelpDescription?: string | null;
+  radarHelpVideoUrl?: string | null;
+  radarHelpEnabled?: boolean;
   commercialIntelligenceEnabled: boolean;
   facebookUrl?: string | null;
   instagramUrl?: string | null;

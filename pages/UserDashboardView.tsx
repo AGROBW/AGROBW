@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, Lock, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store } from 'lucide-react';
+import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, Lock, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store, Megaphone } from 'lucide-react';
 import { AdStatus, Message, Ad, AdMetrics, Notification, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -19,6 +19,9 @@ import PlanGuard from '../components/PlanGuard';
 import MessagesView from '../components/MessagesView';
 import LeadsView from '../components/LeadsView';
 import RadarView from '../components/RadarView';
+import MarketingPreferencesCard from '../components/MarketingPreferencesCard';
+import StoreCampaignRequestModal from '../components/dashboard/StoreCampaignRequestModal';
+import { useStoreCampaignRequests } from '../src/hooks/useStoreCampaignRequests';
 import { getBusinessDescriptionValidationError, MAX_BUSINESS_DESCRIPTION_LENGTH } from '../src/utils/businessDescription';
 import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 import HighlightConfirmationModal from '../components/HighlightConfirmationModal';
@@ -1071,6 +1074,16 @@ const UserDashboardView: React.FC = () => {
       const [deleteModalOpen, setDeleteModalOpen] = useState(false);
       const [adToDelete, setAdToDelete] = useState<Ad | null>(null);
       const [adForModerationDetails, setAdForModerationDetails] = useState<Ad | null>(null);
+      const [campaignAd, setCampaignAd] = useState<Ad | null>(null);
+      const { requests: campaignRequests, openByAnnouncement: openCampaignByAd, requestCampaign } = useStoreCampaignRequests();
+      // Alinhado ao gate do RPC: loja realmente ativa (habilitada e não pausada) + plano com e-mail marketing.
+      const storeReallyActive = Boolean(
+        mySellerStore &&
+        mySellerStore.isActive &&
+        mySellerStore.isStoreFeatureEnabled &&
+        !mySellerStore.isPausedDueToPlan
+      );
+      const campaignEligible = storeReallyActive && Boolean(subscription?.plans?.has_email_marketing);
       const [expandedModerationSections, setExpandedModerationSections] = useState<Record<string, boolean>>({});
       const [isDeleting, setIsDeleting] = useState(false);
     const [highlightModalOpen, setHighlightModalOpen] = useState(false);
@@ -1761,6 +1774,47 @@ const UserDashboardView: React.FC = () => {
           </>
         )}
 
+        {campaignRequests.length > 0 ? (
+          <div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-3 flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-green-700" />
+              <h3 className="text-sm font-bold text-slate-900">Campanhas solicitadas</h3>
+            </div>
+            <div className="space-y-2">
+              {campaignRequests.slice(0, 5).map((req) => {
+                const statusMeta: Record<string, { label: string; cls: string }> = {
+                  pending_review: { label: 'Em análise', cls: 'bg-amber-50 text-amber-700' },
+                  approved: { label: 'Aprovada', cls: 'bg-emerald-50 text-emerald-700' },
+                  preparing: { label: 'Em preparação', cls: 'bg-sky-50 text-sky-700' },
+                  queued: { label: 'Na fila', cls: 'bg-sky-50 text-sky-700' },
+                  sending: { label: 'Enviando', cls: 'bg-sky-50 text-sky-700' },
+                  completed: { label: 'Concluída', cls: 'bg-emerald-50 text-emerald-700' },
+                  rejected: { label: 'Rejeitada', cls: 'bg-rose-50 text-rose-700' },
+                  failed: { label: 'Falhou', cls: 'bg-rose-50 text-rose-700' },
+                  cancelled: { label: 'Cancelada', cls: 'bg-slate-100 text-slate-500' },
+                };
+                const meta = statusMeta[req.status] || { label: req.status, cls: 'bg-slate-100 text-slate-600' };
+                return (
+                  <div key={req.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-800">
+                        {req.announcement_snapshot?.title || 'Anúncio'}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        {new Date(req.created_at).toLocaleDateString('pt-BR')}
+                        {req.status === 'rejected' && req.rejection_reason ? ` • ${req.rejection_reason}` : ''}
+                      </p>
+                    </div>
+                    <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.cls}`}>
+                      {meta.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -2026,14 +2080,41 @@ const UserDashboardView: React.FC = () => {
                         );
                       })()
                       ) : null}
+                      {/* Botão Solicitar campanha (Loja Parceira + e-mail marketing) */}
+                      {campaignEligible && ad.status === AdStatus.ACTIVE ? (
+                        (() => {
+                          const alreadyRequested = openCampaignByAd.has(ad.id);
+                          return (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (alreadyRequested) {
+                                  sonnerToast.info('Já existe uma solicitação de campanha em andamento para este anúncio.');
+                                  return;
+                                }
+                                setCampaignAd(ad);
+                              }}
+                              className={`p-2 rounded-lg transition-colors ${
+                                alreadyRequested
+                                  ? 'text-green-600 cursor-default'
+                                  : 'hover:bg-green-50 hover:text-green-700'
+                              }`}
+                              title={alreadyRequested ? 'Campanha já solicitada (em análise/preparação)' : 'Solicitar campanha de e-mail'}
+                            >
+                              <Megaphone className="w-4 h-4" strokeWidth={1.5} />
+                            </button>
+                          );
+                        })()
+                      ) : null}
                       {/* Botão Excluir */}
-                      <button 
+                      <button
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           handleDeleteClick(ad);
                         }}
-                        className="p-2 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors" 
+                        className="p-2 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
                         title="Excluir anúncio"
                       >
                         <Trash2 className="w-4 h-4" strokeWidth={1.5} />
@@ -2045,6 +2126,18 @@ const UserDashboardView: React.FC = () => {
             )}
           </motion.div>
         </AnimatePresence>
+
+        {/* Modal: Solicitar campanha de Loja Parceira */}
+        <StoreCampaignRequestModal
+          isOpen={!!campaignAd}
+          onClose={() => setCampaignAd(null)}
+          announcementTitle={campaignAd?.title || ''}
+          onSubmit={(subject, message) =>
+            campaignAd
+              ? requestCampaign(campaignAd.id, subject, message)
+              : Promise.resolve({ error: 'Anúncio inválido.' })
+          }
+        />
 
         {/* Modal de Confirmação de Exclusão */}
         {deleteModalOpen && adToDelete && (
@@ -3054,13 +3147,16 @@ const UserDashboardView: React.FC = () => {
                 {hasActiveManagedPlan ? 'Solicitações de ajuste do plano atual' : 'Contratar outro plano'}
               </h3>
             </div>
-            <p className="max-w-2xl text-sm text-slate-500">
-              {hasActiveManagedPlan
+            {(() => {
+              const planChangeHelpText = hasActiveManagedPlan
                 ? isCurrentPlanRecurring
                   ? 'Os botões abaixo deixam a alteração solicitada a partir desta própria tela. A equipe fecha o ajuste para evitar conflito de cobrança em planos com cobrança recorrente em andamento.'
-                  : 'Enquanto o plano avulso atual estiver vigente, novas compras ficam bloqueadas para evitar sobreposição. Se precisar trocar antes do vencimento, fale com a equipe.'
-                : 'Se você ainda não possui plano ativo, a contratação é iniciada diretamente pelo checkout hospedado do Asaas.'}
-            </p>
+                  : ''
+                : 'Se você ainda não possui plano ativo, a contratação é iniciada diretamente pelo checkout hospedado do Asaas.';
+              return planChangeHelpText ? (
+                <p className="max-w-2xl text-sm text-slate-500">{planChangeHelpText}</p>
+              ) : null;
+            })()}
           </div>
 
           <div className="mt-4">
@@ -4242,8 +4338,9 @@ const UserDashboardView: React.FC = () => {
             </nav>
           </aside>
 
-          <div className="min-h-[500px]">
+          <div className="min-h-[500px] space-y-6">
             {activeProfileSection}
+            {selectedProfileTab === 'security' && <MarketingPreferencesCard />}
           </div>
         </div>
       </div>

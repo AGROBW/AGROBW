@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, X } from 'lucide-react';
 import { useLayout } from '../../src/contexts/LayoutContext';
 import { Plan } from '../../src/hooks/usePlans';
@@ -79,9 +79,18 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
     return items.length > 0 ? items.slice(0, 4) : (nextPlan.display_features || []).filter(Boolean).slice(0, 4);
   }, [currentPlan, nextPlan]);
 
+  // Plano sem ciclo anual: força mensal (não deixa um estado anterior preso em "yearly").
+  useEffect(() => {
+    if (nextPlan && nextPlan.has_yearly_billing === false) {
+      setBillingCycle('monthly');
+    }
+  }, [nextPlan]);
+
   if (!isOpen || !nextPlan) {
     return null;
   }
+
+  const allowYearly = nextPlan.has_yearly_billing !== false;
 
   const displayPrice =
     billingCycle === 'monthly'
@@ -194,6 +203,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
         </div>
 
         <div className="p-4 md:p-6 lg:p-8 space-y-4 md:space-y-6 overflow-y-auto">
+          {allowYearly ? (
           <div className="flex items-center justify-center gap-3 md:gap-4">
             <span className={`text-sm font-bold ${billingCycle === 'monthly' ? 'text-slate-900' : 'text-slate-400'}`}>
               Mensal
@@ -219,6 +229,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
               </span>
             </div>
           </div>
+          ) : null}
 
           <div
             className="flex min-h-0 flex-col rounded-[1.5rem] md:rounded-[2rem] border bg-white p-4 md:p-6 lg:p-7 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.35)]"

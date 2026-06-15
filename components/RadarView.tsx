@@ -23,8 +23,19 @@ import {
   TrendingUp,
   AlertCircle,
   Sparkles,
-  Crown
+  Crown,
+  HelpCircle,
+  PlayCircle as PlayCircleIcon
 } from 'lucide-react';
+
+// Converte uma URL normal do YouTube para o formato de embed (privacy-friendly).
+const getYoutubeEmbedUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  const match = url.match(
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtube-nocookie\.com\/embed\/)([A-Za-z0-9_-]{11})/
+  );
+  return match ? `https://www.youtube-nocookie.com/embed/${match[1]}` : null;
+};
 import { useRadar, OpportunityAlert, OpportunityMatch } from '../src/hooks/useRadar';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useSubscription } from '../src/hooks/useSubscription';
@@ -71,7 +82,7 @@ const RadarView: React.FC = () => {
     dismissMatch
   } = useRadar();
 
-  const [activeTab, setActiveTab] = useState<'config' | 'opportunities'>('opportunities');
+  const [activeTab, setActiveTab] = useState<'config' | 'opportunities' | 'about'>('opportunities');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -442,6 +453,25 @@ const RadarView: React.FC = () => {
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-700"></div>
             )}
           </button>
+
+          {settings.radarHelpEnabled && (
+            <button
+              onClick={() => setActiveTab('about')}
+              className={`pb-3 px-1 font-semibold text-sm transition-colors relative ${
+                activeTab === 'about'
+                  ? 'text-green-700'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <HelpCircle className="w-4 h-4" />
+                <span>Como funciona</span>
+              </div>
+              {activeTab === 'about' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-700"></div>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -742,6 +772,83 @@ const RadarView: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'about' && (
+        <div className="space-y-6">
+          {/* Topo: explicação */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2.5 bg-green-100 rounded-xl text-green-700">
+                <Radar className="w-6 h-6" strokeWidth={2} />
+              </div>
+              <h2 className="text-xl md:text-2xl font-black text-slate-900">
+                {settings.radarHelpTitle?.trim() || 'Como funciona o Radar de Oportunidades'}
+              </h2>
+            </div>
+            {settings.radarHelpDescription?.trim() ? (
+              <p className="text-slate-600 leading-relaxed whitespace-pre-line">
+                {settings.radarHelpDescription}
+              </p>
+            ) : (
+              <p className="text-slate-600 leading-relaxed">
+                O Radar monitora os anúncios da plataforma e avisa você automaticamente quando surge
+                algo dentro dos critérios que você definir.
+              </p>
+            )}
+
+            {/* Passo a passo */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+              {[
+                { icon: Plus, title: 'Crie um alerta', desc: 'Defina um nome e os filtros que importam para você.' },
+                { icon: Filter, title: 'Defina os critérios', desc: 'Categoria, estado, faixa de preço, raio e palavras-chave.' },
+                { icon: Bell, title: 'Receba oportunidades', desc: 'Anúncios compatíveis aparecem na aba Oportunidades.' },
+              ].map((step, index) => (
+                <div key={step.title} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-green-700 text-white text-xs font-black">
+                      {index + 1}
+                    </span>
+                    <step.icon className="w-4 h-4 text-green-700" />
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-sm mb-1">{step.title}</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">{step.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Vídeo */}
+          {getYoutubeEmbedUrl(settings.radarHelpVideoUrl) ? (
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 md:p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <PlayCircleIcon className="w-5 h-5 text-green-700" />
+                <h3 className="font-bold text-slate-900">Veja em vídeo</h3>
+              </div>
+              <div className="relative w-full overflow-hidden rounded-xl bg-black" style={{ paddingTop: '56.25%' }}>
+                <iframe
+                  src={getYoutubeEmbedUrl(settings.radarHelpVideoUrl) as string}
+                  title="Como funciona o Radar de Oportunidades"
+                  className="absolute inset-0 h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {/* CTA */}
+          <div className="flex justify-center">
+            <button
+              onClick={() => setActiveTab('config')}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-green-700 text-white font-semibold rounded-xl hover:bg-green-800 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Criar meu primeiro alerta
+            </button>
+          </div>
         </div>
       )}
 

@@ -279,9 +279,43 @@ export const sendMail = async (settings, mail) => {
       to: mail.to,
       subject: mail.subject,
       html: mail.html,
+      ...(mail.headers ? { headers: mail.headers } : {}),
     });
   } finally {
     transporter.close();
+  }
+};
+
+// ── Descadastro de marketing (token HMAC stateless) ──────────────────
+const UNSUBSCRIBE_SECRET = process.env.UNSUBSCRIBE_SECRET || '';
+
+export const buildUnsubscribeToken = (userId, consentType) => {
+  if (!UNSUBSCRIBE_SECRET || !userId || !consentType) return null;
+  const payload = `${userId}.${consentType}.${Date.now()}`;
+  const payloadB64 = Buffer.from(payload).toString('base64url');
+  const sig = crypto.createHmac('sha256', UNSUBSCRIBE_SECRET).update(payloadB64).digest('base64url');
+  return `${payloadB64}.${sig}`;
+};
+
+export const buildUnsubscribeUrl = (userId, consentType) => {
+  const token = buildUnsubscribeToken(userId, consentType);
+  if (!token) return null;
+  return `${APP_URL.replace(/\/$/, '')}/api/unsubscribe?t=${encodeURIComponent(token)}`;
+};
+
+// Revalida o consentimento ATUAL (versão vigente) no momento do envio.
+// Retorna { ok: true } ativo, { ok: false } inativo/sem usuário, { ok: 'error' } falha transitória.
+const isMarketingThirdpartyConsentActive = async (userId) => {
+  if (!userId) return { ok: false };
+  try {
+    const { data, error } = await supabaseAdmin.rpc('is_marketing_consent_active', {
+      p_user_id: userId,
+      p_consent_type: 'marketing_thirdparty_opt_in',
+    });
+    if (error) return { ok: 'error' };
+    return { ok: data === true };
+  } catch {
+    return { ok: 'error' };
   }
 };
 
@@ -959,7 +993,8 @@ export const processNewsletterCampaignJobs = async (smtpSettings, smtpValidation
           name,
           subject,
           preview_text,
-          html_content
+          html_content,
+          audience_type
         )
       `)
       .in('status', ['pending', 'failed'])
@@ -990,17 +1025,62 @@ export const processNewsletterCampaignJobs = async (smtpSettings, smtpValidation
         continue;
       }
 
+      // Descadastro por destinatário (apenas campanhas de divulgação de terceiros).
+      let htmlContent = campaign.html_content;
+      let unsubscribeUrl = null;
+      if (campaign.audience_type === 'marketing_thirdparty') {
+        const { data: recipientUser } = await supabaseAdmin
+          .from('users')
+          .select('id')
+          .eq('email', claimed.recipient_email)
+          .maybeSingle();
+
+        // LGPD: revalida o consentimento ATUAL no momento do envio (o filtro do
+        // enfileiramento pode ter ficado obsoleto se o usuário revogou depois).
+        const consent = await isMarketingThirdpartyConsentActive(recipientUser?.id || null);
+        if (consent.ok !== true) {
+          if (consent.ok === false) {
+            // Sem consentimento ativo -> NÃO envia; marca skipped com motivo.
+            result.skipped += 1;
+            await supabaseAdmin.from('newsletter_campaign_email_jobs').update({
+              status: 'skipped',
+              last_error: 'Consentimento de divulgações de terceiros revogado/inativo no envio.',
+            }).eq('id', claimed.id);
+            continue;
+          }
+          // consent.ok === 'error' -> falha transitória ao validar: não arrisca; deixa para retry.
+          result.failed += 1;
+          await supabaseAdmin.from('newsletter_campaign_email_jobs').update({
+            status: 'failed',
+            last_error: 'Falha ao revalidar consentimento; reprocessar.',
+          }).eq('id', claimed.id);
+          continue;
+        }
+
+        if (recipientUser?.id) {
+          unsubscribeUrl = buildUnsubscribeUrl(recipientUser.id, 'marketing_thirdparty_opt_in');
+        }
+        // Garante que o placeholder nunca vaze cru: usa o link real ou a página de preferências.
+        const fallbackUrl = `${APP_URL.replace(/\/$/, '')}/minha-conta/perfil`;
+        htmlContent = String(htmlContent || '').split('{{unsubscribe_url}}').join(unsubscribeUrl || fallbackUrl);
+      }
+
       const email = getNewsletterCampaignTemplate({
         recipientName: claimed.recipient_name || 'Cliente',
         name: campaign.name,
         subject: campaign.subject,
         previewText: campaign.preview_text,
-        htmlContent: campaign.html_content,
+        htmlContent,
         branding,
       });
 
       try {
-        await sendMail(smtpSettings, { to: claimed.recipient_email, subject: email.subject, html: email.html });
+        await sendMail(smtpSettings, {
+          to: claimed.recipient_email,
+          subject: email.subject,
+          html: email.html,
+          ...(unsubscribeUrl ? { headers: { 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),
+        });
         result.sent += 1;
         await supabaseAdmin.from('newsletter_campaign_email_jobs').update({
           status: 'sent',

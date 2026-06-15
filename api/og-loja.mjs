@@ -55,7 +55,6 @@ export default async function handler(req, res) {
   // Busca: imagem OG do painel (sempre) + a loja (quando houver slug).
   let store = null;
   let ogImageUrl = null;
-  let queryError = null;
   if (hasEnv) {
     try {
       const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -72,42 +71,18 @@ export default async function handler(req, res) {
           supabase.from('layout_settings').select('og_default_image_url').limit(1).maybeSingle(),
         ]);
         store = storeRes.data;
-        queryError = storeRes.error?.message || layoutRes.error?.message || null;
         ogImageUrl = layoutRes.data?.og_default_image_url || null;
       } else {
-        const { data: layoutData, error } = await supabase
+        const { data: layoutData } = await supabase
           .from('layout_settings')
           .select('og_default_image_url')
           .limit(1)
           .maybeSingle();
         ogImageUrl = layoutData?.og_default_image_url || null;
-        queryError = error?.message || null;
       }
-    } catch (err) {
+    } catch {
       store = null;
-      queryError = String(err?.message || err);
     }
-  }
-
-  // Modo debug: /api/og-loja?slug=...&debug=1  → diagnóstico em JSON (não cacheado).
-  if (req.query?.debug === '1') {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json({
-      slug: slug || null,
-      hasEnv,
-      storeFound: Boolean(store),
-      storeFlags: store
-        ? {
-            is_active: store.is_active,
-            is_store_feature_enabled: store.is_store_feature_enabled,
-            is_paused_due_to_plan: store.is_paused_due_to_plan,
-          }
-        : null,
-      ogImageUrl,
-      queryError,
-    });
-    return;
   }
 
   if (!hasEnv) {

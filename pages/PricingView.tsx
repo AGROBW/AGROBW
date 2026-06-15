@@ -118,6 +118,7 @@ const PricingView: React.FC = () => {
         if (!plan.is_active || plan.show_in_public_pricing === false) return false;
         if (plan.is_downgrade_plan) return false;
         if (billingCycle === 'yearly' && isFreeMonthlyOnlyPlan(plan)) return false;
+        if (billingCycle === 'yearly' && plan.has_yearly_billing === false) return false;
         const isSignupPlan = hasExplicitSignupPlan
           ? Boolean(plan.is_default_signup_plan)
           : isLegacyStartSignupPlanName(plan.name || '');

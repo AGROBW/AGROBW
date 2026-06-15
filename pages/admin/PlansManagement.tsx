@@ -81,6 +81,7 @@ const makeEmptyForm = (position: number): UpdatePlanData => ({
   show_footer_card: true,
   monthly_price: 0,
   yearly_price: 0,
+  has_yearly_billing: true,
   button_text: 'Escolher Plano',
   position,
   is_active: true,
@@ -121,6 +122,7 @@ const mapPlanToForm = (plan: Plan): UpdatePlanData => ({
   show_footer_card: plan.show_footer_card ?? true,
   monthly_price: plan.monthly_price,
   yearly_price: plan.yearly_price,
+  has_yearly_billing: plan.has_yearly_billing ?? true,
   button_text: plan.button_text,
   position: plan.position,
   is_active: plan.is_active,
@@ -438,6 +440,12 @@ const PlansManagement: React.FC = () => {
                   onChange={(checked) => handleChange('show_in_public_pricing', checked)}
                   label="Exibir na página de planos"
                   hint="Desative para esconder o plano da vitrine pública e manter apenas no uso interno."
+                />
+                <ToggleSwitch
+                  checked={formData.has_yearly_billing ?? true}
+                  onChange={(checked) => handleChange('has_yearly_billing', checked)}
+                  label="Oferecer ciclo anual"
+                  hint="Quando desativado, o plano só aparece no ciclo mensal (some quando o cliente seleciona 'Anual')."
                 />
                 <ToggleSwitch
                   checked={formData.is_default_signup_plan ?? false}

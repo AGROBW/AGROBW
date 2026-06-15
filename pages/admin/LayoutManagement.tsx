@@ -107,6 +107,10 @@ const LayoutManagement: React.FC = () => {
     sponsorFieldImageUrl: defaultSettings.sponsorFieldImageUrl || '',
     sponsorFinalCtaImageUrl: defaultSettings.sponsorFinalCtaImageUrl || '',
     ogDefaultImageUrl: defaultSettings.ogDefaultImageUrl || '',
+    radarHelpTitle: defaultSettings.radarHelpTitle || '',
+    radarHelpDescription: defaultSettings.radarHelpDescription || '',
+    radarHelpVideoUrl: defaultSettings.radarHelpVideoUrl || '',
+    radarHelpEnabled: defaultSettings.radarHelpEnabled ?? false,
     commercialIntelligenceEnabled: defaultSettings.commercialIntelligenceEnabled ?? false,
     facebookUrl: defaultSettings.facebookUrl || '',
     instagramUrl: defaultSettings.instagramUrl || '',
@@ -154,6 +158,10 @@ const LayoutManagement: React.FC = () => {
       sponsorFieldImageUrl: settings.sponsorFieldImageUrl || '',
       sponsorFinalCtaImageUrl: settings.sponsorFinalCtaImageUrl || '',
       ogDefaultImageUrl: settings.ogDefaultImageUrl || '',
+      radarHelpTitle: settings.radarHelpTitle || '',
+      radarHelpDescription: settings.radarHelpDescription || '',
+      radarHelpVideoUrl: settings.radarHelpVideoUrl || '',
+      radarHelpEnabled: settings.radarHelpEnabled ?? false,
       commercialIntelligenceEnabled: settings.commercialIntelligenceEnabled ?? false,
       facebookUrl: settings.facebookUrl || '',
       instagramUrl: settings.instagramUrl || '',
@@ -265,6 +273,10 @@ const LayoutManagement: React.FC = () => {
       sponsorFieldImageUrl: formData.sponsorFieldImageUrl || null,
       sponsorFinalCtaImageUrl: formData.sponsorFinalCtaImageUrl || null,
       ogDefaultImageUrl: formData.ogDefaultImageUrl || null,
+      radarHelpTitle: formData.radarHelpTitle || null,
+      radarHelpDescription: formData.radarHelpDescription || null,
+      radarHelpVideoUrl: formData.radarHelpVideoUrl || null,
+      radarHelpEnabled: formData.radarHelpEnabled,
       commercialIntelligenceEnabled: formData.commercialIntelligenceEnabled,
       facebookUrl: normalizeOptionalUrl(formData.facebookUrl),
       instagramUrl: normalizeOptionalUrl(formData.instagramUrl),
@@ -374,6 +386,64 @@ const LayoutManagement: React.FC = () => {
                 : null
             }
           />
+
+          <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Radar de Oportunidades</p>
+                <h3 className="mt-2 text-lg font-semibold text-slate-900">Aba "Como funciona"</h3>
+                <p className="mt-1 max-w-2xl text-sm text-slate-500">
+                  Conteúdo da aba explicativa do Radar (no painel do usuário): título, texto e um vídeo do YouTube.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleToggleChange('radarHelpEnabled', !formData.radarHelpEnabled)}
+                className={`inline-flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors ${
+                  formData.radarHelpEnabled
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 bg-slate-50 text-slate-600'
+                }`}
+              >
+                <span className={`h-2.5 w-2.5 rounded-full ${formData.radarHelpEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                {formData.radarHelpEnabled ? 'Aba visível' : 'Aba oculta'}
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">Título</label>
+                <input
+                  type="text"
+                  value={formData.radarHelpTitle}
+                  onChange={(e) => handleChange('radarHelpTitle', e.target.value)}
+                  placeholder="Ex.: O que é o Radar de Oportunidades?"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">Texto explicativo</label>
+                <textarea
+                  value={formData.radarHelpDescription}
+                  onChange={(e) => handleChange('radarHelpDescription', e.target.value)}
+                  rows={4}
+                  placeholder="Explique o objetivo do Radar e como ele ajuda o usuário."
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">URL do vídeo (YouTube)</label>
+                <input
+                  type="url"
+                  value={formData.radarHelpVideoUrl}
+                  onChange={(e) => handleChange('radarHelpVideoUrl', e.target.value)}
+                  placeholder="Ex.: https://www.youtube.com/watch?v=XXXXXXXXXXX"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-green-400 focus:outline-none focus:ring-2 focus:ring-green-100"
+                />
+                <p className="mt-1 text-xs text-slate-400">Cole a URL normal do YouTube; o player é montado automaticamente.</p>
+              </div>
+            </div>
+          </section>
+
           <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>

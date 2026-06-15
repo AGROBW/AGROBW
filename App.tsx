@@ -10,6 +10,7 @@ import { ProtectedAdminRoute } from './components/ProtectedAdminRoute';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import LegalConsentReacceptGate from './components/LegalConsentReacceptGate';
+import MarketingConsentPrompt from './components/MarketingConsentPrompt';
 import SitePopupCampaignGate from './components/site/SitePopupCampaignGate';
 import Home from './pages/Home';
 
@@ -55,6 +56,7 @@ const PaymentsManagement = lazy(() => import('./pages/admin/PaymentsManagement')
 const NewsManagement = lazy(() => import('./pages/admin/NewsManagement'));
 const NewsletterSubscriptionsManagement = lazy(() => import('./pages/admin/NewsletterSubscriptionsManagement'));
 const CampaignsManagement = lazy(() => import('./pages/admin/CampaignsManagement'));
+const StoreCampaignRequestsManagement = lazy(() => import('./pages/admin/StoreCampaignRequestsManagement'));
 const SitePopupsManagement = lazy(() => import('./pages/admin/SitePopupsManagement'));
 const SponsorsManagement = lazy(() => import('./pages/admin/SponsorsManagement'));
 const SponsorTestimonialsManagement = lazy(() => import('./pages/admin/SponsorTestimonialsManagement'));
@@ -293,6 +295,7 @@ const AppContent: React.FC = () => {
               <Route path="news" element={<NewsManagement />} />
               <Route path="newsletter" element={<NewsletterSubscriptionsManagement />} />
               <Route path="campaigns" element={<CampaignsManagement />} />
+              <Route path="store-campaigns" element={<StoreCampaignRequestsManagement />} />
                     <Route path="contact-messages" element={<ContactMessagesManagement />} />
                     <Route path="site-popups" element={<SitePopupsManagement />} />
                     <Route path="sponsors" element={<SponsorsManagement />} />
@@ -317,6 +320,7 @@ const AppContent: React.FC = () => {
       {!isAdminPath && !isUserAreaPath && <Footer />}
       {!isAdminPath && !isUserAreaPath && <SitePopupCampaignGate />}
       {!isAdminPath && <LegalConsentReacceptGate />}
+      {!isAdminPath && <MarketingConsentPrompt />}
 
       {/* Floating WhatsApp Action */}
       {!isAdminPath && !isUserAreaPath && (

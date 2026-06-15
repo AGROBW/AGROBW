@@ -15,6 +15,7 @@ export interface Plan {
   show_footer_card: boolean;
   monthly_price: number;
   yearly_price: number;
+  has_yearly_billing: boolean;
   features: string[];
   display_features: string[];
   is_popular: boolean;
@@ -62,6 +63,7 @@ export interface UpdatePlanData {
   show_footer_card?: boolean;
   monthly_price?: number;
   yearly_price?: number;
+  has_yearly_billing?: boolean;
   features?: string[];
   display_features?: string[];
   is_popular?: boolean;

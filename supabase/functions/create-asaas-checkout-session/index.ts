@@ -431,7 +431,7 @@ serve(async (req) => {
 
       const { data: plan, error: planError } = await supabaseAdmin
         .from('plans')
-        .select('id, name, description, is_active, monthly_price, yearly_price, billing_model')
+        .select('id, name, description, is_active, monthly_price, yearly_price, billing_model, has_yearly_billing')
         .eq('id', body.planId)
         .maybeSingle();
 
@@ -441,6 +441,21 @@ serve(async (req) => {
 
       if (!plan.is_active) {
         return jsonResponse(req, { success: false, error: 'Plano inativo.' }, 400);
+      }
+
+      // Blindagem: rejeita checkout anual quando o plano nao oferece ciclo anual.
+      if (body.billingCycle === 'yearly' && plan.has_yearly_billing === false) {
+        await logSecurityEvent(supabaseAdmin, {
+          req,
+          attemptedRoute: '/functions/v1/create-asaas-checkout-session',
+          attemptedAction: 'asaas_checkout_yearly_not_allowed',
+          reason: `Plano ${body.planId} nao oferece ciclo anual.`,
+        });
+        return jsonResponse(
+          req,
+          { success: false, error: 'Este plano nao esta disponivel no ciclo anual.' },
+          400
+        );
       }
 
       const billingModel: BillingModel = plan.billing_model === 'recurring' ? 'recurring' : 'one_time';
