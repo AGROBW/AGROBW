@@ -49,7 +49,16 @@ serve(async (req) => {
     const cronSecret = Deno.env.get('MARKET_QUOTES_CRON_SECRET');
     const requestSecret = req.headers.get('x-cron-secret');
 
-    if (!cronSecret || requestSecret !== cronSecret) {
+    const timingSafeEqual = (a: string, b: string): boolean => {
+      const ab = new TextEncoder().encode(a);
+      const bb = new TextEncoder().encode(b);
+      if (ab.length !== bb.length) return false;
+      let diff = 0;
+      for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+      return diff === 0;
+    };
+
+    if (!cronSecret || !requestSecret || !timingSafeEqual(requestSecret, cronSecret)) {
       return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
     }
 
