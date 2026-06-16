@@ -1075,7 +1075,7 @@ const UserDashboardView: React.FC = () => {
       const [adToDelete, setAdToDelete] = useState<Ad | null>(null);
       const [adForModerationDetails, setAdForModerationDetails] = useState<Ad | null>(null);
       const [campaignAd, setCampaignAd] = useState<Ad | null>(null);
-      const { requests: campaignRequests, openByAnnouncement: openCampaignByAd, requestCampaign } = useStoreCampaignRequests();
+      const { requests: campaignRequests, metricsByRequest: campaignMetrics, openByAnnouncement: openCampaignByAd, requestCampaign } = useStoreCampaignRequests();
       // Alinhado ao gate do RPC: loja realmente ativa (habilitada e não pausada) + plano com e-mail marketing.
       const storeReallyActive = Boolean(
         mySellerStore &&
@@ -1794,6 +1794,8 @@ const UserDashboardView: React.FC = () => {
                   cancelled: { label: 'Cancelada', cls: 'bg-slate-100 text-slate-500' },
                 };
                 const meta = statusMeta[req.status] || { label: req.status, cls: 'bg-slate-100 text-slate-600' };
+                const m = campaignMetrics[req.id];
+                const showMetrics = m && ['queued', 'sending', 'completed', 'failed'].includes(req.status);
                 return (
                   <div key={req.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2">
                     <div className="min-w-0">
@@ -1803,6 +1805,7 @@ const UserDashboardView: React.FC = () => {
                       <p className="text-[11px] text-slate-400">
                         {new Date(req.created_at).toLocaleDateString('pt-BR')}
                         {req.status === 'rejected' && req.rejection_reason ? ` • ${req.rejection_reason}` : ''}
+                        {showMetrics ? ` • ${m.sent_count}/${m.total_recipients} enviados${m.failed_count > 0 ? ` • ${m.failed_count} falha(s)` : ''}` : ''}
                       </p>
                     </div>
                     <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.cls}`}>

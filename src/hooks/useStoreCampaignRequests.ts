@@ -30,14 +30,24 @@ export interface StoreCampaignRequest {
 // Status que indicam uma solicitação "em andamento" para um anúncio (bloqueia novo pedido p/ o mesmo anúncio).
 const OPEN_STATUSES: StoreCampaignStatus[] = ['pending_review', 'approved', 'preparing', 'queued', 'sending'];
 
+export interface StoreCampaignMetrics {
+  campaign_status: string;
+  total_recipients: number;
+  sent_count: number;
+  failed_count: number;
+  last_sent_at: string | null;
+}
+
 export const useStoreCampaignRequests = () => {
   const { user } = useAuth();
   const [requests, setRequests] = useState<StoreCampaignRequest[]>([]);
+  const [metricsByRequest, setMetricsByRequest] = useState<Record<string, StoreCampaignMetrics>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     if (!user?.id) {
       setRequests([]);
+      setMetricsByRequest({});
       setIsLoading(false);
       return;
     }
@@ -55,6 +65,26 @@ export const useStoreCampaignRequests = () => {
     } else {
       setRequests((data as StoreCampaignRequest[]) || []);
     }
+
+    // Métricas das campanhas vinculadas (escopadas ao dono via RPC).
+    const { data: metricsData, error: metricsError } = await supabase.rpc('get_my_store_campaign_metrics');
+    if (metricsError) {
+      appError('[StoreCampaign] Erro ao carregar métricas', metricsError);
+      setMetricsByRequest({});
+    } else {
+      const map: Record<string, StoreCampaignMetrics> = {};
+      (metricsData as Array<{ request_id: string } & StoreCampaignMetrics> | null)?.forEach((row) => {
+        map[row.request_id] = {
+          campaign_status: row.campaign_status,
+          total_recipients: row.total_recipients ?? 0,
+          sent_count: row.sent_count ?? 0,
+          failed_count: row.failed_count ?? 0,
+          last_sent_at: row.last_sent_at ?? null,
+        };
+      });
+      setMetricsByRequest(map);
+    }
+
     setIsLoading(false);
   }, [user?.id]);
 
@@ -88,5 +118,5 @@ export const useStoreCampaignRequests = () => {
     [refresh]
   );
 
-  return { requests, isLoading, refresh, openByAnnouncement, requestCampaign };
+  return { requests, metricsByRequest, isLoading, refresh, openByAnnouncement, requestCampaign };
 };
