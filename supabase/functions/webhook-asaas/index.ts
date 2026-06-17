@@ -1150,17 +1150,21 @@ serve(async (req) => {
       }
     }
 
+    // Crédito do booster: usa effectivePaymentId (id real resolvido) em vez de
+    // depender só do providerPaymentId do evento bruto. Assim, quando PAYMENT_*
+    // chega antes sem contexto e o CHECKOUT_PAID resolve a correlação depois
+    // (effectivePaymentId = apiResolvedRealPaymentId), o crédito ainda roda.
     if (
       itemType === 'booster' &&
       boosterId &&
       userId &&
-      providerPaymentId &&
+      effectivePaymentId &&
       shouldCreditBooster(paymentStatus, eventType)
     ) {
       const { data: existingBoosterPurchase } = await supabaseAdmin
         .from('user_highlight_booster_purchases')
         .select('id')
-        .eq('provider_payment_id', providerPaymentId)
+        .eq('provider_payment_id', effectivePaymentId)
         .limit(1)
         .maybeSingle();
 
@@ -1168,7 +1172,7 @@ serve(async (req) => {
         const { data: paymentRow } = await supabaseAdmin
           .from('payments')
           .select('id')
-          .eq('provider_payment_id', providerPaymentId)
+          .eq('provider_payment_id', effectivePaymentId)
           .limit(1)
           .maybeSingle();
 
@@ -1178,7 +1182,7 @@ serve(async (req) => {
             p_user_id: userId,
             p_booster_id: boosterId,
             p_payment_id: paymentRow?.id || null,
-            p_provider_payment_id: providerPaymentId,
+            p_provider_payment_id: effectivePaymentId,
             p_amount: amount,
           }
         );
