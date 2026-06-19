@@ -1,21 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 import { isAdminAal2Profile, logSecurityEvent } from '../_shared/security.ts';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://bwagro.vercel.app',  // VULN-002 fix: Allowlist
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      ...corsHeaders,
-      'Content-Type': 'application/json',
-    },
-  });
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 const deleteAnnouncementRelations = async (
   supabaseAdmin: ReturnType<typeof createClient>,
@@ -84,6 +70,13 @@ const deleteAnnouncementRelations = async (
 };
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

@@ -13,20 +13,7 @@ import {
   updateSourceStatus,
 } from '../_shared/marketQuotes.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://bwagro.vercel.app',  // VULN-002 fix: Allowlist
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-const jsonResponse = (body: Record<string, unknown>, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      ...corsHeaders,
-      'Content-Type': 'application/json',
-    },
-  });
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 type RequestBody = {
   sourceId?: string;
@@ -85,6 +72,13 @@ const resolveSource = async (
 };
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

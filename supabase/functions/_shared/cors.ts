@@ -10,6 +10,10 @@
 
 /** Origens permitidas para chamadas do frontend */
 const ALLOWED_BROWSER_ORIGINS: readonly string[] = [
+  // Domínio oficial de produção (novo)
+  'https://agrobw.com.br',
+  'https://www.agrobw.com.br',
+  // Compatibilidade temporária durante a migração (domínios antigos)
   'https://bwagro.vercel.app',
   'https://bwagro.com.br',
   'https://www.bwagro.com.br',

@@ -33,3 +33,4 @@ backup*
 02_schema.sql
 03_data.sql
 *_data.sql
+.vercel
