@@ -16,7 +16,6 @@ const LoginView: React.FC = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [rememberDevice, setRememberDevice] = useState(() => getRememberDevicePreference());
   const [errors, setErrors] = useState({ email: '', password: '' });
-  const [adminHint, setAdminHint] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [suspendedModal, setSuspendedModal] = useState<{
@@ -52,12 +51,6 @@ const LoginView: React.FC = () => {
         newErrors.email = 'Formato de e-mail inválido';
       }
 
-      if (formData.email === 'admin@bwagro.com' || formData.email === 'admin@bwagro.com.br') {
-        setAdminHint(true);
-      } else {
-        setAdminHint(false);
-      }
-
       if (!recoveryMode && formData.password && formData.password.length < 6) {
         newErrors.password = 'A senha deve ter no mínimo 6 caracteres';
       }
@@ -71,11 +64,6 @@ const LoginView: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (errors.email || errors.password || !formData.email || !formData.password) return;
-
-    if (formData.email === 'admin@bwagro.com' || formData.email === 'admin@bwagro.com.br') {
-      navigate('/admin/login');
-      return;
-    }
 
     setLoading(true);
     const { error } = await signIn(formData.email, formData.password, rememberDevice);
@@ -212,23 +200,6 @@ const LoginView: React.FC = () => {
                   placeholder="exemplo@agro.com.br"
                 />
                 {errors.email && <p className="text-[10px] text-red-500 font-bold mt-1.5 ml-1 uppercase">{errors.email}</p>}
-                {adminHint && (
-                  <div
-                    className="mt-2 p-3 rounded-xl"
-                    style={{
-                      backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 8%, white)`,
-                      border: `1px solid color-mix(in srgb, ${settings.primaryColor} 18%, white)`,
-                    }}
-                  >
-                    <p className="text-[10px] font-bold leading-tight" style={{ color: settings.primaryColor }}>
-                      Este e-mail pertence à administração. Por favor, use o{' '}
-                      <Link to="/admin/login" className="underline font-black">
-                        Portal Admin
-                      </Link>
-                      .
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
 
