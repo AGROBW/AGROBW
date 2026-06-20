@@ -19,6 +19,24 @@ const safeHttpUrl = (value: unknown) => {
   return /^https?:\/\//i.test(s) ? s : '';
 };
 
+const getEmailSafeImageUrl = (...candidates: unknown[]) => {
+  for (const candidate of candidates) {
+    const value = safeHttpUrl(candidate);
+    if (!value) continue;
+
+    try {
+      const parsed = new URL(value);
+      const pathname = parsed.pathname.toLowerCase();
+      if (pathname.endsWith('.webp') || pathname.endsWith('.svg')) continue;
+      return parsed.toString();
+    } catch {
+      continue;
+    }
+  }
+
+  return '';
+};
+
 const buildCampaignTemplate = (snap: Record<string, any>) => {
   const title = escapeHtml(snap?.title || 'Anúncio');
   const price = Number(snap?.price);
@@ -27,9 +45,16 @@ const buildCampaignTemplate = (snap: Record<string, any>) => {
     : '';
   const location = escapeHtml([snap?.city, snap?.state].filter(Boolean).join(', '));
   const link = escapeHtml(safeHttpUrl(snap?.detail_path ? buildAbsoluteSiteUrl(snap.detail_path) : buildAbsoluteSiteUrl('/')) || buildAbsoluteSiteUrl('/'));
-  const image = escapeHtml(safeHttpUrl(snap?.image_url));
+  const image = escapeHtml(getEmailSafeImageUrl(snap?.image_url));
   return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#0f172a">
-  ${image ? `<img src="${image}" alt="${title}" style="width:100%;border-radius:12px"/>` : ''}
+  ${
+    image
+      ? `<img src="${image}" alt="${title}" style="width:100%;border-radius:12px"/>`
+      : `<div style="padding:28px 24px;border-radius:12px;background:linear-gradient(135deg,#f8fafc 0%,#eef6f1 100%);border:1px solid #dbe5f0;text-align:center">
+  <p style="margin:0;font-size:12px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:#64748b">Loja Parceira</p>
+  <p style="margin:10px 0 0;font-size:18px;line-height:1.4;font-weight:800;color:#0f172a">${title}</p>
+</div>`
+  }
   <h2 style="margin:16px 0 8px">${title}</h2>
   ${priceLabel ? `<p style="font-size:20px;font-weight:bold;color:#16a34a;margin:0 0 4px">${priceLabel}</p>` : ''}
   ${location ? `<p style="color:#64748b;margin:0 0 16px">${location}</p>` : ''}

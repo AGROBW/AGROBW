@@ -330,6 +330,40 @@ const EMAIL_BRAND_LOGO_URL = process.env.EMAIL_BRAND_LOGO_URL || process.env.VIT
 const DEFAULT_EMAIL_BRAND = {
   siteName: 'AGRO BW',
   logoUrl: EMAIL_BRAND_LOGO_URL || '',
+  defaultAdImageUrl: '',
+};
+
+const EMAIL_UNSAFE_IMAGE_EXTENSIONS = new Set(['.svg', '.webp']);
+
+const getEmailSafeImageUrl = (...candidates) => {
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim();
+    if (!value) continue;
+
+    try {
+      const parsed = new URL(value);
+      if (!['http:', 'https:'].includes(parsed.protocol)) continue;
+
+      const pathname = parsed.pathname.toLowerCase();
+      if ([...EMAIL_UNSAFE_IMAGE_EXTENSIONS].some((ext) => pathname.endsWith(ext))) continue;
+
+      return parsed.toString();
+    } catch {
+      continue;
+    }
+  }
+
+  return '';
+};
+
+const normalizeEmailHtmlImages = (html, fallbackImageUrl = '') => {
+  const safeFallback = getEmailSafeImageUrl(fallbackImageUrl);
+
+  return String(html || '').replace(/<img\b([^>]*)src=(["'])(.*?)\2([^>]*)>/gi, (_match, before, quote, src, after) => {
+    const safeSrc = getEmailSafeImageUrl(src) || safeFallback;
+    if (!safeSrc) return '';
+    return `<img${before}src=${quote}${escapeHtml(safeSrc)}${quote}${after}>`;
+  });
 };
 
 const escapeHtml = (value) =>
@@ -356,7 +390,7 @@ const renderEmailShell = ({
   );
   const safeSiteUrl = APP_URL.replace(/\/$/, '');
   const brandName = branding?.siteName || DEFAULT_EMAIL_BRAND.siteName;
-  const brandLogoUrl = branding?.logoUrl || DEFAULT_EMAIL_BRAND.logoUrl;
+  const brandLogoUrl = getEmailSafeImageUrl(branding?.logoUrl, DEFAULT_EMAIL_BRAND.logoUrl);
   const brandLogo = brandLogoUrl
     ? `<img src="${escapeHtml(brandLogoUrl)}" alt="${escapeHtml(brandName)}" style="display:block;max-width:180px;max-height:46px;">`
     : `<div style="display:inline-block;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.14);font-size:15px;font-weight:800;letter-spacing:0.24em;text-transform:uppercase;color:#ffffff;">${escapeHtml(brandName)}</div>`;
@@ -574,7 +608,7 @@ export const getNewsletterCampaignTemplate = (params) => ({
       </div>
       <div style="margin:0 0 24px;border:1px solid #dbe5f0;border-radius:24px;background:#ffffff;overflow:hidden;">
         <div style="padding:0;">
-          ${params.htmlContent || ''}
+          ${normalizeEmailHtmlImages(params.htmlContent || '', params.branding?.defaultAdImageUrl || '')}
         </div>
       </div>
     `,
@@ -584,7 +618,7 @@ export const getNewsletterCampaignTemplate = (params) => ({
 const loadEmailBranding = async () => {
   const { data, error } = await supabaseAdmin
     .from('layout_settings')
-    .select('site_name, logo_url')
+    .select('site_name, logo_url, logo_light_url, default_ad_image_url')
     .limit(1)
     .maybeSingle();
 
@@ -594,7 +628,8 @@ const loadEmailBranding = async () => {
 
   return {
     siteName: data.site_name || DEFAULT_EMAIL_BRAND.siteName,
-    logoUrl: data.logo_url || DEFAULT_EMAIL_BRAND.logoUrl,
+    logoUrl: getEmailSafeImageUrl(data.logo_light_url, data.logo_url, DEFAULT_EMAIL_BRAND.logoUrl),
+    defaultAdImageUrl: getEmailSafeImageUrl(data.default_ad_image_url),
   };
 };
 
@@ -1133,4 +1168,3 @@ export const processAllQueues = async (limit = 25, triggeredBy = 'admin') => {
 
   return { contact, planAlert, radar, newsletterCampaign, smtpValidationError };
 };
-
