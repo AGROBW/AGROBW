@@ -90,20 +90,20 @@ const buildCampaignTemplate = (snap: Record<string, any>, emailImageUrl?: string
   const link = escapeHtml(safeHttpUrl(snap?.detail_path ? buildAbsoluteSiteUrl(snap.detail_path) : buildAbsoluteSiteUrl('/')) || buildAbsoluteSiteUrl('/'));
   // Prioridade: derivada JPEG (email_image_url) -> imagem original SE jpg/png -> fallback textual.
   const image = escapeHtml(safeHttpUrl(emailImageUrl) || getEmailSafeImageUrl(snap?.image_url));
-  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#0f172a">
+  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#0f172a;background:#ffffff;border:1px solid #e8edf3;border-radius:16px;padding:28px">
   ${
     image
-      ? `<img src="${image}" alt="${title}" style="width:100%;border-radius:12px"/>`
-      : `<div style="padding:28px 24px;border-radius:12px;background:linear-gradient(135deg,#f8fafc 0%,#eef6f1 100%);border:1px solid #dbe5f0;text-align:center">
+      ? `<img src="${image}" alt="${title}" style="width:100%;border-radius:12px;margin:0 0 24px;display:block"/>`
+      : `<div style="padding:28px 24px;border-radius:12px;background:linear-gradient(135deg,#f8fafc 0%,#eef6f1 100%);border:1px solid #dbe5f0;text-align:center;margin:0 0 24px">
   <p style="margin:0;font-size:12px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:#64748b">Loja Parceira</p>
   <p style="margin:10px 0 0;font-size:18px;line-height:1.4;font-weight:800;color:#0f172a">${title}</p>
 </div>`
   }
-  <h2 style="margin:16px 0 8px">${title}</h2>
-  ${priceLabel ? `<p style="font-size:20px;font-weight:bold;color:#16a34a;margin:0 0 4px">${priceLabel}</p>` : ''}
-  ${location ? `<p style="color:#64748b;margin:0 0 16px">${location}</p>` : ''}
+  <h2 style="margin:0 0 10px">${title}</h2>
+  ${priceLabel ? `<p style="font-size:20px;font-weight:bold;color:#16a34a;margin:0 0 6px">${priceLabel}</p>` : ''}
+  ${location ? `<p style="color:#64748b;margin:0 0 20px">${location}</p>` : ''}
   <a href="${link}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:bold">Ver anúncio</a>
-  <p style="margin:24px 0 0;font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:16px">
+  <p style="margin:32px 0 0;font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:20px">
     Você recebe este e-mail por ter consentido em receber divulgações de anúncios e campanhas selecionadas.
     <a href="{{unsubscribe_url}}" style="color:#64748b">Não quero mais receber estas divulgações</a>.
   </p>

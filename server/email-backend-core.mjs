@@ -392,39 +392,60 @@ const renderEmailShell = ({
   const brandName = branding?.siteName || DEFAULT_EMAIL_BRAND.siteName;
   const brandLogoUrl = getEmailSafeImageUrl(branding?.logoUrl, DEFAULT_EMAIL_BRAND.logoUrl);
   const brandLogo = brandLogoUrl
-    ? `<img src="${escapeHtml(brandLogoUrl)}" alt="${escapeHtml(brandName)}" style="display:block;max-width:180px;max-height:46px;">`
-    : `<div style="display:inline-block;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.14);font-size:15px;font-weight:800;letter-spacing:0.24em;text-transform:uppercase;color:#ffffff;">${escapeHtml(brandName)}</div>`;
+    ? `<img src="${escapeHtml(brandLogoUrl)}" alt="${escapeHtml(brandName)}" border="0" style="display:block;border:0;max-width:180px;max-height:46px;">`
+    : `<span style="display:inline-block;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.14);font-size:15px;font-weight:800;letter-spacing:0.24em;text-transform:uppercase;color:#ffffff;">${escapeHtml(brandName)}</span>`;
 
-  return `
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-      <body style="margin:0;padding:24px;background:#eef3f8;font-family:Arial,sans-serif;color:#0f172a;">
-        <div style="max-width:680px;margin:0 auto;">
-          <div style="background:linear-gradient(135deg,#0f172a 0%,#16233b 58%,#13351f 100%);border-radius:26px 26px 0 0;padding:28px 32px 30px;color:#ffffff;">
+  // Estrutura table-based (compatível com Outlook/Word engine):
+  // - largura fixa centralizada (sem depender de max-width em div)
+  // - header com bgcolor sólido (gradiente vira "progressive enhancement")
+  // - espaçamento por padding de <td> (sem depender de margin de container)
+  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html lang="pt-BR" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<!--[if mso]>
+<style>table,td,div,p,a,h1{font-family:Arial,Helvetica,sans-serif !important;} table{border-collapse:collapse !important;}</style>
+<![endif]-->
+<title>${safeTitle}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#eef3f8" style="background:#eef3f8;">
+  <tr>
+    <td align="center" style="padding:24px;">
+      <table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0" align="center" style="width:100%;max-width:680px;">
+        <tr>
+          <td bgcolor="#0f172a" style="background-color:#0f172a;background:linear-gradient(135deg,#0f172a 0%,#16233b 58%,#13351f 100%);border-radius:26px 26px 0 0;padding:28px 32px 30px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">
             <div style="margin-bottom:20px;">${brandLogo}</div>
-            <h1 style="margin:0 0 10px;font-size:28px;line-height:1.18;font-weight:800;color:#ffffff;">${safeTitle}</h1>
+            <h1 style="margin:0 0 10px;font-size:28px;line-height:1.18;font-weight:800;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${safeTitle}</h1>
             ${
               safeSubtitle
-                ? `<p style="margin:0;max-width:500px;font-size:14px;line-height:1.75;color:rgba(226,232,240,0.92);">${safeSubtitle}</p>`
+                ? `<p style="margin:0;font-size:14px;line-height:1.7;color:#e2e8f0;font-family:Arial,Helvetica,sans-serif;">${safeSubtitle}</p>`
                 : ''
             }
-          </div>
-          <div style="background:#ffffff;border:1px solid #dbe5f0;border-top:0;border-radius:0 0 26px 26px;overflow:hidden;box-shadow:0 24px 60px rgba(15,23,42,0.08);">
-            <div style="padding:32px;">
-              <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#0f172a;">Olá, <strong>${safeRecipientName}</strong>.</p>
-              ${bodyHtml}
-            </div>
-            <div style="padding:20px 32px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;">
-              <p style="margin:0 0 10px;font-size:12px;line-height:1.7;color:#64748b;">${safeFooterNote}</p>
-              <p style="margin:0;font-size:12px;line-height:1.7;color:#94a3b8;">
-                ${escapeHtml(brandName)} · <a href="${safeSiteUrl}" style="color:#16a34a;text-decoration:none;font-weight:700;">${safeSiteUrl.replace(/^https?:\/\//, '')}</a>
-              </p>
-            </div>
-          </div>
-        </div>
-      </body>
-    </html>
-  `.trim();
+          </td>
+        </tr>
+        <tr>
+          <td bgcolor="#ffffff" style="background:#ffffff;border:1px solid #dbe5f0;border-top:0;padding:32px;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+            <p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#0f172a;">Olá, <strong>${safeRecipientName}</strong>.</p>
+            ${bodyHtml}
+          </td>
+        </tr>
+        <tr>
+          <td bgcolor="#f8fafc" style="background:#f8fafc;border:1px solid #e2e8f0;border-top:0;border-radius:0 0 26px 26px;padding:20px 32px 28px;font-family:Arial,Helvetica,sans-serif;">
+            <p style="margin:0 0 10px;font-size:12px;line-height:1.7;color:#64748b;">${safeFooterNote}</p>
+            <p style="margin:0;font-size:12px;line-height:1.7;color:#94a3b8;">
+              ${escapeHtml(brandName)} · <a href="${safeSiteUrl}" style="color:#16a34a;text-decoration:none;font-weight:700;">${safeSiteUrl.replace(/^https?:\/\//, '')}</a>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`.trim();
 };
 
 const renderPrimaryButton = (href, label) => {
