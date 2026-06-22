@@ -392,7 +392,7 @@ const renderEmailShell = ({
   const brandName = branding?.siteName || DEFAULT_EMAIL_BRAND.siteName;
   const brandLogoUrl = getEmailSafeImageUrl(branding?.logoUrl, DEFAULT_EMAIL_BRAND.logoUrl);
   const brandLogo = brandLogoUrl
-    ? `<img src="${escapeHtml(brandLogoUrl)}" alt="${escapeHtml(brandName)}" border="0" style="display:block;border:0;max-width:180px;max-height:46px;">`
+    ? `<img src="${escapeHtml(brandLogoUrl)}" alt="${escapeHtml(brandName)}" width="150" border="0" style="display:block;border:0;width:150px;max-width:150px;height:auto;">`
     : `<span style="display:inline-block;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.14);font-size:15px;font-weight:800;letter-spacing:0.24em;text-transform:uppercase;color:#ffffff;">${escapeHtml(brandName)}</span>`;
 
   // Estrutura table-based (compatível com Outlook/Word engine):
@@ -406,7 +406,8 @@ const renderEmailShell = ({
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 <!--[if mso]>
-<style>table,td,div,p,a,h1{font-family:Arial,Helvetica,sans-serif !important;} table{border-collapse:collapse !important;}</style>
+<xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
+<style>table,td,div,p,a,h1{font-family:Arial,Helvetica,sans-serif !important;} table{border-collapse:collapse !important;} h1{font-size:24px !important;line-height:28px !important;}</style>
 <![endif]-->
 <title>${safeTitle}</title>
 </head>
