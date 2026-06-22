@@ -37,7 +37,50 @@ const getEmailSafeImageUrl = (...candidates: unknown[]) => {
   return '';
 };
 
-const buildCampaignTemplate = (snap: Record<string, any>) => {
+// Converte a imagem do anúncio (geralmente .webp) para JPEG compatível com e-mail,
+// faz upload da derivada num bucket público e retorna a URL pública.
+// Determinístico (canvas exporta JPEG) e sem depender de transformação paga do Supabase.
+// Falha silenciosa -> retorna null (template cai na imagem original jpg/png ou no fallback textual).
+const toEmailJpegUrl = async (originalUrl?: string | null): Promise<string | null> => {
+  const src = safeHttpUrl(originalUrl);
+  if (!src || typeof document === 'undefined') return null;
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = src;
+    await img.decode();
+
+    const maxW = 1200;
+    const scale = img.naturalWidth > maxW ? maxW / img.naturalWidth : 1;
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.fillStyle = '#ffffff'; // JPEG não tem alpha — fundo branco
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+    if (!blob) return null;
+
+    const path = `campaign-images/${crypto.randomUUID()}.jpg`;
+    const { error } = await supabase.storage
+      .from('layout_assets')
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (error) return null;
+
+    const { data } = supabase.storage.from('layout_assets').getPublicUrl(path);
+    return data?.publicUrl || null;
+  } catch {
+    return null;
+  }
+};
+
+const buildCampaignTemplate = (snap: Record<string, any>, emailImageUrl?: string | null) => {
   const title = escapeHtml(snap?.title || 'Anúncio');
   const price = Number(snap?.price);
   const priceLabel = Number.isFinite(price)
@@ -45,7 +88,8 @@ const buildCampaignTemplate = (snap: Record<string, any>) => {
     : '';
   const location = escapeHtml([snap?.city, snap?.state].filter(Boolean).join(', '));
   const link = escapeHtml(safeHttpUrl(snap?.detail_path ? buildAbsoluteSiteUrl(snap.detail_path) : buildAbsoluteSiteUrl('/')) || buildAbsoluteSiteUrl('/'));
-  const image = escapeHtml(getEmailSafeImageUrl(snap?.image_url));
+  // Prioridade: derivada JPEG (email_image_url) -> imagem original SE jpg/png -> fallback textual.
+  const image = escapeHtml(safeHttpUrl(emailImageUrl) || getEmailSafeImageUrl(snap?.image_url));
   return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#0f172a">
   ${
     image
@@ -113,6 +157,7 @@ const StoreCampaignRequestsManagement: React.FC = () => {
   const [prepSubject, setPrepSubject] = useState('');
   const [prepPreview, setPrepPreview] = useState('');
   const [prepHtml, setPrepHtml] = useState('');
+  const [prepImageLoading, setPrepImageLoading] = useState(false);
 
   const load = async () => {
     setIsLoading(true);
@@ -173,12 +218,24 @@ const StoreCampaignRequestsManagement: React.FC = () => {
     }
   };
 
-  const openPrepare = (req: CampaignRequestRow) => {
+  const openPrepare = async (req: CampaignRequestRow) => {
     const snap = req.announcement_snapshot || {};
     setPrepareTarget(req);
     setPrepSubject(req.requested_subject || `Oportunidade: ${snap.title || 'anúncio'}`);
     setPrepPreview('');
-    setPrepHtml(buildCampaignTemplate(snap));
+    setPrepHtml('');
+
+    // Se a imagem original já for compatível com e-mail (jpg/jpeg/png), usa direto —
+    // sem reencodar nem subir derivada. Só converte quando NÃO for compatível (ex.: webp).
+    const originalIsEmailSafe = !!getEmailSafeImageUrl(snap.image_url);
+    let emailImg: string | null = null;
+    if (!originalIsEmailSafe && safeHttpUrl(snap.image_url)) {
+      setPrepImageLoading(true);
+      emailImg = await toEmailJpegUrl(snap.image_url);
+      setPrepImageLoading(false);
+    }
+
+    setPrepHtml(buildCampaignTemplate(snap, emailImg || undefined));
   };
 
   const handlePrepare = async () => {
@@ -448,6 +505,11 @@ const StoreCampaignRequestsManagement: React.FC = () => {
             />
 
             <label className="mt-3 block text-sm font-semibold text-slate-700">Conteúdo (HTML)</label>
+            {prepImageLoading ? (
+              <p className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Gerando imagem compatível com e-mail (JPEG)…
+              </p>
+            ) : null}
             <textarea
               value={prepHtml}
               rows={10}
@@ -464,7 +526,7 @@ const StoreCampaignRequestsManagement: React.FC = () => {
               </button>
               <button
                 onClick={handlePrepare}
-                disabled={actingId === prepareTarget.id}
+                disabled={actingId === prepareTarget.id || prepImageLoading}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-4 py-2 text-sm font-bold text-white hover:bg-sky-700 disabled:opacity-50"
               >
                 {actingId === prepareTarget.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Salvar campanha (rascunho)
