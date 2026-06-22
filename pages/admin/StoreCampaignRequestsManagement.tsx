@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Megaphone, Loader2, Check, X, MapPin, Tag, Clock3 } from 'lucide-react';
+import { Megaphone, Loader2, Check, X, MapPin, Tag, Clock3, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../src/lib/supabaseClient';
 import { buildAbsoluteSiteUrl } from '../../src/lib/siteConfig';
@@ -158,34 +158,42 @@ const StoreCampaignRequestsManagement: React.FC = () => {
   const [prepPreview, setPrepPreview] = useState('');
   const [prepHtml, setPrepHtml] = useState('');
   const [prepImageLoading, setPrepImageLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const load = async () => {
-    setIsLoading(true);
-    const { data, error } = await supabase
-      .from('seller_store_campaign_requests')
-      .select('id, user_id, announcement_id, announcement_snapshot, requested_subject, requested_message, status, rejection_reason, admin_notes, campaign_id, created_at, reviewed_at')
-      .order('created_at', { ascending: false });
+  // silent=true -> refresh manual (não pisca a lista, só o spinner do botão).
+  const load = async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (silent) setIsRefreshing(true);
+    else setIsLoading(true);
 
-    if (error) {
-      toast.error('Erro ao carregar solicitações.');
-      setRequests([]);
-      setIsLoading(false);
-      return;
+    try {
+      const { data, error } = await supabase
+        .from('seller_store_campaign_requests')
+        .select('id, user_id, announcement_id, announcement_snapshot, requested_subject, requested_message, status, rejection_reason, admin_notes, campaign_id, created_at, reviewed_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        toast.error('Erro ao carregar solicitações.');
+        if (!silent) setRequests([]);
+        return;
+      }
+
+      const rows = (data as CampaignRequestRow[]) || [];
+      setRequests(rows);
+
+      const ids = Array.from(new Set(rows.map((r) => r.user_id)));
+      if (ids.length > 0) {
+        const { data: users } = await supabase.from('users').select('id, name, email').in('id', ids);
+        const map: Record<string, { name: string | null; email: string | null }> = {};
+        (users || []).forEach((u: any) => {
+          map[u.id] = { name: u.name, email: u.email };
+        });
+        setRequesters(map);
+      }
+    } finally {
+      if (silent) setIsRefreshing(false);
+      else setIsLoading(false);
     }
-
-    const rows = (data as CampaignRequestRow[]) || [];
-    setRequests(rows);
-
-    const ids = Array.from(new Set(rows.map((r) => r.user_id)));
-    if (ids.length > 0) {
-      const { data: users } = await supabase.from('users').select('id, name, email').in('id', ids);
-      const map: Record<string, { name: string | null; email: string | null }> = {};
-      (users || []).forEach((u: any) => {
-        map[u.id] = { name: u.name, email: u.email };
-      });
-      setRequesters(map);
-    }
-    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -314,14 +322,27 @@ const StoreCampaignRequestsManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Loja Parceira</p>
-        <h2 className="mt-2 flex items-center gap-2 text-2xl font-bold text-slate-900">
-          <Megaphone className="h-6 w-6 text-emerald-600" /> Campanhas de Loja Parceira
-        </h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-          Solicitações de campanha de e-mail vinculadas a anúncios. Revise e aprove/rejeite. A preparação e o disparo
-          (com filtro de consentimento) virão na próxima fase.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Loja Parceira</p>
+            <h2 className="mt-2 flex items-center gap-2 text-2xl font-bold text-slate-900">
+              <Megaphone className="h-6 w-6 text-emerald-600" /> Campanhas de Loja Parceira
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              Solicitações de campanha de e-mail vinculadas a anúncios. Revise e aprove/rejeite. A preparação e o disparo
+              (com filtro de consentimento) virão na próxima fase.
+            </p>
+          </div>
+          <button
+            onClick={() => load({ silent: true })}
+            disabled={isRefreshing || isLoading}
+            className="inline-flex flex-shrink-0 items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+            title="Atualizar lista"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Atualizar
+          </button>
+        </div>
       </section>
 
       <div className="flex items-center gap-2">

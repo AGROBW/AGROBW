@@ -36,6 +36,8 @@ export const fetchAdminNotificationItems = async (): Promise<AdminNotificationIt
       latestOpenSupportTicketResult,
       urgentSupportTicketsResult,
       latestUrgentSupportTicketResult,
+      pendingStoreCampaignsResult,
+      latestPendingStoreCampaignResult,
     ] = await Promise.all([
       supabase
         .from('announcements')
@@ -67,6 +69,8 @@ export const fetchAdminNotificationItems = async (): Promise<AdminNotificationIt
       supabase.from('support_tickets').select('last_message_at').in('status', ['open', 'in_progress']).order('last_message_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('support_tickets').select('id', { count: 'exact', head: true }).eq('priority', 'urgent').in('status', ['open', 'in_progress']),
       supabase.from('support_tickets').select('last_message_at').eq('priority', 'urgent').in('status', ['open', 'in_progress']).order('last_message_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('seller_store_campaign_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending_review'),
+      supabase.from('seller_store_campaign_requests').select('created_at').eq('status', 'pending_review').order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
 
     if (pendingAnnouncementsResult.error) {
@@ -167,6 +171,27 @@ export const fetchAdminNotificationItems = async (): Promise<AdminNotificationIt
         priority: 'high',
       });
     }
+
+    // Campanhas de Loja Parceira aguardando revisão (tabela pode não existir em ambientes antigos).
+    const pendingStoreCampaignsError = safeError(pendingStoreCampaignsResult.error);
+    if (pendingStoreCampaignsError && pendingStoreCampaignsError.code !== 'PGRST205') {
+      throw pendingStoreCampaignsResult.error;
+    }
+    const pendingStoreCampaignsCount =
+      pendingStoreCampaignsError?.code === 'PGRST205' ? 0 : pendingStoreCampaignsResult.count || 0;
+
+    if (pendingStoreCampaignsCount > 0) {
+      items.push({
+        id: 'pending-store-campaigns',
+        category: 'system',
+        title: `${pendingStoreCampaignsCount} campanha(s) de Loja Parceira aguardando revisao`,
+        content: 'Existem solicitacoes de campanha de e-mail aguardando aprovacao/rejeicao.',
+        link: '/admin/store-campaigns',
+        count: pendingStoreCampaignsCount,
+        timestamp: latestPendingStoreCampaignResult.data?.created_at || new Date().toISOString(),
+        priority: 'default',
+      });
+    }
   } catch (error) {
     console.error('[adminNotificationCenter] Erro ao carregar alertas do admin:', error);
   }
@@ -230,6 +255,15 @@ export const subscribeToAdminNotificationEvents = (onChange: () => void) => {
         event: '*',
         schema: 'public',
         table: 'support_tickets',
+      },
+      debouncedRefresh,
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'seller_store_campaign_requests',
       },
       debouncedRefresh,
     )
