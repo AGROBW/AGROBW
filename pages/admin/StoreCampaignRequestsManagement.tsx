@@ -93,7 +93,7 @@ const buildCampaignTemplate = (snap: Record<string, any>, emailImageUrl?: string
   return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#0f172a;background:#ffffff;border:1px solid #e8edf3;border-radius:16px;padding:28px">
   ${
     image
-      ? `<img src="${image}" alt="${title}" style="width:100%;border-radius:12px;margin:0 0 24px;display:block"/>`
+      ? `<img src="${image}" alt="${title}" width="556" border="0" style="display:block;border:0;width:100%;max-width:556px;height:auto;border-radius:12px;margin:0 0 24px"/>`
       : `<div style="padding:28px 24px;border-radius:12px;background:linear-gradient(135deg,#f8fafc 0%,#eef6f1 100%);border:1px solid #dbe5f0;text-align:center;margin:0 0 24px">
   <p style="margin:0;font-size:12px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:#64748b">Loja Parceira</p>
   <p style="margin:10px 0 0;font-size:18px;line-height:1.4;font-weight:800;color:#0f172a">${title}</p>
