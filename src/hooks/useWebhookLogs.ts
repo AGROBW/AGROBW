@@ -15,11 +15,18 @@ export interface WebhookLog {
   created_at: string;
 }
 
+export const WEBHOOK_LOGS_PAGE_SIZE = 10;
+
 interface UseWebhookLogsReturn {
   logs: WebhookLog[];
   isLoading: boolean;
   error: string | null;
-  fetchLogs: (limit?: number) => Promise<void>;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  fetchLogs: (targetPage?: number) => Promise<void>;
+  goToPage: (targetPage: number) => Promise<void>;
   deleteLogs: (olderThanDays?: number) => Promise<{ error: string | null; count: number }>;
 }
 
@@ -27,31 +34,57 @@ export const useWebhookLogs = (): UseWebhookLogsReturn => {
   const [logs, setLogs] = useState<WebhookLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1); // 1-based
+  const [total, setTotal] = useState(0);
 
-  const fetchLogs = async (limit = 50) => {
+  const pageSize = WEBHOOK_LOGS_PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const fetchLogs = async (targetPage: number = page) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
+      const safePage = Math.max(1, Math.floor(targetPage) || 1);
+      const from = (safePage - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      const { data, error: fetchError, count } = await supabase
         .from('webhook_logs')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('received_at', { ascending: false })
-        .limit(limit);
+        .range(from, to);
 
       if (fetchError) {
-        appError('Erro ao buscar logs', fetchError, { limit });
+        // Range fora do conjunto (ex.: página atual esvaziou após "Limpar antigos"):
+        // recalcula a última página válida e refaz a busca.
+        if (fetchError.code === 'PGRST103' && safePage > 1) {
+          const { count: freshTotal } = await supabase
+            .from('webhook_logs')
+            .select('id', { count: 'exact', head: true });
+          const lastPage = Math.max(1, Math.ceil((freshTotal || 0) / pageSize));
+          setIsLoading(false);
+          await fetchLogs(lastPage);
+          return;
+        }
+        appError('Erro ao buscar logs', fetchError, { targetPage });
         setError(fetchError.message);
         return;
       }
 
       setLogs(data || []);
+      setTotal(count || 0);
+      setPage(safePage);
     } catch (err) {
-      appError('Erro inesperado ao buscar logs', err, { limit });
+      appError('Erro inesperado ao buscar logs', err, { targetPage });
       setError('Erro ao carregar logs');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const goToPage = async (targetPage: number) => {
+    await fetchLogs(targetPage);
   };
 
   const deleteLogs = async (olderThanDays = 30): Promise<{ error: string | null; count: number }> => {
@@ -70,7 +103,8 @@ export const useWebhookLogs = (): UseWebhookLogsReturn => {
         return { error: deleteError.message, count: 0 };
       }
 
-      await fetchLogs();
+      // Mantém a página atual; se ela ficou fora do range, o fetch ajusta p/ a última válida.
+      await fetchLogs(page);
 
       return { error: null, count: data?.length || 0 };
     } catch (err) {
@@ -80,14 +114,19 @@ export const useWebhookLogs = (): UseWebhookLogsReturn => {
   };
 
   useEffect(() => {
-    fetchLogs();
+    fetchLogs(1);
   }, []);
 
   return {
     logs,
     isLoading,
     error,
+    page,
+    pageSize,
+    total,
+    totalPages,
     fetchLogs,
+    goToPage,
     deleteLogs,
   };
 };

@@ -28,7 +28,12 @@ const IntegrationsManagement: React.FC = () => {
   const {
     logs,
     isLoading: logsLoading,
+    page: logsPage,
+    pageSize: logsPageSize,
+    total: logsTotal,
+    totalPages: logsTotalPages,
     fetchLogs,
+    goToPage: goToLogsPage,
     deleteLogs,
   } = useWebhookLogs();
 
@@ -437,6 +442,35 @@ const IntegrationsManagement: React.FC = () => {
               </article>
             ))
           )}
+
+          {!logsLoading && logsTotal > logsPageSize ? (
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row">
+              <p className="text-xs text-slate-500">
+                Mostrando {(logsPage - 1) * logsPageSize + 1}–{Math.min(logsPage * logsPageSize, logsTotal)} de {logsTotal} logs
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void goToLogsPage(logsPage - 1)}
+                  disabled={logsPage <= 1}
+                  className="inline-flex h-9 items-center rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Anterior
+                </button>
+                <span className="text-xs font-medium text-slate-500">
+                  Página {logsPage} de {logsTotalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void goToLogsPage(logsPage + 1)}
+                  disabled={logsPage >= logsTotalPages}
+                  className="inline-flex h-9 items-center rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Próxima
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 
