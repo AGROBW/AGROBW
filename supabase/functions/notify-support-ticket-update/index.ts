@@ -132,7 +132,7 @@ serve(async (req) => {
       return jsonResponse(req, { success: false, error: 'Usuário do ticket não encontrado' }, 404);
     }
 
-    const appUrl = Deno.env.get('APP_URL') || 'https://bwagro.com';
+    const appUrl = Deno.env.get('APP_URL') || 'https://agrobw.com.br';
     const helpLink = `${appUrl.replace(/\/$/, '')}/minha-conta/ajuda`;
     const smtpSettings = await loadSmtpSettings(supabaseAdmin);
     const smtpValidationError = validateSmtpSettings(smtpSettings);

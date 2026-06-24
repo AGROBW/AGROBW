@@ -429,7 +429,7 @@ serve(async (req) => {
 
     const smtpSettings = await loadSmtpSettings(supabaseAdmin);
     const smtpValidationError = validateSmtpSettings(smtpSettings);
-    const appUrl = Deno.env.get('APP_URL') || 'https://bwagro.com.br';
+    const appUrl = Deno.env.get('APP_URL') || 'https://agrobw.com.br';
     const siteName = smtpSettings?.from_name || 'AGRO BW';
 
     let processedCount = 0;

@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import crypto from 'node:crypto';
 
-export const APP_URL = process.env.APP_URL || process.env.VITE_APP_URL || 'https://bwagro.com.br';
+export const APP_URL = process.env.APP_URL || process.env.VITE_APP_URL || 'https://agrobw.com.br';
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

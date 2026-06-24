@@ -7,7 +7,7 @@ const projectRoot = process.cwd();
 const publicDir = path.join(projectRoot, 'public');
 const sitemapPath = path.join(publicDir, 'sitemap.xml');
 
-const siteUrl = (process.env.APP_URL || process.env.VITE_APP_URL || 'https://bwagro.com.br').replace(/\/+$/, '');
+const siteUrl = (process.env.APP_URL || process.env.VITE_APP_URL || 'https://agrobw.com.br').replace(/\/+$/, '');
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||

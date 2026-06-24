@@ -122,7 +122,7 @@ const resolveSiteUrl = (req: Request) => {
     return configuredSiteUrl as string;
   }
 
-  return 'https://bwagro.com.br';
+  return 'https://agrobw.com.br';
 };
 
 const resolveAsaasApiBase = (isProduction: boolean) =>

@@ -177,7 +177,7 @@ serve(async (req) => {
       throw new Error(jobsError.message);
     }
 
-    const appUrl = Deno.env.get('APP_URL') || 'https://bwagro.com.br';
+    const appUrl = Deno.env.get('APP_URL') || 'https://agrobw.com.br';
     const smtpSettings = await loadSmtpSettings(supabaseAdmin);
     const smtpValidationError = validateSmtpSettings(smtpSettings);
     const siteName = smtpSettings?.from_name || 'AGRO BW';

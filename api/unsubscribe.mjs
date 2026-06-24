@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const UNSUBSCRIBE_SECRET = process.env.UNSUBSCRIBE_SECRET || '';
-const APP_URL = (process.env.APP_URL || process.env.VITE_APP_URL || 'https://bwagro.com.br').replace(/\/$/, '');
+const APP_URL = (process.env.APP_URL || process.env.VITE_APP_URL || 'https://agrobw.com.br').replace(/\/$/, '');
 
 const ALLOWED_CONSENT_TYPES = new Set(['marketing_opt_in', 'marketing_thirdparty_opt_in']);
 
