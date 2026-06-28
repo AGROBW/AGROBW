@@ -179,6 +179,7 @@ const AppContent: React.FC = () => {
   const { user } = useAuth();
   const isAdminPath = location.pathname.startsWith('/admin');
   const isUserAreaPath = location.pathname.startsWith('/minha-conta');
+  const isResetPasswordPath = location.pathname === '/redefinir-senha';
 
   useSiteAnalyticsTracking({
     pathname: location.pathname,
@@ -190,7 +191,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col font-sans antialiased text-slate-900">
-      {!isAdminPath && <Header />}
+      {!isAdminPath && !isResetPasswordPath && <Header />}
       
       <main className="flex-grow">
         <RouteErrorBoundary resetKey={location.pathname}>
@@ -317,7 +318,7 @@ const AppContent: React.FC = () => {
         </RouteErrorBoundary>
       </main>
 
-      {!isAdminPath && !isUserAreaPath && <Footer />}
+      {!isAdminPath && !isUserAreaPath && !isResetPasswordPath && <Footer />}
       {!isAdminPath && !isUserAreaPath && <SitePopupCampaignGate />}
       {!isAdminPath && <LegalConsentReacceptGate />}
       {!isAdminPath && <MarketingConsentPrompt />}

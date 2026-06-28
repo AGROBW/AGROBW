@@ -86,7 +86,9 @@ const ResetPasswordView: React.FC = () => {
     setLoading(false);
     setRedirecting(true);
     setTimeout(() => {
-      navigate('/login', { replace: true });
+      void supabase.auth.signOut().finally(() => {
+        navigate('/login', { replace: true });
+      });
     }, 3000);
   };
 
@@ -101,10 +103,18 @@ const ResetPasswordView: React.FC = () => {
       <div className="w-full max-w-md bg-white border border-slate-100 rounded-2xl p-8 shadow-xl" style={{ boxShadow: `0 24px 60px -40px ${settings.primaryColor}80` }}>
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2 mb-6 group">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md" style={{ backgroundColor: settings.primaryColor }}>
-              <span className="text-white text-2xl font-black">T</span>
-            </div>
-            <span className="text-xl font-black text-slate-800">{settings.siteName}</span>
+            {settings.logoUrl ? (
+              <img src={settings.logoUrl} alt={settings.siteName} className="h-12 w-auto max-w-[220px] object-contain" />
+            ) : (
+              <>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md" style={{ backgroundColor: settings.primaryColor }}>
+                  <span className="text-white text-2xl font-black">
+                    {(settings.siteShortName || settings.siteName || 'A').charAt(0)}
+                  </span>
+                </div>
+                <span className="text-xl font-black text-slate-800">{settings.siteName}</span>
+              </>
+            )}
           </Link>
           <h1 className="text-2xl font-black text-slate-900 font-display">Redefinir Senha</h1>
           <p className="text-slate-500 mt-2 font-medium">Crie uma nova senha para acessar sua conta.</p>
