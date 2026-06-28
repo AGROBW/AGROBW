@@ -1229,9 +1229,7 @@ const AdCreationView: React.FC = () => {
       localStorage.setItem('bwagro_ad_draft_id', newId);
       debugLog('[AdCreation] Rascunho criado com sucesso:', newId);
       // R3: contato do vendedor vai para tabela privada (RLS dono/admin)
-      await supabase
-        .from('announcement_contacts')
-        .upsert({ announcement_id: newId, whatsapp: user?.whatsapp || user?.phone || null }, { onConflict: 'announcement_id' });
+      await syncAnnouncementContact(newId, user?.whatsapp || user?.phone || null);
     }
     
     // Liberar bloqueio
@@ -1239,11 +1237,58 @@ const AdCreationView: React.FC = () => {
     return newId;
   };
 
+  const syncAnnouncementContact = async (announcementId: string, whatsapp: string | null) => {
+    const normalizedWhatsapp = typeof whatsapp === 'string' ? (whatsapp.trim() || null) : null;
+    const payload = { whatsapp: normalizedWhatsapp };
+
+    const { data: updatedRows, error: updateError } = await supabase
+      .from('announcement_contacts')
+      .update(payload)
+      .eq('announcement_id', announcementId)
+      .select('announcement_id');
+
+    if (updateError) {
+      appError('[Ads] Erro ao atualizar contato privado do anúncio', updateError, { announcementId });
+      return;
+    }
+
+    if ((updatedRows?.length || 0) > 0) {
+      return;
+    }
+
+    const { error: insertError } = await supabase
+      .from('announcement_contacts')
+      .insert({ announcement_id: announcementId, whatsapp: normalizedWhatsapp });
+
+    if (!insertError) {
+      return;
+    }
+
+    const isConflict =
+      insertError.code === '23505'
+      || insertError.code === '409'
+      || /conflict|duplicate/i.test(insertError.message || '');
+
+    if (!isConflict) {
+      appError('[Ads] Erro ao inserir contato privado do anúncio', insertError, { announcementId });
+      return;
+    }
+
+    const { error: retryUpdateError } = await supabase
+      .from('announcement_contacts')
+      .update(payload)
+      .eq('announcement_id', announcementId);
+
+    if (retryUpdateError) {
+      appError('[Ads] Erro ao reconciliar conflito do contato privado do anúncio', retryUpdateError, { announcementId });
+    }
+  };
+
   const compressImage = async (file: File) => {
     const options = {
       maxSizeMB: 1,
       maxWidthOrHeight: 1200,
-      useWebWorker: true,
+      useWebWorker: false,
       initialQuality: 0.8,
       fileType: 'image/webp'
     };
@@ -2059,9 +2104,7 @@ const AdCreationView: React.FC = () => {
         setDraftAdId(null);
         draftIdRef.current = null;
         // R3: contato do vendedor (não moderado) gravado direto na tabela privada
-        await supabase
-          .from('announcement_contacts')
-          .upsert({ announcement_id: editAdId, whatsapp: r3SellerWhatsapp }, { onConflict: 'announcement_id' });
+        await syncAnnouncementContact(editAdId, r3SellerWhatsapp);
         toast.success(
           effectiveModerationResult.reviewRequired && originalAnnouncementStatus === 'ACTIVE'
             ? 'Alterações enviadas para análise. O anúncio atual segue publicado até a revisão.'
@@ -2142,9 +2185,7 @@ const AdCreationView: React.FC = () => {
       const announcementId = data.id;
       debugLog('[AdCreation] Anúncio publicado com sucesso:', announcementId);
       // R3: contato do vendedor na tabela privada (RLS dono/admin)
-      await supabase
-        .from('announcement_contacts')
-        .upsert({ announcement_id: announcementId, whatsapp: r3SellerWhatsapp }, { onConflict: 'announcement_id' });
+      await syncAnnouncementContact(announcementId, r3SellerWhatsapp);
 
       if (cleanCep) {
         const geoUpdated = await updateAnnouncementCoordinates(
