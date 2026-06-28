@@ -1797,9 +1797,19 @@ const AdCreationView: React.FC = () => {
         return;
       }
 
+      // Validar título e descrição (obrigatórios) — alinhado com a constraint do banco
+      const titleTrimmed = (formData.title || '').trim();
+      const descriptionTrimmed = (formData.description || '').trim();
+      if (!titleTrimmed || !descriptionTrimmed) {
+        toast.error('Preencha título e descrição antes de publicar.', {
+          description: 'Ambos são obrigatórios para publicar o anúncio.',
+        });
+        return;
+      }
+
       const editablePayload = {
-        title: formData.title,
-        description: formData.description,
+        title: titleTrimmed,
+        description: descriptionTrimmed,
         price: Number.isNaN(numericPrice) ? 0 : numericPrice,
         unit_price: Number.isNaN(numericUnitPrice) ? 0 : numericUnitPrice,
         quantity: Number.isNaN(Number(formData.quantity)) ? 0 : Number(formData.quantity),
