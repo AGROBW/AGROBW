@@ -1069,7 +1069,7 @@ const SponsorLandingView: React.FC = () => {
                 <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400 mb-2">Fale com a equipe</p>
-                    <h2 className="text-3xl font-black text-slate-950">Reserve seu espaço</h2>
+                    <h2 className="text-3xl font-black text-slate-950">Destaque sua marca na Vitrine Premium</h2>
                     <p className="mt-3 text-sm leading-7 text-slate-500 max-w-md">
                       Preencha os dados e escolha como prefere ser contactado: WhatsApp para resposta imediata, ou e-mail para proposta formal.
                     </p>
@@ -1224,6 +1224,5 @@ const SponsorLandingView: React.FC = () => {
 };
 
 export default SponsorLandingView;
-
 
 

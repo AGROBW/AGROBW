@@ -11,6 +11,7 @@ import {
   hasPendingAdminMfaSession
 } from '../lib/adminMfa'
 import { clearForcedAdminAuthStorageMode, forceAdminMemoryAuthStorage, setRememberDevicePreference, supabase } from '../lib/supabaseClient'
+import { buildAbsoluteSiteUrl } from '../lib/siteConfig'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { isSupabaseUnauthorizedError, refreshSupabaseSession, startIdleSessionMonitor, stopIdleSessionMonitor } from '../lib/supabaseAuthGuard'
 import { User, UserRole } from '../../types'
@@ -722,8 +723,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }
 
   const sendPasswordResetEmail = async (email: string) => {
-    const baseUrl = (import.meta as any).env?.VITE_SITE_URL || window.location.origin
-    const redirectTo = `${String(baseUrl).replace(/\/$/, '')}/redefinir-senha`
+    const redirectTo = buildAbsoluteSiteUrl('/redefinir-senha')
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
     return { error }
   }

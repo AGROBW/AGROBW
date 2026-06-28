@@ -460,16 +460,18 @@ const renderPrimaryButton = (href, label) => {
 
 export const getContactTemplate = (params) => {
   const isLead = params.sourceKind === 'new_lead';
-  const title = isLead
-    ? `Novo lead no anúncio ${params.announcementTitle}`
-    : `Nova mensagem sobre ${params.announcementTitle}`;
   const linkHref = getLinkHref(params.link);
   const isPlanLocked = params.lockReason === 'lead_contact_expired';
   const isAnnouncementExpired = params.lockReason === 'announcement_expired';
+  const title = isPlanLocked
+    ? 'Novo interessado no seu anúncio'
+    : isLead
+      ? `Novo lead no anúncio ${params.announcementTitle}`
+      : `Nova mensagem sobre ${params.announcementTitle}`;
   const ctaLabel = isPlanLocked ? 'Ver meu plano' : isLead ? 'Ver lead' : 'Abrir conversa';
   const preview = isPlanLocked || isAnnouncementExpired ? null : params.messagePreview?.trim();
   const intro = isPlanLocked
-    ? 'Uma nova interação foi registrada, mas o acesso ao conteúdo completo deste lead está bloqueado pelas regras do seu plano atual.'
+    ? `Uma pessoa interessada em ${params.announcementTitle} enviou uma nova mensagem para você. Para visualizar o conteúdo completo da conversa e responder ao interessado, faça o upgrade do seu plano.`
     : isAnnouncementExpired
       ? 'Uma nova interação foi registrada, mas este anúncio já expirou e a conversa está congelada para novas ações.'
       : isLead
@@ -477,8 +479,10 @@ export const getContactTemplate = (params) => {
         : `${params.senderName} enviou uma nova mensagem para você na ${params.siteName}.`;
   const accentBlock = isPlanLocked
     ? `<div style="margin:0 0 24px;padding:18px 20px;border-radius:14px;background:#fff7ed;border:1px solid #fdba74;">
-         <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#c2410c;">Conteúdo protegido</p>
-         <p style="margin:0;font-size:14px;line-height:1.75;color:#9a3412;">Seu plano atual não permite visualizar os dados completos e o conteúdo desta conversa. Faça upgrade para desbloquear o lead e responder normalmente.</p>
+         <p style="margin:0 0 10px;font-size:15px;font-weight:800;line-height:1.5;color:#c2410c;">🔒 Você recebeu um novo interessado</p>
+         <p style="margin:0 0 6px;font-size:14px;line-height:1.75;color:#9a3412;">Uma pessoa demonstrou interesse no seu anúncio e aguarda sua resposta.</p>
+         <p style="margin:0 0 6px;font-size:14px;line-height:1.75;color:#9a3412;">Seu plano atual não permite visualizar os dados completos deste contato.</p>
+         <p style="margin:0;font-size:14px;line-height:1.75;color:#9a3412;">Desbloqueie agora e converse diretamente com o interessado para não perder esta oportunidade de venda.</p>
        </div>`
     : isAnnouncementExpired
       ? `<div style="margin:0 0 24px;padding:18px 20px;border-radius:14px;background:#fef2f2;border:1px solid #fecaca;">
@@ -492,9 +496,11 @@ export const getContactTemplate = (params) => {
     html: renderEmailShell({
       eyebrow: isLead ? 'Novo lead' : 'Nova mensagem',
       title,
-      subtitle: isLead
-        ? 'Um novo interesse comercial chegou para um dos seus anúncios.'
-        : 'Uma conversa ativa recebeu uma nova resposta e pode pedir ação rápida.',
+      subtitle: isPlanLocked
+        ? ''
+        : isLead
+          ? 'Um novo interesse comercial chegou para um dos seus anúncios.'
+          : 'Uma conversa ativa recebeu uma nova resposta e pode pedir ação rápida.',
       recipientName: params.recipientName,
       branding: params.branding,
       footerNote: isPlanLocked

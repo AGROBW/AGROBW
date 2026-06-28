@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, LayoutGrid, LifeBuoy, Lock, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store, Megaphone } from 'lucide-react';
+import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, Info, LayoutGrid, LifeBuoy, Lock, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store, Megaphone } from 'lucide-react';
 import { AdStatus, Message, Ad, AdMetrics, Notification, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -2612,6 +2612,13 @@ const UserDashboardView: React.FC = () => {
                 </article>
               );
             })}
+          </div>
+
+          <div className="mt-5 flex items-start gap-3 rounded-[20px] border border-amber-200 bg-amber-50 p-4">
+            <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" strokeWidth={1.8} />
+            <p className="text-xs leading-5 text-amber-800">
+              Os destaques Home e Categoria não são cumulativos. Em caso de upgrade ou downgrade, prevalecerão sempre as quantidades de destaques do plano ativo.
+            </p>
           </div>
         </section>
 

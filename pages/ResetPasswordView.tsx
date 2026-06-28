@@ -17,6 +17,16 @@ const ResetPasswordView: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const hasRecoveryIntent =
+      searchParams.get('type') === 'recovery' ||
+      hashParams.get('type') === 'recovery' ||
+      Boolean(searchParams.get('token_hash')) ||
+      Boolean(hashParams.get('token_hash')) ||
+      Boolean(hashParams.get('access_token')) ||
+      Boolean(hashParams.get('refresh_token'));
+
     const redirectDenied = () => {
       if (!isMounted) return;
       toast.error('Acesso negado ou link expirado');
@@ -25,15 +35,21 @@ const ResetPasswordView: React.FC = () => {
 
     const checkSession = async () => {
       const { data } = await supabase.auth.getSession();
-      if (!data?.session) {
+      if (!data?.session && !hasRecoveryIntent) {
         redirectDenied();
       }
     };
 
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== 'PASSWORD_RECOVERY') {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const hasSession = Boolean(session?.user);
+      const isAcceptedRecoveryEvent =
+        event === 'PASSWORD_RECOVERY' ||
+        ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') &&
+          (hasRecoveryIntent || hasSession));
+
+      if (!isAcceptedRecoveryEvent && !hasSession) {
         redirectDenied();
       }
     });
