@@ -1228,8 +1228,6 @@ const AdCreationView: React.FC = () => {
       setDraftAdId(newId);
       localStorage.setItem('bwagro_ad_draft_id', newId);
       debugLog('[AdCreation] Rascunho criado com sucesso:', newId);
-      // R3: contato do vendedor vai para tabela privada (RLS dono/admin)
-      await syncAnnouncementContact(newId, user?.whatsapp || user?.phone || null);
     }
     
     // Liberar bloqueio
