@@ -398,6 +398,7 @@ const AdCreationView: React.FC = () => {
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const isCreatingDraft = useRef(false);
   const draftIdRef = useRef<string | null>(null);
+  const imageItemsRef = useRef<ImageItem[]>([]);
   const loadedEditAdIdRef = useRef<string | null>(null);
   const hasPublishedSuccessfullyRef = useRef(false);
   const isCleaningDraftRef = useRef(false);
@@ -992,14 +993,18 @@ const AdCreationView: React.FC = () => {
   ]);
 
   useEffect(() => {
+    imageItemsRef.current = imageItems;
+  }, [imageItems]);
+
+  useEffect(() => {
     return () => {
-      imageItems.forEach(item => {
+      imageItemsRef.current.forEach(item => {
         if (item.previewUrl?.startsWith('blob:')) {
           URL.revokeObjectURL(item.previewUrl);
         }
       });
     };
-  }, [imageItems]);
+  }, []);
 
   const maskCep = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 8);
@@ -1481,10 +1486,22 @@ const AdCreationView: React.FC = () => {
         if (data?.publicUrl) {
           clearInterval(progressTimer);
           if (isMountedRef.current) {
-            setImageItems(prev => prev.map(item => item.id === itemId
-              ? { ...item, uploading: false, publicUrl: data.publicUrl, storagePath: filePath, progress: 100 }
-              : item
-            ));
+            setImageItems(prev => prev.map(item => {
+              if (item.id !== itemId) return item;
+
+              if (item.previewUrl?.startsWith('blob:')) {
+                URL.revokeObjectURL(item.previewUrl);
+              }
+
+              return {
+                ...item,
+                previewUrl: data.publicUrl,
+                publicUrl: data.publicUrl,
+                storagePath: filePath,
+                uploading: false,
+                progress: 100
+              };
+            }));
 
             setFormData(prev => {
               const nextImages = [...(prev.images || []), data.publicUrl];
