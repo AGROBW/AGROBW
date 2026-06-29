@@ -102,25 +102,33 @@ const TermsView: React.FC = () => {
       <section className="max-w-7xl mx-auto px-4 mt-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <aside className="lg:col-span-4">
-            <div className="sticky top-32 space-y-2">
-              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4 ml-4">
+            <div className="sticky top-32 space-y-1">
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 ml-3">
                 Neste Documento
               </h3>
-              {sections.map((section) => (
+              {sections.map((section, index) => (
                 <button
                   key={section.id}
                   onClick={() => scrollToSection(section.id)}
-                  className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-300 group flex items-center justify-between ${
+                  className={`w-full text-left px-3 py-2.5 rounded-md transition-all duration-200 group flex items-start justify-between gap-3 ${
                     activeSection === section.id
-                      ? 'text-white translate-x-1'
-                      : 'hover:bg-white text-slate-500 hover:text-slate-800'
+                      ? 'text-slate-800'
+                      : 'text-slate-500 hover:text-slate-700'
                   }`}
-                  style={activeSection === section.id ? { backgroundColor: settings.primaryColor } : undefined}
+                  style={
+                    activeSection === section.id
+                      ? {
+                          backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 8%, white)`,
+                        }
+                      : undefined
+                  }
                 >
-                  <span className="font-semibold text-sm">{section.label || section.title}</span>
+                  <span className="font-semibold text-[13px] leading-6">
+                    {section.title || `${index + 1}. ${section.label}`}
+                  </span>
                   <ChevronRight
-                    className={`w-4 h-4 transition-transform group-hover:translate-x-1 ${
-                      activeSection === section.id ? 'opacity-100' : 'opacity-0'
+                    className={`w-3.5 h-3.5 mt-1 transition-transform group-hover:translate-x-1 ${
+                      activeSection === section.id ? 'opacity-60' : 'opacity-0'
                     }`}
                     strokeWidth={1.5}
                   />
@@ -166,7 +174,7 @@ const TermsView: React.FC = () => {
 
             <div className="mt-12 pt-8 border-t border-slate-100 text-center">
               <p className="text-slate-400 text-sm italic">
-                Ao continuar utilizando a BWAGRO, voce declara estar de acordo com todas as disposicoes acima.
+                Ao continuar utilizando a AGRO BW, voce declara estar de acordo com todas as disposições acima.
               </p>
             </div>
           </article>
