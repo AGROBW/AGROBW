@@ -679,6 +679,69 @@ const claimJob = async (table, job) => {
   return data;
 };
 
+const getContactFormTemplate = ({
+  siteName,
+  messageId,
+  name,
+  email,
+  phone,
+  subject,
+  message,
+  createdAt,
+}) => {
+  const subjectLine = String(subject || '').trim()
+    ? `Novo contato pelo Fale Conosco: ${String(subject).trim()}`
+    : `Novo contato pelo Fale Conosco: ${name}`;
+
+  const phoneLine = String(phone || '').trim()
+    ? `<p style="margin:0 0 12px;font-size:14px;color:#334155;"><strong>Telefone:</strong> ${String(phone).trim()}</p>`
+    : '';
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>${subjectLine}</title>
+      </head>
+      <body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
+        <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;">
+          <div style="padding:28px 32px;background:#0f172a;color:#ffffff;">
+            <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#86efac;">
+              Fale Conosco
+            </p>
+            <h1 style="margin:0;font-size:24px;line-height:1.2;">${subjectLine}</h1>
+          </div>
+          <div style="padding:32px;">
+            <p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#475569;">
+              Uma nova mensagem foi enviada pelo formulario publico do site.
+            </p>
+            <div style="margin:0 0 20px;padding:18px 20px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">
+              <p style="margin:0 0 12px;font-size:14px;color:#334155;"><strong>Nome:</strong> ${name}</p>
+              <p style="margin:0 0 12px;font-size:14px;color:#334155;"><strong>E-mail:</strong> ${email}</p>
+              ${phoneLine}
+              <p style="margin:0 0 12px;font-size:14px;color:#334155;"><strong>Assunto:</strong> ${String(subject || '').trim() || 'Sem assunto'}</p>
+              <p style="margin:0;font-size:14px;color:#334155;"><strong>Recebido em:</strong> ${createdAt}</p>
+            </div>
+            <div style="margin:0 0 24px;padding:18px 20px;border-radius:14px;background:#ecfdf5;border:1px solid #bbf7d0;">
+              <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#15803d;">
+                Mensagem
+              </p>
+              <p style="margin:0;font-size:15px;line-height:1.7;color:#166534;white-space:pre-wrap;">${message}</p>
+            </div>
+          </div>
+          <div style="padding:18px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;">
+            ${siteName} • ID da mensagem: ${messageId}
+          </div>
+        </div>
+      </body>
+    </html>
+  `.trim();
+
+  return { subject: subjectLine, html };
+};
+
 const finalizeLog = async (table, id, payload) => {
   if (!id) return;
   await supabaseAdmin.from(table).update(payload).eq('id', id);
@@ -866,6 +929,113 @@ export const processContactJobs = async (smtpSettings, smtpValidationError, limi
       finished_at: new Date().toISOString(),
     });
     throw error;
+  }
+
+  return result;
+};
+
+export const processContactFormJobs = async (smtpSettings, smtpValidationError, limit) => {
+  const result = { processed: 0, sent: 0, failed: 0, skipped: 0 };
+
+  const { data: jobs, error } = await supabaseAdmin
+    .from('contact_form_email_jobs')
+    .select(`
+      id,
+      status,
+      attempts,
+      recipient_email,
+      contact_message_id,
+      contact_message:contact_messages (
+        id,
+        name,
+        email,
+        phone,
+        subject,
+        message,
+        created_at,
+        source_page
+      )
+    `)
+    .in('status', ['pending', 'failed'])
+    .lt('attempts', 5)
+    .order('queued_at', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error('[processContactFormJobs] erro ao carregar jobs:', error);
+    return result;
+  }
+
+  for (const job of jobs || []) {
+    const claimed = await claimJob('contact_form_email_jobs', job);
+    if (!claimed) continue;
+    result.processed += 1;
+
+    const contactMessage = job.contact_message;
+    const recipientEmail = String(job.recipient_email || '').trim();
+
+    if (!contactMessage || !recipientEmail || smtpValidationError) {
+      result.skipped += 1;
+      await supabaseAdmin
+        .from('contact_form_email_jobs')
+        .update({
+          status: 'skipped',
+          last_error: !contactMessage
+            ? 'Mensagem de contato nao encontrada'
+            : !recipientEmail
+              ? 'Destinatario sem e-mail valido'
+              : smtpValidationError || 'Configuracao SMTP invalida',
+        })
+        .eq('id', claimed.id);
+      continue;
+    }
+
+    const createdAt = new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+    }).format(new Date(contactMessage.created_at));
+
+    const email = getContactFormTemplate({
+      siteName: smtpSettings?.from_name || 'AGRO BW',
+      messageId: contactMessage.id,
+      name: contactMessage.name,
+      email: contactMessage.email,
+      phone: contactMessage.phone,
+      subject: contactMessage.subject,
+      message: contactMessage.message,
+      createdAt,
+    });
+
+    try {
+      await sendMail(smtpSettings, {
+        to: recipientEmail,
+        subject: email.subject,
+        html: email.html,
+      });
+
+      result.sent += 1;
+      await supabaseAdmin
+        .from('contact_form_email_jobs')
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          last_error: null,
+        })
+        .eq('id', claimed.id);
+    } catch (sendError) {
+      result.failed += 1;
+      await supabaseAdmin
+        .from('contact_form_email_jobs')
+        .update({
+          status: 'failed',
+          last_error: sendError instanceof Error ? sendError.message : 'Falha ao enviar email',
+        })
+        .eq('id', claimed.id);
+    }
   }
 
   return result;
@@ -1187,12 +1357,13 @@ export const processAllQueues = async (limit = 25, triggeredBy = 'admin') => {
   const smtpValidationError = validateSmtpSettings(smtpSettings);
   const safeLimit = clampLimit(limit, 25);
 
-  const [contact, planAlert, radar, newsletterCampaign] = await Promise.all([
+  const [contact, contactForm, planAlert, radar, newsletterCampaign] = await Promise.all([
     processContactJobs(smtpSettings, smtpValidationError, safeLimit, triggeredBy),
+    processContactFormJobs(smtpSettings, smtpValidationError, safeLimit),
     processPlanAlertJobs(smtpSettings, smtpValidationError, safeLimit, triggeredBy),
     processRadarJobs(smtpSettings, smtpValidationError, safeLimit, triggeredBy),
     processNewsletterCampaignJobs(smtpSettings, smtpValidationError, safeLimit, triggeredBy),
   ]);
 
-  return { contact, planAlert, radar, newsletterCampaign, smtpValidationError };
+  return { contact, contactForm, planAlert, radar, newsletterCampaign, smtpValidationError };
 };

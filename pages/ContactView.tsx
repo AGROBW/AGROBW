@@ -35,16 +35,6 @@ const ContactView: React.FC = () => {
         throw error;
       }
 
-      if (messageId) {
-        void supabase.functions
-          .invoke('send-contact-form-emails', {
-            body: { messageId },
-          })
-          .catch((dispatchError) => {
-            console.error('[ContactView] Falha ao disparar e-mail do contato:', dispatchError);
-          });
-      }
-
       setFormStatus('success');
       setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
       window.setTimeout(() => setFormStatus('idle'), 5000);
