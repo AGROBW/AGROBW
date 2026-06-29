@@ -34,3 +34,4 @@ backup*
 03_data.sql
 *_data.sql
 .vercel
+sql/add_dynamic_sections_to_terms_page_2026-06-29.sql
