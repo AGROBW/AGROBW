@@ -16,6 +16,7 @@ import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { useAnnouncementReports } from '../src/hooks/useAnnouncementReports';
 import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 import { getCategoryGroupBySlug, getCategoryGroupForCategorySlug } from '../src/lib/categoryHierarchy';
+import { useFavorites } from '../src/hooks/useFavorites';
 
 // Mapa de ícones para renderizar dinamicamente
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -36,10 +37,13 @@ const AdDetailView: React.FC = () => {
   const { ad, isLoading, error } = useAd(id);
   const { user } = useAuth();
   const { settings } = useLayout();
+  const { toggleFavorite, isFavorited } = useFavorites();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [isFavoriteActive, setIsFavoriteActive] = useState(false);
+  const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
   const { snapshot: reportSnapshot, isSubmitting: isSubmittingReport, submitReport } = useAnnouncementReports(ad?.id);
   const hasAutoOpenedContactModalRef = useRef(false);
   const touchStartXRef = useRef<number | null>(null);
@@ -68,6 +72,36 @@ const AdDetailView: React.FC = () => {
     setSelectedImageIndex(0);
     setIsLightboxOpen(false);
   }, [ad?.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncFavoriteState = async () => {
+      if (!user || !ad || !isFavorited) {
+        if (isMounted) {
+          setIsFavoriteActive(false);
+        }
+        return;
+      }
+
+      try {
+        const result = await Promise.resolve(isFavorited(ad.id));
+        if (isMounted) {
+          setIsFavoriteActive(Boolean(result));
+        }
+      } catch {
+        if (isMounted) {
+          setIsFavoriteActive(false);
+        }
+      }
+    };
+
+    void syncFavoriteState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [ad, isFavorited, user]);
 
   const primaryImage = getPrimaryImageFromList(ad?.images, settings.defaultAdImageUrl);
   const galleryImages = ad?.images?.length > 0 ? ad.images.filter(Boolean) : (primaryImage ? [primaryImage] : []);
@@ -196,6 +230,65 @@ const AdDetailView: React.FC = () => {
     } catch (error: any) {
       const message = error?.message || error?.details || error?.hint || 'Não foi possível registrar a denúncia.';
       toast.error(message);
+    }
+  };
+
+  const handleFavoriteClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+
+    if (!ad) return;
+
+    if (!user) {
+      toast.error('Faça login para salvar anúncios nos seus favoritos.');
+      return;
+    }
+
+    if (!toggleFavorite) return;
+
+    setIsFavoriteLoading(true);
+    try {
+      const currentPrice = (ad as any).unit_price || ad.price;
+      const result = await toggleFavorite(ad.id, currentPrice);
+
+      if (result?.success) {
+        setIsFavoriteActive((current) => !current);
+        toast.success(result.message);
+      } else if (result?.message) {
+        toast.error(result.message);
+      }
+    } catch {
+      toast.error('Não foi possível atualizar seus favoritos agora.');
+    } finally {
+      setIsFavoriteLoading(false);
+    }
+  };
+
+  const handleShareClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+
+    if (!ad) return;
+
+    const shareUrl = buildAbsoluteSiteUrl(`/anuncio/${ad.id}`);
+    const sharePayload = {
+      title: ad.title,
+      text: `Confira este anúncio na AGRO BW: ${ad.title}`,
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(sharePayload);
+        return;
+      }
+
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('Link do anúncio copiado com sucesso.');
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+
+      toast.error('Não foi possível compartilhar este anúncio agora.');
     }
   };
 
@@ -402,14 +495,24 @@ const AdDetailView: React.FC = () => {
                   <div className="absolute top-6 right-6 flex gap-2">
                      <button
                        type="button"
-                       onClick={(event) => event.stopPropagation()}
-                       className="bg-white/90 backdrop-blur-md p-3 rounded-lg text-slate-700 hover:text-red-500 transition-colors"
+                       onClick={handleFavoriteClick}
+                       disabled={isFavoriteLoading}
+                       aria-label={isFavoriteActive ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                       title={isFavoriteActive ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                       className="bg-white/90 backdrop-blur-md p-3 rounded-lg text-slate-700 hover:text-red-500 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                      >
-                       <Heart className="w-5 h-5" strokeWidth={1.5} />
+                       <Heart
+                         className={`w-5 h-5 transition-colors ${
+                           isFavoriteActive ? 'fill-red-500 text-red-500' : 'text-slate-700'
+                         }`}
+                         strokeWidth={1.5}
+                       />
                     </button>
                      <button
                        type="button"
-                       onClick={(event) => event.stopPropagation()}
+                       onClick={handleShareClick}
+                       aria-label="Compartilhar anúncio"
+                       title="Compartilhar anúncio"
                        className="bg-white/90 backdrop-blur-md p-3 rounded-lg text-slate-700 hover:text-blue-500 transition-colors"
                      >
                        <Share2 className="w-5 h-5" strokeWidth={1.5} />
