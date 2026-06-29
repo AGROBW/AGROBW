@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react'
 import { CaptchaWidget } from '../components/CaptchaWidget'
 import { useAuth } from '../src/contexts/AuthContext'
 import { clearPendingAdminMfaSession, storePendingAdminMfaSession } from '../src/lib/adminMfa'
+import { clearAdminPortalHandoffPending } from '../src/lib/adminPortalHandoff'
 import { applyAdminBrowserSession, requestAdminServerLogin } from '../src/lib/adminHttpOnlySession'
 import { formatTimeRemaining } from '../src/hooks/useRateLimit'
 
@@ -140,6 +141,10 @@ const AdminLoginView: React.FC = () => {
     setTimeUntilUnblock(resolvedStatus.time_until_unblock_seconds || 0)
     setShowCaptcha(Boolean(resolvedStatus.should_show_captcha))
   }
+
+  useEffect(() => {
+    clearAdminPortalHandoffPending()
+  }, [])
 
   useEffect(() => {
     if (isAuthLoading) {

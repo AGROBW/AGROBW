@@ -13,6 +13,7 @@ import {
 import { clearForcedAdminAuthStorageMode, forceAdminMemoryAuthStorage, setRememberDevicePreference, supabase } from '../lib/supabaseClient'
 import { buildAbsoluteSiteUrl } from '../lib/siteConfig'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
+import { clearAdminPortalHandoffPending, hasAdminPortalHandoffPending, setAdminPortalHandoffPending } from '../lib/adminPortalHandoff'
 import { isSupabaseUnauthorizedError, refreshSupabaseSession, startIdleSessionMonitor, stopIdleSessionMonitor } from '../lib/supabaseAuthGuard'
 import { User, UserRole } from '../../types'
 import { toast } from 'sonner'
@@ -140,6 +141,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }
 
+  const shouldSuppressAdminPortalHandoffNoise = () => hasAdminPortalHandoffPending()
+
   const clearServerSideAdminSession = async () => {
     lastSyncedAdminRefreshTokenRef.current = null
     clearForcedAdminAuthStorageMode()
@@ -206,6 +209,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .single()
 
       if (userError) {
+        if (shouldSuppressAdminPortalHandoffNoise()) {
+          console.debug('[Auth] fetchUserStatus suprimido durante handoff para portal admin')
+          return null
+        }
+
         if (options?.allowSessionRefresh !== false && isSupabaseUnauthorizedError(userError)) {
           const refreshed = await refreshSupabaseSession()
 
@@ -264,6 +272,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.debug('[Auth] fetchUserStatus completou com sucesso')
       return userData
     } catch (err: any) {
+      if (shouldSuppressAdminPortalHandoffNoise()) {
+        console.debug('[Auth] fetchUserStatus catch suprimido durante handoff para portal admin')
+        return null
+      }
+
       if (options?.allowSessionRefresh !== false && isSupabaseUnauthorizedError(err)) {
         const refreshed = await refreshSupabaseSession()
 
@@ -294,6 +307,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       })
 
       if (error) {
+        if (shouldSuppressAdminPortalHandoffNoise()) {
+          console.debug('[Auth] fetchStats suprimido durante handoff para portal admin')
+          if (!canSetState || canSetState()) {
+            setStats(defaultStats)
+          }
+          return false
+        }
+
         if (options?.allowSessionRefresh !== false && isSupabaseUnauthorizedError(error)) {
           const refreshed = await refreshSupabaseSession()
 
@@ -322,6 +343,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.debug('[Auth] fetchStats completou com sucesso')
       return true
     } catch (err: any) {
+      if (shouldSuppressAdminPortalHandoffNoise()) {
+        console.debug('[Auth] fetchStats catch suprimido durante handoff para portal admin')
+        if (!canSetState || canSetState()) {
+          setStats(defaultStats)
+        }
+        return false
+      }
+
       if (options?.allowSessionRefresh !== false && isSupabaseUnauthorizedError(err)) {
         const refreshed = await refreshSupabaseSession()
 
@@ -393,6 +422,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   ) => {
     if (fetchingRef.current) return
 
+    if (shouldSuppressAdminPortalHandoffNoise()) {
+      console.debug('[Auth] loadAuthenticatedState suprimido durante handoff para portal admin')
+      if (!options?.canSetState || options.canSetState()) {
+        setIsLoading(false)
+      }
+      return
+    }
+
     fetchingRef.current = true
     clearRetryTimeout()
     if (options?.silent) {
@@ -450,6 +487,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!userData || !statsLoaded) {
         const { data: currentSession } = await supabase.auth.getSession()
         if (!currentSession.session) return
+        if (shouldSuppressAdminPortalHandoffNoise()) return
 
         scheduleRetry(userId, options?.canSetState)
       }
@@ -594,6 +632,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // VULN-013: Parar monitoramento de inatividade ao fazer logout
         stopIdleSessionMonitor();
         adminSessionBootstrapStartedRef.current = false
+        clearAdminPortalHandoffPending()
         clearPendingAdminMfaSession()
         clearRetryTimeout()
         void clearServerSideAdminSession()
@@ -697,6 +736,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const completedAdminLogin = isAdminUser && currentAal === 'aal2'
 
       if (isAdminUser && !completedAdminLogin) {
+        setAdminPortalHandoffPending()
         clearPendingAdminMfaSession()
         await supabase.auth.signOut()
         await clearServerSideAdminSession()
