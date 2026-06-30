@@ -16,6 +16,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { supabase } from '../src/lib/supabaseClient';
 import SeoHead from '../components/SeoHead';
+import { CaptchaWidget } from '../components/CaptchaWidget';
 
 type ProfileType = 'individual' | 'company' | null;
 
@@ -47,6 +48,8 @@ const RegisterView: React.FC = () => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [documentTouched, setDocumentTouched] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaReset, setCaptchaReset] = useState(0);
   const [formData, setFormData] = useState({
     name: '',
     document: '',
@@ -398,12 +401,17 @@ const RegisterView: React.FC = () => {
       estado: formData.estado,
       inviteCode: invitePreview?.code || inviteCode || undefined,
       inviteSessionId: inviteSessionId || undefined,
+      captchaToken,
       legalConsents: {
         acceptedTermsOfUse: acceptedTerms,
         acceptedPrivacyPolicy: acceptedTerms,
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : ''
       }
     });
+
+    // Token é single-use: limpa e gera novo desafio após cada tentativa.
+    setCaptchaToken('');
+    setCaptchaReset((c) => c + 1);
 
     if (error) {
       toast.error(
@@ -909,9 +917,18 @@ const RegisterView: React.FC = () => {
                 </label>
               </div>
 
+              <div className="pt-1">
+                <CaptchaWidget
+                  onVerify={setCaptchaToken}
+                  onError={() => setCaptchaToken('')}
+                  onExpire={() => setCaptchaToken('')}
+                  resetSignal={captchaReset}
+                />
+              </div>
+
               <button
                 type="submit"
-                disabled={loading || !acceptedTerms || Object.keys(errors).length > 0}
+                disabled={loading || !acceptedTerms || !captchaToken || Object.keys(errors).length > 0}
                 className="w-full text-white py-5 rounded-2xl font-black text-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 mt-4"
                 style={{
                   backgroundColor: settings.primaryColor,

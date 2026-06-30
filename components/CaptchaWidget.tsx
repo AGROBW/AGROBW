@@ -35,6 +35,12 @@ interface CaptchaWidgetProps {
   onExpire?: () => void;
   theme?: 'light' | 'dark';
   size?: 'normal' | 'compact';
+  /**
+   * Contador de reset: sempre que muda (ex.: após uma tentativa de login),
+   * o widget gera um novo desafio. Token hCaptcha/Turnstile é single-use,
+   * então o pai deve incrementar isto após cada submit (erro ou sucesso).
+   */
+  resetSignal?: number;
 }
 
 declare global {
@@ -51,7 +57,8 @@ export const CaptchaWidget: React.FC<CaptchaWidgetProps> = ({
   onError,
   onExpire,
   theme = 'light',
-  size = 'normal'
+  size = 'normal',
+  resetSignal = 0
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
@@ -265,6 +272,14 @@ export const CaptchaWidget: React.FC<CaptchaWidgetProps> = ({
     }
     setError(null);
   };
+
+  // Reset disparado pelo pai (token single-use): após cada tentativa, novo desafio.
+  useEffect(() => {
+    if (resetSignal > 0) {
+      handleReset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
 
   // Mock para desenvolvimento (quando não há chave configurada)
   if (captchaProvider === 'mock' && canUseMockCaptcha) {

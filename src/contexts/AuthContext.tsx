@@ -42,9 +42,10 @@ interface AuthContextType {
   signIn: (
     email: string,
     password: string,
-    rememberDevice?: boolean
+    rememberDevice?: boolean,
+    captchaToken?: string
   ) => Promise<{ error: any; isAdminUser?: boolean; completedAdminLogin?: boolean }>
-  sendPasswordResetEmail: (email: string) => Promise<{ error: any }>
+  sendPasswordResetEmail: (email: string, captchaToken?: string) => Promise<{ error: any }>
   signUp: (
     email: string,
     password: string,
@@ -63,6 +64,7 @@ interface AuthContextType {
       estado?: string;
       inviteCode?: string;
       inviteSessionId?: string;
+      captchaToken?: string;
       legalConsents?: {
         acceptedTermsOfUse?: boolean;
         acceptedPrivacyPolicy?: boolean;
@@ -692,12 +694,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => window.removeEventListener('online', handleOnline)
   }, [supabaseUser?.id])
 
-  const signIn = async (email: string, password: string, rememberDevice = true) => {
+  const signIn = async (email: string, password: string, rememberDevice = true, captchaToken?: string) => {
     setRememberDevicePreference(rememberDevice)
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
-      password
+      password,
+      ...(captchaToken ? { options: { captchaToken } } : {})
     })
 
     if (error) {
@@ -762,9 +765,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return { error: null, isAdminUser: false, completedAdminLogin: false }
   }
 
-  const sendPasswordResetEmail = async (email: string) => {
+  const sendPasswordResetEmail = async (email: string, captchaToken?: string) => {
     const redirectTo = buildAbsoluteSiteUrl('/redefinir-senha')
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo,
+      ...(captchaToken ? { captchaToken } : {})
+    })
     return { error }
   }
 
@@ -801,6 +807,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       email,
       password,
       options: {
+        ...(additionalData?.captchaToken ? { captchaToken: additionalData.captchaToken } : {}),
         data: {
           name,
           phone: cleanPhone || undefined,

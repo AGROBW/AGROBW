@@ -5,6 +5,7 @@ import { useLayout } from '../src/contexts/LayoutContext';
 import { getRememberDevicePreference } from '../src/lib/supabaseClient';
 import { toast } from 'sonner';
 import SeoHead from '../components/SeoHead';
+import { CaptchaWidget } from '../components/CaptchaWidget';
 
 const LoginView: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ const LoginView: React.FC = () => {
   const [errors, setErrors] = useState({ email: '', password: '' });
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaReset, setCaptchaReset] = useState(0);
   const [suspendedModal, setSuspendedModal] = useState<{
     show: boolean;
     userName: string;
@@ -66,7 +69,10 @@ const LoginView: React.FC = () => {
     if (errors.email || errors.password || !formData.email || !formData.password) return;
 
     setLoading(true);
-    const { error } = await signIn(formData.email, formData.password, rememberDevice);
+    const { error } = await signIn(formData.email, formData.password, rememberDevice, captchaToken);
+    // Token é single-use: limpa e gera novo desafio após cada tentativa.
+    setCaptchaToken('');
+    setCaptchaReset((c) => c + 1);
 
     if (error) {
       if (error.message === 'ADMIN_PORTAL_REQUIRED') {
@@ -106,7 +112,9 @@ const LoginView: React.FC = () => {
     if (!formData.email || errors.email) return;
 
     setRecoveryLoading(true);
-    const { error } = await sendPasswordResetEmail(formData.email);
+    const { error } = await sendPasswordResetEmail(formData.email, captchaToken);
+    setCaptchaToken('');
+    setCaptchaReset((c) => c + 1);
 
     if (error) {
       toast.error('Não foi possível enviar o link. Tente novamente.');
@@ -270,10 +278,19 @@ const LoginView: React.FC = () => {
               </div>
             )}
 
+            <div className="pt-1">
+              <CaptchaWidget
+                onVerify={setCaptchaToken}
+                onError={() => setCaptchaToken('')}
+                onExpire={() => setCaptchaToken('')}
+                resetSignal={captchaReset}
+              />
+            </div>
+
             <div className="space-y-4">
               <button
                 type="submit"
-                disabled={recoveryMode ? recoveryLoading : loading}
+                disabled={(recoveryMode ? recoveryLoading : loading) || !captchaToken}
                 className="w-full text-white py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 disabled:opacity-70 flex items-center justify-center gap-3"
                 style={{ backgroundColor: settings.primaryColor, boxShadow: `0 12px 30px ${settings.primaryColor}33` }}
               >

@@ -167,96 +167,9 @@ const registerLoginAttempt = async (
   return (status as AdminLoginRateLimitStatus | null) || defaultRateLimitStatus();
 };
 
-const verifyTurnstileCaptcha = async (token: string, secret: string, remoteIp: string | null) => {
-  const form = new URLSearchParams();
-  form.set('secret', secret);
-  form.set('response', token);
-  if (remoteIp) {
-    form.set('remoteip', remoteIp);
-  }
-
-  const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: form.toString(),
-  });
-
-  const payload = await response.json().catch(() => null);
-  return {
-    ok: Boolean(payload?.success),
-    details: payload,
-  };
-};
-
-const verifyHcaptcha = async (token: string, secret: string, remoteIp: string | null) => {
-  const form = new URLSearchParams();
-  form.set('secret', secret);
-  form.set('response', token);
-  if (remoteIp) {
-    form.set('remoteip', remoteIp);
-  }
-
-  const response = await fetch('https://hcaptcha.com/siteverify', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: form.toString(),
-  });
-
-  const payload = await response.json().catch(() => null);
-  return {
-    ok: Boolean(payload?.success),
-    details: payload,
-  };
-};
-
-const verifyCaptcha = async (
-  req: Request,
-  captchaProvider: CaptchaProvider | null | undefined,
-  captchaToken: string | null | undefined,
-): Promise<{ ok: boolean; reason?: string }> => {
-  const normalizedToken = String(captchaToken || '').trim();
-  const provider = captchaProvider || null;
-
-  if (!normalizedToken || !provider) {
-    return { ok: false, reason: 'missing' };
-  }
-
-  if (provider === 'mock') {
-    const allowDevMock =
-      isLocalSupabaseRuntime() &&
-      String(Deno.env.get('ALLOW_DEV_MOCK_CAPTCHA') || '').toLowerCase() === 'true';
-
-    if (allowDevMock && normalizedToken === 'mock-token-dev') {
-      return { ok: true };
-    }
-
-    return { ok: false, reason: 'mock_not_allowed' };
-  }
-
-  const remoteIp = getClientIp(req);
-
-  if (provider === 'turnstile') {
-    const secret = Deno.env.get('TURNSTILE_SECRET_KEY');
-    if (!secret) {
-      return { ok: false, reason: 'secret_missing' };
-    }
-
-    const verification = await verifyTurnstileCaptcha(normalizedToken, secret, remoteIp);
-    return verification.ok ? { ok: true } : { ok: false, reason: 'invalid' };
-  }
-
-  const secret = Deno.env.get('HCAPTCHA_SECRET_KEY');
-  if (!secret) {
-    return { ok: false, reason: 'secret_missing' };
-  }
-
-  const verification = await verifyHcaptcha(normalizedToken, secret, remoteIp);
-  return verification.ok ? { ok: true } : { ok: false, reason: 'invalid' };
-};
+// Captcha agora é responsabilidade do Supabase Auth nativo (Attack Protection).
+// A verificação manual (siteverify) foi removida para não consumir o token single-use
+// antes do GoTrue — o token é repassado ao signInWithPassword.
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -335,47 +248,13 @@ serve(async (req) => {
       );
     }
 
-    if (rateLimitStatus.should_show_captcha) {
-      if (!String(body.captchaToken || '').trim()) {
-        return jsonResponse(
-          req,
-          {
-            success: false,
-            errorCode: 'CAPTCHA_REQUIRED',
-            error: 'Complete a verificacao de seguranca para continuar.',
-            rateLimitStatus,
-          },
-          400,
-        );
-      }
-
-      const captchaCheck = await verifyCaptcha(req, body.captchaProvider || null, body.captchaToken || null);
-      if (!captchaCheck.ok) {
-        await logSecurityEvent(supabaseAdmin, {
-          req,
-          attemptedRoute: '/functions/v1/admin-login',
-          attemptedAction: 'admin_login_captcha_failed',
-          severity: 'warning',
-          reason: `Captcha invalido ou indisponivel: ${captchaCheck.reason || 'unknown'}`,
-          email,
-        });
-
-        return jsonResponse(
-          req,
-          {
-            success: false,
-            errorCode: captchaCheck.reason === 'secret_missing' ? 'CAPTCHA_UNAVAILABLE' : 'CAPTCHA_INVALID',
-            error: 'Nao foi possivel validar a verificacao de seguranca. Tente novamente.',
-            rateLimitStatus,
-          },
-          400,
-        );
-      }
-    }
-
+    // Captcha agora é verificado NATIVAMENTE pelo Supabase Auth (proteção global).
+    // O token é repassado ao signInWithPassword; o GoTrue faz o siteverify (uso único).
+    // Não fazemos mais siteverify aqui para não consumir o token antes do GoTrue.
     const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
       email,
       password,
+      options: { captchaToken: String(body.captchaToken || '') },
     });
 
     if (authError || !authData.user || !authData.session) {

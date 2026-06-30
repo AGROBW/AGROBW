@@ -16,6 +16,7 @@ import { useHighlightSettings } from '../src/hooks/useHighlightSettings';
 import { useMySellerStore } from '../src/hooks/useSellerStore';
 import HighlightBoosterCard from '../components/boosters/HighlightBoosterCard';
 import PlanGuard from '../components/PlanGuard';
+import { CaptchaWidget } from '../components/CaptchaWidget';
 import MessagesView from '../components/MessagesView';
 import LeadsView from '../components/LeadsView';
 import RadarView from '../components/RadarView';
@@ -3381,6 +3382,8 @@ const UserDashboardView: React.FC = () => {
     const userCity = user?.location || 'Localização não informada';
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+    const [passwordCaptchaToken, setPasswordCaptchaToken] = useState('');
+    const [passwordCaptchaReset, setPasswordCaptchaReset] = useState(0);
     const [profileForm, setProfileForm] = useState({
       name: '',
       businessDescription: '',
@@ -3807,7 +3810,12 @@ const UserDashboardView: React.FC = () => {
         const { error: reAuthError } = await supabase.auth.signInWithPassword({
           email: user.email,
           password: passwordForm.currentPassword,
+          ...(passwordCaptchaToken ? { options: { captchaToken: passwordCaptchaToken } } : {}),
         });
+
+        // Token é single-use: limpa e gera novo desafio após cada tentativa.
+        setPasswordCaptchaToken('');
+        setPasswordCaptchaReset((c) => c + 1);
 
         if (reAuthError) {
           sonnerToast.error('Senha atual incorreta');
@@ -4043,11 +4051,17 @@ const UserDashboardView: React.FC = () => {
           <p className="text-xs leading-5 text-slate-500">
             Para sua seguranca, a troca de senha exige a confirmacao da senha atual e acontece separadamente do salvamento dos dados do perfil.
           </p>
+          <CaptchaWidget
+            onVerify={setPasswordCaptchaToken}
+            onError={() => setPasswordCaptchaToken('')}
+            onExpire={() => setPasswordCaptchaToken('')}
+            resetSignal={passwordCaptchaReset}
+          />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <button
               type="button"
               onClick={handleUpdatePassword}
-              disabled={isUpdatingPassword}
+              disabled={isUpdatingPassword || !passwordCaptchaToken}
               className="inline-flex h-11 items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isUpdatingPassword ? 'Atualizando senha...' : 'Atualizar senha'}

@@ -208,7 +208,8 @@ const AdminLoginView: React.FC = () => {
     e.preventDefault()
 
     const normalizedEmail = email.trim().toLowerCase()
-    if (showCaptcha && !captchaToken) {
+    // Captcha nativo do Supabase Auth é global: sempre exigido no login admin.
+    if (!captchaToken) {
       setError('Complete a verificacao de seguranca (captcha).')
       return
     }
@@ -235,10 +236,9 @@ const AdminLoginView: React.FC = () => {
           )
         )
 
-        if (showCaptcha || payload?.rateLimitStatus?.should_show_captcha) {
-          setCaptchaToken(null)
-          setCaptchaRenderKey((current) => current + 1)
-        }
+        // Token single-use: sempre gera novo desafio após uma tentativa falha.
+        setCaptchaToken(null)
+        setCaptchaRenderKey((current) => current + 1)
 
         setLoading(false)
         return
@@ -354,7 +354,7 @@ const AdminLoginView: React.FC = () => {
             />
           </div>
 
-          {showCaptcha && !isBlocked && (
+          {!isBlocked && (
             <div className="border-2 border-slate-200 rounded-xl p-4 bg-slate-50">
               <div className="flex items-center gap-2 mb-3">
                 <CheckCircle2 className="w-4 h-4 text-slate-600" />
@@ -384,7 +384,7 @@ const AdminLoginView: React.FC = () => {
 
           <button
             type="submit"
-            disabled={loading || isBlocked || (showCaptcha && !captchaToken) || !canAttempt}
+            disabled={loading || isBlocked || !captchaToken || !canAttempt}
             className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-slate-200 hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
           >
             {loading ? (
