@@ -195,6 +195,20 @@ const UserDashboardView: React.FC = () => {
     });
   };
 
+  const getAdHighlightValue = (ad: Ad, snakeKey: 'highlight_category' | 'highlight_home') => {
+    const camelKey = snakeKey === 'highlight_category' ? 'highlightCategory' : 'highlightHome';
+    return Boolean((ad as any)[snakeKey] || (ad as any)[camelKey]);
+  };
+
+  const getAdHighlightUntil = (
+    ad: Ad,
+    snakeKey: 'highlight_category_until' | 'highlight_home_until'
+  ) => {
+    const camelKey =
+      snakeKey === 'highlight_category_until' ? 'highlightCategoryUntil' : 'highlightHomeUntil';
+    return (ad as any)[snakeKey] || (ad as any)[camelKey] || null;
+  };
+
   // Estados para upload
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
@@ -2331,6 +2345,22 @@ const UserDashboardView: React.FC = () => {
       },
     };
 
+    const activeCategoryHighlightsNow = userAds.filter((ad) => {
+      if (ad.status !== AdStatus.ACTIVE && ad.status !== 'ACTIVE') return false;
+      return (
+        getAdHighlightValue(ad, 'highlight_category') &&
+        isTimestampActive(getAdHighlightUntil(ad, 'highlight_category_until'))
+      );
+    }).length;
+
+    const activeHomeHighlightsNow = userAds.filter((ad) => {
+      if (ad.status !== AdStatus.ACTIVE && ad.status !== 'ACTIVE') return false;
+      return (
+        getAdHighlightValue(ad, 'highlight_home') &&
+        isTimestampActive(getAdHighlightUntil(ad, 'highlight_home_until'))
+      );
+    }).length;
+
     const getUsageText = (used: number, limit: number | null | undefined, displayAsBalance?: boolean) => {
       if (limit === null || limit === undefined) {
         return displayAsBalance ? `${used} disponível(is)` : `${used} em uso`;
@@ -2366,10 +2396,12 @@ const UserDashboardView: React.FC = () => {
       },
       {
         key: 'category-highlights',
-        label: 'Destaques em categoria',
+        label: 'Créditos de destaque em categoria',
         icon: <TrendingUp className="h-4 w-4" strokeWidth={1.7} />,
         used: usage.categoryHighlightsUsed,
         limit: usage.categoryHighlightsLimit,
+        usageLabel: `${getUsageText(usage.categoryHighlightsUsed, usage.categoryHighlightsLimit)} usados neste ciclo`,
+        activeNow: activeCategoryHighlightsNow,
         helper: usage.categoryHighlightsLimit > 0
           ? `${Math.max(usage.categoryHighlightsLimit - usage.categoryHighlightsUsed, 0)} crédito(s) do plano disponível(is) neste ciclo.`
           : 'Seu plano atual não inclui créditos diretos de destaque em categoria.',
@@ -2377,10 +2409,12 @@ const UserDashboardView: React.FC = () => {
       },
       {
         key: 'home-highlights',
-        label: 'Destaques na Home',
+        label: 'Créditos de destaque na Home',
         icon: <Sparkles className="h-4 w-4" strokeWidth={1.7} />,
         used: usage.homeHighlightsUsed,
         limit: usage.homeHighlightsLimit,
+        usageLabel: `${getUsageText(usage.homeHighlightsUsed, usage.homeHighlightsLimit)} usados neste ciclo`,
+        activeNow: activeHomeHighlightsNow,
         helper: usage.homeHighlightsLimit > 0
           ? `${Math.max(usage.homeHighlightsLimit - usage.homeHighlightsUsed, 0)} crédito(s) do plano disponível(is) neste ciclo.`
           : 'Seu plano atual não inclui créditos diretos de destaque na Home.',
@@ -2597,8 +2631,15 @@ const UserDashboardView: React.FC = () => {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-slate-900">{item.label}</p>
                       <p className={`mt-1 text-sm font-semibold ${tone.text}`}>
-                        {getUsageText(item.used, item.limit, item.displayAsBalance)}
+                        {'usageLabel' in item && item.usageLabel
+                          ? item.usageLabel
+                          : getUsageText(item.used, item.limit, item.displayAsBalance)}
                       </p>
+                      {'activeNow' in item && typeof item.activeNow === 'number' ? (
+                        <p className="mt-1 text-xs font-medium text-slate-500">
+                          Ativos agora: {item.activeNow} {item.activeNow === 1 ? 'anúncio' : 'anúncios'}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
@@ -2618,7 +2659,7 @@ const UserDashboardView: React.FC = () => {
           <div className="mt-5 flex items-start gap-3 rounded-[20px] border border-amber-200 bg-amber-50 p-4">
             <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" strokeWidth={1.8} />
             <p className="text-xs leading-5 text-amber-800">
-              Os destaques Home e Categoria não são cumulativos. Em caso de upgrade ou downgrade, prevalecerão sempre as quantidades de destaques do plano ativo.
+              Os números acima mostram o uso de créditos no ciclo atual. Um anúncio destacado pode continuar ativo mesmo após a virada do ciclo. Os destaques Home e Categoria não são cumulativos e, em caso de upgrade ou downgrade, prevalecem sempre as quantidades do plano ativo.
             </p>
           </div>
         </section>
