@@ -12,7 +12,11 @@ export type UserSubscription = {
   plan_id: string;
   billing_model: BillingModel;
   category_highlights_carryover?: number | null;
+  category_highlights_carryover_expires_at?: string | null;
+  category_highlights_plan_unlock_at?: string | null;
   home_highlights_carryover?: number | null;
+  home_highlights_carryover_expires_at?: string | null;
+  home_highlights_plan_unlock_at?: string | null;
   provider: string;
   provider_customer_id?: string | null;
   provider_subscription_id?: string | null;
@@ -60,6 +64,34 @@ export type UsageStats = {
   isWithinPeriod: boolean;
   periodEndDate: Date | null;
   periodStartDate: Date | null;
+};
+
+const isFutureTimestamp = (value?: string | null) => {
+  const timestamp = value ? new Date(value).getTime() : Number.NaN;
+  return Number.isFinite(timestamp) && timestamp > Date.now();
+};
+
+const getEffectiveHighlightAllowance = ({
+  planCount,
+  carryoverCount,
+  carryoverExpiresAt,
+  planUnlockAt,
+}: {
+  planCount: number;
+  carryoverCount: number;
+  carryoverExpiresAt?: string | null;
+  planUnlockAt?: string | null;
+}) => {
+  const activeCarryoverLimit =
+    carryoverCount > 0 && isFutureTimestamp(carryoverExpiresAt) ? carryoverCount : 0;
+  const activePlanLimit =
+    planCount > 0 && !isFutureTimestamp(planUnlockAt) ? planCount : 0;
+
+  return {
+    activeCarryoverLimit,
+    activePlanLimit,
+    totalLimit: activeCarryoverLimit + activePlanLimit,
+  };
 };
 
 type ActiveAdCapacityStatus = {
@@ -233,6 +265,18 @@ export const useSubscription = () => {
         Number(activeSubscription?.home_highlights_carryover ?? 0),
         0
       );
+      const categoryHighlightAllowance = getEffectiveHighlightAllowance({
+        planCount: Math.max(Number(activeSubscription?.plans?.category_highlights_count ?? 0), 0),
+        carryoverCount: categoryHighlightsCarryover,
+        carryoverExpiresAt: activeSubscription?.category_highlights_carryover_expires_at,
+        planUnlockAt: activeSubscription?.category_highlights_plan_unlock_at,
+      });
+      const homeHighlightAllowance = getEffectiveHighlightAllowance({
+        planCount: Math.max(Number(activeSubscription?.plans?.home_highlight_count ?? 0), 0),
+        carryoverCount: homeHighlightsCarryover,
+        carryoverExpiresAt: activeSubscription?.home_highlights_carryover_expires_at,
+        planUnlockAt: activeSubscription?.home_highlights_plan_unlock_at,
+      });
 
       if (activeSubscription) {
         const { data: capacityRows, error: capacityError } = await supabase.rpc('get_my_active_ad_capacity_status');
@@ -247,29 +291,58 @@ export const useSubscription = () => {
           adsLimit = capacityStatus.max_ads ?? adsLimit;
         }
 
-        const { count: categoryHighlightsCountData, error: categoryError } = await supabase
-          .from('announcement_highlights_history')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('highlight_type', 'category')
-          .eq('credit_source', 'plan')
-          .gte('applied_at', usageWindow?.usageStart.toISOString() || activeSubscription.current_period_start)
-          .lte('applied_at', usageWindow?.usageEnd.toISOString() || activeSubscription.current_period_end);
+        const [
+          { count: categoryPlanUsedCount, error: categoryPlanError },
+          { count: categoryCarryoverUsedCount, error: categoryCarryoverError },
+          { count: homePlanUsedCount, error: homePlanError },
+          { count: homeCarryoverUsedCount, error: homeCarryoverError },
+        ] = await Promise.all([
+          supabase
+            .from('announcement_highlights_history')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('highlight_type', 'category')
+            .eq('credit_source', 'plan')
+            .gte('applied_at', usageWindow?.usageStart.toISOString() || activeSubscription.current_period_start)
+            .lte('applied_at', usageWindow?.usageEnd.toISOString() || activeSubscription.current_period_end),
+          supabase
+            .from('announcement_highlights_history')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('highlight_type', 'category')
+            .eq('credit_source', 'plan_carryover')
+            .gte('applied_at', activeSubscription.current_period_start)
+            .lte('applied_at', activeSubscription.current_period_end),
+          supabase
+            .from('announcement_highlights_history')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('highlight_type', 'home')
+            .eq('credit_source', 'plan')
+            .gte('applied_at', usageWindow?.usageStart.toISOString() || activeSubscription.current_period_start)
+            .lte('applied_at', usageWindow?.usageEnd.toISOString() || activeSubscription.current_period_end),
+          supabase
+            .from('announcement_highlights_history')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('highlight_type', 'home')
+            .eq('credit_source', 'plan_carryover')
+            .gte('applied_at', activeSubscription.current_period_start)
+            .lte('applied_at', activeSubscription.current_period_end),
+        ]);
 
-        if (categoryError) throw categoryError;
-        categoryHighlightsCount = categoryHighlightsCountData || 0;
+        if (categoryPlanError) throw categoryPlanError;
+        if (categoryCarryoverError) throw categoryCarryoverError;
+        if (homePlanError) throw homePlanError;
+        if (homeCarryoverError) throw homeCarryoverError;
 
-        const { count: homeHighlightsCountData, error: homeError } = await supabase
-          .from('announcement_highlights_history')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('highlight_type', 'home')
-          .eq('credit_source', 'plan')
-          .gte('applied_at', usageWindow?.usageStart.toISOString() || activeSubscription.current_period_start)
-          .lte('applied_at', usageWindow?.usageEnd.toISOString() || activeSubscription.current_period_end);
+        categoryHighlightsCount =
+          (categoryHighlightAllowance.activePlanLimit > 0 ? Number(categoryPlanUsedCount ?? 0) : 0) +
+          (categoryHighlightAllowance.activeCarryoverLimit > 0 ? Number(categoryCarryoverUsedCount ?? 0) : 0);
 
-        if (homeError) throw homeError;
-        homeHighlightsCount = homeHighlightsCountData || 0;
+        homeHighlightsCount =
+          (homeHighlightAllowance.activePlanLimit > 0 ? Number(homePlanUsedCount ?? 0) : 0) +
+          (homeHighlightAllowance.activeCarryoverLimit > 0 ? Number(homeCarryoverUsedCount ?? 0) : 0);
       }
 
       const { data: boosterSummary, error: boosterError } = await supabase.rpc('get_my_highlight_booster_summary');
@@ -280,13 +353,9 @@ export const useSubscription = () => {
         adsUsed: adsCount,
         adsLimit,
         categoryHighlightsUsed: categoryHighlightsCount,
-        categoryHighlightsLimit:
-          Math.max(Number(activeSubscription?.plans?.category_highlights_count ?? 0), 0) +
-          categoryHighlightsCarryover,
+        categoryHighlightsLimit: categoryHighlightAllowance.totalLimit,
         homeHighlightsUsed: homeHighlightsCount,
-        homeHighlightsLimit:
-          Math.max(Number(activeSubscription?.plans?.home_highlight_count ?? 0), 0) +
-          homeHighlightsCarryover,
+        homeHighlightsLimit: homeHighlightAllowance.totalLimit,
         categoryHighlightsBoosterRemaining: Number(boosterSummary?.category_remaining ?? 0),
         homeHighlightsBoosterRemaining: Number(boosterSummary?.home_remaining ?? 0),
         isWithinPeriod: !!isWithinPeriod,

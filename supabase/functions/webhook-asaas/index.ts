@@ -21,7 +21,11 @@ type ExistingSubscriptionRow = {
   billing_model: BillingModel | null;
   billing_cycle: 'monthly' | 'yearly' | null;
   category_highlights_carryover: number | null;
+  category_highlights_carryover_expires_at: string | null;
+  category_highlights_plan_unlock_at: string | null;
   home_highlights_carryover: number | null;
+  home_highlights_carryover_expires_at: string | null;
+  home_highlights_plan_unlock_at: string | null;
   status: string;
   provider: string;
   provider_customer_id: string | null;
@@ -48,6 +52,8 @@ type ExistingPaymentRow = {
 };
 
 const PAYMENT_SETTINGS_SINGLETON_ID = '00000000-0000-0000-0000-000000000005';
+const SUBSCRIPTION_SELECT_FIELDS =
+  'id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,category_highlights_carryover_expires_at,category_highlights_plan_unlock_at,home_highlights_carryover,home_highlights_carryover_expires_at,home_highlights_plan_unlock_at,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end';
 const ACTIVE_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due', 'pending'];
 const APPROVED_PAYMENT_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 const PENDING_PAYMENT_STATUSES = new Set([
@@ -695,7 +701,7 @@ serve(async (req) => {
     if (providerSubscriptionId) {
       const { data } = await supabaseAdmin
         .from('user_subscriptions')
-        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end')
+        .select(SUBSCRIPTION_SELECT_FIELDS)
         .eq('provider_subscription_id', providerSubscriptionId)
         .order('updated_at', { ascending: false })
         .limit(1)
@@ -707,7 +713,7 @@ serve(async (req) => {
     if (!existingSubscription && providerCheckoutSessionId) {
       const { data } = await supabaseAdmin
         .from('user_subscriptions')
-        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end')
+        .select(SUBSCRIPTION_SELECT_FIELDS)
         .eq('provider_checkout_session_id', providerCheckoutSessionId)
         .order('updated_at', { ascending: false })
         .limit(1)
@@ -719,7 +725,7 @@ serve(async (req) => {
     if (!existingSubscription && providerCustomerId) {
       const { data } = await supabaseAdmin
         .from('user_subscriptions')
-        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end')
+        .select(SUBSCRIPTION_SELECT_FIELDS)
         .eq('provider_customer_id', providerCustomerId)
         .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
         .order('updated_at', { ascending: false })
@@ -757,7 +763,7 @@ serve(async (req) => {
     if (!existingSubscription && existingPayment?.subscription_id) {
       const { data } = await supabaseAdmin
         .from('user_subscriptions')
-        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end')
+        .select(SUBSCRIPTION_SELECT_FIELDS)
         .eq('id', existingPayment.subscription_id)
         .maybeSingle();
 
@@ -805,39 +811,84 @@ serve(async (req) => {
       return Number.isFinite(timestamp) && timestamp > Date.now();
     };
 
-    const getPlanHighlightCarryover = async (
-      subscriptionRow: ExistingSubscriptionRow | null
-    ): Promise<{ category: number; home: number }> => {
+    const getPlanHighlightTransitionState = async (
+      subscriptionRow: ExistingSubscriptionRow | null,
+      nextPlanId: string
+    ): Promise<{
+      category: {
+        carryover: number;
+        carryoverExpiresAt: string | null;
+        planUnlockAt: string | null;
+      };
+      home: {
+        carryover: number;
+        carryoverExpiresAt: string | null;
+        planUnlockAt: string | null;
+      };
+    }> => {
       if (
         !subscriptionRow?.id ||
         !userId ||
         !subscriptionRow.plan_id ||
+        !nextPlanId ||
         !subscriptionRow.current_period_start ||
         !subscriptionRow.current_period_end ||
         !isFuturePeriod(subscriptionRow.current_period_end)
       ) {
-        return { category: 0, home: 0 };
+        return {
+          category: { carryover: 0, carryoverExpiresAt: null, planUnlockAt: null },
+          home: { carryover: 0, carryoverExpiresAt: null, planUnlockAt: null },
+        };
       }
 
-      const { data: planRecord, error: planRecordError } = await supabaseAdmin
-        .from('plans')
-        .select('category_highlights_count,home_highlight_count')
-        .eq('id', subscriptionRow.plan_id)
-        .maybeSingle();
+      const [{ data: currentPlanRecord, error: currentPlanRecordError }, { data: nextPlanRecord, error: nextPlanRecordError }] = await Promise.all([
+        supabaseAdmin
+          .from('plans')
+          .select('category_highlights_count,home_highlight_count')
+          .eq('id', subscriptionRow.plan_id)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('plans')
+          .select('category_highlights_count,home_highlight_count')
+          .eq('id', nextPlanId)
+          .maybeSingle(),
+      ]);
 
-      if (planRecordError) {
-        throw planRecordError;
+      if (currentPlanRecordError) {
+        throw currentPlanRecordError;
       }
 
-      const categoryLimit =
-        Math.max(Number(planRecord?.category_highlights_count ?? 0), 0) +
-        Math.max(Number(subscriptionRow.category_highlights_carryover ?? 0), 0);
-      const homeLimit =
-        Math.max(Number(planRecord?.home_highlight_count ?? 0), 0) +
-        Math.max(Number(subscriptionRow.home_highlights_carryover ?? 0), 0);
+      if (nextPlanRecordError) {
+        throw nextPlanRecordError;
+      }
 
-      if (categoryLimit <= 0 && homeLimit <= 0) {
-        return { category: 0, home: 0 };
+      const categoryPlanLimit =
+        !isFuturePeriod(subscriptionRow.category_highlights_plan_unlock_at)
+          ? Math.max(Number(currentPlanRecord?.category_highlights_count ?? 0), 0)
+          : 0;
+      const homePlanLimit =
+        !isFuturePeriod(subscriptionRow.home_highlights_plan_unlock_at)
+          ? Math.max(Number(currentPlanRecord?.home_highlight_count ?? 0), 0)
+          : 0;
+      const categoryCarryoverLimit =
+        isFuturePeriod(subscriptionRow.category_highlights_carryover_expires_at)
+          ? Math.max(Number(subscriptionRow.category_highlights_carryover ?? 0), 0)
+          : 0;
+      const homeCarryoverLimit =
+        isFuturePeriod(subscriptionRow.home_highlights_carryover_expires_at)
+          ? Math.max(Number(subscriptionRow.home_highlights_carryover ?? 0), 0)
+          : 0;
+
+      if (
+        categoryPlanLimit <= 0 &&
+        homePlanLimit <= 0 &&
+        categoryCarryoverLimit <= 0 &&
+        homeCarryoverLimit <= 0
+      ) {
+        return {
+          category: { carryover: 0, carryoverExpiresAt: null, planUnlockAt: null },
+          home: { carryover: 0, carryoverExpiresAt: null, planUnlockAt: null },
+        };
       }
 
       const { data: usageWindowData, error: usageWindowError } = await supabaseAdmin.rpc(
@@ -866,49 +917,91 @@ serve(async (req) => {
       );
 
       if (!usageStart || !usageEnd) {
-        return { category: 0, home: 0 };
+        return {
+          category: { carryover: 0, carryoverExpiresAt: null, planUnlockAt: null },
+          home: { carryover: 0, carryoverExpiresAt: null, planUnlockAt: null },
+        };
       }
 
-      let categoryUsed = 0;
-      let homeUsed = 0;
-
-      if (categoryLimit > 0) {
-        const { count, error: categoryUsageError } = await supabaseAdmin
+      const [
+        { count: categoryPlanUsedCount, error: categoryPlanUsageError },
+        { count: categoryCarryoverUsedCount, error: categoryCarryoverUsageError },
+        { count: homePlanUsedCount, error: homePlanUsageError },
+        { count: homeCarryoverUsedCount, error: homeCarryoverUsageError },
+      ] = await Promise.all([
+        supabaseAdmin
           .from('announcement_highlights_history')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId)
           .eq('highlight_type', 'category')
           .eq('credit_source', 'plan')
           .gte('applied_at', usageStart)
-          .lte('applied_at', usageEnd);
-
-        if (categoryUsageError) {
-          throw categoryUsageError;
-        }
-
-        categoryUsed = Number(count ?? 0);
-      }
-
-      if (homeLimit > 0) {
-        const { count, error: homeUsageError } = await supabaseAdmin
+          .lte('applied_at', usageEnd),
+        supabaseAdmin
+          .from('announcement_highlights_history')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('highlight_type', 'category')
+          .eq('credit_source', 'plan_carryover')
+          .gte('applied_at', subscriptionRow.current_period_start)
+          .lte('applied_at', subscriptionRow.current_period_end),
+        supabaseAdmin
           .from('announcement_highlights_history')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId)
           .eq('highlight_type', 'home')
           .eq('credit_source', 'plan')
           .gte('applied_at', usageStart)
-          .lte('applied_at', usageEnd);
+          .lte('applied_at', usageEnd),
+        supabaseAdmin
+          .from('announcement_highlights_history')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('highlight_type', 'home')
+          .eq('credit_source', 'plan_carryover')
+          .gte('applied_at', subscriptionRow.current_period_start)
+          .lte('applied_at', subscriptionRow.current_period_end),
+      ]);
 
-        if (homeUsageError) {
-          throw homeUsageError;
-        }
-
-        homeUsed = Number(count ?? 0);
+      if (categoryPlanUsageError) {
+        throw categoryPlanUsageError;
       }
 
+      if (categoryCarryoverUsageError) {
+        throw categoryCarryoverUsageError;
+      }
+
+      if (homePlanUsageError) {
+        throw homePlanUsageError;
+      }
+
+      if (homeCarryoverUsageError) {
+        throw homeCarryoverUsageError;
+      }
+
+      const categoryRemaining =
+        Math.max(categoryPlanLimit - Number(categoryPlanUsedCount ?? 0), 0) +
+        Math.max(categoryCarryoverLimit - Number(categoryCarryoverUsedCount ?? 0), 0);
+      const homeRemaining =
+        Math.max(homePlanLimit - Number(homePlanUsedCount ?? 0), 0) +
+        Math.max(homeCarryoverLimit - Number(homeCarryoverUsedCount ?? 0), 0);
+
+      const nextCategoryPlanCount = Math.max(Number(nextPlanRecord?.category_highlights_count ?? 0), 0);
+      const nextHomePlanCount = Math.max(Number(nextPlanRecord?.home_highlight_count ?? 0), 0);
+      const currentCategoryPlanCount = Math.max(Number(currentPlanRecord?.category_highlights_count ?? 0), 0);
+      const currentHomePlanCount = Math.max(Number(currentPlanRecord?.home_highlight_count ?? 0), 0);
+
       return {
-        category: Math.max(categoryLimit - categoryUsed, 0),
-        home: Math.max(homeLimit - homeUsed, 0),
+        category: {
+          carryover: categoryRemaining,
+          carryoverExpiresAt: categoryRemaining > 0 ? usageEnd : null,
+          planUnlockAt: nextCategoryPlanCount < currentCategoryPlanCount ? usageEnd : null,
+        },
+        home: {
+          carryover: homeRemaining,
+          carryoverExpiresAt: homeRemaining > 0 ? usageEnd : null,
+          planUnlockAt: nextHomePlanCount < currentHomePlanCount ? usageEnd : null,
+        },
       };
     };
 
@@ -921,7 +1014,7 @@ serve(async (req) => {
 
       const { data: activeUserSubscription } = await supabaseAdmin
         .from('user_subscriptions')
-        .select('id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,home_highlights_carryover,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end')
+        .select(SUBSCRIPTION_SELECT_FIELDS)
         .eq('user_id', userId)
         .in('status', ACTIVE_SUBSCRIPTION_STATUSES)
         .order('updated_at', { ascending: false })
@@ -946,26 +1039,44 @@ serve(async (req) => {
       const isReplayForExistingPayment =
         Boolean(existingPayment?.subscription_id) &&
         existingPayment?.subscription_id === reusableSubscription?.id;
+      const isImmediatePlanReplacement =
+        subscriptionStatus === 'active' &&
+        reusableSubscription?.id &&
+        reusableSubscription.plan_id &&
+        reusableSubscription.plan_id !== planId &&
+        isFuturePeriod(reusableSubscription.current_period_end);
 
-      const carryoverCredits = isReplayForExistingPayment
+      const transitionState = isReplayForExistingPayment
         ? {
-            category: Math.max(Number(reusableSubscription?.category_highlights_carryover ?? 0), 0),
-            home: Math.max(Number(reusableSubscription?.home_highlights_carryover ?? 0), 0),
+            category: {
+              carryover: Math.max(Number(reusableSubscription?.category_highlights_carryover ?? 0), 0),
+              carryoverExpiresAt: reusableSubscription?.category_highlights_carryover_expires_at ?? null,
+              planUnlockAt: reusableSubscription?.category_highlights_plan_unlock_at ?? null,
+            },
+            home: {
+              carryover: Math.max(Number(reusableSubscription?.home_highlights_carryover ?? 0), 0),
+              carryoverExpiresAt: reusableSubscription?.home_highlights_carryover_expires_at ?? null,
+              planUnlockAt: reusableSubscription?.home_highlights_plan_unlock_at ?? null,
+            },
           }
-        : subscriptionStatus === 'active' &&
-            reusableSubscription?.id &&
-            reusableSubscription.billing_model !== 'recurring' &&
-            isFuturePeriod(reusableSubscription.current_period_end)
-          ? await getPlanHighlightCarryover(reusableSubscription)
-          : { category: 0, home: 0 };
+        : isImmediatePlanReplacement
+          ? await getPlanHighlightTransitionState(reusableSubscription, planId as string)
+          : {
+              category: { carryover: 0, carryoverExpiresAt: null, planUnlockAt: null },
+              home: { carryover: 0, carryoverExpiresAt: null, planUnlockAt: null },
+            };
 
       const basePayload = {
         user_id: userId,
         plan_id: planId,
         billing_model: billingModel || 'one_time',
         billing_cycle: billingCycle || 'monthly',
-        category_highlights_carryover: carryoverCredits.category,
-        home_highlights_carryover: carryoverCredits.home,
+        category_highlights_carryover: transitionState.category.carryover,
+        category_highlights_carryover_expires_at: transitionState.category.carryoverExpiresAt,
+        category_highlights_plan_unlock_at: transitionState.category.planUnlockAt,
+        home_highlights_carryover: transitionState.home.carryover,
+        home_highlights_carryover_expires_at: transitionState.home.carryoverExpiresAt,
+        home_highlights_plan_unlock_at: transitionState.home.planUnlockAt,
         status: subscriptionStatus,
         provider: 'asaas',
         provider_customer_id: providerCustomerId,

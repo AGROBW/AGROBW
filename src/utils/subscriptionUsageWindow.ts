@@ -16,10 +16,22 @@ export type PlanValidityPlanLike = {
 };
 
 const ANNUAL_THRESHOLD_DAYS = 45;
+const ANNUAL_USAGE_WINDOW_MINUTES_OVERRIDE = (() => {
+  const raw = import.meta.env.VITE_ANNUAL_USAGE_WINDOW_MINUTES;
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+})();
 
 const addMonthsUtc = (date: Date, months: number) => {
   const result = new Date(date.getTime());
   result.setUTCMonth(result.getUTCMonth() + months);
+  return result;
+};
+
+const addMinutesUtc = (date: Date, minutes: number) => {
+  const result = new Date(date.getTime());
+  result.setUTCMinutes(result.getUTCMinutes() + minutes);
   return result;
 };
 
@@ -42,11 +54,15 @@ export const getSubscriptionUsageWindow = (
   }
 
   let usageStart = contractStart;
-  let usageEnd = addMonthsUtc(contractStart, 1);
+  let usageEnd = ANNUAL_USAGE_WINDOW_MINUTES_OVERRIDE
+    ? addMinutesUtc(contractStart, ANNUAL_USAGE_WINDOW_MINUTES_OVERRIDE)
+    : addMonthsUtc(contractStart, 1);
 
   while (referenceDate >= usageEnd && usageEnd < contractEnd) {
     usageStart = usageEnd;
-    usageEnd = addMonthsUtc(usageEnd, 1);
+    usageEnd = ANNUAL_USAGE_WINDOW_MINUTES_OVERRIDE
+      ? addMinutesUtc(usageEnd, ANNUAL_USAGE_WINDOW_MINUTES_OVERRIDE)
+      : addMonthsUtc(usageEnd, 1);
   }
 
   if (usageEnd > contractEnd) {
