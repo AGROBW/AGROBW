@@ -2659,7 +2659,7 @@ const UserDashboardView: React.FC = () => {
           <div className="mt-5 flex items-start gap-3 rounded-[20px] border border-amber-200 bg-amber-50 p-4">
             <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" strokeWidth={1.8} />
             <p className="text-xs leading-5 text-amber-800">
-              Os números acima mostram o uso de créditos no ciclo atual. Um anúncio destacado pode continuar ativo mesmo após a virada do ciclo. Os destaques Home e Categoria não são cumulativos e, em caso de upgrade ou downgrade, prevalecem sempre as quantidades do plano ativo.
+              Os números acima mostram o uso de créditos no ciclo atual. Um anúncio destacado pode continuar ativo mesmo após a virada do ciclo. Em upgrades, o saldo remanescente pode ser somado ao novo plano. Em downgrades imediatos, o saldo remanescente do ciclo atual é preservado até o fim da janela vigente; depois disso, passam a valer apenas as quantidades do plano ativo.
             </p>
           </div>
         </section>
