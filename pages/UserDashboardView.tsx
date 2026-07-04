@@ -1170,13 +1170,13 @@ const UserDashboardView: React.FC = () => {
 
     useEffect(() => {
       setCurrentPage(1);
-    }, [activeTab, searchTerm, itemsPerPage, setCurrentPage]);
+    }, [activeTab, searchTerm, itemsPerPage]);
 
     useEffect(() => {
       if (currentPage !== safeCurrentPage) {
         setCurrentPage(safeCurrentPage);
       }
-    }, [currentPage, safeCurrentPage, setCurrentPage]);
+    }, [currentPage, safeCurrentPage]);
 
     const tabs = [
       { id: 'all', label: 'Todos', count: counts.all },
