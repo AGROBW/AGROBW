@@ -64,6 +64,9 @@ declare
   v_booster_remaining int := 0;
   v_expires_at timestamptz;
   v_available_after timestamptz;
+  v_subscription_activation_start timestamptz;
+  v_plan_usage_start timestamptz;
+  v_carryover_usage_start timestamptz;
   v_credit_source text := 'plan';
   v_booster_purchase_id uuid := null;
 begin
@@ -137,6 +140,18 @@ begin
       v_subscription_record.current_period_end,
       now()
     );
+
+    v_subscription_activation_start := greatest(
+      coalesce(v_subscription_record.created_at, v_subscription_record.current_period_start),
+      v_subscription_record.current_period_start
+    );
+
+    v_plan_usage_start := greatest(
+      coalesce(v_usage_window.usage_period_start, v_subscription_record.current_period_start),
+      v_subscription_activation_start
+    );
+
+    v_carryover_usage_start := v_subscription_activation_start;
   end if;
 
   if p_highlight_type = 'category' then
@@ -188,7 +203,7 @@ begin
     where user_id = v_user_id
       and highlight_type = p_highlight_type
       and credit_source = 'plan'
-      and applied_at between v_usage_window.usage_period_start and v_usage_window.usage_period_end;
+      and applied_at between v_plan_usage_start and v_usage_window.usage_period_end;
   end if;
 
   if v_has_subscription and v_carryover_highlights_limit > 0 then
@@ -198,7 +213,7 @@ begin
     where user_id = v_user_id
       and highlight_type = p_highlight_type
       and credit_source = 'plan_carryover'
-      and applied_at between v_subscription_record.current_period_start and v_subscription_record.current_period_end;
+      and applied_at between v_carryover_usage_start and v_subscription_record.current_period_end;
   end if;
 
   v_plan_highlights_used := least(v_plan_highlights_used, v_plan_highlights_limit);
@@ -361,9 +376,9 @@ begin
     v_expires_at,
     case
       when v_has_subscription and v_credit_source = 'plan'
-        then v_usage_window.usage_period_start
+        then v_plan_usage_start
       when v_has_subscription
-        then v_subscription_record.current_period_start
+        then v_carryover_usage_start
       else now()
     end,
     case

@@ -2451,7 +2451,7 @@ const UserDashboardView: React.FC = () => {
         usageLabel: `${getUsageText(usage.categoryHighlightsUsed, usage.categoryHighlightsLimit)} usados neste ciclo`,
         activeNow: activeCategoryHighlightsNow,
         helper: usage.categoryHighlightsLimit > 0
-          ? `${Math.max(usage.categoryHighlightsLimit - usage.categoryHighlightsUsed, 0)} crédito(s) do plano disponível(is) neste ciclo.`
+          ? `${Math.max(usage.categoryHighlightsLimit - usage.categoryHighlightsUsed, 0)} crédito(s) disponível(is) neste ciclo.`
           : 'Seu plano atual não inclui créditos diretos de destaque em categoria.',
         tone: usage.categoryHighlightsUsed >= usage.categoryHighlightsLimit && usage.categoryHighlightsLimit > 0 ? 'amber' : 'green',
       },
@@ -2464,7 +2464,7 @@ const UserDashboardView: React.FC = () => {
         usageLabel: `${getUsageText(usage.homeHighlightsUsed, usage.homeHighlightsLimit)} usados neste ciclo`,
         activeNow: activeHomeHighlightsNow,
         helper: usage.homeHighlightsLimit > 0
-          ? `${Math.max(usage.homeHighlightsLimit - usage.homeHighlightsUsed, 0)} crédito(s) do plano disponível(is) neste ciclo.`
+          ? `${Math.max(usage.homeHighlightsLimit - usage.homeHighlightsUsed, 0)} crédito(s) disponível(is) neste ciclo.`
           : 'Seu plano atual não inclui créditos diretos de destaque na Home.',
         tone: usage.homeHighlightsUsed >= usage.homeHighlightsLimit && usage.homeHighlightsLimit > 0 ? 'amber' : 'green',
       },

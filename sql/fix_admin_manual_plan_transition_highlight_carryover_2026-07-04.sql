@@ -32,6 +32,9 @@ declare
   v_home_carryover_used integer := 0;
   v_category_remaining integer := 0;
   v_home_remaining integer := 0;
+  v_previous_subscription_activation_start timestamptz := null;
+  v_previous_plan_usage_start timestamptz := null;
+  v_previous_carryover_usage_start timestamptz := null;
   v_category_carryover_expires_at timestamptz := null;
   v_home_carryover_expires_at timestamptz := null;
   v_category_plan_unlock_at timestamptz := null;
@@ -195,6 +198,18 @@ begin
         now()
       );
 
+      v_previous_subscription_activation_start := greatest(
+        coalesce(v_previous_subscription.created_at, v_previous_subscription.current_period_start),
+        v_previous_subscription.current_period_start
+      );
+
+      v_previous_plan_usage_start := greatest(
+        coalesce(v_usage_window.usage_period_start, v_previous_subscription.current_period_start),
+        v_previous_subscription_activation_start
+      );
+
+      v_previous_carryover_usage_start := v_previous_subscription_activation_start;
+
       v_category_plan_limit := case
         when not has_category_plan_unlock_at
           or v_previous_subscription.category_highlights_plan_unlock_at is null
@@ -236,7 +251,7 @@ begin
         where user_id = p_user_id
           and highlight_type = 'category'
           and credit_source = 'plan'
-          and applied_at between v_usage_window.usage_period_start and v_usage_window.usage_period_end;
+          and applied_at between v_previous_plan_usage_start and v_usage_window.usage_period_end;
       end if;
 
       if v_home_plan_limit > 0 then
@@ -246,7 +261,7 @@ begin
         where user_id = p_user_id
           and highlight_type = 'home'
           and credit_source = 'plan'
-          and applied_at between v_usage_window.usage_period_start and v_usage_window.usage_period_end;
+          and applied_at between v_previous_plan_usage_start and v_usage_window.usage_period_end;
       end if;
 
       if v_category_carryover_limit > 0 then
@@ -256,7 +271,7 @@ begin
         where user_id = p_user_id
           and highlight_type = 'category'
           and credit_source = 'plan_carryover'
-          and applied_at between v_previous_subscription.current_period_start and v_previous_subscription.current_period_end;
+          and applied_at between v_previous_carryover_usage_start and v_previous_subscription.current_period_end;
       end if;
 
       if v_home_carryover_limit > 0 then
@@ -266,7 +281,7 @@ begin
         where user_id = p_user_id
           and highlight_type = 'home'
           and credit_source = 'plan_carryover'
-          and applied_at between v_previous_subscription.current_period_start and v_previous_subscription.current_period_end;
+          and applied_at between v_previous_carryover_usage_start and v_previous_subscription.current_period_end;
       end if;
 
       v_category_remaining :=

@@ -18,6 +18,7 @@ type ExistingSubscriptionRow = {
   id: string;
   user_id: string;
   plan_id: string | null;
+  created_at: string | null;
   billing_model: BillingModel | null;
   billing_cycle: 'monthly' | 'yearly' | null;
   category_highlights_carryover: number | null;
@@ -53,7 +54,7 @@ type ExistingPaymentRow = {
 
 const PAYMENT_SETTINGS_SINGLETON_ID = '00000000-0000-0000-0000-000000000005';
 const SUBSCRIPTION_SELECT_FIELDS =
-  'id,user_id,plan_id,billing_model,billing_cycle,category_highlights_carryover,category_highlights_carryover_expires_at,category_highlights_plan_unlock_at,home_highlights_carryover,home_highlights_carryover_expires_at,home_highlights_plan_unlock_at,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end';
+  'id,user_id,plan_id,created_at,billing_model,billing_cycle,category_highlights_carryover,category_highlights_carryover_expires_at,category_highlights_plan_unlock_at,home_highlights_carryover,home_highlights_carryover_expires_at,home_highlights_plan_unlock_at,status,provider,provider_customer_id,provider_subscription_id,provider_checkout_session_id,current_period_start,current_period_end';
 const ACTIVE_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due', 'pending'];
 const APPROVED_PAYMENT_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 const PENDING_PAYMENT_STATUSES = new Set([
@@ -915,13 +916,22 @@ serve(async (req) => {
         usageWindow?.usage_period_end,
         subscriptionRow.current_period_end
       );
+      const subscriptionActivationStart = readString(
+        subscriptionRow.created_at,
+        subscriptionRow.current_period_start
+      );
 
-      if (!usageStart || !usageEnd) {
+      if (!usageStart || !usageEnd || !subscriptionActivationStart) {
         return {
           category: { carryover: 0, carryoverExpiresAt: null, planUnlockAt: null },
           home: { carryover: 0, carryoverExpiresAt: null, planUnlockAt: null },
         };
       }
+
+      const planUsageStart =
+        new Date(subscriptionActivationStart).getTime() > new Date(usageStart).getTime()
+          ? subscriptionActivationStart
+          : usageStart;
 
       const [
         { count: categoryPlanUsedCount, error: categoryPlanUsageError },
@@ -935,7 +945,7 @@ serve(async (req) => {
           .eq('user_id', userId)
           .eq('highlight_type', 'category')
           .eq('credit_source', 'plan')
-          .gte('applied_at', usageStart)
+          .gte('applied_at', planUsageStart)
           .lte('applied_at', usageEnd),
         supabaseAdmin
           .from('announcement_highlights_history')
@@ -943,7 +953,7 @@ serve(async (req) => {
           .eq('user_id', userId)
           .eq('highlight_type', 'category')
           .eq('credit_source', 'plan_carryover')
-          .gte('applied_at', subscriptionRow.current_period_start)
+          .gte('applied_at', subscriptionActivationStart)
           .lte('applied_at', subscriptionRow.current_period_end),
         supabaseAdmin
           .from('announcement_highlights_history')
@@ -951,7 +961,7 @@ serve(async (req) => {
           .eq('user_id', userId)
           .eq('highlight_type', 'home')
           .eq('credit_source', 'plan')
-          .gte('applied_at', usageStart)
+          .gte('applied_at', planUsageStart)
           .lte('applied_at', usageEnd),
         supabaseAdmin
           .from('announcement_highlights_history')
@@ -959,7 +969,7 @@ serve(async (req) => {
           .eq('user_id', userId)
           .eq('highlight_type', 'home')
           .eq('credit_source', 'plan_carryover')
-          .gte('applied_at', subscriptionRow.current_period_start)
+          .gte('applied_at', subscriptionActivationStart)
           .lte('applied_at', subscriptionRow.current_period_end),
       ]);
 

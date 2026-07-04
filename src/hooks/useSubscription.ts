@@ -71,6 +71,30 @@ const isFutureTimestamp = (value?: string | null) => {
   return Number.isFinite(timestamp) && timestamp > Date.now();
 };
 
+const getValidTimestamp = (value?: string | null) => {
+  const timestamp = value ? new Date(value).getTime() : Number.NaN;
+  return Number.isFinite(timestamp) ? timestamp : null;
+};
+
+const getSubscriptionActivationStart = (subscription?: Pick<UserSubscription, 'created_at' | 'current_period_start'> | null) => {
+  const createdAtTs = getValidTimestamp(subscription?.created_at);
+  const periodStartTs = getValidTimestamp(subscription?.current_period_start);
+
+  if (createdAtTs !== null && periodStartTs !== null) {
+    return new Date(Math.max(createdAtTs, periodStartTs));
+  }
+
+  if (createdAtTs !== null) {
+    return new Date(createdAtTs);
+  }
+
+  if (periodStartTs !== null) {
+    return new Date(periodStartTs);
+  }
+
+  return null;
+};
+
 const getEffectiveHighlightAllowance = ({
   planCount,
   carryoverCount,
@@ -250,6 +274,23 @@ export const useSubscription = () => {
       const usageWindow = activeSubscription
         ? getSubscriptionUsageWindow(activeSubscription.current_period_start, activeSubscription.current_period_end)
         : null;
+      const subscriptionActivationStart = getSubscriptionActivationStart(activeSubscription);
+      const planUsageStartIso = (() => {
+        const usageStartTs = usageWindow?.usageStart?.getTime();
+        const activationTs = subscriptionActivationStart?.getTime();
+
+        if (usageStartTs && activationTs) {
+          return new Date(Math.max(usageStartTs, activationTs)).toISOString();
+        }
+
+        return usageWindow?.usageStart?.toISOString()
+          || subscriptionActivationStart?.toISOString()
+          || activeSubscription?.current_period_start
+          || null;
+      })();
+      const carryoverUsageStartIso = subscriptionActivationStart?.toISOString()
+        || activeSubscription?.current_period_start
+        || null;
       const now = new Date();
       const isWithinPeriod = periodStart && periodEnd ? now >= periodStart && now <= periodEnd : false;
 
@@ -303,7 +344,7 @@ export const useSubscription = () => {
             .eq('user_id', user.id)
             .eq('highlight_type', 'category')
             .eq('credit_source', 'plan')
-            .gte('applied_at', usageWindow?.usageStart.toISOString() || activeSubscription.current_period_start)
+            .gte('applied_at', planUsageStartIso || activeSubscription.current_period_start)
             .lte('applied_at', usageWindow?.usageEnd.toISOString() || activeSubscription.current_period_end),
           supabase
             .from('announcement_highlights_history')
@@ -311,7 +352,7 @@ export const useSubscription = () => {
             .eq('user_id', user.id)
             .eq('highlight_type', 'category')
             .eq('credit_source', 'plan_carryover')
-            .gte('applied_at', activeSubscription.current_period_start)
+            .gte('applied_at', carryoverUsageStartIso || activeSubscription.current_period_start)
             .lte('applied_at', activeSubscription.current_period_end),
           supabase
             .from('announcement_highlights_history')
@@ -319,7 +360,7 @@ export const useSubscription = () => {
             .eq('user_id', user.id)
             .eq('highlight_type', 'home')
             .eq('credit_source', 'plan')
-            .gte('applied_at', usageWindow?.usageStart.toISOString() || activeSubscription.current_period_start)
+            .gte('applied_at', planUsageStartIso || activeSubscription.current_period_start)
             .lte('applied_at', usageWindow?.usageEnd.toISOString() || activeSubscription.current_period_end),
           supabase
             .from('announcement_highlights_history')
@@ -327,7 +368,7 @@ export const useSubscription = () => {
             .eq('user_id', user.id)
             .eq('highlight_type', 'home')
             .eq('credit_source', 'plan_carryover')
-            .gte('applied_at', activeSubscription.current_period_start)
+            .gte('applied_at', carryoverUsageStartIso || activeSubscription.current_period_start)
             .lte('applied_at', activeSubscription.current_period_end),
         ]);
 
@@ -425,14 +466,14 @@ export const useSubscription = () => {
   }, [subscription]);
 
   const canApplyCategoryHighlight = useMemo(() => {
-    const limit = subscription?.plans?.category_highlights_count || 0;
+    const limit = usage.categoryHighlightsLimit;
     return (usage.categoryHighlightsUsed < limit && usage.isWithinPeriod) || usage.categoryHighlightsBoosterRemaining > 0;
-  }, [subscription, usage.categoryHighlightsUsed, usage.categoryHighlightsBoosterRemaining, usage.isWithinPeriod]);
+  }, [usage.categoryHighlightsLimit, usage.categoryHighlightsUsed, usage.categoryHighlightsBoosterRemaining, usage.isWithinPeriod]);
 
   const canApplyHomeHighlight = useMemo(() => {
-    const limit = subscription?.plans?.home_highlight_count || 0;
+    const limit = usage.homeHighlightsLimit;
     return (usage.homeHighlightsUsed < limit && usage.isWithinPeriod) || usage.homeHighlightsBoosterRemaining > 0;
-  }, [subscription, usage.homeHighlightsUsed, usage.homeHighlightsBoosterRemaining, usage.isWithinPeriod]);
+  }, [usage.homeHighlightsLimit, usage.homeHighlightsUsed, usage.homeHighlightsBoosterRemaining, usage.isWithinPeriod]);
 
   const adLimitMessage = useMemo(() => {
     if (!subscription?.plans) return '';

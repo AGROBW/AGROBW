@@ -182,7 +182,7 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
         description:
           data?.credit_source === 'booster'
             ? `Credito extra consumido com sucesso. Restam ${data?.booster_remaining || 0} credito(s) extra(s).`
-            : `Restam ${data?.remaining || 0} credito(s) do plano e ${data?.booster_remaining || 0} credito(s) extra(s).`,
+            : `Restam ${data?.remaining || 0} credito(s) disponiveis neste ciclo e ${data?.booster_remaining || 0} credito(s) extra(s).`,
       });
 
       await refreshUsage();
@@ -315,7 +315,7 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
                 <div className="space-y-1.5 sm:space-y-2">
                   <p className="text-sm font-bold text-amber-900">Atencao:</p>
                   <ul className="text-[13px] sm:text-sm text-amber-800 space-y-1 pl-4 sm:pl-5 list-disc">
-                    <li>O sistema consome primeiro os creditos do seu plano.</li>
+                    <li>O sistema consome primeiro os creditos disponiveis neste ciclo e so depois usa o booster.</li>
                     <li>Quando o ciclo acabar, o consumo continua pelos creditos extras do booster.</li>
                     <li>Ao ativar este destaque, este anuncio so podera receber {nextHighlightLabel} novamente {formatHighlightCooldownDaysLabel(highlightCooldownDays)} apos o vencimento do periodo ativo.</li>
                     <li>
@@ -354,7 +354,7 @@ const HighlightConfirmationModal: React.FC<HighlightConfirmationModalProps> = ({
 
               <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-600">
                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                  <span className="block uppercase tracking-wide text-slate-400 font-semibold">Plano</span>
+                  <span className="block uppercase tracking-wide text-slate-400 font-semibold">Ciclo</span>
                   <span className="font-bold text-slate-900">{remainingPlanCredits} restante(s)</span>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
