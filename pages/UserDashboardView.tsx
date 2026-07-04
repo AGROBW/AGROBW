@@ -1084,6 +1084,7 @@ const UserDashboardView: React.FC = () => {
     );
     const [searchTerm, setSearchTerm] = usePersistentState('user-dashboard:ads-search', '');
     const [itemsPerPage, setItemsPerPage] = usePersistentState('user-dashboard:ads-items-per-page', 10);
+    const [currentPage, setCurrentPage] = usePersistentState('user-dashboard:ads-current-page', 1);
     const [isBoosterExpanded, setIsBoosterExpanded] = usePersistentState('user-dashboard:ads-booster-expanded', false);
     const [removedAdIds, setRemovedAdIds] = useState<string[]>([]);
       const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -1157,7 +1158,25 @@ const UserDashboardView: React.FC = () => {
       return byTab.filter(ad => ad.title.toLowerCase().includes(normalized) || ad.id.toLowerCase().includes(normalized));
     }, [visibleAds, activeTab, searchTerm]);
 
-    const pagedAds = useMemo(() => filteredAds.slice(0, itemsPerPage), [filteredAds, itemsPerPage]);
+    const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredAds.length / itemsPerPage)), [filteredAds.length, itemsPerPage]);
+
+    const safeCurrentPage = useMemo(() => Math.min(Math.max(currentPage, 1), totalPages), [currentPage, totalPages]);
+
+    const pagedAds = useMemo(() => {
+      const start = (safeCurrentPage - 1) * itemsPerPage;
+      const end = start + itemsPerPage;
+      return filteredAds.slice(start, end);
+    }, [filteredAds, itemsPerPage, safeCurrentPage]);
+
+    useEffect(() => {
+      setCurrentPage(1);
+    }, [activeTab, searchTerm, itemsPerPage, setCurrentPage]);
+
+    useEffect(() => {
+      if (currentPage !== safeCurrentPage) {
+        setCurrentPage(safeCurrentPage);
+      }
+    }, [currentPage, safeCurrentPage, setCurrentPage]);
 
     const tabs = [
       { id: 'all', label: 'Todos', count: counts.all },
@@ -2144,6 +2163,35 @@ const UserDashboardView: React.FC = () => {
             )}
           </motion.div>
         </AnimatePresence>
+
+        {!adsLoading && filteredAds.length > 0 && totalPages > 1 ? (
+          <div className="flex flex-col gap-3 rounded-[20px] border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-500">
+              Mostrando {(safeCurrentPage - 1) * itemsPerPage + 1}-{Math.min(safeCurrentPage * itemsPerPage, filteredAds.length)} de {filteredAds.length} anúncios
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={safeCurrentPage === 1}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Anterior
+              </button>
+              <span className="min-w-[110px] text-center text-sm font-medium text-slate-600">
+                Página {safeCurrentPage} de {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={safeCurrentPage === totalPages}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {/* Modal: Solicitar campanha de Loja Parceira */}
         <StoreCampaignRequestModal
