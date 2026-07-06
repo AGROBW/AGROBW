@@ -46,6 +46,17 @@ const PricingView: React.FC = () => {
     highlightSettings?.highlightCooldownDays ?? DEFAULT_HIGHLIGHT_COOLDOWN_DAYS
   );
   const highlightCooldownLabel = formatHighlightCooldownDaysLabel(highlightCooldownDays);
+  const activeBooster = boosters[0] ?? null;
+  const boosterHowItWorksText = useMemo(() => {
+    if (!activeBooster) {
+      return 'Adquira um pacote de destaques em categoria e na home para impulsionar seus anúncios.';
+    }
+
+    const categoryLabel = `${activeBooster.categoryCredits} destaque${activeBooster.categoryCredits === 1 ? '' : 's'} em categoria`;
+    const homeLabel = `${activeBooster.homeCredits} destaque${activeBooster.homeCredits === 1 ? '' : 's'} na home`;
+
+    return `Adquira um pacote com ${categoryLabel} + ${homeLabel} para impulsionar seus anúncios.`;
+  }, [activeBooster]);
   const visiblePricingFaq = useMemo(
     () => PRICING_FAQ
       .filter((faq) => faq.question !== 'Posso cancelar minha assinatura a qualquer momento?')
@@ -656,10 +667,10 @@ const PricingView: React.FC = () => {
                 {/* card do booster */}
                 <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 backdrop-blur-sm">
                   <HighlightBoosterCard
-                    booster={boosters[0]}
+                    booster={activeBooster!}
                     summary={boosterSummary}
                     onPurchase={handleBoosterPurchase}
-                    loading={loadingPlanId === `booster-${boosters[0].id}`}
+                    loading={loadingPlanId === `booster-${activeBooster!.id}`}
                     showAccountSummary={!!user}
                   />
                 </div>
@@ -677,7 +688,7 @@ const PricingView: React.FC = () => {
                       {
                         n: '1',
                         title: 'Mais visibilidade imediata',
-                        text: 'Adquira um pacote com 5 destaques em categoria + 5 destaques na home para impulsionar seus anúncios.',
+                        text: boosterHowItWorksText,
                       },
                       {
                         n: '2',
@@ -872,5 +883,4 @@ const PricingView: React.FC = () => {
 };
 
 export default PricingView;
-
 
