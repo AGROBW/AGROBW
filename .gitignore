@@ -25,6 +25,7 @@ dist-ssr
 
 .vercel
 .env*.local
+.claude/
 
 corpus.json
 backup*
