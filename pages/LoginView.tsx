@@ -11,7 +11,7 @@ const LoginView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { signIn, sendPasswordResetEmail } = useAuth();
-  const { settings } = useLayout();
+  const { settings, isLoading: isLayoutLoading } = useLayout();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -36,6 +36,38 @@ const LoginView: React.FC = () => {
   const loginHeroImage =
     settings.loginHeroImageUrl ||
     'https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?q=80&w=1600&auto=format&fit=crop';
+
+  if (isLayoutLoading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex flex-col md:flex-row bg-white overflow-hidden">
+        <div className="hidden md:block md:w-[60%] animate-pulse bg-slate-200" />
+        <div className="flex-1 flex items-center justify-center p-8 md:p-16 lg:p-24 bg-slate-50 md:bg-white">
+          <div className="max-w-md w-full animate-pulse">
+            <div className="mb-12">
+              <div className="mb-10 h-12 w-40 rounded-2xl bg-slate-200" />
+              <div className="h-8 w-52 rounded-xl bg-slate-200" />
+              <div className="mt-3 h-4 w-72 rounded-lg bg-slate-100" />
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <div className="mb-2 ml-1 h-3 w-28 rounded bg-slate-100" />
+                <div className="h-14 rounded-2xl bg-slate-100" />
+              </div>
+
+              <div>
+                <div className="mb-2 ml-1 h-3 w-20 rounded bg-slate-100" />
+                <div className="h-14 rounded-2xl bg-slate-100" />
+              </div>
+
+              <div className="h-20 rounded-2xl bg-slate-100" />
+              <div className="h-14 rounded-2xl bg-slate-200" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const buildPostAuthRedirect = () => {
     if (!contactSellerIntent) {

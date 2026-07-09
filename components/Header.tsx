@@ -12,7 +12,7 @@ const Header: React.FC = () => {
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const { user, signOut } = useAuth();
-  const { settings } = useLayout();
+  const { settings, isLoading: isLayoutLoading } = useLayout();
   const { messagesCount, notificationsCount } = useNotificationsCount();
   const navigate = useNavigate();
   const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -55,7 +55,9 @@ const Header: React.FC = () => {
         <div className="flex h-16 items-center justify-between">
           <div className="flex flex-shrink-0 items-center">
             <Link to="/" className="flex items-center gap-2">
-              {settings.logoUrl ? (
+              {isLayoutLoading ? (
+                <div className="h-9 w-32 animate-pulse rounded-xl bg-slate-200" />
+              ) : settings.logoUrl ? (
                 <img src={settings.logoUrl} alt={brandName} className="h-9 w-auto max-w-[160px] object-contain" />
               ) : (
                 <>
