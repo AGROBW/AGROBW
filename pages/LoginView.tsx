@@ -37,6 +37,33 @@ const LoginView: React.FC = () => {
     settings.loginHeroImageUrl ||
     'https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?q=80&w=1600&auto=format&fit=crop';
 
+  const buildPostAuthRedirect = () => {
+    if (!contactSellerIntent) {
+      return redirectTarget;
+    }
+
+    const separator = redirectTarget.includes('?') ? '&' : '?';
+    return `${redirectTarget}${separator}openContactSeller=1`;
+  };
+
+  useEffect(() => {
+    const validate = () => {
+      const newErrors = { email: '', password: '' };
+
+      if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        newErrors.email = 'Formato de e-mail inválido';
+      }
+
+      if (!recoveryMode && formData.password && formData.password.length < 6) {
+        newErrors.password = 'A senha deve ter no mínimo 6 caracteres';
+      }
+
+      setErrors(newErrors);
+    };
+
+    validate();
+  }, [formData, recoveryMode]);
+
   if (isLayoutLoading) {
     return (
       <div className="min-h-[calc(100vh-4rem)] flex flex-col md:flex-row bg-white overflow-hidden">
@@ -68,33 +95,6 @@ const LoginView: React.FC = () => {
       </div>
     );
   }
-
-  const buildPostAuthRedirect = () => {
-    if (!contactSellerIntent) {
-      return redirectTarget;
-    }
-
-    const separator = redirectTarget.includes('?') ? '&' : '?';
-    return `${redirectTarget}${separator}openContactSeller=1`;
-  };
-
-  useEffect(() => {
-    const validate = () => {
-      const newErrors = { email: '', password: '' };
-
-      if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        newErrors.email = 'Formato de e-mail inválido';
-      }
-
-      if (!recoveryMode && formData.password && formData.password.length < 6) {
-        newErrors.password = 'A senha deve ter no mínimo 6 caracteres';
-      }
-
-      setErrors(newErrors);
-    };
-
-    validate();
-  }, [formData, recoveryMode]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
