@@ -135,8 +135,7 @@ const PUBLIC_ADS_SELECT = `
   highlight_home_until,
   community_reports_count,
   community_reported_to_review_at,
-  community_report_reasons,
-  seller:vendedores_publicos!user_id (name, avatar, document_verified, cidade, estado)
+  community_report_reasons
 `
 
 const ADMIN_ADS_SELECT = `
@@ -618,6 +617,13 @@ export const usePublicAds = (filters?: {
       } else {
         const announcementIds = Array.from(new Set((data || []).map((ad: any) => ad.id).filter(Boolean)))
         const sellerIds = Array.from(new Set((data || []).map((ad: any) => ad.user_id).filter(Boolean)))
+        const sellerMap = new Map<string, {
+          name?: string
+          avatar?: string
+          document_verified?: boolean
+          cidade?: string
+          estado?: string
+        }>()
         const storeMap = new Map<string, { slug: string; storeName: string; logoUrl?: string; isVerified?: boolean }>()
         const planMap = new Map<string, { monthlyPrice: number; position: number | null; planName: string | null }>()
         const engagementMap = new Map<string, {
@@ -632,6 +638,10 @@ export const usePublicAds = (filters?: {
         if (sellerIds.length > 0) {
           requests.push(
             supabase
+              .from('vendedores_publicos')
+              .select('id, name, avatar, document_verified, cidade, estado')
+              .in('id', sellerIds),
+            supabase
               .from('seller_stores')
               .select('user_id, slug, store_name, logo_url, is_verified')
               .eq('is_active', true)
@@ -643,7 +653,11 @@ export const usePublicAds = (filters?: {
             })
           )
         } else {
-          requests.push(Promise.resolve({ data: [], error: null }), Promise.resolve({ data: [], error: null }))
+          requests.push(
+            Promise.resolve({ data: [], error: null }),
+            Promise.resolve({ data: [], error: null }),
+            Promise.resolve({ data: [], error: null })
+          )
         }
 
         if (announcementIds.length > 0) {
@@ -659,10 +673,23 @@ export const usePublicAds = (filters?: {
 
         if (requests.length > 0) {
           const [
+            { data: sellersData, error: sellersError },
             { data: storesData, error: storesError },
             { data: planSignalsData, error: planSignalsError },
             { data: engagementSignalsData, error: engagementSignalsError },
           ] = await Promise.all(requests)
+
+          if (sellersError) {
+            appWarn('[usePublicAds] Erro ao buscar vendedores publicos para listagem', {
+              error: sellersError,
+              sellerCount: sellerIds.length,
+            })
+          } else {
+            for (const seller of (sellersData as Array<any>) || []) {
+              if (!seller?.id) continue
+              sellerMap.set(seller.id, seller)
+            }
+          }
 
           if (storesError) {
             appWarn('[usePublicAds] Erro ao buscar lojas oficiais para listagem', { error: storesError, announcementCount: announcementIds.length })
@@ -764,9 +791,9 @@ export const usePublicAds = (filters?: {
           communityReportsCount: ad.community_reports_count || 0,
           communityReportedToReviewAt: ad.community_reported_to_review_at || null,
           communityReportReasons: Array.isArray(ad.community_report_reasons) ? ad.community_report_reasons : [],
-          seller: ad.seller
+          seller: sellerMap.get(ad.user_id)
             ? {
-                ...(Array.isArray(ad.seller) ? ad.seller[0] : ad.seller),
+                ...sellerMap.get(ad.user_id),
                 store: storeMap.get(ad.user_id)
               }
             : undefined
