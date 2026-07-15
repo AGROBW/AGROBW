@@ -86,7 +86,7 @@ type ShowcaseStatsRow = {
 
 const Home: React.FC = () => {
   const { ads, isLoading: adsLoading } = usePublicAds();
-  const { getCountForCategory } = useCategoryCounts();
+  const { getCountForCategory, hasLoadedRealCounts } = useCategoryCounts();
   const { settings } = useLayout();
   const dailyRotationSeed = getDailyRotationSeed();
   const [homeShowcaseStats, setHomeShowcaseStats] = useState<Record<string, ShowcaseStatsRow>>({});
@@ -271,7 +271,9 @@ const Home: React.FC = () => {
               <h3 className="font-semibold text-slate-800 text-sm mb-1 transition-colors group-hover:opacity-90" style={{ color: 'var(--brand-text)' }}>
                 {cat.name}
               </h3>
-              <p className="text-xs text-slate-400">{getCountForCategory(cat.slug)} anúncios</p>
+              <p className="text-xs text-slate-400">
+                {hasLoadedRealCounts ? `${getCountForCategory(cat.slug) ?? 0} anúncios` : 'Carregando...'}
+              </p>
             </Link>
           ))}
         </div>

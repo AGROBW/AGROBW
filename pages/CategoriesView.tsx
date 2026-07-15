@@ -22,20 +22,19 @@ const CATEGORY_IMAGES: Record<string, string> = {
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=800&q=80';
 
 const CategoriesView: React.FC = () => {
-  const { getCountForCategory } = useCategoryCounts();
+  const { getCountForCategory, hasLoadedRealCounts } = useCategoryCounts();
   const { settings } = useLayout();
   const { images: groupImages, isLoading: groupImagesLoading } = useCategoryGroupImages();
 
-  const totalAds = CATEGORY_HIERARCHY.reduce(
-    (sum, cat) => sum + (getCountForCategory(cat.slug) || 0),
-    0,
-  );
+  const totalAds = hasLoadedRealCounts
+    ? CATEGORY_HIERARCHY.reduce((sum, cat) => sum + (getCountForCategory(cat.slug) || 0), 0)
+    : null;
 
   return (
     <div className="min-h-screen bg-slate-50">
       <SeoHead
         title="Categorias do marketplace rural"
-        description="Explore categorias do agronegócio, encontre anúncios por setor e descubra oportunidades no mercado rural."
+        description="Explore categorias do agronegocio, encontre anuncios por setor e descubra oportunidades no mercado rural."
         canonicalPath="/categorias"
       />
       <StructuredData
@@ -48,7 +47,7 @@ const CategoriesView: React.FC = () => {
               {
                 '@type': 'ListItem',
                 position: 1,
-                name: 'Início',
+                name: 'Inicio',
                 item: buildAbsoluteSiteUrl('/'),
               },
               {
@@ -64,7 +63,7 @@ const CategoriesView: React.FC = () => {
             '@type': 'CollectionPage',
             name: 'Categorias do marketplace rural',
             url: buildAbsoluteSiteUrl('/categorias'),
-            description: 'Explore categorias do agronegócio e navegue por anúncios rurais.',
+            description: 'Explore categorias do agronegocio e navegue por anuncios rurais.',
           },
         ]}
       />
@@ -86,7 +85,7 @@ const CategoriesView: React.FC = () => {
         <div className="relative mx-auto max-w-7xl px-4 py-16">
           <div className="mb-4 flex items-center gap-2 text-sm font-medium text-slate-400">
             <Link to="/" className="transition-colors hover:text-white">
-              Início
+              Inicio
             </Link>
             <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
             <span className="font-semibold text-white">Categorias</span>
@@ -108,12 +107,12 @@ const CategoriesView: React.FC = () => {
               <span style={{ color: settings.primaryColor }}>Mercado Rural</span>
             </h1>
             <p className="mt-4 text-base leading-7 text-slate-300">
-              Conectamos vendedores e compradores em todos os setores do agronegócio brasileiro.
+              Conectamos vendedores e compradores em todos os setores do agronegocio brasileiro.
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 backdrop-blur-sm">
-                <p className="text-2xl font-black text-white">{totalAds.toLocaleString('pt-BR')}</p>
-                <p className="text-xs font-semibold text-slate-400">anúncios ativos</p>
+                <p className="text-2xl font-black text-white">{totalAds !== null ? totalAds.toLocaleString('pt-BR') : '...'}</p>
+                <p className="text-xs font-semibold text-slate-400">anuncios ativos</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 backdrop-blur-sm">
                 <p className="text-2xl font-black text-white">{CATEGORY_HIERARCHY.length}</p>
@@ -140,11 +139,12 @@ const CategoriesView: React.FC = () => {
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {CATEGORY_HIERARCHY.map((categoryGroup) => {
             const Icon = getCategoryIconComponent(undefined, categoryGroup.slug);
-            const count = getCountForCategory(categoryGroup.slug) || 0;
+            const count = getCountForCategory(categoryGroup.slug);
             const adminImageUrl = groupImages[categoryGroup.slug];
             const fallbackImageUrl = CATEGORY_IMAGES[categoryGroup.slug] || FALLBACK_IMAGE;
             const imgUrl = adminImageUrl || (!groupImagesLoading ? fallbackImageUrl : null);
             const visibleSubcategories = categoryGroup.children.slice(0, 5);
+            const countLabel = count !== null ? `${count} ${count === 1 ? 'anuncio' : 'anuncios'}` : 'Carregando...';
 
             return (
               <div
@@ -172,9 +172,9 @@ const CategoriesView: React.FC = () => {
                   </div>
                   <span
                     className="absolute right-4 top-4 rounded-xl px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white backdrop-blur-sm"
-                    style={{ backgroundColor: count > 0 ? settings.primaryColor : 'rgba(100,116,139,0.7)' }}
+                    style={{ backgroundColor: (count ?? 0) > 0 ? settings.primaryColor : 'rgba(100,116,139,0.7)' }}
                   >
-                    {count} {count === 1 ? 'anúncio' : 'anúncios'}
+                    {countLabel}
                   </span>
                   <div className="absolute bottom-4 left-4">
                     <h2 className="text-xl font-black text-white drop-shadow-sm">{categoryGroup.name}</h2>
@@ -236,9 +236,9 @@ const CategoriesView: React.FC = () => {
               >
                 Precisa de ajuda?
               </p>
-              <h3 className="mt-2 text-2xl font-black text-white">Não encontrou o que procurava?</h3>
+              <h3 className="mt-2 text-2xl font-black text-white">Nao encontrou o que procurava?</h3>
               <p className="mt-2 text-sm leading-7 text-slate-400">
-                Nossa equipe está pronta para ajudar você a encontrar o animal, máquina ou insumo ideal para sua produção.
+                Nossa equipe esta pronta para ajudar voce a encontrar o animal, maquina ou insumo ideal para sua producao.
               </p>
             </div>
             <Link
