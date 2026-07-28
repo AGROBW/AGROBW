@@ -126,13 +126,13 @@ as $$
     from public.announcements a
     where a.user_id = p_user_id
       and (p_ignore_announcement_id is null or a.id <> p_ignore_announcement_id)
-      and a.status in ('ACTIVE', 'active', 'PAUSED', 'paused', 'EXPIRED', 'expired', 'PENDING', 'pending')
-      and a.created_at >= now() - interval '90 days'
+      and a.status in ('ACTIVE', 'active', 'PAUSED', 'paused')
+      and a.created_at >= now() - interval '30 days'
   ),
   best_match as (
     select *
     from candidates
-    where score >= 5
+    where score >= 8
     order by score desc, id desc
     limit 1
   )
