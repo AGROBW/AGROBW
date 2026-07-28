@@ -40,3 +40,33 @@ h1, h2, h3, .font-display { font-family: 'Inter', sans-serif; }
 .shadow-lg,
 .shadow-md { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important; }
 .gap-8 { gap: 1rem !important; }
+
+/* =====================================================================
+   Lote 1A — anti auto-zoom do iOS/Safari em controles textuais no mobile.
+   Em telas < 768px, força font-size: 16px SOMENTE em campos de entrada textual.
+   Seletores [type]/[class] têm especificidade (0,1,1) e vencem as utilitárias
+   text-* (0,1,0) SEM !important. NÃO altera a escala tipográfica global
+   (html 85%, .text-base/.text-lg permanecem intactos). Não afeta
+   checkbox/radio/range/color/file/button/submit/reset nem hCaptcha.
+   ===================================================================== */
+@media (max-width: 767.98px) {
+  input:not([type]),
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"],
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"],
+  input[type="time"],
+  textarea,
+  textarea[class],
+  select,
+  select[class] {
+    font-size: 16px;
+  }
+}
