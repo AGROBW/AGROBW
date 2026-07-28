@@ -4,6 +4,7 @@ import { TermsSection, useTermsPage, UpdateTermsPageData } from '../../src/hooks
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import toast from 'react-hot-toast';
+import { appError } from '../../src/utils/appLogger';
 
 const createSectionId = () =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -139,7 +140,7 @@ const TermsPageManagement: React.FC = () => {
 
       toast.success('Pagina "Termos de Uso" atualizada com sucesso!');
     } catch (err) {
-      console.error('Erro ao salvar:', err);
+      appError('[TermsPageManagement] Erro ao salvar termos de uso', err);
       toast.error('Erro inesperado ao salvar');
     } finally {
       setSaving(false);

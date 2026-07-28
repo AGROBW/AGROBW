@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { ensureSiteAnalyticsSessionId, getSiteAnalyticsDeviceType } from '../lib/siteAnalyticsSession';
+import { debugLog } from '../utils/debugLog';
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
-const isDevelopment = import.meta.env.DEV;
 
 const logTrackingError = (scope: string, error: unknown) => {
-  if (!isDevelopment) return;
-  console.warn(`[SiteAnalytics] ${scope}`, error);
+  debugLog(`[SiteAnalytics] ${scope}`, error);
 };
 
 const describePage = (pathname: string) => {

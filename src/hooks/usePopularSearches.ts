@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appWarn } from '../utils/appLogger';
 
 const FALLBACK_SEARCHES = ['Tratores', 'Gado', 'Fazendas', 'Colheitadeiras', 'Sementes'];
 
@@ -25,7 +26,7 @@ export const logPopularSearch = async (term: string, source = 'hero_search') => 
       throw error;
     }
   } catch (error) {
-    console.warn('[usePopularSearches] Nao foi possivel registrar busca:', error);
+    appWarn('[usePopularSearches] Nao foi possivel registrar busca', { error });
   }
 };
 
@@ -52,7 +53,7 @@ export const usePopularSearches = () => {
           setPopularSearches(terms);
         }
       } catch (error) {
-        console.warn('[usePopularSearches] Nao foi possivel carregar buscas populares reais:', error);
+        appWarn('[usePopularSearches] Nao foi possivel carregar buscas populares reais', { error });
       }
     };
 

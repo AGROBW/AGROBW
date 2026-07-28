@@ -12,6 +12,7 @@ import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 import { debugLog } from '../src/utils/debugLog';
+import { appWarn } from '../src/utils/appLogger';
 
 interface AdCardProps {
   ad: Ad;
@@ -227,7 +228,9 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
                       error.message?.includes('foreign key constraint');
 
                     if (!isDeletedAnnouncementClick) {
-                      console.error('[Analytics] Erro ao registrar clique:', error.message);
+                      appWarn('[Analytics] Nao foi possivel registrar clique', {
+                        message: error.message,
+                      });
                     }
                   } else {
         debugLog('[Analytics] Clique registrado:', userState);
@@ -236,7 +239,9 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
               }
             }).catch(err => {
               // Silencioso - não prejudicar UX se analytics falhar
-              console.error('[Analytics] Erro na captura:', err);
+              appWarn('[Analytics] Nao foi possivel capturar estado do clique', {
+                error: err,
+              });
             });
           }}
           className="block w-full text-center h-10 leading-10 text-white rounded-lg text-sm font-semibold transition-all"

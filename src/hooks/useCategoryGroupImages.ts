@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appWarn } from '../utils/appLogger';
 
 /**
  * Retorna um map de { slug -> image_url } para os 6 grupos principais.
@@ -18,7 +19,7 @@ export function useCategoryGroupImages(): { images: Record<string, string>; isLo
         .select('slug, image_url');
 
       if (error) {
-        console.error('[useCategoryGroupImages] Erro ao carregar imagens dos grupos:', error);
+        appWarn('[useCategoryGroupImages] Erro ao carregar imagens dos grupos', { error });
         if (isActive) {
           setIsLoading(false);
         }

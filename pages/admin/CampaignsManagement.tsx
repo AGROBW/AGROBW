@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
+import { appError } from '../../src/utils/appLogger';
 
 type AudienceType = 'newsletter' | 'platform_users' | 'imported';
 type CampaignStatus = 'draft' | 'queued' | 'sending' | 'completed' | 'failed' | 'paused';
@@ -163,7 +164,7 @@ const CampaignsManagement: React.FC = () => {
       setNewsletterAudienceCount(newsletterRows[0]?.total_count || 0);
       setPlatformAudienceCount(platformCountResult.count || 0);
     } catch (error) {
-      console.error('[CampaignsManagement] Erro ao carregar campanhas:', error);
+      appError('[CampaignsManagement] Erro ao carregar campanhas', error);
       toast.error('Não foi possível carregar campanhas e leads agora.');
     } finally {
       setLoading(false);
@@ -239,7 +240,7 @@ const CampaignsManagement: React.FC = () => {
       await loadCampaigns();
       return savedCampaign;
     } catch (error) {
-      console.error('[CampaignsManagement] Erro ao salvar campanha:', error);
+      appError('[CampaignsManagement] Erro ao salvar campanha', error);
       toast.error('Não foi possível salvar a campanha agora.');
       return null;
     } finally {
@@ -272,7 +273,7 @@ const CampaignsManagement: React.FC = () => {
 
       await loadCampaigns();
     } catch (error) {
-      console.error('[CampaignsManagement] Erro ao colocar campanha na fila:', error);
+      appError('[CampaignsManagement] Erro ao colocar campanha na fila', error);
       toast.error('Não foi possível colocar a campanha na fila de envio.');
     } finally {
       setIsQueueing(false);
@@ -678,7 +679,7 @@ const CampaignsManagement: React.FC = () => {
                                   toast.success(`Campanha atualizada na fila. Total: ${Number(data?.total_recipients || 0)} destinatários.`);
                                   await loadCampaigns();
                                 } catch (error) {
-                                  console.error('[CampaignsManagement] Erro ao reenfileirar campanha:', error);
+                                  appError('[CampaignsManagement] Erro ao reenfileirar campanha', error);
                                   toast.error('Não foi possível colocar a campanha na fila.');
                                 } finally {
                                   setIsQueueing(false);

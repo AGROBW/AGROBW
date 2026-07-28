@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { appError } from '../utils/appLogger';
 import { PaymentRecord } from '../../types';
 
 const mapPaymentRecord = (row: any): PaymentRecord => ({
@@ -93,7 +94,7 @@ export const usePayments = () => {
               .createSignedUrl(payment.invoiceStoragePath, 60 * 60);
 
             if (signedUrlError) {
-              console.error('Erro ao gerar URL assinada da nota fiscal:', signedUrlError);
+              appError('[usePayments] Erro ao gerar URL assinada da nota fiscal', { signedUrlError });
               return payment;
             }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appWarn } from '../utils/appLogger';
 
 export type SupportSettings = {
   id: string;
@@ -75,7 +76,7 @@ export const useSupportSettings = () => {
       .maybeSingle();
 
     if (loadError) {
-      console.warn('[useSupportSettings] Não foi possível carregar as configurações de suporte:', loadError);
+      appWarn('[useSupportSettings] Nao foi possivel carregar as configuracoes de suporte', { loadError });
       setSettings(DEFAULT_SUPPORT_SETTINGS);
       setError(loadError.message);
       setIsLoading(false);

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Mail, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
+import { appError } from '../../src/utils/appLogger';
 
 interface NewsletterSubscription {
   id: string;
@@ -43,7 +44,7 @@ const NewsletterSubscriptionsManagement: React.FC = () => {
       setSubscriptions(rows);
       setTotalCount(rows[0]?.total_count || 0);
     } catch (error) {
-      console.error('[NewsletterSubscriptionsManagement] Erro ao carregar newsletter:', error);
+      appError('[NewsletterSubscriptionsManagement] Erro ao carregar newsletter', error);
       toast.error('Não foi possível carregar os e-mails cadastrados.');
     } finally {
       setLoading(false);
@@ -97,7 +98,7 @@ const NewsletterSubscriptionsManagement: React.FC = () => {
 
       toast.success('CSV exportado com sucesso.');
     } catch (error) {
-      console.error('[NewsletterSubscriptionsManagement] Erro ao exportar newsletter:', error);
+      appError('[NewsletterSubscriptionsManagement] Erro ao exportar newsletter', error);
       toast.error('Não foi possível exportar os e-mails agora.');
     }
   };

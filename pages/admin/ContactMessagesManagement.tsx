@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2, Mail, MessageSquare, Search, Send, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
+import { appError } from '../../src/utils/appLogger';
 
 type ContactMessageStatus = 'new' | 'in_progress' | 'resolved' | 'archived';
 
@@ -77,7 +78,7 @@ const ContactMessagesManagement: React.FC = () => {
       setMessages((data || []) as ContactMessageRow[]);
       setSelectedMessageId((current) => current ?? data?.[0]?.id ?? null);
     } catch (error: any) {
-      console.error('[ContactMessagesManagement] Erro ao carregar mensagens:', error);
+      appError('[ContactMessagesManagement] Erro ao carregar mensagens', error);
       toast.error('Nao foi possivel carregar as mensagens de contato.');
     } finally {
       setIsLoading(false);
@@ -198,7 +199,7 @@ const ContactMessagesManagement: React.FC = () => {
 
       toast.success('Mensagem atualizada com sucesso.');
     } catch (error) {
-      console.error('[ContactMessagesManagement] Erro ao atualizar mensagem:', error);
+      appError('[ContactMessagesManagement] Erro ao atualizar mensagem', error);
       toast.error('Nao foi possivel atualizar a mensagem.');
     } finally {
       setIsSaving(false);
@@ -221,7 +222,7 @@ const ContactMessagesManagement: React.FC = () => {
         `Fila processada: ${data?.sentCount ?? 0} enviado(s), ${data?.failedCount ?? 0} falha(s), ${data?.skippedCount ?? 0} ignorado(s).`,
       );
     } catch (error: any) {
-      console.error('[ContactMessagesManagement] Erro ao processar fila de e-mails:', error);
+      appError('[ContactMessagesManagement] Erro ao processar fila de e-mails', error);
       toast.error(error?.message || 'Nao foi possivel processar a fila de e-mails agora.');
     } finally {
       setIsDispatchingEmails(false);

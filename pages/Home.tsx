@@ -17,6 +17,7 @@ import { useLayout } from '../src/contexts/LayoutContext';
 import { supabase } from '../src/lib/supabaseClient';
 import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
+import { appWarn } from '../src/utils/appLogger';
 import { Ad } from '../types';
 
 class AdCardErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -119,7 +120,7 @@ const Home: React.FC = () => {
       });
 
       if (error) {
-        console.error('[Home] Erro ao carregar estatisticas da vitrine home:', error);
+        appWarn('[Home] Nao foi possivel carregar estatisticas da vitrine home', { error });
         if (!cancelled) {
           setHomeShowcaseStats({});
         }

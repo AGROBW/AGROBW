@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 
 export interface StateClicks {
   state: string;
@@ -79,14 +80,14 @@ export function useDashboardStats(announcementId?: string | null): UseDashboardS
         });
 
       if (rpcError) {
-        console.error('Erro ao buscar estatísticas do dashboard:', rpcError);
+        appError('[useDashboardStats] Erro ao buscar estatisticas do dashboard', { rpcError });
         throw rpcError;
       }
 
       // A função RPC retorna um objeto JSONB, o Supabase já faz o parse
       setStats(data as DashboardStats);
     } catch (err: any) {
-      console.error('Erro no useDashboardStats:', err);
+      appError('[useDashboardStats] Erro ao carregar estatisticas', { err });
       setError(err.message || 'Erro ao carregar estatísticas');
       
       // Em caso de erro, retornar estrutura vazia

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 import { debugLog } from '../utils/debugLog';
 
 export interface AboutPageContent {
@@ -103,7 +104,7 @@ export const useAboutPage = (): UseAboutPageReturn => {
 
       setContent(data);
     } catch (err: any) {
-      console.error('[useAboutPage] Erro ao buscar conteúdo:', err);
+      appError('[useAboutPage] Erro ao buscar conteudo', { err });
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -133,7 +134,7 @@ export const useAboutPage = (): UseAboutPageReturn => {
       setContent(data);
       return { error: null };
     } catch (err: any) {
-      console.error('[useAboutPage] Erro ao atualizar:', err);
+      appError('[useAboutPage] Erro ao atualizar', { err });
       return { error: err.message };
     }
   };

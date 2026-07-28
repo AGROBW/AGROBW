@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 
 export type CommodityTarget = 'soja' | 'milho' | 'boi' | 'cafe';
 export type SourceProvider = 'cepea' | 'custom';
@@ -143,7 +144,7 @@ export const useMarketQuotesAdmin = () => {
 
   useEffect(() => {
     fetchSources().catch((error) => {
-      console.error('[useMarketQuotesAdmin] Erro ao carregar cotações de mercado:', error);
+      appError('[useMarketQuotesAdmin] Erro ao carregar cotacoes de mercado', { error });
       setIsLoading(false);
     });
   }, [fetchSources]);

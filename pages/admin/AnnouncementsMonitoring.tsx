@@ -25,6 +25,7 @@ import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/us
 import { toast } from 'sonner';
 import { CATEGORY_HIERARCHY, getCategoryGroupBySlug } from '../../src/lib/categoryHierarchy';
 import { getTrustedNowMs, syncTrustedTime } from '../../src/lib/trustedTime';
+import { appError } from '../../src/utils/appLogger';
 
 type MonitoringAnnouncement = {
   id: string;
@@ -280,7 +281,7 @@ const AnnouncementsMonitoring: React.FC = () => {
       setTotalCount(rows.length);
       setAnnouncements(rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE));
     } catch (error) {
-      console.error('[AnnouncementsMonitoring] Erro ao carregar monitoramento:', error);
+      appError('[AnnouncementsMonitoring] Erro ao carregar monitoramento', error);
     } finally {
       setLoading(false);
     }
@@ -450,7 +451,7 @@ const AnnouncementsMonitoring: React.FC = () => {
       toast.success(`Expiração do destaque ${highlightType === 'home' ? 'Home' : 'Categoria'} atualizada com sucesso.`);
       closeHighlightExpiryEditor();
     } catch (error) {
-      console.error('[AnnouncementsMonitoring] Erro ao atualizar expiração do destaque:', error);
+      appError('[AnnouncementsMonitoring] Erro ao atualizar expiracao do destaque', error);
       toast.error(
         error instanceof Error
           ? error.message
@@ -508,7 +509,7 @@ const AnnouncementsMonitoring: React.FC = () => {
         closeHighlightExpiryEditor();
       }
     } catch (error) {
-      console.error('[AnnouncementsMonitoring] Erro ao encerrar destaque:', error);
+      appError('[AnnouncementsMonitoring] Erro ao encerrar destaque', error);
       toast.error(
         error instanceof Error
           ? error.message
@@ -574,7 +575,7 @@ const AnnouncementsMonitoring: React.FC = () => {
       closePauseModal();
       await loadAnnouncements();
     } catch (error) {
-      console.error('[AnnouncementsMonitoring] Erro ao alterar status:', error);
+      appError('[AnnouncementsMonitoring] Erro ao alterar status', error);
       toast.error(
         isAnnouncementCapacityBlockedError(error)
           ? getAnnouncementCapacityBlockedAdminMessage()

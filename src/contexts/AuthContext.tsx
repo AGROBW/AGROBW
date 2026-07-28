@@ -18,6 +18,7 @@ import { isSupabaseUnauthorizedError, refreshSupabaseSession, startIdleSessionMo
 import { User, UserRole } from '../../types'
 import { toast } from 'sonner'
 import { appError } from '../utils/appLogger'
+import { debugLog } from '../utils/debugLog'
 
 interface UserStats {
   total_ads: number
@@ -212,7 +213,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (userError) {
         if (shouldSuppressAdminPortalHandoffNoise()) {
-          console.debug('[Auth] fetchUserStatus suprimido durante handoff para portal admin')
+          debugLog('[Auth] fetchUserStatus suprimido durante handoff para portal admin')
           return null
         }
 
@@ -230,7 +231,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!options?.silent) {
           toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
         }
-        console.debug('[Auth] fetchUserStatus completou com erro')
+        debugLog('[Auth] fetchUserStatus completou com erro')
         return null
       }
 
@@ -271,11 +272,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUser(mappedUser)
       }
 
-      console.debug('[Auth] fetchUserStatus completou com sucesso')
+      debugLog('[Auth] fetchUserStatus completou com sucesso')
       return userData
     } catch (err: any) {
       if (shouldSuppressAdminPortalHandoffNoise()) {
-        console.debug('[Auth] fetchUserStatus catch suprimido durante handoff para portal admin')
+        debugLog('[Auth] fetchUserStatus catch suprimido durante handoff para portal admin')
         return null
       }
 
@@ -293,7 +294,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!options?.silent) {
         toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
       }
-      console.debug('[Auth] fetchUserStatus completou com erro')
+      debugLog('[Auth] fetchUserStatus completou com erro')
       return null
     }
   }
@@ -310,7 +311,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (error) {
         if (shouldSuppressAdminPortalHandoffNoise()) {
-          console.debug('[Auth] fetchStats suprimido durante handoff para portal admin')
+          debugLog('[Auth] fetchStats suprimido durante handoff para portal admin')
           if (!canSetState || canSetState()) {
             setStats(defaultStats)
           }
@@ -331,7 +332,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!options?.silent) {
           toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
         }
-        console.debug('[Auth] fetchStats completou com erro (retornando defaults)')
+        debugLog('[Auth] fetchStats completou com erro (retornando defaults)')
         if (!canSetState || canSetState()) {
           setStats(defaultStats)
         }
@@ -342,11 +343,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setStats(data as UserStats)
       }
 
-      console.debug('[Auth] fetchStats completou com sucesso')
+      debugLog('[Auth] fetchStats completou com sucesso')
       return true
     } catch (err: any) {
       if (shouldSuppressAdminPortalHandoffNoise()) {
-        console.debug('[Auth] fetchStats catch suprimido durante handoff para portal admin')
+        debugLog('[Auth] fetchStats catch suprimido durante handoff para portal admin')
         if (!canSetState || canSetState()) {
           setStats(defaultStats)
         }
@@ -367,7 +368,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!options?.silent) {
         toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
       }
-      console.debug('[Auth] fetchStats completou com erro (retornando defaults)')
+      debugLog('[Auth] fetchStats completou com erro (retornando defaults)')
       if (!canSetState || canSetState()) {
         setStats(defaultStats)
       }
@@ -425,7 +426,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (fetchingRef.current) return
 
     if (shouldSuppressAdminPortalHandoffNoise()) {
-      console.debug('[Auth] loadAuthenticatedState suprimido durante handoff para portal admin')
+      debugLog('[Auth] loadAuthenticatedState suprimido durante handoff para portal admin')
       if (!options?.canSetState || options.canSetState()) {
         setIsLoading(false)
       }
@@ -588,7 +589,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let isMounted = true
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.debug('[Auth] onAuthStateChange', {
+      debugLog('[Auth] onAuthStateChange', {
         event,
         hasSession: !!session,
         userId: session?.user?.id,
@@ -624,7 +625,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (isMounted) {
           // VULN-013: Iniciar monitoramento de inatividade ao autenticar
           startIdleSessionMonitor();
-          console.debug('[Auth] Iniciando sincronização autenticada', { userId: session.user.id, event })
+          debugLog('[Auth] Iniciando sincronização autenticada', { userId: session.user.id, event })
           void loadAuthenticatedState(session.user.id, {
             silent: event !== 'SIGNED_IN',
             canSetState: () => isMounted

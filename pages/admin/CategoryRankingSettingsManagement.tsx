@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Info, RefreshCw, Save, SlidersHorizontal, Sparkles, TrendingUp, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
+import { appError } from '../../src/utils/appLogger';
 
 type RankingSettingsForm = {
   id: string | null;
@@ -165,7 +166,7 @@ const CategoryRankingSettingsManagement: React.FC = () => {
       .maybeSingle();
 
     if (error) {
-      console.error('[CategoryRankingSettingsManagement] Erro ao carregar configuracoes:', error);
+      appError('[CategoryRankingSettingsManagement] Erro ao carregar configuracoes', error);
       toast.error('Nao foi possivel carregar as configuracoes do ranking.', {
         description: error.message,
       });
@@ -246,7 +247,7 @@ const CategoryRankingSettingsManagement: React.FC = () => {
     setIsSaving(false);
 
     if (result.error) {
-      console.error('[CategoryRankingSettingsManagement] Erro ao salvar configuracoes:', result.error);
+      appError('[CategoryRankingSettingsManagement] Erro ao salvar configuracoes', result.error);
       toast.error('Nao foi possivel salvar o ranking de categoria.', {
         description: result.error.message,
       });

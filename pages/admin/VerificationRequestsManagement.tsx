@@ -14,6 +14,7 @@ import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/us
 import { useAuth } from '../../src/contexts/AuthContext';
 import { toast } from 'sonner';
 import { DocumentReviewStatus } from '../../types';
+import { appError } from '../../src/utils/appLogger';
 
 type VerificationQueueItem = {
   id: string;
@@ -85,7 +86,7 @@ const VerificationRequestsManagement: React.FC = () => {
           }
         }
       } catch (error) {
-        console.error('[VerificationRequests] Erro ao carregar documento:', error);
+        appError('[VerificationRequests] Erro ao carregar documento', error);
         if (!cancelled) {
           setDocumentUrl(null);
           toast.error('Não foi possível carregar o documento para visualização.');
@@ -131,7 +132,7 @@ const VerificationRequestsManagement: React.FC = () => {
         setSelectedItem(refreshed);
       }
     } catch (error) {
-      console.error('[VerificationRequests] Erro ao carregar fila:', error);
+      appError('[VerificationRequests] Erro ao carregar fila', error);
       toast.error('Não foi possível carregar a fila de verificações.');
     } finally {
       setLoading(false);
@@ -184,7 +185,7 @@ const VerificationRequestsManagement: React.FC = () => {
     });
 
     if (error) {
-      console.error('[VerificationRequests] Erro ao criar notificação:', error);
+      appError('[VerificationRequests] Erro ao criar notificacao', error);
     }
   };
 
@@ -227,7 +228,7 @@ const VerificationRequestsManagement: React.FC = () => {
       toast.success('Documentação aprovada com sucesso.');
       await loadRequests();
     } catch (error) {
-      console.error('[VerificationRequests] Erro ao aprovar documento:', error);
+      appError('[VerificationRequests] Erro ao aprovar documento', error);
       toast.error('Não foi possível aprovar a documentação.');
     } finally {
       setSubmittingAction(null);
@@ -277,7 +278,7 @@ const VerificationRequestsManagement: React.FC = () => {
       toast.success('Documentação rejeitada e usuário notificado.');
       await loadRequests();
     } catch (error) {
-      console.error('[VerificationRequests] Erro ao rejeitar documento:', error);
+      appError('[VerificationRequests] Erro ao rejeitar documento', error);
       toast.error('Não foi possível rejeitar a documentação.');
     } finally {
       setSubmittingAction(null);
@@ -556,4 +557,3 @@ const VerificationRequestsManagement: React.FC = () => {
 };
 
 export default VerificationRequestsManagement;
-

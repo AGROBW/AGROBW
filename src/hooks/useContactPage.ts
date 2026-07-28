@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 
 export interface ContactPageContent {
   id: string;
@@ -76,14 +77,14 @@ export const useContactPage = (): UseContactPageReturn => {
         .single();
 
       if (fetchError) {
-        console.error('Erro ao buscar página Contact:', fetchError);
+        appError('[useContactPage] Erro ao buscar pagina Contact', { fetchError });
         setError(fetchError.message);
         return;
       }
 
       setContent(data);
     } catch (err) {
-      console.error('Erro inesperado ao buscar conteúdo:', err);
+      appError('[useContactPage] Erro inesperado ao buscar conteudo', { err });
       setError('Erro ao carregar conteúdo');
     } finally {
       setIsLoading(false);
@@ -106,14 +107,14 @@ export const useContactPage = (): UseContactPageReturn => {
         .single();
 
       if (updateError) {
-        console.error('Erro ao atualizar página Contact:', updateError);
+        appError('[useContactPage] Erro ao atualizar pagina Contact', { updateError });
         return { error: updateError.message };
       }
 
       setContent(data);
       return { error: null };
     } catch (err) {
-      console.error('Erro inesperado ao atualizar:', err);
+      appError('[useContactPage] Erro inesperado ao atualizar', { err });
       return { error: 'Erro ao salvar alterações' };
     }
   };

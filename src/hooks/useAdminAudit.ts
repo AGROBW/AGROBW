@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { appError, appWarn } from '../utils/appLogger';
 import { debugLog } from '../utils/debugLog';
 
 /**
@@ -50,7 +51,7 @@ export const useAdminAudit = (): UseAdminAuditReturn => {
   const logAction = async (params: AdminAuditLogParams): Promise<{ success: boolean; error?: any }> => {
     // Validação: apenas admins podem registrar logs
     if (!user || !isAdmin) {
-      console.error('[AdminAudit] Usuário não é administrador');
+      appWarn('[AdminAudit] Usuario nao e administrador');
       return { 
         success: false, 
         error: { message: 'Apenas administradores podem registrar ações' } 
@@ -59,7 +60,7 @@ export const useAdminAudit = (): UseAdminAuditReturn => {
 
     // Validação de parâmetros obrigatórios
     if (!params.action || !params.resourceType) {
-      console.error('[AdminAudit] Parâmetros obrigatórios ausentes');
+      appWarn('[AdminAudit] Parametros obrigatorios ausentes');
       return { 
         success: false, 
         error: { message: 'Action e resourceType são obrigatórios' } 
@@ -82,7 +83,7 @@ export const useAdminAudit = (): UseAdminAuditReturn => {
       });
 
       if (error) {
-        console.error('[AdminAudit] Erro ao registrar log:', error);
+        appError('[AdminAudit] Erro ao registrar log', { error });
         return { success: false, error };
       }
 
@@ -94,7 +95,7 @@ export const useAdminAudit = (): UseAdminAuditReturn => {
 
       return { success: true };
     } catch (error) {
-      console.error('[AdminAudit] Erro inesperado:', error);
+      appError('[AdminAudit] Erro inesperado', { error });
       return { success: false, error };
     }
   };

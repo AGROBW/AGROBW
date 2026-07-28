@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
+import { appError } from '../utils/appLogger'
 import { Favorite } from '../../types'
 import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime'
 
@@ -56,7 +57,7 @@ export const useFavorites = () => {
 
     if (error) {
       setError(error.message)
-      console.error('Erro ao buscar favoritos:', error)
+      appError('[useFavorites] Erro ao buscar favoritos', { error })
     } else {
       const mappedFavorites: Favorite[] = data
         .filter(fav => fav.announcements) // Filtrar favoritos com anúncios deletados
@@ -114,7 +115,7 @@ export const useFavorites = () => {
         .eq('id', existing.id)
 
       if (error) {
-        console.error('Erro ao remover favorito:', error)
+        appError('[useFavorites] Erro ao remover favorito', { error })
         return { success: false, message: 'Erro ao remover favorito' }
       }
 
@@ -131,7 +132,7 @@ export const useFavorites = () => {
         })
 
       if (error) {
-        console.error('Erro ao adicionar favorito:', error)
+        appError('[useFavorites] Erro ao adicionar favorito', { error })
         return { success: false, message: 'Erro ao adicionar favorito' }
       }
 

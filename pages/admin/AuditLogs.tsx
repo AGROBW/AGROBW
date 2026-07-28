@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../src/lib/supabaseClient';
 import { toast } from 'sonner';
+import { appError } from '../../src/utils/appLogger';
 
 interface AuditLog {
   id: string;
@@ -191,7 +192,7 @@ const AuditLogs: React.FC = () => {
       setLogs((data || []).map((log) => normalizeAuditLog(log as AuditLog)));
       setTotalCount(count || 0);
     } catch (error) {
-      console.error('[AuditLogs] Erro ao carregar logs:', error);
+      appError('[AuditLogs] Erro ao carregar logs', error);
       toast.error('Erro ao carregar logs de auditoria.');
     } finally {
       setLoading(false);
@@ -258,7 +259,7 @@ const AuditLogs: React.FC = () => {
 
       setAutoDowngradesCount(downgradeCount || 0);
     } catch (error) {
-      console.error('[AuditLogs] Erro ao carregar estatísticas:', error);
+      appError('[AuditLogs] Erro ao carregar estatisticas', error);
     }
   };
 

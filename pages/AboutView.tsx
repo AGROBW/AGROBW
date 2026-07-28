@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Target, Telescope, Gem, Loader2, CheckCircle2 } from 'lucide-react';
 import { useAboutPage, ABOUT_PAGE_FALLBACK } from '../src/hooks/useAboutPage';
 import { supabase } from '../src/lib/supabaseClient';
+import { appWarn } from '../src/utils/appLogger';
 
 // Renderiza o texto de "Valores" como lista: um valor por linha no admin.
 // Cada linha no formato "Rótulo: descrição" exibe o rótulo em destaque.
@@ -117,7 +118,7 @@ const AboutView: React.FC = () => {
         .single<PublicAboutStatsRow>();
 
       if (error) {
-        console.error('[AboutView] Erro ao carregar métricas reais:', error);
+        appWarn('[AboutView] Nao foi possivel carregar metricas reais', { error });
         return;
       }
 

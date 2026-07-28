@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient';
 import { endAppSync, startAppSync } from '../lib/appSyncStatus';
 import { useAuth } from '../contexts/AuthContext';
 import { isSupabaseUnauthorizedError } from '../lib/supabaseAuthGuard';
+import { appError, appWarn } from '../utils/appLogger';
 import { getEffectiveLeadContactLimitDays, getSubscriptionUsageWindow } from '../utils/subscriptionUsageWindow';
 import { BillingModel } from '../../types';
 
@@ -243,14 +244,14 @@ export const useSubscription = () => {
       return nextSubscription;
     } catch (err: any) {
       if (isSupabaseUnauthorizedError(err)) {
-        console.warn('[useSubscription] Sessao expirada ao buscar assinatura.');
+        appWarn('[useSubscription] Sessao expirada ao buscar assinatura');
         clearRetry();
         setError(null);
         setSubscription(null);
         return null;
       }
 
-      console.error('[useSubscription] Erro ao buscar assinatura:', err);
+      appError('[useSubscription] Erro ao buscar assinatura', { err });
       setError(err.message);
       setSubscription(null);
       scheduleRetry(async () => {
@@ -406,12 +407,12 @@ export const useSubscription = () => {
       clearRetry();
     } catch (err: any) {
       if (isSupabaseUnauthorizedError(err)) {
-        console.warn('[useSubscription] Sessao expirada ao buscar uso.');
+        appWarn('[useSubscription] Sessao expirada ao buscar uso');
         clearRetry();
         return;
       }
 
-      console.error('[useSubscription] Erro ao buscar uso:', err);
+      appError('[useSubscription] Erro ao buscar uso', { err });
       scheduleRetry(fetchUsage);
     }
   };

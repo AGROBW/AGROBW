@@ -4,6 +4,7 @@ import { useContactPage, UpdateContactPageData } from '../../src/hooks/useContac
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import toast from 'react-hot-toast';
+import { appError } from '../../src/utils/appLogger';
 
 const ContactPageManagement: React.FC = () => {
   const { content, isLoading, updateContent } = useContactPage();
@@ -74,7 +75,7 @@ const ContactPageManagement: React.FC = () => {
 
       toast.success('Página "Fale Conosco" atualizada com sucesso!');
     } catch (err) {
-      console.error('Erro ao salvar:', err);
+      appError('[ContactPageManagement] Erro ao salvar pagina de contato', err);
       toast.error('Erro inesperado ao salvar');
     } finally {
       setSaving(false);

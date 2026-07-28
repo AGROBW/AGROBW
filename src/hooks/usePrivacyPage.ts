@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 
 export interface PrivacyPageContent {
   id: string;
@@ -64,14 +65,14 @@ export const usePrivacyPage = (): UsePrivacyPageReturn => {
         .single();
 
       if (fetchError) {
-        console.error('Erro ao buscar página Privacy:', fetchError);
+        appError('[usePrivacyPage] Erro ao buscar pagina Privacy', { fetchError });
         setError(fetchError.message);
         return;
       }
 
       setContent(data);
     } catch (err) {
-      console.error('Erro inesperado ao buscar conteúdo:', err);
+      appError('[usePrivacyPage] Erro inesperado ao buscar conteudo', { err });
       setError('Erro ao carregar conteúdo');
     } finally {
       setIsLoading(false);
@@ -94,14 +95,14 @@ export const usePrivacyPage = (): UsePrivacyPageReturn => {
         .single();
 
       if (updateError) {
-        console.error('Erro ao atualizar página Privacy:', updateError);
+        appError('[usePrivacyPage] Erro ao atualizar pagina Privacy', { updateError });
         return { error: updateError.message };
       }
 
       setContent(data);
       return { error: null };
     } catch (err) {
-      console.error('Erro inesperado ao atualizar:', err);
+      appError('[usePrivacyPage] Erro inesperado ao atualizar', { err });
       return { error: 'Erro ao salvar alterações' };
     }
   };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime';
 
 interface LeadData {
@@ -39,7 +40,7 @@ export const useLeadData = (chatId: string | null) => {
 
       if (error) {
         setError(error.message);
-        console.error('Erro ao buscar lead:', error);
+        appError('[useLeadData] Erro ao buscar lead', { error });
         setLead(null);
       } else if (data) {
         const isLocked = isTimestampExpired(data.contact_expires_at);

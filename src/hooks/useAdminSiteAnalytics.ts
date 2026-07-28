@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appWarn } from '../utils/appLogger';
 
 export type AnalyticsPeriod = 7 | 15 | 30;
 
@@ -139,7 +140,7 @@ export const useAdminSiteAnalytics = (period: AnalyticsPeriod) => {
     ].filter(Boolean);
 
     if (errors.length > 0) {
-      console.error('[useAdminSiteAnalytics] erro parcial ao carregar analytics:', errors);
+      appWarn('[useAdminSiteAnalytics] Erro parcial ao carregar analytics', { errors });
       setError('Algumas metricas nao foram carregadas. Rode o SQL de analytics consolidado e atualize a pagina.');
     }
 

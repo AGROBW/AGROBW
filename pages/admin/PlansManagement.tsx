@@ -29,6 +29,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { BillingModel } from '../../types';
 import toast from 'react-hot-toast';
+import { appError } from '../../src/utils/appLogger';
 
 const FieldShell: React.FC<{
   label: string;
@@ -294,7 +295,7 @@ const PlansManagement: React.FC = () => {
         handleCancel();
       }
     } catch (error) {
-      console.error(error);
+      appError('[PlansManagement] Erro ao salvar plano', error);
       toast.error('Erro inesperado ao salvar.');
     } finally {
       setSaving(false);

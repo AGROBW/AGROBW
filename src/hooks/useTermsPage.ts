@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 
 export interface TermsSection {
   id: string;
@@ -130,14 +131,14 @@ export const useTermsPage = (): UseTermsPageReturn => {
         .single();
 
       if (fetchError) {
-        console.error('Erro ao buscar pagina Terms:', fetchError);
+        appError('[useTermsPage] Erro ao buscar pagina Terms', { fetchError });
         setError(fetchError.message);
         return;
       }
 
       setContent(normalizeTermsPageContent(data as Record<string, unknown>));
     } catch (err) {
-      console.error('Erro inesperado ao buscar conteudo:', err);
+      appError('[useTermsPage] Erro inesperado ao buscar conteudo', { err });
       setError('Erro ao carregar conteudo');
     } finally {
       setIsLoading(false);
@@ -169,14 +170,14 @@ export const useTermsPage = (): UseTermsPageReturn => {
         .single();
 
       if (updateError) {
-        console.error('Erro ao atualizar pagina Terms:', updateError);
+        appError('[useTermsPage] Erro ao atualizar pagina Terms', { updateError });
         return { error: updateError.message };
       }
 
       setContent(normalizeTermsPageContent(data as Record<string, unknown>));
       return { error: null };
     } catch (err) {
-      console.error('Erro inesperado ao atualizar:', err);
+      appError('[useTermsPage] Erro inesperado ao atualizar', { err });
       return { error: 'Erro ao salvar alteracoes' };
     }
   };

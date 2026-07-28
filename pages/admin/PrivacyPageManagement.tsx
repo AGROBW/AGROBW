@@ -4,6 +4,7 @@ import { usePrivacyPage, UpdatePrivacyPageData } from '../../src/hooks/usePrivac
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import toast from 'react-hot-toast';
+import { appError } from '../../src/utils/appLogger';
 
 const PrivacyPageManagement: React.FC = () => {
   const { content, isLoading, updateContent } = usePrivacyPage();
@@ -66,7 +67,7 @@ const PrivacyPageManagement: React.FC = () => {
 
       toast.success('Política de Privacidade atualizada com sucesso!');
     } catch (err) {
-      console.error('Erro ao salvar:', err);
+      appError('[PrivacyPageManagement] Erro ao salvar pagina de privacidade', err);
       toast.error('Erro inesperado ao salvar');
     } finally {
       setSaving(false);

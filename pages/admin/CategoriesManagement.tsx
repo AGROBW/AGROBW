@@ -16,6 +16,7 @@ import { CATEGORY_HIERARCHY, getCategoryGroupBySlug, getCategoryGroupForCategory
 import { getCategoryIconComponent } from '../../src/lib/categoryVisuals';
 import { supabase } from '../../src/lib/supabaseClient';
 import { ADMIN_ACTIONS, useAdminAudit } from '../../src/hooks/useAdminAudit';
+import { appError } from '../../src/utils/appLogger';
 
 interface CategoryRecord {
   id: string;
@@ -129,7 +130,7 @@ const CategoriesManagement: React.FC = () => {
       .order('name', { ascending: true });
 
     if (error) {
-      console.error('[CategoriesManagement] Erro ao carregar subcategorias:', error);
+      appError('[CategoriesManagement] Erro ao carregar subcategorias', error);
       toast.error('Nao foi possivel carregar as subcategorias.');
       setSubcategories([]);
       return;
@@ -153,7 +154,7 @@ const CategoriesManagement: React.FC = () => {
       const rows = (data || []) as CategoryRecord[];
       setCategories(rows);
     } catch (error) {
-      console.error('[CategoriesManagement] Erro ao carregar categorias:', error);
+      appError('[CategoriesManagement] Erro ao carregar categorias', error);
       toast.error('Nao foi possivel carregar as categorias.');
     } finally {
       setLoading(false);
@@ -183,7 +184,7 @@ const CategoriesManagement: React.FC = () => {
       setGroupImages((prev) => ({ ...prev, [slug]: publicUrl }));
       toast.success(`Imagem de ${slug} atualizada.`);
     } catch (err) {
-      console.error('[CategoriesManagement] Erro ao enviar imagem do grupo:', err);
+      appError('[CategoriesManagement] Erro ao enviar imagem do grupo', err);
       toast.error('Nao foi possivel enviar a imagem.');
     } finally {
       setUploadingGroupSlug(null);
@@ -308,7 +309,7 @@ const CategoriesManagement: React.FC = () => {
       toast.success('Categoria secundaria excluída com sucesso.');
       await loadCategories();
     } catch (error) {
-      console.error('[CategoriesManagement] Erro ao excluir categoria secundaria:', error);
+      appError('[CategoriesManagement] Erro ao excluir categoria secundaria', error);
       toast.error('Não foi possível excluir a categoria secundaria.');
     }
   };
@@ -348,7 +349,7 @@ const CategoriesManagement: React.FC = () => {
       toast.success('Subcategoria excluída com sucesso.');
       await loadSubcategories(selectedCategoryId);
     } catch (error) {
-      console.error('[CategoriesManagement] Erro ao excluir subcategoria:', error);
+      appError('[CategoriesManagement] Erro ao excluir subcategoria', error);
       toast.error('Não foi possível excluir a subcategoria.');
     }
   };
@@ -407,7 +408,7 @@ const CategoriesManagement: React.FC = () => {
       resetCategoryForm();
       await loadCategories();
     } catch (error) {
-      console.error('[CategoriesManagement] Erro ao salvar categoria secundaria:', error);
+      appError('[CategoriesManagement] Erro ao salvar categoria secundaria', error);
       toast.error('Nao foi possivel salvar a categoria secundaria.');
     } finally {
       setSavingCategory(false);
@@ -449,7 +450,7 @@ const CategoriesManagement: React.FC = () => {
       resetSubcategoryForm();
       await loadSubcategories(selectedCategoryId);
     } catch (error) {
-      console.error('[CategoriesManagement] Erro ao salvar subcategoria:', error);
+      appError('[CategoriesManagement] Erro ao salvar subcategoria', error);
       toast.error('Nao foi possivel salvar a subcategoria.');
     } finally {
       setSavingSubcategory(false);

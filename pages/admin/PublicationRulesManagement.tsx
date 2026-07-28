@@ -3,6 +3,7 @@ import { AlertTriangle, Lock, RefreshCw, Save, Search, Shield, ToggleLeft, Toggl
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
 import { systemVideoModerationReason } from '../../src/utils/publicationModeration';
+import { appError } from '../../src/utils/appLogger';
 
 type RuleKind =
   | 'keyword'
@@ -204,7 +205,7 @@ const PublicationRulesManagement: React.FC = () => {
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('[PublicationRulesManagement] Erro ao carregar regras:', error);
+      appError('[PublicationRulesManagement] Erro ao carregar regras', error);
       toast.error('Erro ao carregar regras de publicacao.');
       setRules([]);
     } else {
@@ -267,7 +268,7 @@ const PublicationRulesManagement: React.FC = () => {
     setSaving(false);
 
     if (result.error) {
-      console.error('[PublicationRulesManagement] Erro ao salvar regra:', result.error);
+      appError('[PublicationRulesManagement] Erro ao salvar regra', result.error);
       toast.error('Erro ao salvar regra.', { description: result.error.message });
       return;
     }

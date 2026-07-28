@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getCategoryGroupKey } from '../lib/categoryHierarchy';
 import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime';
+import { appWarn } from '../utils/appLogger';
 
 export const useCategoryCounts = () => {
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
@@ -39,7 +40,9 @@ export const useCategoryCounts = () => {
         setCategoryCounts(nextCounts);
         setHasLoadedRealCounts(true);
       } catch (error) {
-        console.error('[useCategoryCounts] Erro ao carregar contagem real das categorias:', error);
+        appWarn('[useCategoryCounts] Nao foi possivel carregar a contagem real das categorias', {
+          error,
+        });
       }
     };
 

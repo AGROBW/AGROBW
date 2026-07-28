@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 
 export interface PublicCatalogCategory {
   id: string;
@@ -45,11 +46,11 @@ export const usePublicCategoryCatalog = () => {
         ]);
 
       if (categoriesError) {
-        console.error('[usePublicCategoryCatalog] Erro ao carregar categorias:', categoriesError);
+        appError('[usePublicCategoryCatalog] Erro ao carregar categorias', categoriesError);
       }
 
       if (subcategoriesError) {
-        console.error('[usePublicCategoryCatalog] Erro ao carregar subcategorias:', subcategoriesError);
+        appError('[usePublicCategoryCatalog] Erro ao carregar subcategorias', subcategoriesError);
       }
 
       if (cancelled) return;
@@ -107,4 +108,3 @@ export const usePublicCategoryCatalog = () => {
     isLoading,
   };
 };
-

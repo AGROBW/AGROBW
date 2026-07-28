@@ -3,6 +3,7 @@ import { Gift, PauseCircle, PlayCircle, RefreshCw, Save, Search, Ticket, Users }
 import { toast } from 'sonner';
 import { supabase } from '../../src/lib/supabaseClient';
 import { RESOURCE_TYPES, useAdminAudit } from '../../src/hooks/useAdminAudit';
+import { appError } from '../../src/utils/appLogger';
 
 type PromotionStatus = 'active' | 'paused' | 'expired';
 type DurationUnit = 'days' | 'months' | 'years';
@@ -158,7 +159,7 @@ const PromotionsManagement: React.FC = () => {
         setForm((current) => ({ ...current, planId: planRows[0].id }));
       }
     } catch (error) {
-      console.error('[PromotionsManagement] Erro ao carregar promocoes:', error);
+      appError('[PromotionsManagement] Erro ao carregar promocoes', error);
       toast.error('Não foi possível carregar as promoções.');
     } finally {
       setLoading(false);
@@ -259,7 +260,7 @@ const PromotionsManagement: React.FC = () => {
       resetForm();
       await loadData();
     } catch (error: any) {
-      console.error('[PromotionsManagement] Erro ao salvar codigo:', error);
+      appError('[PromotionsManagement] Erro ao salvar codigo', error);
       toast.error(error.message || 'Não foi possível salvar o código.');
     } finally {
       setSaving(false);
@@ -289,7 +290,7 @@ const PromotionsManagement: React.FC = () => {
       toast.success(nextStatus === 'active' ? 'Código ativado.' : 'Código pausado.');
       await loadData();
     } catch (error: any) {
-      console.error('[PromotionsManagement] Erro ao alterar status:', error);
+      appError('[PromotionsManagement] Erro ao alterar status', error);
       toast.error(error.message || 'Não foi possível alterar o status.');
     }
   };

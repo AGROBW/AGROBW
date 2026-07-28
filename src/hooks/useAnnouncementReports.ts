@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { appError } from '../utils/appLogger';
 
 export type AnnouncementReportReason =
   | 'inappropriate_content'
@@ -59,7 +60,7 @@ export const useAnnouncementReports = (announcementId?: string) => {
         userHasReported: Boolean(data?.user_has_reported),
       });
     } catch (error) {
-      console.error('[AnnouncementReports] Erro ao carregar snapshot de denuncias:', error);
+      appError('[AnnouncementReports] Erro ao carregar snapshot de denuncias', { error });
       setSnapshot(DEFAULT_SNAPSHOT);
     } finally {
       setIsLoading(false);

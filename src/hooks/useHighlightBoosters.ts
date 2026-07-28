@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { getTrustedNowMs, syncTrustedTime } from '../lib/trustedTime';
+import { appError } from '../utils/appLogger';
 import {
   HighlightBoosterPurchaseRecord,
   HighlightBoosterRecord,
@@ -75,7 +76,7 @@ export const useHighlightBoosters = () => {
       .order('position', { ascending: true });
 
     if (error) {
-      console.error('[useHighlightBoosters] Erro ao carregar boosters:', error);
+      appError('[useHighlightBoosters] Erro ao carregar boosters', { error });
       setBoosters([]);
       return;
     }
@@ -134,14 +135,14 @@ export const useHighlightBoosters = () => {
       ]);
 
     if (purchasesError) {
-      console.error('[useHighlightBoosters] Erro ao carregar compras de booster:', purchasesError);
+      appError('[useHighlightBoosters] Erro ao carregar compras de booster', { purchasesError });
       setPurchases([]);
     } else {
       setPurchases((purchasesData || []).map(mapPurchase));
     }
 
     if (summaryError || !summaryData?.success) {
-      console.error('[useHighlightBoosters] Erro ao carregar resumo de booster:', summaryError || summaryData);
+      appError('[useHighlightBoosters] Erro ao carregar resumo de booster', { summaryError, summaryData });
       setSummary({
         categoryRemaining: 0,
         homeRemaining: 0,
@@ -156,7 +157,7 @@ export const useHighlightBoosters = () => {
     }
 
     if (activeSubscriptionError) {
-      console.error('[useHighlightBoosters] Erro ao carregar plano ativo para booster:', activeSubscriptionError);
+      appError('[useHighlightBoosters] Erro ao carregar plano ativo para booster', { activeSubscriptionError });
     }
 
     const activePlan = Array.isArray((activeSubscriptionData as any)?.plan)

@@ -34,6 +34,7 @@ import {
 import { useAuth } from '../../src/contexts/AuthContext';
 import AdminNotificationsModal from '../../components/admin/AdminNotificationsModal';
 import { fetchAdminNotificationItems, subscribeToAdminNotificationEvents } from '../../src/lib/adminNotificationCenter';
+import { appError } from '../../src/utils/appLogger';
 
 interface AdminLayoutProps {
   children?: React.ReactNode;
@@ -209,7 +210,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           setAdminNotificationCount(items.reduce((sum, item) => sum + item.count, 0));
         }
       } catch (error) {
-        console.error('[AdminLayout] Erro ao carregar badge da moderacao:', error);
+        appError('[AdminLayout] Erro ao carregar badge da moderacao', error);
         if (isMounted) {
           setModerationBadgeCount(0);
           setAdminNotificationCount(0);
