@@ -3,6 +3,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
+import { installAppErrorReporter } from './src/utils/installAppErrorReporter';
+
+installAppErrorReporter();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
