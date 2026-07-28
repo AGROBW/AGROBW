@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, Info, LayoutGrid, LifeBuoy, Lock, LogOut, Map, MapPin, MessageSquare, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store, Megaphone } from 'lucide-react';
+import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, Info, LayoutGrid, LifeBuoy, Lock, LogOut, Map, MapPin, MessageSquare, MoreHorizontal, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store, Megaphone, X } from 'lucide-react';
 import { AdStatus, Message, Ad, AdMetrics, Notification, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -804,6 +804,118 @@ const UserDashboardView: React.FC = () => {
     { label: 'Central de Ajuda', path: '/minha-conta/ajuda', icon: <Icons.Help />, badge: 0 },
     { label: 'Perfil', path: '/minha-conta/perfil', icon: <Icons.Profile />, badge: 0 },
   ];
+
+  // --- Barra de navegação inferior (mobile/tablet) + folha "Mais" ---
+  // Deriva-se exclusivamente do menuItems acima (ícones, caminhos, badges e permissões).
+  const bottomNavPrimaryPaths = [
+    '/minha-conta',
+    '/minha-conta/anuncios',
+    '/minha-conta/mensagens',
+    '/minha-conta/radar',
+  ];
+  const bottomNavShortLabels: Record<string, string> = {
+    '/minha-conta': 'Painel',
+    '/minha-conta/anuncios': 'Anúncios',
+    '/minha-conta/mensagens': 'Mensagens',
+    '/minha-conta/radar': 'Radar',
+  };
+  const bottomNavPrimaryItems = bottomNavPrimaryPaths
+    .map((path) => menuItems.find((item) => item.path === path))
+    .filter((item): item is (typeof menuItems)[number] => Boolean(item));
+  const bottomNavMoreItems = menuItems.filter((item) => !bottomNavPrimaryPaths.includes(item.path));
+
+  const [isMoreSheetOpen, setIsMoreSheetOpen] = useState(false);
+  const moreSheetRef = useRef<HTMLDivElement>(null);
+  const moreTriggerRef = useRef<HTMLButtonElement>(null);
+  const wasMoreSheetOpenRef = useRef(false);
+
+  // Fecha a folha ao navegar entre seções do painel.
+  useEffect(() => {
+    setIsMoreSheetOpen(false);
+  }, [location.pathname]);
+
+  // Enquanto a folha está aberta: bloqueia o scroll da página (restaurando a posição
+  // correta ao fechar), fecha com Escape, mantém o foco preso no diálogo (focus trap
+  // mínimo com Tab/Shift+Tab), move o foco inicial para dentro dele e fecha
+  // automaticamente ao entrar no breakpoint desktop (lg) — evitando body travado com o
+  // sheet oculto por lg:hidden.
+  useEffect(() => {
+    if (!isMoreSheetOpen) return;
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const previous = {
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+
+    const getFocusable = () =>
+      Array.from(
+        moreSheetRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMoreSheetOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      const inside = active ? moreSheetRef.current?.contains(active) : false;
+      if (event.shiftKey) {
+        if (!inside || active === first) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (!inside || active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Fecha automaticamente ao passar para desktop (lg). A limpeza do scroll trava
+    // acontece no cleanup deste efeito, disparado quando isMoreSheetOpen vira false.
+    const desktopQuery = window.matchMedia('(min-width: 1024px)');
+    const handleDesktopChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsMoreSheetOpen(false);
+    };
+    desktopQuery.addEventListener('change', handleDesktopChange);
+
+    const focusTimer = window.setTimeout(() => {
+      moreSheetRef.current?.querySelector<HTMLElement>('[data-more-sheet-focus]')?.focus();
+    }, 0);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      desktopQuery.removeEventListener('change', handleDesktopChange);
+      window.clearTimeout(focusTimer);
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.width = previous.width;
+      body.style.overflow = previous.overflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [isMoreSheetOpen]);
+
+  // Devolve o foco ao gatilho "Mais" quando a folha fecha.
+  useEffect(() => {
+    if (wasMoreSheetOpenRef.current && !isMoreSheetOpen) {
+      moreTriggerRef.current?.focus();
+    }
+    wasMoreSheetOpenRef.current = isMoreSheetOpen;
+  }, [isMoreSheetOpen]);
 
   const handleLogout = async () => {
     await signOut();
@@ -4559,7 +4671,7 @@ const UserDashboardView: React.FC = () => {
         </div>
       </aside>
 
-      <main className="mx-auto w-full max-w-7xl flex-grow px-4 py-6 lg:px-6 lg:py-8 xl:px-7 2xl:px-8">
+      <main className="mx-auto w-full max-w-7xl flex-grow px-4 pt-6 pb-24 lg:px-6 lg:pt-8 lg:pb-8 xl:px-7 2xl:px-8">
         <header className="mb-6 flex flex-col gap-4 rounded-[28px] border border-slate-200/80 bg-white/85 px-5 py-5 shadow-[0_24px_60px_-42px_rgba(15,23,42,0.45)] backdrop-blur md:flex-row md:items-center md:justify-between lg:px-6 xl:px-7">
           <div>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-emerald-700">
@@ -4609,6 +4721,144 @@ const UserDashboardView: React.FC = () => {
           <Route path="*" element={<HomeDashboard />} />
         </Routes>
       </main>
+
+      {/* Barra de navegação inferior — apenas mobile/tablet (<lg). A sidebar desktop permanece intacta.
+          z-30: fica abaixo de modais e notificações (z-50). */}
+      <nav
+        aria-label="Navegação do painel"
+        className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-slate-200 bg-white/95 shadow-[0_-8px_30px_-20px_rgba(15,23,42,0.4)] backdrop-blur pb-[env(safe-area-inset-bottom)] lg:hidden"
+      >
+        {bottomNavPrimaryItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              aria-label={item.label}
+              aria-current={isActive ? 'page' : undefined}
+              className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-semibold transition-colors ${
+                isActive ? 'text-emerald-700' : 'text-slate-500'
+              }`}
+            >
+              <span className="relative flex h-6 w-6 items-center justify-center">
+                {item.icon}
+                {item.badge > 0 && (
+                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#f59e0b] px-1 text-[9px] font-bold text-slate-950">
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                )}
+              </span>
+              <span className="max-w-full truncate">{bottomNavShortLabels[item.path] ?? item.label}</span>
+            </Link>
+          );
+        })}
+
+        <button
+          ref={moreTriggerRef}
+          type="button"
+          onClick={() => setIsMoreSheetOpen(true)}
+          aria-label="Mais opções do painel"
+          aria-haspopup="dialog"
+          aria-expanded={isMoreSheetOpen}
+          className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-semibold text-slate-500 transition-colors"
+        >
+          <span className="relative flex h-6 w-6 items-center justify-center">
+            <MoreHorizontal className="h-5 w-5" strokeWidth={1.75} />
+            {newLeadsCount > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-white bg-[#f59e0b]"
+              />
+            )}
+          </span>
+          <span>Mais</span>
+        </button>
+      </nav>
+
+      {/* Folha "Mais" — acima da barra (z-40) e abaixo dos modais (z-50). Apenas mobile/tablet. */}
+      {isMoreSheetOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div
+            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            onClick={() => setIsMoreSheetOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            ref={moreSheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mais opções do painel"
+            className="absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col rounded-t-3xl border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-20px_50px_-20px_rgba(15,23,42,0.5)]"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <h2 className="text-base font-bold text-slate-900">Mais opções</h2>
+              <button
+                data-more-sheet-focus
+                type="button"
+                onClick={() => setIsMoreSheetOpen(false)}
+                aria-label="Fechar"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-5 w-5" strokeWidth={1.75} />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+              <div className="space-y-1">
+                {bottomNavMoreItems.map((item) => {
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      aria-label={item.label}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`flex items-center justify-between rounded-2xl border px-3 py-3 text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                          : 'border-transparent text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span
+                          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${
+                            isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          {item.icon}
+                        </span>
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                      {item.badge > 0 && (
+                        <span className="ml-2 flex h-5 min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[#f59e0b] px-1.5 text-[10px] font-bold text-slate-950">
+                          {item.badge > 99 ? '99+' : item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMoreSheetOpen(false);
+                    handleLogout();
+                  }}
+                  aria-label="Sair"
+                  className="flex w-full items-center gap-3 rounded-2xl border border-transparent px-3 py-3 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                >
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
+                    <LogOut className="h-5 w-5" strokeWidth={1.5} />
+                  </span>
+                  <span>Sair</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
