@@ -3610,12 +3610,33 @@ const UserDashboardView: React.FC = () => {
     const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
     const [isLoadingCep, setIsLoadingCep] = useState(false);
     const lastLookedUpCepRef = useRef('');
+    const profileDocumentDigits = String(user?.document || '').replace(/\D/g, '');
+    const isIndividualProfile = profileDocumentDigits.length === 11;
+    const isCompanyProfile = profileDocumentDigits.length === 14;
+    const normalizeProfileName = (value: string) => value.trim().replace(/\s+/g, ' ');
+
+    const getProfileNameError = (value: string) => {
+      const normalizedName = normalizeProfileName(value);
+      if (!normalizedName) {
+        return isCompanyProfile ? 'Informe a razão social.' : 'Informe o nome completo.';
+      }
+      if (normalizedName.length < 3) {
+        return isCompanyProfile
+          ? 'A razão social deve ter ao menos 3 caracteres.'
+          : 'O nome está muito curto.';
+      }
+      if (isIndividualProfile && normalizedName.split(/\s+/).length < 2) {
+        return 'Informe seu nome e sobrenome, como consta no CPF.';
+      }
+      return '';
+    };
 
     // Calcular percentual de preenchimento do perfil
     const calculateProfileCompletion = () => {
-      const requiredFields = ['name', 'whatsapp', 'cep', 'logradouro', 'numero', 'bairro', 'cidade', 'estado'];
+      const requiredFields = ['whatsapp', 'cep', 'logradouro', 'numero', 'bairro', 'cidade', 'estado'];
       const filledFields = requiredFields.filter((field) => profileForm[field as keyof typeof profileForm]?.trim());
-      return Math.round((filledFields.length / requiredFields.length) * 100);
+      const completedCount = filledFields.length + (getProfileNameError(profileForm.name) ? 0 : 1);
+      return Math.round((completedCount / (requiredFields.length + 1)) * 100);
     };
 
     const profileCompletion = calculateProfileCompletion();
@@ -3625,7 +3646,9 @@ const UserDashboardView: React.FC = () => {
     const getSectionStatus = (section: 'identity' | 'contact' | 'security' | 'verification') => {
       switch (section) {
         case 'identity':
-          return profileForm.name?.trim() && profileForm.businessDescription?.trim() ? 'complete' : 'incomplete';
+          return !getProfileNameError(profileForm.name) && profileForm.businessDescription?.trim()
+            ? 'complete'
+            : 'incomplete';
         case 'contact':
           return profileForm.whatsapp?.trim() && profileForm.cep?.trim() && profileForm.cidade?.trim() ? 'complete' : 'incomplete';
         case 'security':
@@ -3854,10 +3877,23 @@ const UserDashboardView: React.FC = () => {
 
     const requiredLabelClass = 'text-xs font-semibold text-slate-500 flex items-center gap-1';
 
+    const handleProfileNameBlur = () => {
+      const normalizedName = normalizeProfileName(profileForm.name);
+      const nameError = getProfileNameError(normalizedName);
+      setProfileForm((prev) => ({ ...prev, name: normalizedName }));
+      setProfileErrors((prev) => {
+        const next = { ...prev };
+        if (nameError) next.name = nameError;
+        else delete next.name;
+        return next;
+      });
+    };
+
     const validateProfileForm = () => {
       const nextErrors: Record<string, string> = {};
 
-      if (!profileForm.name.trim()) nextErrors.name = 'Informe o nome ou razão social.';
+      const profileNameError = getProfileNameError(profileForm.name);
+      if (profileNameError) nextErrors.name = profileNameError;
       const businessDescriptionError = getBusinessDescriptionValidationError(profileForm.businessDescription);
       if (businessDescriptionError) nextErrors.businessDescription = businessDescriptionError;
       if (!profileForm.whatsapp.trim()) nextErrors.whatsapp = 'Informe um WhatsApp.';
@@ -3884,7 +3920,7 @@ const UserDashboardView: React.FC = () => {
       }
 
       const normalizedProfile = {
-        name: profileForm.name.trim(),
+        name: normalizeProfileName(profileForm.name),
         businessDescription: profileForm.businessDescription.trim(),
         whatsapp: profileForm.whatsapp.trim(),
         cep: profileForm.cep.trim(),
@@ -4081,13 +4117,26 @@ const UserDashboardView: React.FC = () => {
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label className={requiredLabelClass}>Nome / Razão Social <span className="text-red-500">*</span></label>
+            <label className={requiredLabelClass}>
+              {isIndividualProfile
+                ? 'Nome completo (nome e sobrenome)'
+                : isCompanyProfile
+                  ? 'Razão social'
+                  : 'Nome / Razão social'}
+              {' '}<span className="text-red-500">*</span>
+            </label>
             <input
               className={getProfileInputClass('name')}
               value={profileForm.name}
               onChange={(event) => handleProfileFieldChange('name', event.target.value)}
+              onBlur={handleProfileNameBlur}
+              autoComplete="name"
             />
-            {profileErrors.name && <p className="text-xs text-red-600">{profileErrors.name}</p>}
+            {profileErrors.name ? (
+              <p className="text-xs text-red-600">{profileErrors.name}</p>
+            ) : isIndividualProfile ? (
+              <p className="text-xs text-slate-500">Informe exatamente como aparece no CPF.</p>
+            ) : null}
           </div>
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-500">CPF / CNPJ</label>

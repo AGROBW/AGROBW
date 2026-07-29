@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Building2,
@@ -216,6 +216,122 @@ const RegisterView: React.FC = () => {
     return data !== false;
   };
 
+  const fieldRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // Ordem visual dos campos para focar o primeiro inválido.
+  const FIELD_ORDER = [
+    'name', 'document', 'phone', 'email', 'password', 'confirmPassword',
+    'cep', 'logradouro', 'numero', 'bairro', 'cidade', 'estado',
+  ] as const;
+
+  const inputClass = (field: string, extra = '') =>
+    `w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${extra} ${
+      errors[field] ? 'border-red-300' : 'border-transparent focus:ring-2 focus:bg-white'
+    }`;
+  const inputStyle = (field: string) =>
+    !errors[field] ? ({ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }) : undefined;
+
+  const clearFieldError = (field: string) =>
+    setErrors(prev => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
+  // Atualiza o valor e limpa apenas o erro do próprio campo (sem tocar nos demais).
+  const handleFieldChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    clearFieldError(field);
+  };
+
+  // --- Regras de qualidade espelhadas da Edge create-asaas-checkout-session ---
+  // Garante que uma conta criada corretamente não seja bloqueada depois no checkout.
+  const normalizeCustomerName = (value: string) => value.trim().replace(/\s+/g, ' ');
+
+  const validateNameValue = (value: string) => {
+    const name = normalizeCustomerName(value);
+    if (!name) return profileType === 'company' ? 'Informe a razão social' : 'Informe o nome completo';
+    if (name.length < 3) {
+      return profileType === 'company' ? 'Razão social deve ter ao menos 3 caracteres' : 'Nome muito curto';
+    }
+    if (profileType === 'individual' && name.split(/\s+/).filter(Boolean).length < 2) {
+      return 'Informe nome e sobrenome';
+    }
+    return '';
+  };
+
+  const handleNameBlur = () => {
+    const normalizedName = normalizeCustomerName(formData.name);
+    const nameError = validateNameValue(normalizedName);
+
+    setFormData(prev => ({ ...prev, name: normalizedName }));
+    setErrors(prev => {
+      const next = { ...prev };
+      if (nameError) next.name = nameError;
+      else delete next.name;
+      return next;
+    });
+  };
+
+  const validatePhoneValue = (value: string) => {
+    const digits = onlyDigits(value);
+    if (!digits) return 'Informe o telefone';
+    if (!/^[1-9]{2}(?:9\d{8}|\d{8})$/.test(digits)) return 'Telefone inválido: use DDD + número (celular com 9)';
+    if (/^(\d)\1+$/.test(digits.slice(2))) return 'Número de telefone inválido';
+    return '';
+  };
+
+  const validateForm = () => {
+    const next: Record<string, string> = {};
+
+    const nameError = validateNameValue(formData.name);
+    if (nameError) next.name = nameError;
+
+    const documentDigits = onlyDigits(formData.document);
+    const isDocValid =
+      profileType === 'individual'
+        ? validateCPF(documentDigits)
+        : profileType === 'company'
+          ? validateCNPJ(documentDigits)
+          : false;
+    if (!isDocValid) next.document = `${getDocumentLabel()} inválido`;
+
+    const phoneError = validatePhoneValue(formData.phone);
+    if (phoneError) next.phone = phoneError;
+
+    if (!formData.email.trim()) next.email = 'Informe o e-mail';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) next.email = 'E-mail inválido';
+
+    if (!formData.password) next.password = 'Informe a senha';
+    else if (formData.password.length < 6) next.password = 'Mínimo 6 caracteres';
+
+    if (!formData.confirmPassword) next.confirmPassword = 'Confirme a senha';
+    else if (formData.password !== formData.confirmPassword) next.confirmPassword = 'As senhas não coincidem';
+
+    if (onlyDigits(formData.cep).length !== 8) next.cep = 'CEP deve ter 8 dígitos';
+
+    if (!formData.logradouro.trim()) next.logradouro = 'Informe o logradouro';
+    if (!formData.numero.trim()) next.numero = 'Informe o número';
+    if (!formData.bairro.trim()) next.bairro = 'Informe o bairro';
+    if (!formData.cidade.trim()) next.cidade = 'Informe a cidade';
+
+    if (!formData.estado.trim()) next.estado = 'Informe o estado';
+    else if (!/^[A-Za-z]{2}$/.test(formData.estado.trim())) next.estado = 'UF deve ter 2 letras';
+
+    return next;
+  };
+
+  const focusFirstError = (errs: Record<string, string>) => {
+    const first = FIELD_ORDER.find((field) => errs[field]);
+    if (!first) return;
+    const el = fieldRefs.current[first];
+    if (el) {
+      el.focus();
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
   useEffect(() => {
     if (user) {
       navigate(buildPostAuthRedirect('/minha-conta'), { replace: true });
@@ -318,6 +434,11 @@ const RegisterView: React.FC = () => {
       setErrors(prev => {
         const next = { ...prev };
         delete next.cep;
+        // Limpa erros dos campos que o ViaCEP preencheu (os vazios seguem exigidos no submit).
+        if (data.logradouro) delete next.logradouro;
+        if (data.bairro) delete next.bairro;
+        if (data.localidade) delete next.cidade;
+        if (data.uf) delete next.estado;
         return next;
       });
     } catch (_err) {
@@ -327,47 +448,49 @@ const RegisterView: React.FC = () => {
     }
   };
 
+  // Revalida ao vivo apenas e-mail/senha, mesclando no estado anterior para NÃO apagar
+  // os erros já sinalizados nos demais campos quando o usuário corrige um só deles.
   useEffect(() => {
     if (!profileType) return;
 
     setErrors(prev => {
-      const next: Record<string, string> = {};
+      const next = { ...prev };
 
-      if (prev.document) next.document = prev.document;
-      if (prev.cep) next.cep = prev.cep;
+      if (!formData.email) delete next.email;
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) next.email = 'E-mail inválido';
+      else delete next.email;
 
-      if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        next.email = 'E-mail inválido';
-      }
-      if (formData.password && formData.password.length < 6) {
-        next.password = 'Mínimo 6 caracteres';
-      }
-      if (formData.confirmPassword && formData.password !== formData.confirmPassword) {
-        next.confirmPassword = 'As senhas não coincidem';
-      }
+      if (!formData.password) delete next.password;
+      else if (formData.password.length < 6) next.password = 'Mínimo 6 caracteres';
+      else delete next.password;
+
+      if (!formData.confirmPassword) delete next.confirmPassword;
+      else if (formData.password !== formData.confirmPassword) next.confirmPassword = 'As senhas não coincidem';
+      else delete next.confirmPassword;
 
       return next;
     });
-  }, [formData, profileType]);
+  }, [formData.email, formData.password, formData.confirmPassword, profileType]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const documentDigits = onlyDigits(formData.document);
-    const isDocValidNow =
-      profileType === 'individual'
-        ? validateCPF(documentDigits)
-        : profileType === 'company'
-          ? validateCNPJ(documentDigits)
-          : false;
-
-    if (!isDocValidNow) {
+    // Validação completa controlada pelo React ANTES da duplicidade e do signUp.
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
       setDocumentTouched(true);
-      const documentLabel = getDocumentLabel();
-      setErrors(prev => ({ ...prev, document: `${documentLabel} inválido` }));
-      toast.error(`${documentLabel} inválido`);
+      focusFirstError(validationErrors);
+      toast.error('Revise os campos destacados antes de continuar.');
       return;
     }
+
+    if (!acceptedTerms) {
+      toast.error('Aceite os Termos de Uso e a Política de Privacidade para continuar.');
+      return;
+    }
+
+    const documentDigits = onlyDigits(formData.document);
 
     const documentAvailable = await isDocumentAvailable(documentDigits);
     if (!documentAvailable) {
@@ -375,11 +498,10 @@ const RegisterView: React.FC = () => {
       const message = `${documentLabel} já cadastrado em outra conta.`;
       setDocumentTouched(true);
       setErrors(prev => ({ ...prev, document: message }));
+      focusFirstError({ document: message });
       toast.error(message);
       return;
     }
-
-    if (Object.keys(errors).length > 0 || !acceptedTerms) return;
 
     setLoading(true);
 
@@ -388,26 +510,32 @@ const RegisterView: React.FC = () => {
         ? window.localStorage.getItem(buildInviteSessionStorageKey(inviteCode)) || ''
         : '';
 
-    const { error } = await signUp(formData.email, formData.password, formData.name, onlyDigits(formData.phone), {
-      document: documentDigits,
-      birthDate: formData.birthDate,
-      website: formData.website,
-      cep: formData.cep.replace(/\D/g, ''),
-      logradouro: formData.logradouro,
-      numero: formData.numero,
-      complemento: formData.complemento,
-      bairro: formData.bairro,
-      cidade: formData.cidade,
-      estado: formData.estado,
-      inviteCode: invitePreview?.code || inviteCode || undefined,
-      inviteSessionId: inviteSessionId || undefined,
-      captchaToken,
-      legalConsents: {
-        acceptedTermsOfUse: acceptedTerms,
-        acceptedPrivacyPolicy: acceptedTerms,
-        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : ''
+    const { error } = await signUp(
+      formData.email,
+      formData.password,
+      normalizeCustomerName(formData.name),
+      onlyDigits(formData.phone),
+      {
+        document: documentDigits,
+        birthDate: formData.birthDate,
+        website: formData.website,
+        cep: formData.cep.replace(/\D/g, ''),
+        logradouro: formData.logradouro,
+        numero: formData.numero,
+        complemento: formData.complemento,
+        bairro: formData.bairro,
+        cidade: formData.cidade,
+        estado: formData.estado,
+        inviteCode: invitePreview?.code || inviteCode || undefined,
+        inviteSessionId: inviteSessionId || undefined,
+        captchaToken,
+        legalConsents: {
+          acceptedTermsOfUse: acceptedTerms,
+          acceptedPrivacyPolicy: acceptedTerms,
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : ''
+        }
       }
-    });
+    );
 
     // Token é single-use: limpa e gera novo desafio após cada tentativa.
     setCaptchaToken('');
@@ -580,32 +708,43 @@ const RegisterView: React.FC = () => {
               </button>
             </div>
           ) : (
-            <form onSubmit={handleRegister} className="space-y-5">
+            <form onSubmit={handleRegister} noValidate className="space-y-5">
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                  {profileType === 'individual' ? 'Nome Completo' : 'Razão Social'}
+                  {profileType === 'individual' ? 'Nome completo (nome e sobrenome)' : 'Razão Social'} <span className="text-red-500">*</span>
                 </label>
                 <input
+                  ref={el => { fieldRefs.current.name = el; }}
                   required
+                  aria-required="true"
                   type="text"
                   value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
-                  style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
+                  onChange={e => handleFieldChange('name', e.target.value)}
+                  onBlur={handleNameBlur}
+                  autoComplete="name"
+                  className={inputClass('name')}
+                  style={inputStyle('name')}
                   placeholder={profileType === 'individual' ? 'Ex: João da Silva' : 'Ex: Agro Tech Ltda'}
                 />
+                {errors.name ? (
+                  <p className="text-[10px] text-red-600 mt-1 ml-1">{errors.name}</p>
+                ) : profileType === 'individual' ? (
+                  <p className="text-[10px] text-slate-500 mt-1 ml-1">Informe exatamente como aparece no CPF.</p>
+                ) : null}
               </div>
 
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                  {getDocumentLabel()}
+                  {getDocumentLabel()} <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
+                    ref={el => { fieldRefs.current.document = el; }}
                     required
+                    aria-required="true"
                     type="text"
                     value={formData.document}
-                    onChange={e => setFormData({ ...formData, document: maskDocument(e.target.value) })}
+                    onChange={e => handleFieldChange('document', maskDocument(e.target.value))}
                     onBlur={handleDocumentBlur}
                     className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium pr-12 ${
                       errors.document && documentTouched
@@ -654,36 +793,38 @@ const RegisterView: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                    Telefone
+                    Telefone <span className="text-red-500">*</span>
                   </label>
                   <input
+                    ref={el => { fieldRefs.current.phone = el; }}
                     required
+                    aria-required="true"
                     type="tel"
                     value={formData.phone}
-                    onChange={e => setFormData({ ...formData, phone: maskPhone(e.target.value) })}
-                    className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
-                    style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
+                    onChange={e => handleFieldChange('phone', maskPhone(e.target.value))}
+                    className={inputClass('phone')}
+                    style={inputStyle('phone')}
                     placeholder="(00) 00000-0000"
                   />
+                  {errors.phone && <p className="text-[10px] text-red-600 mt-1 ml-1">{errors.phone}</p>}
                 </div>
 
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                    E-mail
+                    E-mail <span className="text-red-500">*</span>
                   </label>
                   <input
+                    ref={el => { fieldRefs.current.email = el; }}
                     required
+                    aria-required="true"
                     type="email"
                     value={formData.email}
                     onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${
-                      errors.email ? 'border-red-200' : 'border-transparent focus:ring-2 focus:bg-white'
-                    }`}
-                    style={
-                      !errors.email ? { ['--tw-ring-color' as any]: `${settings.primaryColor}33` } : undefined
-                    }
+                    className={inputClass('email')}
+                    style={inputStyle('email')}
                     placeholder="email@agro.com"
                   />
+                  {errors.email && <p className="text-[10px] text-red-600 mt-1 ml-1">{errors.email}</p>}
                 </div>
               </div>
 
@@ -703,16 +844,18 @@ const RegisterView: React.FC = () => {
 
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                  Senha de Acesso
+                  Senha de Acesso <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
+                    ref={el => { fieldRefs.current.password = el; }}
                     required
+                    aria-required="true"
                     type={showPassword ? 'text' : 'password'}
                     value={formData.password}
                     onChange={e => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium pr-14"
-                    style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
+                    className={inputClass('password', 'pr-14')}
+                    style={inputStyle('password')}
                     placeholder="Digite sua senha"
                   />
                   <button
@@ -744,27 +887,25 @@ const RegisterView: React.FC = () => {
                     ))}
                   </div>
                 )}
+                {errors.password && <p className="text-[10px] text-red-600 mt-1 ml-1">{errors.password}</p>}
               </div>
 
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                  Confirmar Senha
+                  Confirmar Senha <span className="text-red-500">*</span>
                 </label>
                 <input
+                  ref={el => { fieldRefs.current.confirmPassword = el; }}
                   required
+                  aria-required="true"
                   type="password"
                   value={formData.confirmPassword}
                   onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${
-                    errors.confirmPassword ? 'border-red-200' : 'border-transparent focus:ring-2 focus:bg-white'
-                  }`}
-                  style={
-                    !errors.confirmPassword
-                      ? { ['--tw-ring-color' as any]: `${settings.primaryColor}33` }
-                      : undefined
-                  }
+                  className={inputClass('confirmPassword')}
+                  style={inputStyle('confirmPassword')}
                   placeholder="Confirme sua senha"
                 />
+                {errors.confirmPassword && <p className="text-[10px] text-red-600 mt-1 ml-1">{errors.confirmPassword}</p>}
               </div>
 
               <div className="pt-6 border-t border-slate-200">
@@ -775,22 +916,23 @@ const RegisterView: React.FC = () => {
 
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                    CEP
+                    CEP <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <input
+                      ref={el => { fieldRefs.current.cep = el; }}
+                      required
+                      aria-required="true"
                       type="text"
                       value={formData.cep}
                       onChange={e => {
                         const value = e.target.value.replace(/\D/g, '');
                         const masked = value.slice(0, 5) + (value.length > 5 ? `-${value.slice(5, 8)}` : '');
-                        setFormData({ ...formData, cep: masked });
+                        handleFieldChange('cep', masked);
                       }}
                       onBlur={handleCepBlur}
-                      className={`w-full bg-slate-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-medium ${
-                        errors.cep ? 'border-red-200' : 'border-transparent focus:ring-2 focus:bg-white'
-                      }`}
-                      style={!errors.cep ? { ['--tw-ring-color' as any]: `${settings.primaryColor}33` } : undefined}
+                      className={inputClass('cep')}
+                      style={inputStyle('cep')}
                       placeholder="00000-000"
                     />
                     {loadingCep && (
@@ -803,31 +945,39 @@ const RegisterView: React.FC = () => {
                 <div className="grid grid-cols-3 gap-3 mt-4">
                   <div className="col-span-2">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                      Logradouro
+                      Logradouro <span className="text-red-500">*</span>
                     </label>
                     <input
+                      ref={el => { fieldRefs.current.logradouro = el; }}
+                      required
+                      aria-required="true"
                       type="text"
                       value={formData.logradouro}
-                      onChange={e => setFormData({ ...formData, logradouro: e.target.value })}
-                      className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
-                      style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
+                      onChange={e => handleFieldChange('logradouro', e.target.value)}
+                      className={inputClass('logradouro')}
+                      style={inputStyle('logradouro')}
                       placeholder="Rua, Avenida, etc"
                       readOnly={!!formData.logradouro && loadingCep}
                     />
+                    {errors.logradouro && <p className="text-[10px] text-red-600 mt-1 ml-1">{errors.logradouro}</p>}
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                      Número
+                      Número <span className="text-red-500">*</span>
                     </label>
                     <input
+                      ref={el => { fieldRefs.current.numero = el; }}
+                      required
+                      aria-required="true"
                       type="text"
                       value={formData.numero}
-                      onChange={e => setFormData({ ...formData, numero: e.target.value })}
-                      className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
-                      style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
+                      onChange={e => handleFieldChange('numero', e.target.value)}
+                      className={inputClass('numero')}
+                      style={inputStyle('numero')}
                       placeholder="000"
                     />
+                    {errors.numero && <p className="text-[10px] text-red-600 mt-1 ml-1">{errors.numero}</p>}
                   </div>
                 </div>
 
@@ -848,49 +998,61 @@ const RegisterView: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4 mt-3">
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                      Bairro
+                      Bairro <span className="text-red-500">*</span>
                     </label>
                     <input
+                      ref={el => { fieldRefs.current.bairro = el; }}
+                      required
+                      aria-required="true"
                       type="text"
                       value={formData.bairro}
-                      onChange={e => setFormData({ ...formData, bairro: e.target.value })}
-                      className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
-                      style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
+                      onChange={e => handleFieldChange('bairro', e.target.value)}
+                      className={inputClass('bairro')}
+                      style={inputStyle('bairro')}
                       placeholder="Bairro"
                       readOnly={!!formData.bairro && loadingCep}
                     />
+                    {errors.bairro && <p className="text-[10px] text-red-600 mt-1 ml-1">{errors.bairro}</p>}
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                      Cidade
+                      Cidade <span className="text-red-500">*</span>
                     </label>
                     <input
+                      ref={el => { fieldRefs.current.cidade = el; }}
+                      required
+                      aria-required="true"
                       type="text"
                       value={formData.cidade}
-                      onChange={e => setFormData({ ...formData, cidade: e.target.value })}
-                      className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
-                      style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
+                      onChange={e => handleFieldChange('cidade', e.target.value)}
+                      className={inputClass('cidade')}
+                      style={inputStyle('cidade')}
                       placeholder="Cidade"
                       readOnly={!!formData.cidade && loadingCep}
                     />
+                    {errors.cidade && <p className="text-[10px] text-red-600 mt-1 ml-1">{errors.cidade}</p>}
                   </div>
                 </div>
 
                 <div className="mt-3">
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                    Estado (UF)
+                    Estado (UF) <span className="text-red-500">*</span>
                   </label>
                   <input
+                    ref={el => { fieldRefs.current.estado = el; }}
+                    required
+                    aria-required="true"
                     type="text"
                     value={formData.estado}
-                    onChange={e => setFormData({ ...formData, estado: e.target.value.toUpperCase().slice(0, 2) })}
+                    onChange={e => handleFieldChange('estado', e.target.value.toUpperCase().slice(0, 2))}
                     maxLength={2}
-                    className="w-full bg-slate-50 border-2 border-transparent focus:ring-2 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium"
-                    style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
+                    className={inputClass('estado')}
+                    style={inputStyle('estado')}
                     placeholder="SP"
                     readOnly={!!formData.estado && loadingCep}
                   />
+                  {errors.estado && <p className="text-[10px] text-red-600 mt-1 ml-1">{errors.estado}</p>}
                 </div>
               </div>
 
