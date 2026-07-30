@@ -336,22 +336,22 @@ const AdSlider: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
           </div>
 
-          <div className="relative h-full max-w-7xl mx-auto px-6 md:px-10 min-[1023px]:px-14 flex flex-col justify-center items-start text-white">
+          <div className="relative h-full max-w-7xl mx-auto px-[16px] md:px-10 min-[1023px]:px-14 flex flex-col justify-center items-start text-white">
             <div
-              className={`max-w-[540px] min-[1023px]:max-w-[620px] transform transition-all duration-700 delay-300 ${
+              className={`max-w-[min(62%,260px)] md:max-w-[540px] min-[1023px]:max-w-[620px] transform transition-all duration-700 delay-300 ${
                 index === current ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
               }`}
             >
-              <span className="inline-block px-3 py-1 bg-green-600 text-xs font-semibold tracking-widest uppercase rounded mb-3">
+              <span className="inline-block px-2 py-0.5 md:px-3 md:py-1 bg-green-600 text-xs font-semibold tracking-widest uppercase rounded mb-2 md:mb-3">
                 {slide.badge_text}
               </span>
-              <h2 className="text-xl md:text-2xl min-[1023px]:text-[2rem] font-semibold mb-3 leading-tight">{slide.title}</h2>
-              <p className="text-sm md:text-base text-gray-200 mb-6 max-w-xl">{slide.subtitle}</p>
+              <h2 className="text-xl md:text-2xl min-[1023px]:text-[2rem] font-semibold mb-2 md:mb-3 leading-tight line-clamp-2 md:line-clamp-none">{slide.title}</h2>
+              <p className="text-sm md:text-base text-gray-200 mb-4 md:mb-6 max-w-xl line-clamp-2 md:line-clamp-none">{slide.subtitle}</p>
               <div className="flex gap-4">
                 {slide.slide_type === 'banner' ? (
                   <a
                     href={slide.button_link}
-                    className="bg-green-600 hover:bg-green-700 text-white px-5 h-10 rounded-lg font-semibold transition-all flex items-center gap-2 group"
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 md:px-5 h-10 text-sm md:text-base rounded-lg font-semibold transition-all flex items-center gap-2 group"
                   >
                     {slide.button_text}
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" strokeWidth={1.5} />
@@ -360,7 +360,7 @@ const AdSlider: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => void handleSponsorClick(slide)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-5 h-10 rounded-lg font-semibold transition-all flex items-center gap-2 group"
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 md:px-5 h-10 text-sm md:text-base rounded-lg font-semibold transition-all flex items-center gap-2 group"
                   >
                     {slide.button_text}
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" strokeWidth={1.5} />
