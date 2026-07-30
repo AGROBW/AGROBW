@@ -15,6 +15,7 @@ interface HomeBannerSlide {
   button_text: string;
   button_link: string;
   image_url: string;
+  mobile_image_url: string | null;
   sort_order: number;
   is_active: boolean;
 }
@@ -24,6 +25,7 @@ interface SponsorCarouselSlideRow {
   company_name: string;
   segment: string;
   banner_url: string;
+  mobile_banner_url: string | null;
   target_type: 'site' | 'whatsapp';
   target_url: string;
   home_badge_text: string;
@@ -41,6 +43,7 @@ type SliderItem =
       subtitle: string;
       button_text: string;
       image_url: string;
+      mobile_image_url?: string | null;
       sort_order: number;
       slide_type: 'banner';
       button_link: string;
@@ -52,6 +55,7 @@ type SliderItem =
       subtitle: string;
       button_text: string;
       image_url: string;
+      mobile_image_url?: string | null;
       sort_order: number;
       slide_type: 'sponsor';
       sponsor_id: string;
@@ -72,6 +76,12 @@ const fallbackSlides: SliderItem[] = [
     slide_type: 'banner',
   },
 ];
+
+// Trata null, string vazia e espaços como ausência de arte mobile.
+const normalizeMobileImageUrl = (url?: string | null): string | null => {
+  const trimmed = (url || '').trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
 
 const normalizeExternalUrl = (url?: string | null) => {
   if (!url) return null;
@@ -112,7 +122,7 @@ const AdSlider: React.FC = () => {
         const [bannerResult, sponsorResult] = await Promise.all([
           supabase
             .from('home_banners')
-            .select('id, badge_text, title, subtitle, button_text, button_link, image_url, sort_order, is_active')
+            .select('id, badge_text, title, subtitle, button_text, button_link, image_url, mobile_image_url, sort_order, is_active')
             .eq('is_active', true)
             .order('sort_order', { ascending: true }),
           supabase.rpc('get_public_home_carousel_sponsors'),
@@ -129,6 +139,7 @@ const AdSlider: React.FC = () => {
           button_text: banner.button_text,
           button_link: banner.button_link,
           image_url: banner.image_url,
+          mobile_image_url: banner.mobile_image_url,
           sort_order: banner.sort_order,
           slide_type: 'banner',
         }));
@@ -142,6 +153,7 @@ const AdSlider: React.FC = () => {
             subtitle: sponsor.home_subtitle,
             button_text: sponsor.home_button_text,
             image_url: sponsor.banner_url,
+            mobile_image_url: sponsor.mobile_banner_url,
             sort_order: sponsor.home_carousel_sort_order ?? 999,
             slide_type: 'sponsor',
             sponsor_id: sponsor.id,
@@ -271,11 +283,11 @@ const AdSlider: React.FC = () => {
   };
 
   if (isLoading) {
-    return <div className="relative w-full overflow-hidden bg-slate-100 animate-pulse aspect-[3.5/1] min-h-[240px] md:min-h-0" />;
+    return <div className="relative w-full overflow-hidden bg-slate-100 animate-pulse h-[clamp(240px,62.5vw,560px)] min-[1023px]:h-auto min-[1023px]:aspect-[3.5/1]" />;
   }
 
   return (
-    <section className="relative w-full overflow-hidden bg-slate-950 aspect-[3.5/1] min-h-[240px] md:min-h-0">
+    <section className="relative w-full overflow-hidden bg-slate-950 h-[clamp(240px,62.5vw,560px)] min-[1023px]:h-auto min-[1023px]:aspect-[3.5/1]">
       {slides.map((slide, index) => (
         <div
           key={slide.id}
@@ -284,27 +296,56 @@ const AdSlider: React.FC = () => {
           }`}
         >
           <div className="absolute inset-0 overflow-hidden">
-            <img
-              src={slide.image_url}
-              alt={slide.title}
-              className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-[10s] ease-linear transform scale-100 hover:scale-110"
-              loading={index === 0 ? 'eager' : 'lazy'}
-              decoding="async"
-              fetchPriority={index === 0 ? 'high' : 'auto'}
-            />
+            {(() => {
+              const mobileUrl = normalizeMobileImageUrl(slide.mobile_image_url);
+              return (
+                <>
+                  {/* Fundo decorativo: mesma fonte responsiva, ampliada/desfocada, preenche
+                      as faixas quando a arte aparece inteira (object-contain) até 1022px.
+                      Oculto no modo desktop (>=1023px), onde a arte principal é object-cover.
+                      O modo responsivo mobile/tablet termina em 1022px; a partir de 1023px o
+                      carrossel assume exatamente o mesmo modo desktop de 1024px. */}
+                  <picture aria-hidden="true">
+                    {mobileUrl ? <source media="(max-width: 1022px)" srcSet={mobileUrl} /> : null}
+                    <img
+                      src={slide.image_url}
+                      alt=""
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover object-center opacity-100 blur-xl min-[1023px]:hidden"
+                      loading={index === 0 ? 'eager' : 'lazy'}
+                      decoding="async"
+                    />
+                  </picture>
+
+                  {/* Arte principal: inteira (object-contain) até 1022px; comportamento
+                      desktop preservado a partir de 1023px (object-cover/center + zoom). */}
+                  <picture>
+                    {mobileUrl ? <source media="(max-width: 1022px)" srcSet={mobileUrl} /> : null}
+                    <img
+                      src={slide.image_url}
+                      alt={slide.title}
+                      className="absolute inset-0 h-full w-full object-contain object-center transition-transform duration-[10s] ease-linear transform scale-100 min-[1023px]:hover:scale-110 min-[1023px]:object-cover"
+                      loading={index === 0 ? 'eager' : 'lazy'}
+                      decoding="async"
+                      fetchPriority={index === 0 ? 'high' : 'auto'}
+                    />
+                  </picture>
+                </>
+              );
+            })()}
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
           </div>
 
-          <div className="relative h-full max-w-7xl mx-auto px-6 md:px-10 lg:px-14 flex flex-col justify-center items-start text-white">
+          <div className="relative h-full max-w-7xl mx-auto px-6 md:px-10 min-[1023px]:px-14 flex flex-col justify-center items-start text-white">
             <div
-              className={`max-w-[540px] lg:max-w-[620px] transform transition-all duration-700 delay-300 ${
+              className={`max-w-[540px] min-[1023px]:max-w-[620px] transform transition-all duration-700 delay-300 ${
                 index === current ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
               }`}
             >
               <span className="inline-block px-3 py-1 bg-green-600 text-xs font-semibold tracking-widest uppercase rounded mb-3">
                 {slide.badge_text}
               </span>
-              <h2 className="text-xl md:text-2xl lg:text-[2rem] font-semibold mb-3 leading-tight">{slide.title}</h2>
+              <h2 className="text-xl md:text-2xl min-[1023px]:text-[2rem] font-semibold mb-3 leading-tight">{slide.title}</h2>
               <p className="text-sm md:text-base text-gray-200 mb-6 max-w-xl">{slide.subtitle}</p>
               <div className="flex gap-4">
                 {slide.slide_type === 'banner' ? (
