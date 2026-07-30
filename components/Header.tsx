@@ -33,6 +33,16 @@ const Header: React.FC = () => {
     };
   }, [isProfileDropdownOpen]);
 
+  useEffect(() => {
+    const desktopQuery = window.matchMedia('(min-width: 1023px)');
+    const closeMobileMenuOnDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsOpen(false);
+    };
+
+    desktopQuery.addEventListener('change', closeMobileMenuOnDesktop);
+    return () => desktopQuery.removeEventListener('change', closeMobileMenuOnDesktop);
+  }, []);
+
   const isAdmin = user?.isAdmin === true || user?.role === UserRole.ADMIN;
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
 
@@ -77,7 +87,7 @@ const Header: React.FC = () => {
             </Link>
           </div>
 
-          <nav className="hidden items-center space-x-8 md:flex">
+          <nav className="hidden items-center space-x-8 min-[1023px]:flex">
             <Link to="/" className="text-sm font-medium text-slate-600 transition-colors hover:text-green-700">
               Inicio
             </Link>
@@ -95,7 +105,7 @@ const Header: React.FC = () => {
             </Link>
           </nav>
 
-          <div className="hidden items-center space-x-6 md:flex">
+          <div className="hidden items-center space-x-6 min-[1023px]:flex">
             {user ? (
               <div className="flex items-center gap-4">
                 <Link
@@ -231,7 +241,7 @@ const Header: React.FC = () => {
             </Link>
           </div>
 
-          <div className="flex items-center md:hidden">
+          <div className="flex items-center min-[1023px]:hidden">
             <button
               onClick={() => setIsOpen(!isOpen)}
               className="rounded-md p-2 text-slate-600 hover:bg-gray-100 hover:text-green-700 focus:outline-none"
@@ -243,7 +253,7 @@ const Header: React.FC = () => {
       </div>
 
       {isOpen ? (
-        <div className="space-y-1 border-t border-slate-100 bg-white px-4 py-4 md:hidden">
+        <div className="space-y-1 border-t border-slate-100 bg-white px-4 py-4 min-[1023px]:hidden">
           <Link
             to="/"
             onClick={() => setIsOpen(false)}
