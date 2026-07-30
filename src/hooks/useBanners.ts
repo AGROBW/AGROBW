@@ -10,6 +10,7 @@ export interface HomeBanner {
   button_text: string;
   button_link: string;
   image_url: string;
+  mobile_image_url: string | null;
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -101,18 +102,21 @@ export const useBanners = () => {
     }
   };
 
-  const deleteBanner = async (id: string, imageUrl?: string) => {
+  const deleteBanner = async (id: string, imageUrl?: string, mobileImageUrl?: string) => {
     try {
-      // Deletar imagem do storage se houver
-      if (imageUrl && imageUrl.includes('supabase.co/storage')) {
-        const path = imageUrl.split('/banners/')[1];
+      // Deletar do storage as imagens gerenciadas pelo sistema (desktop e mobile).
+      const managedUrls = [imageUrl, mobileImageUrl].filter(
+        (url): url is string => Boolean(url) && url!.includes('supabase.co/storage')
+      );
+      for (const url of managedUrls) {
+        const path = url.split('/banners/')[1];
         if (path) {
           const { error: storageError } = await supabase.storage
             .from('banners')
             .remove([path]);
 
           if (storageError) {
-          appWarn('[useBanners] Erro ao deletar imagem do storage', { bannerId: id, error: storageError });
+            appWarn('[useBanners] Erro ao deletar imagem do storage', { bannerId: id, error: storageError });
           }
         }
       }

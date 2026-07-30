@@ -14,7 +14,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useBanners, HomeBanner } from '../../src/hooks/useBanners';
-import { uploadBannerImage } from '../../src/services/bannerService';
+import { uploadBannerImage, uploadBannerMobileImage } from '../../src/services/bannerService';
 import { toast } from 'sonner';
 
 const BannersManagement: React.FC = () => {
@@ -22,7 +22,9 @@ const BannersManagement: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingBanner, setEditingBanner] = useState<HomeBanner | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingMobile, setUploadingMobile] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [mobileImagePreview, setMobileImagePreview] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     badge_text: 'Destaque BWAGRO',
@@ -31,6 +33,7 @@ const BannersManagement: React.FC = () => {
     button_text: 'Ver Mais',
     button_link: '#/',
     image_url: '',
+    mobile_image_url: '',
     sort_order: banners.length + 1,
     is_active: true
   });
@@ -49,13 +52,40 @@ const BannersManagement: React.FC = () => {
         return;
       }
 
-      setFormData({ ...formData, image_url: result.url || '' });
+      setFormData((current) => ({ ...current, image_url: result.url || '' }));
       setImagePreview(result.url);
       toast.success('Imagem otimizada e carregada com sucesso!');
     } catch (err: any) {
       toast.error('Erro ao fazer upload da imagem');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleMobileImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    setUploadingMobile(true);
+
+    try {
+      const result = await uploadBannerMobileImage(file);
+
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      setFormData((current) => ({ ...current, mobile_image_url: result.url || '' }));
+      setMobileImagePreview(result.url);
+      toast.success('Imagem mobile/tablet carregada com sucesso!');
+    } catch (err: any) {
+      toast.error('Erro ao fazer upload da imagem mobile');
+    } finally {
+      setUploadingMobile(false);
+      // Limpa o input para permitir reenviar o MESMO arquivo após sucesso ou erro.
+      input.value = '';
     }
   };
 
@@ -67,13 +97,19 @@ const BannersManagement: React.FC = () => {
       return;
     }
 
+    // Normaliza a arte mobile: URL preenchida permanece string; vazio persiste como NULL.
+    const payload = {
+      ...formData,
+      mobile_image_url: formData.mobile_image_url.trim() || null,
+    };
+
     try {
       if (editingBanner) {
-        const { error } = await updateBanner(editingBanner.id, formData);
+        const { error } = await updateBanner(editingBanner.id, payload);
         if (error) throw new Error(error);
         toast.success('Banner atualizado com sucesso!');
       } else {
-        const { error } = await createBanner(formData);
+        const { error } = await createBanner(payload);
         if (error) throw new Error(error);
         toast.success('Banner criado com sucesso!');
       }
@@ -93,10 +129,12 @@ const BannersManagement: React.FC = () => {
       button_text: banner.button_text,
       button_link: banner.button_link,
       image_url: banner.image_url,
+      mobile_image_url: banner.mobile_image_url || '',
       sort_order: banner.sort_order,
       is_active: banner.is_active
     });
     setImagePreview(banner.image_url);
+    setMobileImagePreview(banner.mobile_image_url || null);
     setShowForm(true);
   };
 
@@ -104,7 +142,7 @@ const BannersManagement: React.FC = () => {
     if (!confirm(`Deletar "${banner.title}"?`)) return;
 
     try {
-      const { error } = await deleteBanner(banner.id, banner.image_url);
+      const { error } = await deleteBanner(banner.id, banner.image_url, banner.mobile_image_url || undefined);
       if (error) throw new Error(error);
       toast.success('Banner deletado com sucesso!');
     } catch (err: any) {
@@ -126,6 +164,7 @@ const BannersManagement: React.FC = () => {
     setShowForm(false);
     setEditingBanner(null);
     setImagePreview(null);
+    setMobileImagePreview(null);
     setFormData({
       badge_text: 'Destaque BWAGRO',
       title: '',
@@ -133,6 +172,7 @@ const BannersManagement: React.FC = () => {
       button_text: 'Ver Mais',
       button_link: '#/',
       image_url: '',
+      mobile_image_url: '',
       sort_order: banners.length + 1,
       is_active: true
     });
@@ -291,10 +331,10 @@ const BannersManagement: React.FC = () => {
               {/* Upload de Imagem */}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Imagem do Banner
+                  Imagem do Banner — Desktop (obrigatória)
                 </label>
                 <p className="mb-3 text-xs text-slate-500">
-                  Arquivo oficial do carrossel: <span className="font-semibold text-slate-700">1920x640 px</span>. Posicione os elementos mais importantes no centro da arte para manter o enquadramento em telas menores.
+                  Arquivo oficial do carrossel: <span className="font-semibold text-slate-700">1920x640 px</span> (proporção 3:1). Posicione os elementos mais importantes no centro da arte para manter o enquadramento em telas menores.
                 </p>
                 
                 {imagePreview ? (
@@ -336,6 +376,60 @@ const BannersManagement: React.FC = () => {
                       accept="image/jpeg,image/jpg,image/png,image/webp"
                       onChange={handleImageUpload}
                       disabled={uploading}
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Upload de Imagem Mobile/Tablet (opcional) */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Imagem mobile/tablet (opcional)
+                </label>
+                <p className="mb-3 text-xs text-slate-500">
+                  Usada em telas até 1023px. Recomendação: <span className="font-semibold text-slate-700">1200x750 px</span> (proporção ~16:10). Se não enviar, o carrossel usa a arte desktop como fallback. Prefira uma arte <span className="font-semibold text-slate-700">limpa, sem textos embutidos</span> — título, subtítulo, badge e botão já são exibidos como elementos por cima da imagem.
+                </p>
+
+                {mobileImagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={mobileImagePreview}
+                      alt="Preview mobile/tablet"
+                      className="w-full aspect-[16/10] object-contain rounded-lg bg-slate-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileImagePreview(null);
+                        setFormData((current) => ({ ...current, mobile_image_url: '' }));
+                      }}
+                      className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                      title="Remover imagem mobile/tablet"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full aspect-[16/10] border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-green-500 transition-colors bg-slate-50">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      {uploadingMobile ? (
+                        <Loader2 className="w-10 h-10 text-green-600 animate-spin mb-2" />
+                      ) : (
+                        <Upload className="w-10 h-10 text-slate-400 mb-2" />
+                      )}
+                      <p className="text-sm text-slate-600 font-medium">
+                        {uploadingMobile ? 'Enviando...' : 'Clique para enviar a arte mobile/tablet'}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        JPG, PNG ou WebP • ~16:10 • mín. 900x560
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={handleMobileImageUpload}
+                      disabled={uploadingMobile}
                     />
                   </label>
                 )}
@@ -483,7 +577,7 @@ const BannersManagement: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={uploading || !formData.image_url}
+                  disabled={uploading || uploadingMobile || !formData.image_url}
                   className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <Check className="w-4 h-4" />

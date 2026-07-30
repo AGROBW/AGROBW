@@ -19,6 +19,7 @@ import { supabase } from '../../src/lib/supabaseClient';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { syncTrustedTime } from '../../src/lib/trustedTime';
 import { appError } from '../../src/utils/appLogger';
+import { uploadMobileBannerAsset } from '../../src/services/bannerService';
 import {
   addDaysToDateOnly,
   civilDateToSaoPauloEndOfDayIso,
@@ -40,6 +41,7 @@ interface SiteSponsor {
   segment: string;
   logo_url: string | null;
   banner_url: string | null;
+  mobile_banner_url: string | null;
   show_on_home_carousel: boolean;
   home_badge_text: string | null;
   home_title: string | null;
@@ -126,6 +128,7 @@ const emptyForm = {
   segment: '',
   logoUrl: '',
   bannerUrl: '',
+  mobileBannerUrl: '',
   showOnHomeCarousel: false,
   homeBadgeText: 'Vitrine Premium AGRO BW',
   homeTitle: '',
@@ -223,7 +226,7 @@ const SponsorsManagement: React.FC = () => {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportSending, setReportSending] = useState(false);
   const [automationRunning, setAutomationRunning] = useState(false);
-  const [uploadingAsset, setUploadingAsset] = useState<'logo' | 'banner' | null>(null);
+  const [uploadingAsset, setUploadingAsset] = useState<'logo' | 'banner' | 'banner-mobile' | null>(null);
 
   const activeSponsors = useMemo(
     () =>
@@ -314,7 +317,36 @@ const SponsorsManagement: React.FC = () => {
     setForm({ ...emptyForm, startsAt: getTodaySaoPauloDateOnly() });
   };
 
-  const handleAssetUpload = async (field: 'logoUrl' | 'bannerUrl', file: File) => {
+  const handleAssetUpload = async (field: 'logoUrl' | 'bannerUrl' | 'mobileBannerUrl', file: File) => {
+    // Evita iniciar outro upload enquanto um já está em andamento.
+    if (uploadingAsset !== null) {
+      toast.error('Aguarde o upload em andamento terminar.');
+      return;
+    }
+
+    // Banner mobile/tablet: mesma validação (~16:10 + resolução mínima) e otimização
+    // do Banners Home, apenas com bucket/caminho próprios (layout_assets/site-sponsors).
+    if (field === 'mobileBannerUrl') {
+      try {
+        setUploadingAsset('banner-mobile');
+        const path = `site-sponsors/banner-mobile-${Date.now()}.webp`;
+        const result = await uploadMobileBannerAsset(file, { bucket: 'layout_assets', path });
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        setForm((current) => ({ ...current, mobileBannerUrl: result.url || '' }));
+        toast.success('Banner mobile enviado com sucesso.');
+      } catch (error) {
+        appError('[SponsorsManagement] Erro ao enviar banner mobile do patrocinador', error, { field });
+        toast.error('N?o foi poss?vel enviar a imagem agora.');
+      } finally {
+        setUploadingAsset(null);
+      }
+      return;
+    }
+
+    // Logo e banner desktop: comportamento atual inalterado (upload bruto em layout_assets).
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       toast.error('Selecione uma imagem JPG, PNG ou WEBP.');
@@ -327,6 +359,7 @@ const SponsorsManagement: React.FC = () => {
     }
 
     const uploadKind = field === 'logoUrl' ? 'logo' : 'banner';
+    const kindLabel = uploadKind === 'logo' ? 'Logo' : 'Banner';
 
     try {
       setUploadingAsset(uploadKind);
@@ -343,7 +376,7 @@ const SponsorsManagement: React.FC = () => {
 
       const { data } = supabase.storage.from('layout_assets').getPublicUrl(filePath);
       setForm((current) => ({ ...current, [field]: data.publicUrl }));
-      toast.success(`${uploadKind === 'logo' ? 'Logo' : 'Banner'} enviado com sucesso.`);
+      toast.success(`${kindLabel} enviado com sucesso.`);
     } catch (error) {
       appError('[SponsorsManagement] Erro ao enviar m?dia do patrocinador', error, {
         field,
@@ -364,6 +397,7 @@ const SponsorsManagement: React.FC = () => {
       segment: sponsor.segment,
       logoUrl: sponsor.logo_url || '',
       bannerUrl: sponsor.banner_url || '',
+      mobileBannerUrl: sponsor.mobile_banner_url || '',
       showOnHomeCarousel: Boolean(sponsor.show_on_home_carousel),
       homeBadgeText: sponsor.home_badge_text || 'Vitrine Premium AGRO BW',
       homeTitle: sponsor.home_title || '',
@@ -425,6 +459,7 @@ const SponsorsManagement: React.FC = () => {
         segment: form.segment.trim(),
         logo_url: form.logoUrl.trim() || null,
         banner_url: form.bannerUrl.trim() || null,
+        mobile_banner_url: form.mobileBannerUrl.trim() || null,
         show_on_home_carousel: form.showOnHomeCarousel,
         home_badge_text: form.showOnHomeCarousel ? (form.homeBadgeText.trim() || null) : null,
         home_title: form.showOnHomeCarousel ? (form.homeTitle.trim() || null) : null,
@@ -1069,6 +1104,66 @@ const SponsorsManagement: React.FC = () => {
                   />
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Banner mobile/tablet (opcional)</span>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-start gap-4">
+                    <div className="flex h-20 w-32 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                      {form.mobileBannerUrl ? (
+                        <img src={form.mobileBannerUrl} alt="Preview do banner mobile/tablet" className="h-full w-full object-contain" />
+                      ) : (
+                        <span className="px-3 text-center text-xs font-bold uppercase tracking-[0.14em] text-slate-300">
+                          Preview mobile
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">
+                          {uploadingAsset === 'banner-mobile' ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Upload className="h-4 w-4" />
+                          )}
+                          Enviar banner mobile
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                            className="hidden"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) {
+                                void handleAssetUpload('mobileBannerUrl', file);
+                              }
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </label>
+                        {form.mobileBannerUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setForm((current) => ({ ...current, mobileBannerUrl: '' }))}
+                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50"
+                          >
+                            <X className="h-4 w-4" />
+                            Remover
+                          </button>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Usada no carrossel da home em telas até 1023px. Prefira proporção ~16:10 (ex.: 1200x750). Se vazio, o carrossel usa o banner desktop acima como fallback. Envie preferencialmente uma arte limpa, sem textos embutidos.
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    value={form.mobileBannerUrl}
+                    onChange={(event) => setForm((current) => ({ ...current, mobileBannerUrl: event.target.value }))}
+                    className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500"
+                    placeholder="URL do banner mobile/tablet"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1161,11 +1256,19 @@ const SponsorsManagement: React.FC = () => {
             <button
               type="button"
               onClick={() => void saveSponsor()}
-              disabled={saving}
+              disabled={saving || uploadingAsset !== null}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Salvar Vitrine Premium
+              {saving || uploadingAsset !== null ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {uploadingAsset !== null
+                ? 'Enviando imagem...'
+                : saving
+                  ? 'Salvando...'
+                  : 'Salvar Vitrine Premium'}
             </button>
           </div>
         </div>
