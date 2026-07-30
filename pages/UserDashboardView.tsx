@@ -1223,6 +1223,91 @@ const UserDashboardView: React.FC = () => {
     } | null>(null);
     const [highlightType, setHighlightType] = useState<'category' | 'home'>('category');
 
+    // Folha inferior de ações (mobile). Fica FORA do card, na raiz do AdsDashboard.
+    const [actionsSheetAd, setActionsSheetAd] = useState<Ad | null>(null);
+    const actionsSheetRef = useRef<HTMLDivElement>(null);
+    const actionsTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+    // Enquanto a folha está aberta: bloqueia o scroll do body (restaurando a posição),
+    // fecha com Escape, prende o foco (focus trap), foca o botão de fechar e devolve o
+    // foco ao botão "Ações" que abriu (referência capturada por event.currentTarget).
+    useEffect(() => {
+      if (!actionsSheetAd) return;
+
+      // Auto-fechar no breakpoint desktop (>=768px): o novo layout/folha é só mobile
+      // (md:hidden). Fecha imediatamente se já abrir em >=768px e evita body travado.
+      const desktopQuery = window.matchMedia('(min-width: 768px)');
+      if (desktopQuery.matches) {
+        setActionsSheetAd(null);
+        return;
+      }
+
+      const scrollY = window.scrollY;
+      const body = document.body;
+      const previous = {
+        position: body.style.position,
+        top: body.style.top,
+        width: body.style.width,
+        overflow: body.style.overflow,
+      };
+      body.style.position = 'fixed';
+      body.style.top = `-${scrollY}px`;
+      body.style.width = '100%';
+      body.style.overflow = 'hidden';
+
+      const getFocusable = () =>
+        Array.from(
+          actionsSheetRef.current?.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+          ) ?? [],
+        ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          setActionsSheetAd(null);
+          return;
+        }
+        if (event.key !== 'Tab') return;
+        const focusable = getFocusable();
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        const inside = active ? actionsSheetRef.current?.contains(active) : false;
+        if (event.shiftKey) {
+          if (!inside || active === first) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (!inside || active === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      };
+      document.addEventListener('keydown', handleKeyDown);
+
+      const handleDesktopChange = (event: MediaQueryListEvent) => {
+        if (event.matches) setActionsSheetAd(null);
+      };
+      desktopQuery.addEventListener('change', handleDesktopChange);
+
+      const focusTimer = window.setTimeout(() => {
+        actionsSheetRef.current?.querySelector<HTMLElement>('[data-actions-sheet-focus]')?.focus();
+      }, 0);
+
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+        desktopQuery.removeEventListener('change', handleDesktopChange);
+        window.clearTimeout(focusTimer);
+        body.style.position = previous.position;
+        body.style.top = previous.top;
+        body.style.width = previous.width;
+        body.style.overflow = previous.overflow;
+        window.scrollTo(0, scrollY);
+        actionsTriggerRef.current?.focus();
+      };
+    }, [actionsSheetAd]);
+
     const visibleAds = useMemo(() => {
       return ads.filter(ad => !removedAdIds.includes(ad.id));
     }, [ads, removedAdIds]);
@@ -1820,6 +1905,189 @@ const UserDashboardView: React.FC = () => {
       setHighlightModalOpen(true);
     };
 
+    // Fonte ÚNICA das ações do card — consumida pelo cluster desktop E pela folha mobile.
+    // Reutiliza integralmente os handlers e as condições existentes (destaques, cooldown,
+    // exclusividade, edição/reanálise, moderação, pausa/reativação, campanha, exclusão).
+    type AdActionDescriptor = {
+      key: string;
+      label: string;
+      icon: React.ReactNode;
+      visible: boolean;
+      disabled: boolean;
+      disabledReason?: string;
+      title: string;
+      run: () => void;
+      desktopClassName: string;
+      inSheet: boolean;
+    };
+
+    const computeAdActionState = (ad: Ad): AdActionDescriptor[] => {
+      const isExpired = ad.status === AdStatus.EXPIRED;
+      const isRejected = ad.status === AdStatus.REJECTED;
+
+      const hasCategoryHighlight = Boolean((ad as any).highlight_category || ad.highlightCategory);
+      const hasHomeHighlight = Boolean((ad as any).highlight_home || ad.highlightHome);
+      const categoryUntil = (ad as any).highlight_category_until || ad.highlightCategoryUntil;
+      const homeUntil = (ad as any).highlight_home_until || ad.highlightHomeUntil;
+      const hasActiveCategoryHighlight = hasCategoryHighlight && isTimestampActive(categoryUntil);
+      const hasActiveHomeHighlight = hasHomeHighlight && isTimestampActive(homeUntil);
+      const categoryCooldownLabel = !hasActiveCategoryHighlight
+        ? getHighlightCooldownLabel({ ...ad, highlightHomeAvailableAfter: null })
+        : '';
+      const homeCooldownLabel = !hasActiveHomeHighlight
+        ? getHighlightCooldownLabel({ ...ad, highlightCategoryAvailableAfter: null })
+        : '';
+      const isCategoryOnCooldown = Boolean(ad.highlightCategoryAvailableAfter && getHighlightCooldownDaysRemaining(ad.highlightCategoryAvailableAfter));
+      const isHomeOnCooldown = Boolean(ad.highlightHomeAvailableAfter && getHighlightCooldownDaysRemaining(ad.highlightHomeAvailableAfter));
+      const categoryBlocked = hasActiveHomeHighlight || hasActiveCategoryHighlight || isCategoryOnCooldown;
+      const homeBlocked = hasActiveCategoryHighlight || hasActiveHomeHighlight || isHomeOnCooldown;
+      const categoryTitle = hasActiveCategoryHighlight
+        ? `Este anúncio já está com destaque em Categoria ativo. Novo destaque em Categoria só fica disponível ${highlightCooldownLabel} após o vencimento.`
+        : isCategoryOnCooldown
+          ? categoryCooldownLabel
+          : hasActiveHomeHighlight
+            ? 'Indisponível enquanto o destaque na Home estiver ativo.'
+            : 'Aplicar destaque de categoria.';
+      const homeTitle = hasActiveHomeHighlight
+        ? `Este anúncio já está com destaque na Home ativo. Novo destaque na Home só fica disponível ${highlightCooldownLabel} após o vencimento.`
+        : isHomeOnCooldown
+          ? homeCooldownLabel
+          : hasActiveCategoryHighlight
+            ? 'Indisponível enquanto o destaque em Categoria estiver ativo.'
+            : 'Aplicar destaque na Home.';
+
+      const inReview =
+        ad.status === AdStatus.PENDING
+        || String(ad.status) === 'UNDER_REVIEW'
+        || hasPendingEditReview(ad);
+      const editBlocked =
+        inReview
+        || (ad.status === AdStatus.REJECTED && isReanalysisBlocked(ad.reanalysisAvailableAt))
+        || (ad.latestEditRequestStatus === 'rejected' && isReanalysisBlocked(ad.latestEditReanalysisAvailableAt));
+      const editBlockedTitle = inReview
+        ? 'Em análise pela moderação — edição disponível após aprovação ou rejeição.'
+        : ad.status === AdStatus.REJECTED
+          ? getReanalysisBlockedLabel(ad) || 'Novo envio temporariamente bloqueado'
+          : getReanalysisBlockedLabel(ad) || 'Nova alteração temporariamente bloqueada';
+
+      const moderationLockedByCommunityReports = Boolean(ad.communityReportedToReviewAt);
+      const pauseTitle = moderationLockedByCommunityReports
+        ? 'Este anúncio está em análise por denúncias da comunidade e só pode ser liberado pela equipe administrativa.'
+        : (ad.status === AdStatus.PAUSED ? 'Reativar' : 'Pausar');
+
+      const alreadyRequested = openCampaignByAd.has(ad.id);
+
+      return [
+        {
+          key: 'highlight_category',
+          label: 'Destacar na categoria',
+          icon: <TrendingUp className="w-4 h-4" strokeWidth={1.5} />,
+          visible: !isExpired && !isRejected,
+          disabled: categoryBlocked,
+          // Prioriza a explicação específica; se o helper vier vazio, fallback claro
+          // para garantir que toda ação desabilitada exiba um motivo na folha.
+          disabledReason: categoryBlocked
+            ? (categoryTitle.trim() || 'Destaque temporariamente indisponível para este anúncio.')
+            : undefined,
+          title: categoryTitle,
+          run: () => handleHighlightClick(ad, 'category'),
+          desktopClassName: categoryBlocked ? 'cursor-not-allowed text-slate-300' : 'hover:bg-blue-50 hover:text-blue-700',
+          inSheet: true,
+        },
+        {
+          key: 'highlight_home',
+          label: 'Destacar na home',
+          icon: <Sparkles className="w-4 h-4" strokeWidth={1.5} />,
+          visible: !isExpired && !isRejected,
+          disabled: homeBlocked,
+          // Prioriza a explicação específica; se o helper vier vazio, fallback claro
+          // para garantir que toda ação desabilitada exiba um motivo na folha.
+          disabledReason: homeBlocked
+            ? (homeTitle.trim() || 'Destaque temporariamente indisponível para este anúncio.')
+            : undefined,
+          title: homeTitle,
+          run: () => handleHighlightClick(ad, 'home'),
+          desktopClassName: homeBlocked ? 'cursor-not-allowed text-slate-300' : 'hover:bg-amber-50 hover:text-amber-700',
+          inSheet: true,
+        },
+        {
+          key: 'edit',
+          label: 'Editar anúncio',
+          icon: <Edit3 className="w-4 h-4" strokeWidth={1.5} />,
+          visible: true,
+          disabled: editBlocked,
+          disabledReason: editBlocked ? editBlockedTitle : undefined,
+          title: editBlocked ? editBlockedTitle : 'Editar anúncio',
+          run: () => navigate(`/anunciar?edit=${ad.id}`),
+          desktopClassName: editBlocked ? 'cursor-not-allowed text-slate-300' : 'hover:bg-slate-50 hover:text-green-700',
+          inSheet: true,
+        },
+        {
+          key: 'moderation',
+          label: 'Detalhes da moderação',
+          icon: <AlertCircle className="w-4 h-4" strokeWidth={1.5} />,
+          visible: hasModerationDetails(ad),
+          disabled: false,
+          title: getModerationSummaryLabel(ad) || 'Ver detalhes da moderação',
+          run: () => setAdForModerationDetails(ad),
+          desktopClassName: 'hover:bg-slate-50 hover:text-slate-700',
+          inSheet: true,
+        },
+        {
+          key: 'republish',
+          label: 'Reativar',
+          icon: <CreditCard className="w-4 h-4" strokeWidth={1.5} />,
+          visible: isExpired,
+          disabled: false,
+          title: 'Reativar anuncio',
+          run: () => handleRepublishExpiredAd(ad),
+          desktopClassName: 'hover:bg-green-50 hover:text-green-700',
+          inSheet: false, // expirado: "Reativar" é ação principal visível no card; não duplica na folha
+        },
+        {
+          key: 'toggle_pause',
+          label: ad.status === AdStatus.PAUSED ? 'Reativar anúncio' : 'Pausar anúncio',
+          icon: <PauseCircle className="w-4 h-4" strokeWidth={1.5} />,
+          visible: !isExpired && !isRejected,
+          disabled: moderationLockedByCommunityReports,
+          disabledReason: moderationLockedByCommunityReports ? pauseTitle : undefined,
+          title: pauseTitle,
+          run: () => handleTogglePause(ad),
+          desktopClassName: moderationLockedByCommunityReports
+            ? 'cursor-not-allowed text-slate-300'
+            : ad.status === AdStatus.PAUSED
+              ? 'hover:bg-green-50 hover:text-green-700'
+              : 'hover:bg-slate-50 hover:text-slate-700',
+          inSheet: true,
+        },
+        {
+          key: 'campaign',
+          label: alreadyRequested ? 'Campanha já solicitada' : 'Solicitar campanha de e-mail',
+          icon: <Megaphone className="w-4 h-4" strokeWidth={1.5} />,
+          visible: campaignEligible && ad.status === AdStatus.ACTIVE,
+          disabled: false,
+          title: alreadyRequested ? 'Campanha já solicitada (em análise/preparação)' : 'Solicitar campanha de e-mail',
+          run: () =>
+            alreadyRequested
+              ? sonnerToast.info('Já existe uma solicitação de campanha em andamento para este anúncio.')
+              : setCampaignAd(ad),
+          desktopClassName: alreadyRequested ? 'text-green-600 cursor-default' : 'hover:bg-green-50 hover:text-green-700',
+          inSheet: true,
+        },
+        {
+          key: 'delete',
+          label: 'Excluir anúncio',
+          icon: <Trash2 className="w-4 h-4" strokeWidth={1.5} />,
+          visible: true,
+          disabled: false,
+          title: 'Excluir anúncio',
+          run: () => handleDeleteClick(ad),
+          desktopClassName: 'hover:bg-red-50 hover:text-red-600',
+          inSheet: true,
+        },
+      ];
+    };
+
     return (
       <div className="space-y-6">
         <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4 shadow-[0_22px_60px_-40px_rgba(15,23,42,0.3)] sm:p-5">
@@ -1990,7 +2258,11 @@ const UserDashboardView: React.FC = () => {
                 </Link>
               </div>
             ) : (
-              pagedAds.map((ad) => (
+              pagedAds.map((ad) => {
+                const actions = computeAdActionState(ad);
+                const republishAction = actions.find((a) => a.key === 'republish' && a.visible);
+                const displayStatus = getPrimaryDisplayStatus(ad);
+                return (
                 <div
                   key={ad.id}
                   role="link"
@@ -2002,15 +2274,18 @@ const UserDashboardView: React.FC = () => {
                       navigate(`/anuncio/${ad.id}`);
                     }
                   }}
-                  className="flex h-20 cursor-pointer items-center gap-4 rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.32)] transition-all hover:-translate-y-0.5 hover:shadow-[0_24px_55px_-36px_rgba(15,23,42,0.35)]"
+                  className="flex cursor-pointer flex-col gap-3 rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.32)] transition-all hover:-translate-y-0.5 hover:shadow-[0_24px_55px_-36px_rgba(15,23,42,0.35)] md:h-20 md:flex-row md:items-center md:gap-4"
                 >
-                  <div className="h-[60px] w-[60px] flex-shrink-0 overflow-hidden rounded-2xl bg-slate-100 shadow-sm">
+                  {/* Imagem + info: uma linha no mobile; display:contents no desktop preserva
+                      exatamente o layout atual (imagem, info e ações na mesma linha). */}
+                  <div className="flex items-start gap-3 md:contents">
+                  <div className="h-[72px] w-[72px] flex-shrink-0 overflow-hidden rounded-2xl bg-slate-100 shadow-sm md:h-[60px] md:w-[60px]">
                     <img src={getPrimaryImageFromList(ad.images, settings.defaultAdImageUrl)} alt={ad.title} className="w-full h-full object-cover" />
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{ad.title}</p>
+                      <p className="text-sm font-semibold text-slate-900 line-clamp-2 md:truncate">{ad.title}</p>
                       {(() => {
                         const hasCategory = (ad as any).highlight_category || (ad as any).highlightCategory;
                         const hasHome = (ad as any).highlight_home || (ad as any).highlightHome;
@@ -2040,7 +2315,7 @@ const UserDashboardView: React.FC = () => {
                     <p className="hidden text-xs text-slate-500 truncate">
                       Código: {ad.id} | Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
-                    <p className="text-xs text-slate-500 truncate">
+                    <p className="hidden text-xs text-slate-500 truncate md:block">
                             Cadastrado em: {new Date(ad.createdAt).toLocaleDateString('pt-BR')} às {new Date(ad.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} | {getAdStatusSupportingLabel(ad)}
                       {getHighlightLifetimeLabel(ad) ? ` | Destaque ${getHighlightLifetimeLabel(ad).replace('Categoria', 'categoria').replace('Home', 'home')}` : ''}
                     </p>
@@ -2053,225 +2328,68 @@ const UserDashboardView: React.FC = () => {
                       Visitas: {ad.views} | Valor: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.price)}
                     </p>
                   </div>
+                  </div>{/* fim imagem + info (md:contents no desktop) */}
 
-                  <div className="flex items-center gap-4">
-                    <span className={`text-xs font-semibold ${statusToneClass[getPrimaryDisplayStatus(ad)] || 'text-slate-500'}`}>
-                      {statusLabel[getPrimaryDisplayStatus(ad)] || 'Status'}
+                  <div className="flex items-center justify-between gap-3 md:justify-start md:gap-4">
+                    <span className={`inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold md:rounded-none md:bg-transparent md:px-0 md:py-0 ${statusToneClass[displayStatus] || 'text-slate-500'}`}>
+                      {statusLabel[displayStatus] || 'Status'}
                     </span>
-                    <div className="flex items-center gap-1 text-slate-400">
-                      {/* Botão de Destaques */}
-                      {ad.status !== AdStatus.EXPIRED && ad.status !== AdStatus.REJECTED && (
-                        <>
-                        {(() => {
-                          const hasCategoryHighlight = Boolean((ad as any).highlight_category || ad.highlightCategory);
-                          const hasHomeHighlight = Boolean((ad as any).highlight_home || ad.highlightHome);
-                          const categoryUntil = (ad as any).highlight_category_until || ad.highlightCategoryUntil;
-                          const homeUntil = (ad as any).highlight_home_until || ad.highlightHomeUntil;
-                          const hasActiveCategoryHighlight = hasCategoryHighlight && isTimestampActive(categoryUntil);
-                          const hasActiveHomeHighlight = hasHomeHighlight && isTimestampActive(homeUntil);
-                          const categoryCooldownLabel = !hasActiveCategoryHighlight ? getHighlightCooldownLabel({
-                            ...ad,
-                            highlightHomeAvailableAfter: null,
-                          }) : '';
-                          const homeCooldownLabel = !hasActiveHomeHighlight ? getHighlightCooldownLabel({
-                            ...ad,
-                            highlightCategoryAvailableAfter: null,
-                          }) : '';
-                          const isCategoryOnCooldown = Boolean(ad.highlightCategoryAvailableAfter && getHighlightCooldownDaysRemaining(ad.highlightCategoryAvailableAfter));
-                          const isHomeOnCooldown = Boolean(ad.highlightHomeAvailableAfter && getHighlightCooldownDaysRemaining(ad.highlightHomeAvailableAfter));
-                          const categoryBlocked = hasActiveHomeHighlight || hasActiveCategoryHighlight || isCategoryOnCooldown;
-                          const homeBlocked = hasActiveCategoryHighlight || hasActiveHomeHighlight || isHomeOnCooldown;
-                          const categoryTitle = hasActiveCategoryHighlight
-                            ? `Este anúncio já está com destaque em Categoria ativo. Novo destaque em Categoria só fica disponível ${highlightCooldownLabel} após o vencimento.`
-                            : isCategoryOnCooldown
-                              ? categoryCooldownLabel
-                              : hasActiveHomeHighlight
-                                ? 'Indisponível enquanto o destaque na Home estiver ativo.'
-                                : 'Aplicar destaque de categoria.';
-                          const homeTitle = hasActiveHomeHighlight
-                            ? `Este anúncio já está com destaque na Home ativo. Novo destaque na Home só fica disponível ${highlightCooldownLabel} após o vencimento.`
-                            : isHomeOnCooldown
-                              ? homeCooldownLabel
-                            : hasActiveCategoryHighlight
-                              ? 'Indisponível enquanto o destaque em Categoria estiver ativo.'
-                              : 'Aplicar destaque na Home.';
 
-                          return (
-                            <>
+                    {/* Cluster desktop (>=768px) - mapeado da fonte unica computeAdActionState. */}
+                    <div className="hidden items-center gap-1 text-slate-400 md:flex">
+                      {actions.filter((a) => a.visible).map((a) => (
                         <button
+                          key={a.key}
+                          type="button"
+                          disabled={a.disabled}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            handleHighlightClick(ad, 'category');
+                            a.run();
                           }}
-                          disabled={categoryBlocked}
-                          className={`p-2 rounded-lg transition-colors ${
-                            categoryBlocked
-                              ? 'cursor-not-allowed text-slate-300'
-                              : 'hover:bg-blue-50 hover:text-blue-700'
-                          }`} 
-                          title={categoryTitle}
+                          className={`p-2 rounded-lg transition-colors ${a.desktopClassName}`}
+                          title={a.title}
                         >
-                          <TrendingUp className="w-4 h-4" strokeWidth={1.5} />
+                          {a.icon}
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleHighlightClick(ad, 'home');
-                          }}
-                          disabled={homeBlocked}
-                          className={`p-2 rounded-lg transition-colors ${
-                            homeBlocked
-                              ? 'cursor-not-allowed text-slate-300'
-                              : 'hover:bg-amber-50 hover:text-amber-700'
-                          }`} 
-                          title={homeTitle}
-                        >
-                          <Sparkles className="w-4 h-4" strokeWidth={1.5} />
-                        </button>
-                            </>
-                          );
-                        })()}
-                        </>
-                      )}
-                      {/* Botão Editar */}
-                      {(() => {
-                        const inReview =
-                          ad.status === AdStatus.PENDING
-                          || String(ad.status) === 'UNDER_REVIEW'
-                          || hasPendingEditReview(ad); // EDIT_PENDING: já há edição em análise
-                        const editBlocked =
-                          inReview
-                          || (ad.status === AdStatus.REJECTED && isReanalysisBlocked(ad.reanalysisAvailableAt))
-                          || (ad.latestEditRequestStatus === 'rejected' && isReanalysisBlocked(ad.latestEditReanalysisAvailableAt));
-                        const editBlockedTitle = inReview
-                          ? 'Em análise pela moderação — edição disponível após aprovação ou rejeição.'
-                          : ad.status === AdStatus.REJECTED
-                            ? getReanalysisBlockedLabel(ad) || 'Novo envio temporariamente bloqueado'
-                            : getReanalysisBlockedLabel(ad) || 'Nova alteração temporariamente bloqueada';
+                      ))}
+                    </div>
 
-                        return (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (editBlocked) {
-                            sonnerToast.error(editBlockedTitle);
-                            return;
-                          }
-                          navigate(`/anunciar?edit=${ad.id}`);
-                        }}
-                        disabled={editBlocked}
-                        className={`p-2 rounded-lg transition-colors ${
-                          editBlocked
-                            ? 'cursor-not-allowed text-slate-300'
-                            : 'hover:bg-slate-50 hover:text-green-700'
-                        }`} 
-                        title={editBlocked ? editBlockedTitle : 'Editar anúncio'}
-                      >
-                        <Edit3 className="w-4 h-4" strokeWidth={1.5} />
-                      </button>
-                        );
-                      })()}
-                      {hasModerationDetails(ad) ? (
+                    {/* Acoes mobile (<768px): Reativar principal p/ expirado + botao de acoes. */}
+                    <div className="flex items-center gap-2 md:hidden">
+                      {republishAction ? (
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setAdForModerationDetails(ad);
+                            republishAction.run();
                           }}
-                          className="p-2 rounded-lg transition-colors hover:bg-slate-50 hover:text-slate-700"
-                          title={getModerationSummaryLabel(ad) || 'Ver detalhes da moderação'}
-                        >
-                          <AlertCircle className="w-4 h-4" strokeWidth={1.5} />
-                        </button>
-                      ) : null}
-                      {/* Botão Pausar/Reativar */}
-                      {ad.status === AdStatus.EXPIRED ? (
-                        <button 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleRepublishExpiredAd(ad);
-                          }}
-                          className="p-2 rounded-lg hover:bg-green-50 hover:text-green-700 transition-colors"
-                          title="Reativar anuncio"
+                          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-green-700 px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-800"
                         >
                           <CreditCard className="w-4 h-4" strokeWidth={1.5} />
+                          Reativar
                         </button>
-                      ) : ad.status !== AdStatus.REJECTED ? (
-                      (() => {
-                        const moderationLockedByCommunityReports = Boolean(ad.communityReportedToReviewAt);
-                        const moderationLockedTitle = moderationLockedByCommunityReports
-                          ? 'Este anúncio está em análise por denúncias da comunidade e só pode ser liberado pela equipe administrativa.'
-                          : (ad.status === AdStatus.PAUSED ? 'Reativar' : 'Pausar');
-
-                        return (
-                      <button 
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleTogglePause(ad);
-                        }}
-                        disabled={moderationLockedByCommunityReports}
-                        className={`p-2 rounded-lg transition-colors ${
-                          moderationLockedByCommunityReports
-                            ? 'cursor-not-allowed text-slate-300'
-                            : ad.status === AdStatus.PAUSED 
-                              ? 'hover:bg-green-50 hover:text-green-700' 
-                              : 'hover:bg-slate-50 hover:text-slate-700'
-                        }`}
-                        title={moderationLockedTitle}
-                      >
-                        <PauseCircle className="w-4 h-4" strokeWidth={1.5} />
-                      </button>
-                        );
-                      })()
                       ) : null}
-                      {/* Botão Solicitar campanha (Loja Parceira + e-mail marketing) */}
-                      {campaignEligible && ad.status === AdStatus.ACTIVE ? (
-                        (() => {
-                          const alreadyRequested = openCampaignByAd.has(ad.id);
-                          return (
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                if (alreadyRequested) {
-                                  sonnerToast.info('Já existe uma solicitação de campanha em andamento para este anúncio.');
-                                  return;
-                                }
-                                setCampaignAd(ad);
-                              }}
-                              className={`p-2 rounded-lg transition-colors ${
-                                alreadyRequested
-                                  ? 'text-green-600 cursor-default'
-                                  : 'hover:bg-green-50 hover:text-green-700'
-                              }`}
-                              title={alreadyRequested ? 'Campanha já solicitada (em análise/preparação)' : 'Solicitar campanha de e-mail'}
-                            >
-                              <Megaphone className="w-4 h-4" strokeWidth={1.5} />
-                            </button>
-                          );
-                        })()
-                      ) : null}
-                      {/* Botão Excluir */}
                       <button
+                        type="button"
+                        aria-haspopup="dialog"
+                        aria-label="Abrir ações do anúncio"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          handleDeleteClick(ad);
+                          actionsTriggerRef.current = e.currentTarget;
+                          setActionsSheetAd(ad);
                         }}
-                        className="p-2 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
-                        title="Excluir anúncio"
+                        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
                       >
-                        <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+                        Ações
                       </button>
                     </div>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </motion.div>
         </AnimatePresence>
@@ -2457,6 +2575,81 @@ const UserDashboardView: React.FC = () => {
               window.location.reload();
             }}
           />
+        )}
+
+        {/* Folha inferior de ações (mobile) — renderizada FORA do card, na raiz do
+            AdsDashboard, para que seus cliques nunca abram a página do anúncio.
+            z-50: acima da barra fixa de navegação inferior (z-30). */}
+        {actionsSheetAd && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <div
+              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+              aria-hidden="true"
+              onClick={() => setActionsSheetAd(null)}
+            />
+            <div
+              ref={actionsSheetRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Ações do anúncio"
+              className="absolute inset-x-0 bottom-0 flex max-h-[80dvh] flex-col rounded-t-3xl border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-20px_50px_-20px_rgba(15,23,42,0.5)]"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Ações</p>
+                  <h2 className="truncate text-sm font-bold text-slate-900">{actionsSheetAd.title}</h2>
+                </div>
+                <button
+                  data-actions-sheet-focus
+                  type="button"
+                  onClick={() => setActionsSheetAd(null)}
+                  aria-label="Fechar"
+                  className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X className="h-5 w-5" strokeWidth={1.75} />
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+                <div className="space-y-1">
+                  {computeAdActionState(actionsSheetAd)
+                    .filter((a) => a.visible && a.inSheet)
+                    .map((a) => (
+                      <button
+                        key={a.key}
+                        type="button"
+                        disabled={a.disabled}
+                        onClick={() => {
+                          setActionsSheetAd(null);
+                          a.run();
+                        }}
+                        className={`flex w-full items-start gap-3 rounded-2xl border border-transparent px-3 py-3 text-left transition-colors ${
+                          a.disabled
+                            ? 'cursor-not-allowed opacity-60'
+                            : a.key === 'delete'
+                              ? 'text-red-600 hover:bg-red-50'
+                              : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span
+                          className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${
+                            a.key === 'delete' ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          {a.icon}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold">{a.label}</span>
+                          {a.disabled && a.disabledReason ? (
+                            <span className="mt-0.5 block text-xs font-medium text-amber-700">{a.disabledReason}</span>
+                          ) : null}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );
