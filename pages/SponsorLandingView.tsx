@@ -643,7 +643,7 @@ const SponsorLandingView: React.FC = () => {
             return (
               <div
                 key={item.title}
-                className="group rounded-[1.8rem] border border-slate-200 bg-white p-7 shadow-[0_8px_30px_-10px_rgba(15,23,42,0.12)] hover:shadow-[0_16px_40px_-10px_rgba(15,23,42,0.18)] hover:-translate-y-1 transition-all duration-300"
+                className="group flex h-full flex-col rounded-[1.8rem] border border-slate-200 bg-white p-7 shadow-[0_8px_30px_-10px_rgba(15,23,42,0.12)] hover:shadow-[0_16px_40px_-10px_rgba(15,23,42,0.18)] hover:-translate-y-1 transition-all duration-300"
               >
                 <div
                   className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl transition-transform group-hover:scale-110"
@@ -652,9 +652,9 @@ const SponsorLandingView: React.FC = () => {
                   <Icon className="h-5 w-5" style={{ color: settings.primaryColor }} />
                 </div>
                 <p className="text-xl font-black text-slate-950 mb-3">{item.title}</p>
-                <p className="text-sm leading-7 text-slate-500 mb-5">{item.description}</p>
+                <p className="mb-5 flex-1 text-sm leading-7 text-slate-500">{item.description}</p>
                 <div
-                  className="inline-block rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em]"
+                  className="flex min-h-9 w-full items-center justify-center whitespace-nowrap rounded-xl px-3 py-2 text-center text-[10px] font-black uppercase tracking-[0.08em] sm:text-[11px]"
                   style={{
                     background: `color-mix(in srgb, ${settings.primaryColor} 10%, white)`,
                     color: settings.primaryColor,
@@ -1224,5 +1224,4 @@ const SponsorLandingView: React.FC = () => {
 };
 
 export default SponsorLandingView;
-
 

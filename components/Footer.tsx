@@ -206,7 +206,7 @@ const Footer: React.FC = () => {
                 </li>
                 <li className="flex items-center gap-3">
                   <Mail className="h-4 w-4" style={{ color: settings.primaryColor }} strokeWidth={1.5} />
-                  suporte@bwagro.com.br
+                  suporte@agrobw.com.br
                 </li>
               </ul>
 

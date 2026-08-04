@@ -236,7 +236,7 @@ const Home: React.FC = () => {
             contactPoint: {
               '@type': 'ContactPoint',
               contactType: 'customer support',
-              email: 'suporte@bwagro.com.br',
+              email: 'suporte@agrobw.com.br',
             },
           },
         ]}
