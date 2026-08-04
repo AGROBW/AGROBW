@@ -158,7 +158,7 @@ const PricingView: React.FC = () => {
 
   const getPlanActionLabel = (plan: Plan) => {
     if (!hasActiveManagedPlan || !currentPlanRecord) {
-      return `${getPlanCheckoutVerb(plan)} ${getBillingCycleLabel(billingCycle)}`;
+      return plan.button_text?.trim() || `${getPlanCheckoutVerb(plan)} ${getBillingCycleLabel(billingCycle)}`;
     }
 
     if (hasManagedRecurringSubscription && plan.id === currentPlanRecord.id) {
@@ -883,4 +883,3 @@ const PricingView: React.FC = () => {
 };
 
 export default PricingView;
-
