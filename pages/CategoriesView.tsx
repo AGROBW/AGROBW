@@ -223,7 +223,7 @@ const CategoriesView: React.FC = () => {
         <div className="relative mt-12 overflow-hidden rounded-[2rem]" style={{ backgroundColor: settings.secondaryColor }}>
           <div className="absolute inset-0">
             <img
-              src="https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=1400&q=80"
+              src="/images/categories-consultant-banner.webp"
               alt=""
               className="h-full w-full object-cover opacity-15"
             />
