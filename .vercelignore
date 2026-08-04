@@ -1,5 +1,11 @@
 graphify-out/
 videos/
+
+# Database history stays in Git, never in the deployment bundle.
 sql/
 **/*.sql
+
+# Internal documentation stays in Git, never in the deployment bundle.
 docs/
+*.md
+**/*.md
