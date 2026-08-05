@@ -341,7 +341,7 @@ const Home: React.FC = () => {
             <div className="flex-1 text-center text-white lg:text-left">
               <h2 className="mb-4 text-xl font-semibold leading-tight">Pronto para fechar o melhor negócio do ano?</h2>
               <p className="mb-6 text-sm opacity-90" style={{ color: 'rgba(255,255,255,0.82)' }}>
-                Junte-se a mais de 10.000 produtores rurais que já utilizam a BWAGRO para comprar e vender com segurança e rapidez.
+                Junte-se a mais de 10.000 produtores rurais que já utilizam a AGRO BW para comprar e vender com segurança e rapidez.
               </p>
               <div className="flex flex-col justify-center gap-4 sm:flex-row lg:justify-start">
                 <Link to="/anunciar" className="h-10 rounded-lg px-6 text-sm font-semibold leading-10 transition-all" style={{ backgroundColor: settings.accentColor, color: settings.secondaryColor }}>

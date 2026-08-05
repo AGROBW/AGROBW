@@ -200,9 +200,17 @@ const Footer: React.FC = () => {
             <div>
               <h4 className="mb-4 font-semibold text-white">Fale Conosco</h4>
               <ul className="space-y-3 text-sm">
-                <li className="flex items-center gap-3">
-                  <Phone className="h-4 w-4" style={{ color: settings.primaryColor }} strokeWidth={1.5} />
-                  0800 123 4567
+                <li>
+                  <a
+                    href="https://wa.me/64993179200"
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Falar pelo WhatsApp no numero (64)9 9317-9200"
+                    className="inline-flex items-center gap-3 transition-colors hover:text-white"
+                  >
+                    <Phone className="h-4 w-4" style={{ color: settings.primaryColor }} strokeWidth={1.5} />
+                    <span>(64)9 9317-9200</span>
+                  </a>
                 </li>
                 <li className="flex items-center gap-3">
                   <Mail className="h-4 w-4" style={{ color: settings.primaryColor }} strokeWidth={1.5} />
