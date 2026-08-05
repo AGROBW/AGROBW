@@ -42,7 +42,7 @@ export const useNews = () => {
           title: item.title,
           summary: item.summary,
           imageUrl: item.featured_image_url,
-          link: `#/noticias/${item.slug}`
+          link: `/noticias/${item.slug}`
         }))
         setNews(mapped)
         setError(null)
