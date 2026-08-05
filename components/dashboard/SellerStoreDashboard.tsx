@@ -9,6 +9,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { slugifyStoreValue, useMySellerStore } from '../../src/hooks/useSellerStore';
 import type { Ad } from '../../types';
 import { supabase } from '../../src/lib/supabaseClient';
+import { optimizeStoreCoverImage } from '../../src/utils/storeCoverImage';
 
 type SellerStoreDashboardProps = {
   hasStoreAccess: boolean;
@@ -261,8 +262,9 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('A imagem deve ter no máximo 5MB.');
+    const maxSourceSize = assetType === 'logoUrl' ? 5 : 10;
+    if (file.size > maxSourceSize * 1024 * 1024) {
+      toast.error(`A imagem deve ter no máximo ${maxSourceSize}MB.`);
       event.target.value = '';
       return;
     }
@@ -276,7 +278,10 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
     setUploading(true);
 
     try {
-      const fileExt = file.name.split('.').pop() || 'jpg';
+      const uploadFile = assetType === 'logoUrl'
+        ? file
+        : await optimizeStoreCoverImage(file, assetType === 'coverMobileUrl' ? 'mobile' : 'desktop');
+      const fileExt = assetType === 'logoUrl' ? (file.name.split('.').pop() || 'jpg') : 'webp';
       const fileName =
         assetType === 'logoUrl'
           ? `logo-${Date.now()}.${fileExt}`
@@ -287,9 +292,10 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
 
       const { error: uploadError } = await supabase.storage
         .from('seller-stores')
-        .upload(filePath, file, {
+        .upload(filePath, uploadFile, {
           upsert: false,
-          contentType: file.type,
+          contentType: uploadFile.type,
+          cacheControl: '3600',
         });
 
       if (uploadError) throw uploadError;
@@ -316,8 +322,8 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
         assetType === 'logoUrl'
           ? 'Logo enviada com sucesso.'
           : assetType === 'coverMobileUrl'
-            ? 'Capa mobile enviada com sucesso.'
-            : 'Capa enviada com sucesso.'
+            ? 'Capa mobile otimizada e enviada com sucesso.'
+            : 'Capa otimizada e enviada com sucesso.'
       );
     } catch (error: any) {
       console.error('[SellerStoreDashboard] Erro ao fazer upload da imagem da loja:', error);
