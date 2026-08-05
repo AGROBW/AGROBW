@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -106,6 +106,14 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
   } = useMySellerStore();
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [isUploadingCoverMobile, setIsUploadingCoverMobile] = useState(false);
+  // Exclusão ADIADA de assets antigos: só remove do storage APÓS saveStore concluir com
+  // sucesso. Fila independente por asset; suporta múltiplas trocas antes de salvar.
+  const pendingAssetCleanupRef = useRef<Record<'logoUrl' | 'coverUrl' | 'coverMobileUrl', string[]>>({
+    logoUrl: [],
+    coverUrl: [],
+    coverMobileUrl: [],
+  });
   const [orderedAnnouncements, setOrderedAnnouncements] = useState<Ad[]>([]);
   const [formData, setFormData] = useState({
     storeName: '',
@@ -113,6 +121,7 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
     description: '',
     logoUrl: '',
     coverUrl: '',
+    coverMobileUrl: '',
     coverPositionX: 50,
     coverPositionY: 50,
     email: '',
@@ -134,6 +143,7 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
         description: store.description || '',
         logoUrl: store.logoUrl || '',
         coverUrl: store.coverUrl || '',
+        coverMobileUrl: store.coverMobileUrl || '',
         coverPositionX: typeof store.coverPositionX === 'number' ? store.coverPositionX : 50,
         coverPositionY: typeof store.coverPositionY === 'number' ? store.coverPositionY : 50,
         email: store.email || user?.email || '',
@@ -180,10 +190,36 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
     }
   };
 
+  // Remove do storage os arquivos antigos enfileirados — chamado SOMENTE após saveStore
+  // ter sucesso. Nunca remove o caminho da URL que acabou de ser persistida.
+  const flushPendingAssetCleanup = async () => {
+    const queues = pendingAssetCleanupRef.current;
+    const persistedPaths = new Set(
+      [formData.logoUrl, formData.coverUrl, formData.coverMobileUrl]
+        .map((url) => extractStoreAssetPath(url))
+        .filter((path): path is string => Boolean(path))
+    );
+    const pathsToRemove = Array.from(
+      new Set([...queues.logoUrl, ...queues.coverUrl, ...queues.coverMobileUrl])
+    ).filter((path) => Boolean(path) && !persistedPaths.has(path));
+
+    // Zera as filas independentemente do resultado da remoção (evita repetir tentativas).
+    pendingAssetCleanupRef.current = { logoUrl: [], coverUrl: [], coverMobileUrl: [] };
+
+    if (pathsToRemove.length === 0) return;
+    const { error } = await supabase.storage.from('seller-stores').remove(pathsToRemove);
+    if (error) {
+      console.warn('[SellerStoreDashboard] Nao foi possivel remover assets antigos da loja:', error);
+    }
+  };
+
   const handleSave = async () => {
     try {
       await saveStore(formData, hasStoreAccess);
       toast.success('Loja salva com sucesso.');
+      // Exclusão adiada: só agora, com o banco já apontando para as novas URLs, é seguro
+      // remover os arquivos antigos. Se saveStore falhar, o catch impede qualquer remoção.
+      await flushPendingAssetCleanup();
     } catch (error: any) {
       toast.error(error?.message || 'Não foi possível salvar sua loja.');
     }
@@ -214,7 +250,7 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
 
   const uploadStoreAsset = async (
     event: React.ChangeEvent<HTMLInputElement>,
-    assetType: 'logoUrl' | 'coverUrl'
+    assetType: 'logoUrl' | 'coverUrl' | 'coverMobileUrl'
   ) => {
     const file = event.target.files?.[0];
     if (!file || !user?.id) return;
@@ -231,15 +267,22 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
       return;
     }
 
-    const setUploading = assetType === 'logoUrl' ? setIsUploadingLogo : setIsUploadingCover;
+    const setUploading =
+      assetType === 'logoUrl'
+        ? setIsUploadingLogo
+        : assetType === 'coverMobileUrl'
+          ? setIsUploadingCoverMobile
+          : setIsUploadingCover;
     setUploading(true);
 
     try {
       const fileExt = file.name.split('.').pop() || 'jpg';
-      const previousAssetPath = extractStoreAssetPath(formData[assetType]);
-      const fileName = assetType === 'logoUrl'
-        ? `logo-${Date.now()}.${fileExt}`
-        : `cover-${Date.now()}.${fileExt}`;
+      const fileName =
+        assetType === 'logoUrl'
+          ? `logo-${Date.now()}.${fileExt}`
+          : assetType === 'coverMobileUrl'
+            ? `cover-mobile-${Date.now()}.${fileExt}`
+            : `cover-${Date.now()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -255,22 +298,27 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
         .from('seller-stores')
         .getPublicUrl(filePath);
 
-      setFormData((current) => ({
-        ...current,
-        [assetType]: publicUrlData.publicUrl,
-      }));
-
-      if (previousAssetPath && previousAssetPath !== filePath) {
-        const { error: removeError } = await supabase.storage
-          .from('seller-stores')
-          .remove([previousAssetPath]);
-
-        if (removeError) {
-          console.warn('[SellerStoreDashboard] Nao foi possivel remover o asset antigo da loja:', removeError);
+      setFormData((current) => {
+        // Exclusão ADIADA: enfileira o arquivo ANTIGO (nunca o recém-enviado). A remoção
+        // do storage só acontece depois que saveStore concluir com sucesso.
+        const previousPath = extractStoreAssetPath(current[assetType]);
+        if (
+          previousPath &&
+          previousPath !== filePath &&
+          !pendingAssetCleanupRef.current[assetType].includes(previousPath)
+        ) {
+          pendingAssetCleanupRef.current[assetType].push(previousPath);
         }
-      }
+        return { ...current, [assetType]: publicUrlData.publicUrl };
+      });
 
-      toast.success(assetType === 'logoUrl' ? 'Logo enviada com sucesso.' : 'Capa enviada com sucesso.');
+      toast.success(
+        assetType === 'logoUrl'
+          ? 'Logo enviada com sucesso.'
+          : assetType === 'coverMobileUrl'
+            ? 'Capa mobile enviada com sucesso.'
+            : 'Capa enviada com sucesso.'
+      );
     } catch (error: any) {
       console.error('[SellerStoreDashboard] Erro ao fazer upload da imagem da loja:', error);
       toast.error(error?.message || 'Não foi possível enviar a imagem.');
@@ -392,7 +440,7 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
             <button
               type="button"
               onClick={handleSave}
-              disabled={isSaving || !hasStoreAccess}
+              disabled={isSaving || !hasStoreAccess || isUploadingLogo || isUploadingCover || isUploadingCoverMobile}
               className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Save className="h-4 w-4" strokeWidth={1.5} />
@@ -472,14 +520,14 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
             <div className="space-y-2">
               <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <Image className="h-4 w-4 text-slate-400" strokeWidth={1.5} />
-                Capa da loja
+                Capa desktop
               </span>
               <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 transition hover:border-emerald-300 hover:bg-emerald-50/50">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">
-                    {isUploadingCover ? 'Enviando capa...' : formData.coverUrl ? 'Trocar capa atual' : 'Selecionar imagem da capa'}
+                    {isUploadingCover ? 'Enviando capa...' : formData.coverUrl ? 'Trocar capa desktop' : 'Selecionar capa desktop'}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">Use uma imagem horizontal preparada exatamente para o banner da loja. Recomendado: 2000x300 px, com o conteúdo principal centralizado para ocupar bem toda a largura da seção.</p>
+                  <p className="mt-1 text-xs text-slate-500">Arte horizontal do banner (a partir de 1024px). Recomendado: 2000x300 px, com o conteúdo principal centralizado. Dimensão exata não é obrigatória.</p>
                 </div>
                 <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
                   <UploadCloud className="h-5 w-5" strokeWidth={1.5} />
@@ -496,9 +544,55 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
               </label>
             </div>
 
+            <div className="space-y-2">
+              <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <Image className="h-4 w-4 text-slate-400" strokeWidth={1.5} />
+                Capa mobile/tablet (opcional)
+              </span>
+              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 transition hover:border-emerald-300 hover:bg-emerald-50/50">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {isUploadingCoverMobile ? 'Enviando capa mobile...' : formData.coverMobileUrl ? 'Trocar capa mobile' : 'Selecionar capa mobile/tablet'}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">Arte usada até 1023px. Recomendado: 1200x600 px (proporção ~2:1). Dimensão exata não é obrigatória. Se ficar vazia, a página pública usa a capa desktop como fallback.</p>
+                </div>
+                <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+                  <UploadCloud className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  className="hidden"
+                  disabled={!hasStoreAccess || isUploadingCoverMobile}
+                  onChange={(event) => {
+                    void uploadStoreAsset(event, 'coverMobileUrl');
+                  }}
+                />
+              </label>
+              {formData.coverMobileUrl ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((current) => {
+                      // Enfileira o arquivo atual; só será removido do storage após salvar
+                      // (com cover_mobile_url = NULL) com sucesso.
+                      const previousPath = extractStoreAssetPath(current.coverMobileUrl);
+                      if (previousPath && !pendingAssetCleanupRef.current.coverMobileUrl.includes(previousPath)) {
+                        pendingAssetCleanupRef.current.coverMobileUrl.push(previousPath);
+                      }
+                      return { ...current, coverMobileUrl: '' };
+                    })
+                  }
+                  className="text-xs font-semibold text-rose-600 transition hover:text-rose-700"
+                >
+                  Remover capa mobile
+                </button>
+              ) : null}
+            </div>
+
             <label className="space-y-3 md:col-span-2">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-slate-700">Ajuste horizontal da capa</span>
+                <span className="text-sm font-semibold text-slate-700">Ajuste do fundo decorativo (horizontal)</span>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
                   {formData.coverPositionX}%
                 </span>
@@ -536,13 +630,13 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
                 </button>
               </div>
               <p className="text-xs text-slate-500">
-                Use esse controle para mover a arte da capa para a esquerda ou direita dentro do banner.
+                Ajusta apenas o enquadramento do fundo decorativo (desfocado). Não corta a arte principal, que aparece inteira.
               </p>
             </label>
 
             <label className="space-y-3 md:col-span-2">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-slate-700">Ajuste vertical da capa</span>
+                <span className="text-sm font-semibold text-slate-700">Ajuste do fundo decorativo (vertical)</span>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
                   {formData.coverPositionY}%
                 </span>
@@ -580,7 +674,7 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
                 </button>
               </div>
               <p className="text-xs text-slate-500">
-                Use esse controle para subir ou descer a arte da capa sem precisar reenviar a imagem.
+                Ajusta apenas o enquadramento vertical do fundo decorativo (desfocado). A arte principal continua inteira (object-contain).
               </p>
             </label>
 
@@ -709,6 +803,66 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
         </div>
 
         <aside className="space-y-6">
+          {/* Pré-visualização da capa (modelo público futuro: fundo cover+blur + arte contain). */}
+          <div className="space-y-4 rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-sm font-semibold text-slate-700">Pré-visualização da capa</p>
+
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Desktop (a partir de 1024px)</p>
+              <div className="relative h-24 overflow-hidden rounded-2xl bg-slate-900">
+                {formData.coverUrl ? (
+                  <>
+                    <div
+                      aria-hidden="true"
+                      className="absolute inset-0 scale-110 bg-cover bg-center opacity-90 blur-xl"
+                      style={{
+                        backgroundImage: `url(${formData.coverUrl})`,
+                        backgroundPosition: `${formData.coverPositionX}% ${formData.coverPositionY}%`,
+                      }}
+                    />
+                    <img src={formData.coverUrl} alt="Prévia da capa desktop" className="absolute inset-0 h-full w-full object-contain" />
+                  </>
+                ) : (
+                  <div className="flex h-full items-center justify-center px-4 text-center text-xs font-medium text-slate-300">
+                    Envie a capa desktop (recomendado 2000x300).
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Mobile/tablet (até 1023px)</p>
+              <div className="relative h-40 overflow-hidden rounded-2xl bg-slate-900">
+                {formData.coverMobileUrl || formData.coverUrl ? (
+                  <>
+                    <div
+                      aria-hidden="true"
+                      className="absolute inset-0 scale-110 bg-cover bg-center opacity-90 blur-xl"
+                      style={{
+                        backgroundImage: `url(${formData.coverMobileUrl || formData.coverUrl})`,
+                        backgroundPosition: `${formData.coverPositionX}% ${formData.coverPositionY}%`,
+                      }}
+                    />
+                    <img
+                      src={formData.coverMobileUrl || formData.coverUrl}
+                      alt="Prévia da capa mobile/tablet"
+                      className="absolute inset-0 h-full w-full object-contain"
+                    />
+                    {!formData.coverMobileUrl && formData.coverUrl ? (
+                      <span className="absolute bottom-1.5 right-1.5 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        Fallback: capa desktop
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="flex h-full items-center justify-center px-4 text-center text-xs font-medium text-slate-300">
+                    Envie a capa mobile (recomendado 1200x600) ou use a desktop como fallback.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
             <div
               className="h-40 bg-cover"

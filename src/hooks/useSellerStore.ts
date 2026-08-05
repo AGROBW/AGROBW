@@ -11,6 +11,7 @@ type SellerStoreInput = {
   description?: string;
   logoUrl?: string;
   coverUrl?: string;
+  coverMobileUrl?: string;
   coverPositionX?: number;
   coverPositionY?: number;
   whatsapp?: string;
@@ -68,6 +69,7 @@ type SellerStoreRow = {
   description?: string | null;
   logo_url?: string | null;
   cover_url?: string | null;
+  cover_mobile_url?: string | null;
   cover_position_x?: number | null;
   cover_position_y?: number | null;
   whatsapp?: string | null;
@@ -99,6 +101,7 @@ const mapStoreRow = (row: SellerStoreRow): SellerStore => ({
   description: row.description,
   logoUrl: row.logo_url,
   coverUrl: row.cover_url,
+  coverMobileUrl: row.cover_mobile_url,
   coverPositionX: row.cover_position_x,
   coverPositionY: row.cover_position_y,
   whatsapp: row.whatsapp,
@@ -285,6 +288,7 @@ export const useMySellerStore = () => {
         description: input.description?.trim() || null,
         logo_url: input.logoUrl?.trim() || null,
         cover_url: input.coverUrl?.trim() || null,
+        cover_mobile_url: input.coverMobileUrl?.trim() || null,
         cover_position_x: normalizeCoverPosition(input.coverPositionX),
         cover_position_y: normalizeCoverPosition(input.coverPositionY),
         whatsapp: null,
@@ -402,7 +406,7 @@ export const usePublicSellerStore = (slug: string | undefined) => {
       const { data: storeRow, error: storeError } = await supabase
         .from('seller_stores')
         // R3: loja pública (anon) lê colunas explícitas — SEM `email` (privado).
-        .select('id,user_id,slug,store_name,description,logo_url,cover_url,cover_position_x,cover_position_y,whatsapp,website_url,city,state,is_active,is_verified,created_at,updated_at,is_store_feature_enabled,is_paused_due_to_plan')
+        .select('id,user_id,slug,store_name,description,logo_url,cover_url,cover_mobile_url,cover_position_x,cover_position_y,whatsapp,website_url,city,state,is_active,is_verified,created_at,updated_at,is_store_feature_enabled,is_paused_due_to_plan')
         .eq('slug', slug)
         .eq('is_active', true)
         .eq('is_store_feature_enabled', true)
@@ -479,7 +483,7 @@ export const usePublicSellerStoresCatalog = () => {
     const { data: storeRows, error: storesError } = await supabase
       .from('seller_stores')
       // R3: vitrine pública (anon) lê colunas explícitas — SEM `email` (privado).
-      .select('id,user_id,slug,store_name,description,logo_url,cover_url,cover_position_x,cover_position_y,whatsapp,website_url,city,state,is_active,is_verified,created_at,updated_at,is_store_feature_enabled,is_paused_due_to_plan')
+      .select('id,user_id,slug,store_name,description,logo_url,cover_url,cover_mobile_url,cover_position_x,cover_position_y,whatsapp,website_url,city,state,is_active,is_verified,created_at,updated_at,is_store_feature_enabled,is_paused_due_to_plan')
       .eq('is_active', true)
       .eq('is_store_feature_enabled', true)
       .eq('is_paused_due_to_plan', false)

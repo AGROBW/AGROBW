@@ -121,6 +121,7 @@ export interface SellerStore {
   description?: string | null;
   logoUrl?: string | null;
   coverUrl?: string | null;
+  coverMobileUrl?: string | null;
   coverPositionX?: number | null;
   coverPositionY?: number | null;
   whatsapp?: string | null;
