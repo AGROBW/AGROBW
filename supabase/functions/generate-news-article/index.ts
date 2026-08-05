@@ -136,7 +136,7 @@ serve(async (req) => {
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
 
     if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-      return jsonResponse({ success: false, error: 'Serviço indisponível' }, 500);
+      return jsonResponse(req, { success: false, error: 'Serviço indisponível' }, 500);
     }
 
     if (!geminiApiKey) {
@@ -226,6 +226,7 @@ serve(async (req) => {
 
     if (!trimToNull(ingestion.extracted_text)) {
       return jsonResponse(
+        req,
         {
           success: false,
           error: 'Capture does not contain extracted text',

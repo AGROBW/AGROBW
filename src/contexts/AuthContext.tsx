@@ -14,7 +14,13 @@ import { clearForcedAdminAuthStorageMode, forceAdminMemoryAuthStorage, setRememb
 import { buildAbsoluteSiteUrl } from '../lib/siteConfig'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
 import { clearAdminPortalHandoffPending, hasAdminPortalHandoffPending, setAdminPortalHandoffPending } from '../lib/adminPortalHandoff'
-import { isSupabaseUnauthorizedError, refreshSupabaseSession, startIdleSessionMonitor, stopIdleSessionMonitor } from '../lib/supabaseAuthGuard'
+import {
+  isPostgrestSingleRowVisibilityError,
+  isSupabaseUnauthorizedError,
+  refreshSupabaseSession,
+  startIdleSessionMonitor,
+  stopIdleSessionMonitor
+} from '../lib/supabaseAuthGuard'
 import { User, UserRole } from '../../types'
 import { toast } from 'sonner'
 import { appError } from '../utils/appLogger'
@@ -178,6 +184,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }
 
   const handleExpiredSession = async (canSetState?: () => boolean) => {
+    const loginPath = user?.isAdmin || user?.role === UserRole.ADMIN
+      ? '/admin/login'
+      : '/login'
+
     clearRetryTimeout()
     clearPendingAdminMfaSession()
     await supabase.auth.signOut()
@@ -186,7 +196,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!sessionExpiredToastShownRef.current) {
       sessionExpiredToastShownRef.current = true
       toast.error('Sessão expirada', {
-        description: 'Entre novamente para continuar usando sua conta.'
+        description: 'Entre novamente para continuar usando sua conta.',
+        action: {
+          label: 'Entrar novamente',
+          onClick: () => window.location.assign(loginPath)
+        }
       })
     }
 
@@ -217,7 +231,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           return null
         }
 
-        if (options?.allowSessionRefresh !== false && isSupabaseUnauthorizedError(userError)) {
+        const shouldRecoverSession =
+          isSupabaseUnauthorizedError(userError) ||
+          isPostgrestSingleRowVisibilityError(userError)
+
+        if (options?.allowSessionRefresh !== false && shouldRecoverSession) {
           const refreshed = await refreshSupabaseSession()
 
           if (refreshed) {

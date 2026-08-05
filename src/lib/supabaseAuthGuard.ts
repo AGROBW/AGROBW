@@ -87,19 +87,52 @@ export const isSupabaseUnauthorizedError = (error: unknown): boolean => {
   if (!error) return false;
 
   const err = error as Record<string, unknown>;
-  const status = Number(err.status || err.statusCode || err.code);
+  const context = (err.context && typeof err.context === 'object')
+    ? err.context as Record<string, unknown>
+    : null;
+  const nestedError = (err.error && typeof err.error === 'object')
+    ? err.error as Record<string, unknown>
+    : null;
+  const status = Number(
+    err.status ||
+    err.statusCode ||
+    context?.status ||
+    context?.statusCode ||
+    nestedError?.status ||
+    nestedError?.statusCode ||
+    err.code,
+  );
   const message = String(
-    err.message || err.error_description || err.details || '',
+    err.message ||
+    err.error_description ||
+    err.details ||
+    nestedError?.message ||
+    nestedError?.error_description ||
+    '',
   ).toLowerCase();
+  const code = String(err.code || nestedError?.code || '').toUpperCase();
 
   return (
     status === 401 ||
-    err.code === 'PGRST301' ||
+    code === 'PGRST301' ||
     message.includes('jwt') ||
     message.includes('token') ||
     message.includes('unauthorized') ||
     message.includes('invalid claim')
   );
+};
+
+// A `.single()` pode retornar 406/PGRST116 quando a RLS deixa de enxergar a
+// linha do usuario durante uma perda de sessao. O chamador deve tentar renovar
+// a sessao antes de concluir que o perfil realmente nao existe.
+export const isPostgrestSingleRowVisibilityError = (error: unknown): boolean => {
+  if (!error) return false;
+
+  const err = error as Record<string, unknown>;
+  const status = Number(err.status || err.statusCode);
+  const code = String(err.code || '').toUpperCase();
+
+  return status === 406 || code === 'PGRST116';
 };
 
 export const refreshSupabaseSession = async (): Promise<boolean> => {
