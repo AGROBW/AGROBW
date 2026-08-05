@@ -475,6 +475,9 @@ const StorefrontView: React.FC = () => {
     },
   ];
 
+  // Fonte mobile só é usada se houver URL válida (null/vazio/espaços => usa a desktop).
+  const coverMobileUrl = (store.coverMobileUrl || '').trim();
+
   return (
     <div className="bg-[#f5f7fb] pb-16">
       <SeoHead
@@ -484,18 +487,45 @@ const StorefrontView: React.FC = () => {
         image={store.coverUrl || store.logoUrl || null}
       />
       <StructuredData id="storefront" data={storefrontStructuredData} />
-      <section
-        className="relative overflow-hidden"
-        style={{
-          backgroundImage: store.coverUrl
-            ? `linear-gradient(90deg, rgba(9, 15, 25, 0.36) 0%, rgba(9, 15, 25, 0.28) 24%, rgba(9, 15, 25, 0.14) 48%, rgba(9, 15, 25, 0.08) 72%, rgba(9, 15, 25, 0.18) 100%), url(${store.coverUrl})`
-            : 'linear-gradient(110deg, #f7f7f7 0%, #fff1e9 42%, #ff7a18 100%)',
-          backgroundSize: 'cover',
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: `${typeof store.coverPositionX === 'number' ? store.coverPositionX : 50}% ${typeof store.coverPositionY === 'number' ? store.coverPositionY : 50}%`,
-        }}
-      >
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_36%,rgba(255,255,255,0)_68%)]" />
+      <section className="relative overflow-hidden">
+        {store.coverUrl ? (
+          <>
+            {/* Camada decorativa: mesma fonte responsiva, object-cover + blur + scale, preenche
+                totalmente as faixas atrás da arte. object-position pelos sliders cover_position_x/y.
+                Puramente decorativa: aria-hidden, alt vazio e pointer-events-none. */}
+            <picture aria-hidden="true">
+              {coverMobileUrl ? <source media="(max-width: 1023px)" srcSet={coverMobileUrl} /> : null}
+              <img
+                src={store.coverUrl}
+                alt=""
+                aria-hidden="true"
+                decoding="async"
+                className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
+                style={{
+                  objectPosition: `${typeof store.coverPositionX === 'number' ? store.coverPositionX : 50}% ${typeof store.coverPositionY === 'number' ? store.coverPositionY : 50}%`,
+                }}
+              />
+            </picture>
+
+            {/* Arte principal: sempre inteira (object-contain, centralizada). NÃO usa os sliders. */}
+            <picture>
+              {coverMobileUrl ? <source media="(max-width: 1023px)" srcSet={coverMobileUrl} /> : null}
+              <img
+                src={store.coverUrl}
+                alt={`Capa da loja ${store.storeName}`}
+                decoding="async"
+                className="absolute inset-0 h-full w-full object-contain object-center"
+              />
+            </picture>
+
+            {/* Gradiente de contraste (preservado do design atual). */}
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(9,15,25,0.36)_0%,rgba(9,15,25,0.28)_24%,rgba(9,15,25,0.14)_48%,rgba(9,15,25,0.08)_72%,rgba(9,15,25,0.18)_100%)]" />
+          </>
+        ) : (
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,#f7f7f7_0%,#fff1e9_42%,#ff7a18_100%)]" />
+        )}
+
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.04)_0%,rgba(255,255,255,0.02)_36%,rgba(255,255,255,0)_68%)]" />
 
         <div className="relative h-[240px] px-3 md:px-0" />
       </section>
