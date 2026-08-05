@@ -130,6 +130,8 @@ export const useLayoutSettings = () => {
 
   const saveSettings = async (payload: Partial<LayoutSettings>) => {
     const currentId = settings?.id;
+    const hasPayloadField = (field: keyof LayoutSettings) =>
+      Object.prototype.hasOwnProperty.call(payload, field);
     const dbPayload = {
       site_name: payload.siteName ?? settings?.siteName ?? DEFAULT_LAYOUT_SETTINGS.siteName,
       site_short_name: payload.siteShortName ?? settings?.siteShortName ?? DEFAULT_LAYOUT_SETTINGS.siteShortName,
@@ -160,13 +162,17 @@ export const useLayoutSettings = () => {
       radar_help_enabled: payload.radarHelpEnabled ?? settings?.radarHelpEnabled ?? false,
       commercial_intelligence_enabled:
         payload.commercialIntelligenceEnabled ?? settings?.commercialIntelligenceEnabled ?? DEFAULT_LAYOUT_SETTINGS.commercialIntelligenceEnabled,
-      facebook_url: payload.facebookUrl ?? settings?.facebookUrl ?? null,
-      instagram_url: payload.instagramUrl ?? settings?.instagramUrl ?? null,
-      youtube_url: payload.youtubeUrl ?? settings?.youtubeUrl ?? null,
-      linkedin_url: payload.linkedinUrl ?? settings?.linkedinUrl ?? null,
-      whatsapp_url: payload.whatsappUrl ?? settings?.whatsappUrl ?? null,
-      commercial_whatsapp_number: payload.commercialWhatsappNumber ?? settings?.commercialWhatsappNumber ?? null,
-      tiktok_url: payload.tiktokUrl ?? settings?.tiktokUrl ?? null,
+      // `null` e uma atualizacao intencional: limpa o link e oculta o icone.
+      // O valor anterior so deve ser preservado quando o campo nao veio no payload.
+      facebook_url: hasPayloadField('facebookUrl') ? payload.facebookUrl ?? null : settings?.facebookUrl ?? null,
+      instagram_url: hasPayloadField('instagramUrl') ? payload.instagramUrl ?? null : settings?.instagramUrl ?? null,
+      youtube_url: hasPayloadField('youtubeUrl') ? payload.youtubeUrl ?? null : settings?.youtubeUrl ?? null,
+      linkedin_url: hasPayloadField('linkedinUrl') ? payload.linkedinUrl ?? null : settings?.linkedinUrl ?? null,
+      whatsapp_url: hasPayloadField('whatsappUrl') ? payload.whatsappUrl ?? null : settings?.whatsappUrl ?? null,
+      commercial_whatsapp_number: hasPayloadField('commercialWhatsappNumber')
+        ? payload.commercialWhatsappNumber ?? null
+        : settings?.commercialWhatsappNumber ?? null,
+      tiktok_url: hasPayloadField('tiktokUrl') ? payload.tiktokUrl ?? null : settings?.tiktokUrl ?? null,
       primary_color: payload.primaryColor ?? settings?.primaryColor ?? DEFAULT_LAYOUT_SETTINGS.primaryColor,
       secondary_color: payload.secondaryColor ?? settings?.secondaryColor ?? DEFAULT_LAYOUT_SETTINGS.secondaryColor,
       accent_color: payload.accentColor ?? settings?.accentColor ?? DEFAULT_LAYOUT_SETTINGS.accentColor,
