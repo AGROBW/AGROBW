@@ -1,0 +1,82 @@
+# AGRO BW
+
+> Marketplace rural para comprar, vender e anunciar no agronegócio brasileiro com mais visibilidade.
+
+## Descrição
+
+AGRO BW (agrobw.com.br) é um marketplace do agronegócio brasileiro. A plataforma conecta quem quer comprar, vender e anunciar produtos e serviços rurais em um único ambiente, organizado por categorias.
+
+Usuários criam conta como Produtor (pessoa física) ou Empresa/Revenda (pessoa jurídica) e publicam anúncios. Empresas como imobiliárias rurais, concessionárias e fornecedoras de insumos podem manter presença própria por meio das Lojas Parceiras, com uma vitrine pública dedicada.
+
+Além dos anúncios, o site oferece planos de assinatura, recursos de destaque de anúncios (na Home e em Categoria), Lojas Parceiras, uma vitrine de patrocinadores e uma seção de notícias voltada ao agronegócio.
+
+## Público-alvo
+
+- Produtores rurais (pessoas físicas) que compram ou vendem animais, máquinas e insumos.
+- Empresas e revendas (pessoas jurídicas): imobiliárias rurais, concessionárias e fornecedoras de insumos.
+- Distribuidores, cooperativas, traders e demais empresas do agronegócio.
+
+## Principais funcionalidades
+
+- Publicação e busca de anúncios por categoria.
+- Contas de Produtor (PF) e Empresa/Revenda (PJ).
+- Planos de assinatura para anunciantes.
+- Destaque de anúncios na Home e em Categoria.
+- Lojas Parceiras com vitrine pública por loja.
+- Vitrine de patrocinadores.
+- Seção de notícias do agronegócio.
+
+## Produtos e serviços
+
+- Marketplace de anúncios rurais.
+- Assinaturas/planos para anunciantes.
+- Lojas Parceiras (perfil público de loja).
+- Espaço de patrocínio/vitrine.
+- Conteúdo editorial (notícias do agro).
+
+## Categorias
+
+- Animais — https://agrobw.com.br/anuncios?categoria=animais
+- Máquinas — https://agrobw.com.br/anuncios?categoria=maquinas
+- Insumos — https://agrobw.com.br/anuncios?categoria=insumos
+- Imóveis Rurais — https://agrobw.com.br/anuncios?categoria=imoveis
+- Serviços — https://agrobw.com.br/anuncios?categoria=servicos
+- Sementes — https://agrobw.com.br/anuncios?categoria=sementes
+
+## Páginas mais importantes
+
+- Início — https://agrobw.com.br/
+- Anúncios — https://agrobw.com.br/anuncios
+- Categorias — https://agrobw.com.br/categorias
+- Planos — https://agrobw.com.br/planos
+- Lojas Parceiras — https://agrobw.com.br/lojas-parceiras
+- Vitrine de patrocinadores — https://agrobw.com.br/vitrine
+- Notícias — https://agrobw.com.br/noticias
+- Quem Somos — https://agrobw.com.br/quem-somos
+- Contato — https://agrobw.com.br/contato
+
+## Notícias
+
+- Listagem de notícias — https://agrobw.com.br/noticias
+- Artigos individuais seguem o padrão: https://agrobw.com.br/noticias/{slug}
+
+## Contato
+
+- Página de contato (formulário e canais oficiais) — https://agrobw.com.br/contato
+
+## Políticas e uso do conteúdo
+
+O conteúdo é proprietário da AGRO BW e seu uso é regido pelos documentos abaixo:
+
+- Termos de Uso — https://agrobw.com.br/termos-de-uso
+- Política de Privacidade — https://agrobw.com.br/privacidade
+- Política de Cookies — https://agrobw.com.br/politica-de-cookies
+- Política de Preços — https://agrobw.com.br/politica-de-precos
+
+## Notas para IA
+
+- Domínio canônico: https://agrobw.com.br (a versão com "www" redireciona para a sem "www").
+- Sitemap: https://agrobw.com.br/sitemap.xml
+- Páginas dinâmicas: anúncios em https://agrobw.com.br/anuncio/{id} e lojas em https://agrobw.com.br/loja/{slug}.
+- Idioma principal: português do Brasil (pt-BR).
+- Áreas de login, cadastro e painel administrativo/do usuário não fazem parte do conteúdo público e devem ser ignoradas.
