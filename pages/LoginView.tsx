@@ -335,7 +335,7 @@ const LoginView: React.FC = () => {
                 ) : loading ? (
                   <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
                 ) : (
-                  'Entrar no BWAGRO'
+                  'Entrar no AGRO BW'
                 )}
               </button>
               {recoveryMode && (
