@@ -25,6 +25,7 @@ import { User, UserRole } from '../../types'
 import { toast } from 'sonner'
 import { appError } from '../utils/appLogger'
 import { debugLog } from '../utils/debugLog'
+import { classifyUserFacingServiceError } from '../utils/userFacingServiceError'
 
 interface UserStats {
   total_ads: number
@@ -117,6 +118,9 @@ const ADMIN_PORTAL_REQUIRED_ERROR = {
   message: 'ADMIN_PORTAL_REQUIRED'
 }
 
+const AUTH_SYNC_ERROR_TOAST_ID = 'authenticated-state-sync-error'
+const AUTH_SYNC_ERROR_TOAST_COOLDOWN_MS = 30_000
+
 const touchLastLogin = async (userId?: string | null) => {
   const targetUserId = String(userId || '').trim()
   if (!targetUserId) return
@@ -140,6 +144,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const authReadyRef = useRef(false)
   const retryTimeoutRef = useRef<number | null>(null)
   const sessionExpiredToastShownRef = useRef(false)
+  const lastAuthSyncErrorToastAtRef = useRef(0)
   const adminSessionBootstrapStartedRef = useRef(false)
   const lastSyncedAdminRefreshTokenRef = useRef<string | null>(null)
 
@@ -151,6 +156,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }
 
   const shouldSuppressAdminPortalHandoffNoise = () => hasAdminPortalHandoffPending()
+
+  const showAuthSyncError = (error: unknown) => {
+    const now = Date.now()
+    if (now - lastAuthSyncErrorToastAtRef.current < AUTH_SYNC_ERROR_TOAST_COOLDOWN_MS) {
+      return
+    }
+
+    lastAuthSyncErrorToastAtRef.current = now
+    const message = classifyUserFacingServiceError(error)
+    toast.error(message.title, {
+      id: AUTH_SYNC_ERROR_TOAST_ID,
+      description: message.description,
+    })
+  }
+
+  const clearAuthSyncError = () => {
+    lastAuthSyncErrorToastAtRef.current = 0
+    toast.dismiss(AUTH_SYNC_ERROR_TOAST_ID)
+  }
 
   const clearServerSideAdminSession = async () => {
     lastSyncedAdminRefreshTokenRef.current = null
@@ -247,7 +271,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
           appError('[Auth] Erro ao buscar usuário', userError, { userId })
         if (!options?.silent) {
-          toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
+          showAuthSyncError(userError)
         }
         debugLog('[Auth] fetchUserStatus completou com erro')
         return null
@@ -310,7 +334,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
         appError('[Auth] Erro inesperado ao buscar usuário', err, { userId })
       if (!options?.silent) {
-        toast.error('Falha ao carregar usuário', { description: 'Erro de conexão com o Supabase.' })
+        showAuthSyncError(err)
       }
       debugLog('[Auth] fetchUserStatus completou com erro')
       return null
@@ -348,7 +372,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
           appError('[Auth] Erro ao buscar estatísticas', error, { userId })
         if (!options?.silent) {
-          toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
+          showAuthSyncError(error)
         }
         debugLog('[Auth] fetchStats completou com erro (retornando defaults)')
         if (!canSetState || canSetState()) {
@@ -384,7 +408,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
         appError('[Auth] Erro inesperado ao buscar estatísticas', err, { userId })
       if (!options?.silent) {
-        toast.error('Falha ao carregar estatísticas', { description: 'Erro de conexão com o Supabase.' })
+        showAuthSyncError(err)
       }
       debugLog('[Auth] fetchStats completou com erro (retornando defaults)')
       if (!canSetState || canSetState()) {
@@ -511,6 +535,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (shouldSuppressAdminPortalHandoffNoise()) return
 
         scheduleRetry(userId, options?.canSetState)
+      } else {
+        clearAuthSyncError()
       }
     } catch (err: any) {
         appError('[Auth] Erro ao sincronizar sessão autenticada', err, { userId })
