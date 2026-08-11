@@ -17,6 +17,10 @@ export type PlanValidityPlanLike = {
 
 const ANNUAL_THRESHOLD_DAYS = 45;
 const ANNUAL_USAGE_WINDOW_MINUTES_OVERRIDE = (() => {
+  // This override exists only to accelerate local cycle tests. A VITE variable is
+  // bundled into the client, so production must ignore it even if it is configured.
+  if (import.meta.env.PROD) return null;
+
   const raw = import.meta.env.VITE_ANNUAL_USAGE_WINDOW_MINUTES;
   if (!raw) return null;
   const parsed = Number.parseInt(raw, 10);

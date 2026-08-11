@@ -7,6 +7,7 @@ import { getEffectiveLeadContactLimitDays, getSubscriptionUsageWindow } from '..
 
 type SubscriptionRow = {
   id: string
+  billing_cycle?: 'monthly' | 'yearly' | null
   status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'cancelled' | 'expired'
   current_period_start: string
   current_period_end: string
@@ -68,7 +69,7 @@ export const usePlanCheck = () => {
 
         const { data, error } = await supabase
           .from('user_subscriptions')
-          .select('id,status,current_period_start,current_period_end,cancel_at_period_end,trial_end_date,source,promotion_code_id, plans (id,name,max_ads,lead_contact_limit_days,lead_contact_limit_days_monthly,lead_contact_limit_days_yearly,has_verification_badge,has_seller_store,has_email_marketing,has_commercial_intelligence,commercial_intelligence_requests_per_month)')
+          .select('id,billing_cycle,status,current_period_start,current_period_end,cancel_at_period_end,trial_end_date,source,promotion_code_id, plans (id,name,max_ads,lead_contact_limit_days,lead_contact_limit_days_monthly,lead_contact_limit_days_yearly,has_verification_badge,has_seller_store,has_email_marketing,has_commercial_intelligence,commercial_intelligence_requests_per_month)')
           .eq('user_id', user.id)
           .in('status', ELIGIBLE_SUBSCRIPTION_STATUSES)
           .gte('current_period_end', new Date().toISOString())
@@ -121,7 +122,13 @@ export const usePlanCheck = () => {
   }
 
   const canViewLead = (adCreatedAt: string) => {
-    const limit = getEffectiveLeadContactLimitDays(plan, !!usageWindow?.isAnnualContract, {
+    const isAnnualForLeads =
+      subscription?.billing_cycle === 'yearly'
+        ? true
+        : subscription?.billing_cycle === 'monthly'
+          ? false
+          : !!usageWindow?.isAnnualContract
+    const limit = getEffectiveLeadContactLimitDays(plan, isAnnualForLeads, {
       isPromotion: subscription?.source === 'promotion' || Boolean(subscription?.promotion_code_id),
       periodStartIso: subscription?.current_period_start,
       periodEndIso: subscription?.current_period_end,
