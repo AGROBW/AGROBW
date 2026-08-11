@@ -12,6 +12,7 @@ export type UserSubscription = {
   user_id: string;
   plan_id: string;
   billing_model: BillingModel;
+  billing_cycle?: 'monthly' | 'yearly' | null;
   category_highlights_carryover?: number | null;
   category_highlights_carryover_expires_at?: string | null;
   category_highlights_plan_unlock_at?: string | null;
@@ -155,9 +156,32 @@ export const useSubscription = () => {
     periodEndDate: null,
     periodStartDate: null
   });
-  const [isLoading, setIsLoading] = useState(true);
+  // Loading COMPLETO de "Meu Plano": só encerra quando assinatura E uso estiverem prontos,
+  // evitando um frame intermediário mostrando usage 0/2 antes do uso resolver.
+  const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
+  const [isUsageLoading, setIsUsageLoading] = useState(true);
+  const isLoading = isSubscriptionLoading || isUsageLoading;
   const [error, setError] = useState<string | null>(null);
   const retryTimeoutRef = useRef<number | null>(null);
+
+  // Gerações monotônicas SEPARADAS por tipo: invalidar uso não cancela uma busca de
+  // assinatura legítima em andamento (e vice-versa). Respostas antigas são descartadas
+  // antes de qualquer setState.
+  const subscriptionRequestRef = useRef(0);
+  const usageRequestRef = useRef(0);
+  const beginSubscriptionRequest = () => {
+    subscriptionRequestRef.current += 1;
+    return subscriptionRequestRef.current;
+  };
+  const beginUsageRequest = () => {
+    usageRequestRef.current += 1;
+    return usageRequestRef.current;
+  };
+  const isStaleSubscriptionRequest = (requestId: number) => requestId !== subscriptionRequestRef.current;
+  const isStaleUsageRequest = (requestId: number) => requestId !== usageRequestRef.current;
+
+  // Espelha o userId atual: descarta respostas de um usuário anterior após troca de conta.
+  const latestUserIdRef = useRef<string | undefined>(user?.id);
 
   const clearRetry = () => {
     if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
@@ -178,15 +202,28 @@ export const useSubscription = () => {
     }, 5000);
   };
 
-  const fetchSubscription = async () => {
-    if (!user?.id) {
-      setSubscription(null);
-      setIsLoading(false);
+  const fetchSubscription = async (requestId?: number): Promise<UserSubscription | null> => {
+    const generation = requestId ?? beginSubscriptionRequest();
+    const requestUserId = user?.id;
+
+    if (!requestUserId) {
+      if (!isStaleSubscriptionRequest(generation)) {
+        setSubscription(null);
+        setIsSubscriptionLoading(false);
+      }
+      return null;
+    }
+
+    // Requisição stale ou de usuário anterior: aborta sem ligar o loading atual.
+    if (
+      isStaleSubscriptionRequest(generation) ||
+      requestUserId !== latestUserIdRef.current
+    ) {
       return null;
     }
 
     try {
-      setIsLoading(true);
+      setIsSubscriptionLoading(true);
       setError(null);
 
       await supabase.rpc('ensure_user_current_subscription', {
@@ -239,10 +276,20 @@ export const useSubscription = () => {
               new Date(left.current_period_end).getTime()
             );
           })[0] || null;
+
+      // Descarta se uma requisição de assinatura mais nova começou, ou se o usuário mudou.
+      if (isStaleSubscriptionRequest(generation) || requestUserId !== latestUserIdRef.current) {
+        return nextSubscription;
+      }
+
       setSubscription(nextSubscription);
       clearRetry();
       return nextSubscription;
     } catch (err: any) {
+      if (isStaleSubscriptionRequest(generation) || requestUserId !== latestUserIdRef.current) {
+        return null;
+      }
+
       if (isSupabaseUnauthorizedError(err)) {
         appWarn('[useSubscription] Sessao expirada ao buscar assinatura');
         clearRetry();
@@ -259,14 +306,38 @@ export const useSubscription = () => {
       });
       return null;
     } finally {
-      setIsLoading(false);
+      // Encerra o loading de assinatura apenas para a requisição ATUAL deste usuário.
+      if (!isStaleSubscriptionRequest(generation) && requestUserId === latestUserIdRef.current) {
+        setIsSubscriptionLoading(false);
+      }
     }
   };
 
-  const fetchUsage = async (subscriptionOverride?: UserSubscription | null) => {
-    if (!user?.id) {
+  const fetchUsage = async (
+    subscriptionOverride?: UserSubscription | null,
+    requestId?: number
+  ): Promise<void> => {
+    const generation = requestId ?? beginUsageRequest();
+    const requestUserId = user?.id;
+
+    if (!requestUserId) {
+      // Sem usuário: encerra o loading de uso (para não travar o skeleton) se atual.
+      if (!isStaleUsageRequest(generation)) {
+        setIsUsageLoading(false);
+      }
       return;
     }
+
+    // Requisição stale ou de usuário anterior: aborta sem ligar/desligar o loading atual.
+    if (
+      isStaleUsageRequest(generation) ||
+      requestUserId !== latestUserIdRef.current
+    ) {
+      return;
+    }
+
+    // Requisição vigente entra em loading (carga inicial, refreshUsage, online).
+    setIsUsageLoading(true);
 
     try {
       const activeSubscription = subscriptionOverride !== undefined ? subscriptionOverride : subscription;
@@ -391,6 +462,11 @@ export const useSubscription = () => {
 
       if (boosterError) throw boosterError;
 
+      // Descarta resposta antiga: só a requisição de uso mais nova (deste usuário) escreve.
+      if (isStaleUsageRequest(generation) || requestUserId !== latestUserIdRef.current) {
+        return;
+      }
+
       setUsage({
         adsUsed: adsCount,
         adsLimit,
@@ -406,6 +482,10 @@ export const useSubscription = () => {
       });
       clearRetry();
     } catch (err: any) {
+      if (isStaleUsageRequest(generation) || requestUserId !== latestUserIdRef.current) {
+        return;
+      }
+
       if (isSupabaseUnauthorizedError(err)) {
         appWarn('[useSubscription] Sessao expirada ao buscar uso');
         clearRetry();
@@ -414,37 +494,61 @@ export const useSubscription = () => {
 
       appError('[useSubscription] Erro ao buscar uso', { err });
       scheduleRetry(fetchUsage);
+    } finally {
+      // Encerra o loading de uso apenas para a requisição ATUAL deste usuário —
+      // uma resposta stale nunca encerra o loading da requisição vigente.
+      if (!isStaleUsageRequest(generation) && requestUserId === latestUserIdRef.current) {
+        setIsUsageLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    void fetchSubscription();
-    return () => clearRetry();
-  }, [user?.id]);
+    // Marca o usuário atual e reinicia o loading COMPLETO (skeleton) ao (re)carregar
+    // ou trocar de conta — impede frame intermediário e resposta de conta anterior.
+    latestUserIdRef.current = user?.id;
+    setIsSubscriptionLoading(true);
+    setIsUsageLoading(true);
 
-  useEffect(() => {
-    void fetchUsage();
-  }, [subscription?.id, user?.id]);
+    // Carga inicial encadeada: uso só é buscado APÓS a assinatura resolver —
+    // evita a corrida que gravava 0/2 com subscription=null. Gerações separadas.
+    const subscriptionGeneration = beginSubscriptionRequest();
+    void fetchSubscription(subscriptionGeneration).then((nextSubscription) => {
+      if (isStaleSubscriptionRequest(subscriptionGeneration)) return;
+      const usageGeneration = beginUsageRequest();
+      void fetchUsage(nextSubscription, usageGeneration);
+    });
+
+    return () => {
+      // Invalida requisições pendentes (assinatura E uso) ao trocar de usuário ou desmontar.
+      beginSubscriptionRequest();
+      beginUsageRequest();
+      clearRetry();
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !user?.id) return;
 
     const handleOnline = () => {
+      // Reconexão: busca a assinatura recém-carregada e encadeia o uso com ela
+      // (não reaproveita a assinatura capturada anteriormente). Gerações separadas.
+      const subscriptionGeneration = beginSubscriptionRequest();
       startAppSync();
-      const tasks: Promise<void>[] = [
-        fetchSubscription().then(() => undefined),
-      ];
-      if (subscription) {
-        tasks.push(fetchUsage());
-      }
-      void Promise.all(tasks).finally(() => {
-        endAppSync();
-      });
+      void fetchSubscription(subscriptionGeneration)
+        .then((nextSubscription) => {
+          if (isStaleSubscriptionRequest(subscriptionGeneration)) return;
+          const usageGeneration = beginUsageRequest();
+          return fetchUsage(nextSubscription, usageGeneration);
+        })
+        .finally(() => {
+          endAppSync();
+        });
     };
 
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-  }, [user?.id, subscription?.id]);
+  }, [user?.id]);
 
   const canCreateAd = useMemo(() => {
     if (!subscription?.plans) return false;
@@ -459,7 +563,19 @@ export const useSubscription = () => {
       subscription.current_period_start,
       subscription.current_period_end
     );
-    return getEffectiveLeadContactLimitDays(subscription.plans, usageWindow.isAnnualContract, {
+    // Bug 2: a escolha mensal/anual da janela de leads segue o ciclo de cobrança
+    // (billing_cycle). Concessões administrativas de vários meses usam 'monthly' e
+    // NÃO devem cair no limite anual só pela duração. Fallback por duração quando
+    // billing_cycle é ausente/null (assinaturas legadas). O reset mensal de créditos
+    // (getSubscriptionUsageWindow) permanece baseado na duração e inalterado.
+    const billingCycle = subscription.billing_cycle;
+    const isAnnualForLeads =
+      billingCycle === 'yearly'
+        ? true
+        : billingCycle === 'monthly'
+          ? false
+          : usageWindow.isAnnualContract;
+    return getEffectiveLeadContactLimitDays(subscription.plans, isAnnualForLeads, {
       isPromotion: subscription.source === 'promotion' || Boolean(subscription.promotion_code_id),
       periodStartIso: subscription.current_period_start,
       periodEndIso: subscription.current_period_end,
@@ -484,12 +600,20 @@ export const useSubscription = () => {
   }, [subscription]);
 
   const refreshUsage = async () => {
-    await fetchUsage();
+    // Invalida SOMENTE requisições de uso anteriores — nunca cancela uma busca de
+    // assinatura legítima em andamento.
+    const usageGeneration = beginUsageRequest();
+    await fetchUsage(subscription, usageGeneration);
   };
 
   const refreshSubscriptionAndUsage = async () => {
-    const nextSubscription = await fetchSubscription();
-    await fetchUsage(nextSubscription);
+    const subscriptionGeneration = beginSubscriptionRequest();
+    const nextSubscription = await fetchSubscription(subscriptionGeneration);
+    if (isStaleSubscriptionRequest(subscriptionGeneration)) {
+      return nextSubscription;
+    }
+    const usageGeneration = beginUsageRequest();
+    await fetchUsage(nextSubscription, usageGeneration);
     return nextSubscription;
   };
 
