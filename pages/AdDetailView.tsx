@@ -304,6 +304,11 @@ const AdDetailView: React.FC = () => {
   if (error || !ad) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-4">
+        <SeoHead
+          title="Anúncio não encontrado"
+          description="Este anúncio pode ter sido removido ou não está mais disponível na AGRO BW."
+          noIndex
+        />
         <h2 className="text-2xl font-bold text-slate-800 mb-4">Anúncio não encontrado</h2>
         <p className="text-slate-600 mb-4">{error || 'O anúncio pode ter sido removido ou não existe.'}</p>
         <Link to="/" className="text-green-700 font-bold hover:underline">Voltar para a home</Link>
@@ -314,6 +319,12 @@ const AdDetailView: React.FC = () => {
   if (ad.status !== 'ACTIVE') {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-4">
+        <SeoHead
+          title={ad.title || 'Anúncio indisponível'}
+          description="Este anúncio não está ativo no momento na AGRO BW."
+          canonicalPath={`/anuncio/${ad.id}`}
+          noIndex
+        />
         <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" strokeWidth={1.5} />
         <h2 className="text-2xl font-bold text-slate-800 mb-4">Anuncio indisponivel</h2>
         <p className="text-slate-600 mb-4 text-center max-w-xl">

@@ -4,6 +4,9 @@ import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { usePages, InstitutionalPage } from '../src/hooks/usePages';
 import { sanitizeRichTextHtml } from '../src/utils/sanitizeRichTextHtml';
 import { useLayout } from '../src/contexts/LayoutContext';
+import PageSeo from '../components/PageSeo';
+import { buildSeoMetadata } from '../src/lib/seo/buildSeoMetadata';
+import { buildBreadcrumbJsonLd, buildWebPageJsonLd } from '../src/lib/seo/jsonLd';
 
 const extractSections = (html: string) => {
   if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
@@ -188,8 +191,24 @@ const LegalCmsDocumentView: React.FC = () => {
     return <Navigate to="/" replace />;
   }
 
+  const canonicalPath = location.pathname || (slug ? `/${slug}` : '/');
+  const seoTitle = page.meta_title || page.title || presentation.fallbackTitle;
+  const seo = buildSeoMetadata({
+    title: seoTitle,
+    description: introHtml || page.content || `${seoTitle} da AGRO BW.`,
+    path: canonicalPath,
+  });
+  const seoJsonLd = [
+    buildWebPageJsonLd({ name: seoTitle, description: seo.description, path: canonicalPath }),
+    buildBreadcrumbJsonLd([
+      { name: 'Início', path: '/' },
+      { name: seoTitle, path: canonicalPath },
+    ]),
+  ];
+
   return (
     <div className="bg-gray-50 min-h-screen pb-20">
+      <PageSeo meta={seo} jsonLdId="legal-document" jsonLd={seoJsonLd} />
       <section className="bg-white border-b border-slate-100 pt-12 pb-8">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">

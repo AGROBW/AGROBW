@@ -3,6 +3,23 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowRight, ArrowUp, ChevronDown, ChevronRight, Info, Loader2 } from 'lucide-react';
 import { usePrivacyPage, PRIVACY_PAGE_FALLBACK } from '../src/hooks/usePrivacyPage';
 import { useLayout } from '../src/contexts/LayoutContext';
+import PageSeo from '../components/PageSeo';
+import { buildSeoMetadata } from '../src/lib/seo/buildSeoMetadata';
+import { buildBreadcrumbJsonLd, buildWebPageJsonLd } from '../src/lib/seo/jsonLd';
+
+const PRIVACY_SEO = buildSeoMetadata({
+  title: 'Política de Privacidade',
+  description:
+    'Entenda como a AGRO BW coleta, utiliza e protege os seus dados pessoais, em conformidade com a LGPD.',
+  path: '/privacidade',
+});
+const PRIVACY_JSONLD = [
+  buildWebPageJsonLd({ name: 'Política de Privacidade', description: PRIVACY_SEO.description, path: '/privacidade' }),
+  buildBreadcrumbJsonLd([
+    { name: 'Início', path: '/' },
+    { name: 'Política de Privacidade', path: '/privacidade' },
+  ]),
+];
 
 const PrivacyView: React.FC = () => {
   const { content, isLoading } = usePrivacyPage();
@@ -68,6 +85,7 @@ const PrivacyView: React.FC = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20">
+      <PageSeo meta={PRIVACY_SEO} jsonLdId="privacy" jsonLd={PRIVACY_JSONLD} />
       {/* Page Header */}
       <section className="bg-white border-b border-slate-100 pt-12 pb-8">
         <div className="max-w-7xl mx-auto px-4">

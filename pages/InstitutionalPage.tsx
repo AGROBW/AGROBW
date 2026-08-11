@@ -3,6 +3,9 @@ import { Navigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { usePages, InstitutionalPage as Page } from '../src/hooks/usePages';
 import { sanitizeRichTextHtml } from '../src/utils/sanitizeRichTextHtml';
+import PageSeo from '../components/PageSeo';
+import { buildSeoMetadata } from '../src/lib/seo/buildSeoMetadata';
+import { buildBreadcrumbJsonLd, buildWebPageJsonLd } from '../src/lib/seo/jsonLd';
 
 const InstitutionalPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -56,8 +59,23 @@ const InstitutionalPage: React.FC = () => {
 
   const sanitizedContent = sanitizeRichTextHtml(page.content);
 
+  const canonicalPath = `/p/${page.slug || slug}`;
+  const seo = buildSeoMetadata({
+    title: page.meta_title || page.title,
+    description: page.content || `${page.title} — página institucional da AGRO BW.`,
+    path: canonicalPath,
+  });
+  const seoJsonLd = [
+    buildWebPageJsonLd({ name: page.title, description: seo.description, path: canonicalPath }),
+    buildBreadcrumbJsonLd([
+      { name: 'Início', path: '/' },
+      { name: page.title, path: canonicalPath },
+    ]),
+  ];
+
   return (
     <main className="min-h-screen bg-slate-50 py-12">
+      <PageSeo meta={seo} jsonLdId="institutional-page" jsonLd={seoJsonLd} />
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
         <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 bg-gradient-to-br from-green-50 to-white p-8">

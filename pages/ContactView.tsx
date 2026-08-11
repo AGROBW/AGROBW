@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Check, Clock, Loader2, Mail, MapPin, MessageCircle } from 'lucide-react';
 import { useContactPage, CONTACT_PAGE_FALLBACK } from '../src/hooks/useContactPage';
 import { supabase } from '../src/lib/supabaseClient';
+import PageSeo from '../components/PageSeo';
+import { buildSeoMetadata } from '../src/lib/seo/buildSeoMetadata';
+import { buildBreadcrumbJsonLd, buildWebPageJsonLd } from '../src/lib/seo/jsonLd';
 
 const ContactView: React.FC = () => {
   const { content, isLoading } = useContactPage();
@@ -58,8 +61,24 @@ const ContactView: React.FC = () => {
     .split('\n')
     .filter((option) => option.trim());
 
+  const seo = buildSeoMetadata({
+    title: data.page_title || 'Contato',
+    description:
+      data.page_subtitle ||
+      'Fale com a equipe da AGRO BW: suporte, dúvidas sobre planos, parcerias comerciais e sugestões.',
+    path: '/contato',
+  });
+  const seoJsonLd = [
+    buildWebPageJsonLd({ name: seo.title, description: seo.description, path: '/contato' }),
+    buildBreadcrumbJsonLd([
+      { name: 'Início', path: '/' },
+      { name: 'Contato', path: '/contato' },
+    ]),
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <PageSeo meta={seo} jsonLdId="contact" jsonLd={seoJsonLd} />
       <section className="bg-slate-900 py-16 text-white">
         <div className="mx-auto max-w-7xl px-4 text-center">
           <h1 className="mb-3 text-xl font-semibold">{data.page_title}</h1>

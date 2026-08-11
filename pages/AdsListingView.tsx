@@ -416,11 +416,10 @@ const AdsListingView: React.FC = () => {
   }, [categoryGroup?.name, categorySeoContent, queryTerm, subSlug]);
 
   const seoCanonicalPath = useMemo(() => {
+    // Canonical padronizada na URL limpa /categoria/:slug. A rota antiga
+    // /anuncios?categoria=... continua funcionando e apenas aponta para esta.
     if (!catSlug) return '/anuncios';
-
-    const search = new URLSearchParams();
-    search.set('categoria', catSlug);
-    return `/anuncios?${search.toString()}`;
+    return `/categoria/${catSlug}`;
   }, [catSlug]);
 
   const shouldNoIndexListing = Boolean(

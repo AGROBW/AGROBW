@@ -2,6 +2,27 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, SlidersHorizontal, Store, X } from 'lucide-react';
 import { usePublicSellerStoresCatalog } from '../src/hooks/useSellerStore';
+import PageSeo from '../components/PageSeo';
+import { buildSeoMetadata } from '../src/lib/seo/buildSeoMetadata';
+import { buildBreadcrumbJsonLd, buildWebPageJsonLd } from '../src/lib/seo/jsonLd';
+
+const PARTNER_STORES_SEO = buildSeoMetadata({
+  title: 'Lojas Parceiras',
+  description:
+    'Conheça as lojas parceiras da AGRO BW e explore catálogos de produtos e serviços do agronegócio por região e categoria.',
+  path: '/lojas-parceiras',
+});
+const PARTNER_STORES_JSONLD = [
+  buildWebPageJsonLd({
+    name: 'Lojas Parceiras',
+    description: PARTNER_STORES_SEO.description,
+    path: '/lojas-parceiras',
+  }),
+  buildBreadcrumbJsonLd([
+    { name: 'Início', path: '/' },
+    { name: 'Lojas Parceiras', path: '/lojas-parceiras' },
+  ]),
+];
 
 const sortOptions = {
   recent: 'Mais recentes',
@@ -120,6 +141,7 @@ const PartnerStoresView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb]">
+      <PageSeo meta={PARTNER_STORES_SEO} jsonLdId="partner-stores" jsonLd={PARTNER_STORES_JSONLD} />
       <section className="relative overflow-hidden bg-slate-950">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.22),transparent_34%),linear-gradient(135deg,#082f49_0%,#0f172a_45%,#020617_100%)]" />
         <div className="relative mx-auto max-w-7xl px-4 py-14">

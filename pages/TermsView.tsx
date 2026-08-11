@@ -2,6 +2,23 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowUp, ChevronRight, Download, Loader2 } from 'lucide-react';
 import { useTermsPage, TERMS_PAGE_FALLBACK } from '../src/hooks/useTermsPage';
 import { useLayout } from '../src/contexts/LayoutContext';
+import PageSeo from '../components/PageSeo';
+import { buildSeoMetadata } from '../src/lib/seo/buildSeoMetadata';
+import { buildBreadcrumbJsonLd, buildWebPageJsonLd } from '../src/lib/seo/jsonLd';
+
+const TERMS_SEO = buildSeoMetadata({
+  title: 'Termos de Uso',
+  description:
+    'Leia os Termos de Uso da AGRO BW e entenda as regras para utilização da plataforma, dos anúncios e dos serviços.',
+  path: '/termos-de-uso',
+});
+const TERMS_JSONLD = [
+  buildWebPageJsonLd({ name: 'Termos de Uso', description: TERMS_SEO.description, path: '/termos-de-uso' }),
+  buildBreadcrumbJsonLd([
+    { name: 'Início', path: '/' },
+    { name: 'Termos de Uso', path: '/termos-de-uso' },
+  ]),
+];
 
 const TermsView: React.FC = () => {
   const { content, isLoading } = useTermsPage();
@@ -73,6 +90,7 @@ const TermsView: React.FC = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20">
+      <PageSeo meta={TERMS_SEO} jsonLdId="terms" jsonLd={TERMS_JSONLD} />
       <section className="bg-white border-b border-slate-100 pt-12 pb-8">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">

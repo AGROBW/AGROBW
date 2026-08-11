@@ -46,7 +46,16 @@ const NewsArticleView: React.FC = () => {
   }
 
   if (!article) {
-    return <div className="min-h-screen bg-slate-50 p-10 text-center text-slate-500">Matéria não encontrada.</div>;
+    return (
+      <div className="min-h-screen bg-slate-50 p-10 text-center text-slate-500">
+        <SeoHead
+          title="Notícia não encontrada"
+          description="Esta matéria pode ter sido removida ou ainda não está publicada na AGRO BW."
+          noIndex
+        />
+        Matéria não encontrada.
+      </div>
+    );
   }
 
   const sources = article.news_article_sources || [];

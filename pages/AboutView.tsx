@@ -4,6 +4,23 @@ import { Target, Telescope, Gem, Loader2, CheckCircle2 } from 'lucide-react';
 import { useAboutPage, ABOUT_PAGE_FALLBACK } from '../src/hooks/useAboutPage';
 import { supabase } from '../src/lib/supabaseClient';
 import { appWarn } from '../src/utils/appLogger';
+import PageSeo from '../components/PageSeo';
+import { buildSeoMetadata } from '../src/lib/seo/buildSeoMetadata';
+import { buildBreadcrumbJsonLd, buildWebPageJsonLd } from '../src/lib/seo/jsonLd';
+
+const ABOUT_SEO = buildSeoMetadata({
+  title: 'Quem Somos',
+  description:
+    'Saiba mais sobre a AGRO BW, o marketplace que conecta produtores, revendas e empresas do agronegócio em todo o Brasil.',
+  path: '/quem-somos',
+});
+const ABOUT_JSONLD = [
+  buildWebPageJsonLd({ name: 'Quem Somos', description: ABOUT_SEO.description, path: '/quem-somos' }),
+  buildBreadcrumbJsonLd([
+    { name: 'Início', path: '/' },
+    { name: 'Quem Somos', path: '/quem-somos' },
+  ]),
+];
 
 // Renderiza o texto de "Valores" como lista: um valor por linha no admin.
 // Cada linha no formato "Rótulo: descrição" exibe o rótulo em destaque.
@@ -169,6 +186,7 @@ const AboutView: React.FC = () => {
 
   return (
     <div className="bg-white min-h-screen">
+      <PageSeo meta={ABOUT_SEO} jsonLdId="about" jsonLd={ABOUT_JSONLD} />
       <section className="relative h-[60vh] md:h-[80vh] flex items-center overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center transition-transform duration-[10s] scale-105"
