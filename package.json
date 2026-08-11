@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/generate-sitemap.mjs && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "email:backend": "node server/email-backend.mjs",
     "test": "vitest run",

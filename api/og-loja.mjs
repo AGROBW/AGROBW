@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import sitemapHandler from '../server/sitemap-handler.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
@@ -30,7 +31,8 @@ const stripDefaultHeadTags = (html) =>
     .replace(/<title>[\s\S]*?<\/title>/i, '')
     .replace(/<meta[^>]+(?:property|name)=["'](?:og:[^"']*|twitter:[^"']*|description)["'][^>]*>/gi, '');
 
-export default async function handler(req, res) {
+// Fluxo OG original (inalterado): prerender de <head> para crawlers sociais.
+async function handleOgRequest(req, res) {
   const slug = String(req.query?.slug || '').trim();
   const baseUrl = buildBaseUrl(req);
 
@@ -144,3 +146,17 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=600');
   res.status(200).send(finalHtml);
 }
+
+// Dispatcher de SEO: esta function pública é reutilizada para servir também o
+// sitemap, evitando criar uma nova Serverless Function (limite de 12 no plano
+// Hobby). O sitemap só é acionado por um marcador interno EXATO; qualquer outra
+// requisição segue o fluxo OG original, sem misturar headers HTML e XML.
+export const createSeoDispatcher = ({ sitemap, og }) =>
+  async function handler(req, res) {
+    if (req.query?._seo_route === 'sitemap') {
+      return sitemap(req, res);
+    }
+    return og(req, res);
+  };
+
+export default createSeoDispatcher({ sitemap: sitemapHandler, og: handleOgRequest });

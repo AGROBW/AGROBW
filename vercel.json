@@ -76,6 +76,14 @@
       "destination": "/api/og-loja?slug=:slug"
     },
     {
+      "source": "/api/sitemap",
+      "destination": "/api/og-loja?_seo_route=sitemap"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/og-loja?_seo_route=sitemap"
+    },
+    {
       "source": "/((?!api/|assets/|favicon.ico|robots.txt|sitemap.xml|meta-oauth-callback.html).*)",
       "destination": "/index.html"
     }
