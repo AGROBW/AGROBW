@@ -9,6 +9,7 @@ import NewsGrid from '../components/NewsGrid';
 import HomeAdsCarousel from '../components/HomeAdsCarousel';
 import HomeStoresCarousel from '../components/HomeStoresCarousel';
 import SeoHead from '../components/SeoHead';
+import { HOME_SEO_TITLE_BASE, HOME_SEO_DESCRIPTION } from '../server/home-seo.mjs';
 import StructuredData from '../components/StructuredData';
 import { CATEGORIES } from '../constants';
 import { usePublicAds } from '../src/hooks/useAds';
@@ -210,8 +211,8 @@ const Home: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: settings.backgroundColor }}>
       <SeoHead
-        title="Marketplace rural para comprar e vender no agronegócio"
-        description="Encontre anúncios rurais, negocie com produtores e lojas parceiras e anuncie grátis no marketplace da AGRO BW."
+        title={HOME_SEO_TITLE_BASE}
+        description={HOME_SEO_DESCRIPTION}
         canonicalPath="/"
       />
       <StructuredData

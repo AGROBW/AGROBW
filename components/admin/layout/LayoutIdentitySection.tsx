@@ -34,10 +34,11 @@ const LayoutIdentitySection: React.FC<LayoutIdentitySectionProps> = ({ formData,
         <input className={inputClassName} value={formData.headerBrandText} onChange={(e) => onChange('headerBrandText', e.target.value)} placeholder="Texto do header" />
         <input className={inputClassName} value={formData.footerBrandText} onChange={(e) => onChange('footerBrandText', e.target.value)} placeholder="Texto do footer" />
         <input className={inputClassName} value={formData.loginBrandText} onChange={(e) => onChange('loginBrandText', e.target.value)} placeholder="Texto do login" />
-        <input className={inputClassName} value={formData.seoTitle} onChange={(e) => onChange('seoTitle', e.target.value)} placeholder="Titulo SEO" />
         <textarea className={`${inputClassName} md:col-span-2`} rows={3} value={formData.siteTagline} onChange={(e) => onChange('siteTagline', e.target.value)} placeholder="Tagline institucional" />
-        <textarea className={`${inputClassName} md:col-span-2`} rows={4} value={formData.seoDescription} onChange={(e) => onChange('seoDescription', e.target.value)} placeholder="Descricao padrao para metadata e compartilhamento" />
       </div>
+      <p className="mt-3 text-xs text-slate-400">
+        Título e descrição de SEO são definidos individualmente por página.
+      </p>
     </div>
   );
 };

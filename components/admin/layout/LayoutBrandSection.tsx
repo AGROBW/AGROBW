@@ -119,10 +119,11 @@ const LayoutBrandSection: React.FC<LayoutBrandSectionProps> = ({ formData, onCha
         <input className={inputClassName} value={formData.headerBrandText} onChange={(e) => onChange('headerBrandText', e.target.value)} placeholder="Texto do header" />
         <input className={inputClassName} value={formData.footerBrandText} onChange={(e) => onChange('footerBrandText', e.target.value)} placeholder="Texto do footer" />
         <input className={inputClassName} value={formData.loginBrandText} onChange={(e) => onChange('loginBrandText', e.target.value)} placeholder="Texto do login" />
-        <input className={inputClassName} value={formData.seoTitle} onChange={(e) => onChange('seoTitle', e.target.value)} placeholder="Titulo SEO padrao" />
         <input className={`${inputClassName} md:col-span-2`} value={formData.siteTagline} onChange={(e) => onChange('siteTagline', e.target.value)} placeholder="Slogan / tagline" />
-        <textarea className={`${inputClassName} md:col-span-2`} rows={3} value={formData.seoDescription} onChange={(e) => onChange('seoDescription', e.target.value)} placeholder="Descricao SEO padrao" />
       </div>
+      <p className="mt-3 text-xs text-slate-400">
+        Título e descrição de SEO são definidos individualmente por página.
+      </p>
 
       <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
         {uploadTargets.map(({ field, label, helper, accept }) => renderAssetCard(field, label, helper, accept))}

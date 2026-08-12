@@ -410,9 +410,9 @@ describe('renderStoreOgHtml: OG da loja e OG da home', () => {
     expect(out).toContain('https://agrobw.com.br/loja/loja-x');
     expect(out).toContain('https://agrobw.com.br/og-default.png');
   });
-  it('home (store null) → título padrão', () => {
+  it('home (store null) → título canônico da Home (fonte compartilhada)', () => {
     const out = renderStoreOgHtml({ html: '<head></head>', store: null, ogImageUrl: null, baseUrl: 'https://agrobw.com.br' });
-    expect(out).toContain('AGRO BW | Marketplace Rural');
+    expect(out).toContain('Marketplace rural para comprar e vender no agronegócio | AGRO BW');
   });
   it('usa a imagem OG do painel quando fornecida', () => {
     const out = renderStoreOgHtml({ html: '<head></head>', store: { store_name: 'Y', slug: 'y' }, ogImageUrl: 'https://cdn/y.png', baseUrl: 'https://agrobw.com.br' });

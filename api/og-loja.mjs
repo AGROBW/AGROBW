@@ -2,13 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import sitemapHandler from '../server/sitemap-handler.mjs';
 import { createDocumentStatusHandler, fetchTrustedIndexHtml } from '../server/document-status-handler.mjs';
 import { CANONICAL_ORIGIN } from '../server/trusted-origin.mjs';
+import { HOME_SEO_TITLE_FULL, HOME_SEO_DESCRIPTION } from '../server/home-seo.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-const DEFAULT_TITLE = 'AGRO BW | Marketplace Rural';
-const DEFAULT_DESCRIPTION =
-  'Marketplace rural para comprar, vender e anunciar no agronegócio com mais visibilidade.';
 const OG_IMAGE_FILE = '/og-default.png';
 
 const escapeHtml = (value) =>
@@ -45,8 +43,10 @@ export const renderStoreOgHtml = ({ html, store, ogImageUrl, baseUrl }) => {
     description = rawDescription.slice(0, 200);
     url = `${baseUrl}/loja/${store.slug}`;
   } else {
-    title = DEFAULT_TITLE;
-    description = DEFAULT_DESCRIPTION;
+    // Home: MESMA fonte canônica do SeoHead (server/home-seo.mjs) — sem
+    // divergência entre navegador/Google e compartilhamento social.
+    title = HOME_SEO_TITLE_FULL;
+    description = HOME_SEO_DESCRIPTION;
     url = `${baseUrl}/`;
   }
 
