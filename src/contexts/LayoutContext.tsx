@@ -9,18 +9,13 @@ interface LayoutContextValue {
 
 const LayoutContext = createContext<LayoutContextValue | undefined>(undefined);
 
-const applyLayoutSettingsToDocument = (settings: LayoutSettings) => {
+export const applyLayoutSettingsToDocument = (settings: LayoutSettings) => {
   if (typeof document === 'undefined') return;
 
-  document.title = settings.seoTitle || settings.siteName;
-
-  let description = document.querySelector('meta[name="description"]');
-  if (!description) {
-    description = document.createElement('meta');
-    description.setAttribute('name', 'description');
-    document.head.appendChild(description);
-  }
-  description.setAttribute('content', settings.seoDescription || settings.siteTagline || settings.siteName);
+  // METADADOS PÚBLICOS (document.title e meta[name="description"]) são
+  // responsabilidade EXCLUSIVA de SeoHead/PageSeo. O LayoutContext cuida apenas
+  // de favicon e tema/cores — NÃO sobrescreve título/description, evitando a
+  // disputa de ordem de efeitos que sobrepunha os metadados específicos da rota.
 
   if (settings.faviconUrl) {
     let favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement | null;

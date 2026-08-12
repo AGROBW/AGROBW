@@ -13,6 +13,7 @@ import LegalConsentReacceptGate from './components/LegalConsentReacceptGate';
 import MarketingConsentPrompt from './components/MarketingConsentPrompt';
 import SitePopupCampaignGate from './components/site/SitePopupCampaignGate';
 import Home from './pages/Home';
+import NotFoundView from './pages/NotFoundView';
 
 // Lazy loading pages
 const AdDetailView = lazy(() => import('./pages/AdDetailView'));
@@ -312,7 +313,7 @@ const AppContent: React.FC = () => {
             
             <Route path="/categoria/:slug" element={<AdsListingView />} />
             <Route path="/anuncio/:id" element={<AdDetailView />} />
-            <Route path="*" element={<div className="p-20 text-center">404 - Página não encontrada</div>} />
+            <Route path="*" element={<NotFoundView />} />
             </Routes>
           </Suspense>
         </RouteErrorBoundary>

@@ -16,6 +16,26 @@ export interface InstitutionalPage {
   updated_at: string;
 }
 
+// Resultado tipado da busca por slug: distingue ausência (not_found → 404 /
+// NotFoundView) de falha transitória (error → "conteúdo temporariamente
+// indisponível", NUNCA 404).
+export type PageBySlugResult =
+  | { status: 'found'; page: InstitutionalPage }
+  | { status: 'not_found' }
+  | { status: 'error' };
+
+// Classificação PURA do retorno da consulta (testável): erro presente →
+// transitório; sem erro e sem linha → ausência; linha → encontrado. Nunca
+// confunde falha de rede/PostgREST com "não encontrado".
+export const classifyPageQuery = (
+  data: unknown,
+  error: unknown,
+): PageBySlugResult['status'] => {
+  if (error) return 'error';
+  if (!data) return 'not_found';
+  return 'found';
+};
+
 export interface CreatePageData {
   title: string;
   slug: string;
@@ -78,29 +98,28 @@ export const usePages = () => {
     }
   }, [sanitizePageRecord]);
 
-  const getPageBySlug = useCallback(async (slug: string): Promise<InstitutionalPage | null> => {
+  const getPageBySlug = useCallback(async (slug: string): Promise<PageBySlugResult> => {
     try {
+      // maybeSingle: 0 linhas → data=null SEM erro (ausência); erro presente →
+      // falha transitória (rede/PostgREST). Nunca confundir os dois.
       const { data, error: fetchError } = await supabase
         .from('institutional_pages')
         .select('*')
         .eq('slug', slug)
         .eq('is_published', true)
-        .single();
+        .maybeSingle();
 
-      if (fetchError) {
-        if (fetchError.code === 'PGRST116') {
-          // Página não encontrada
-          return null;
-        }
-        throw fetchError;
+      const kind = classifyPageQuery(data, fetchError);
+      if (kind === 'error') {
+        appError('[usePages] Erro ao buscar página por slug', fetchError, { slug });
+        return { status: 'error' };
       }
+      if (kind === 'not_found') return { status: 'not_found' };
 
-      return sanitizePageRecord(data);
+      return { status: 'found', page: sanitizePageRecord(data as InstitutionalPage) };
     } catch (err: any) {
-      appError('[usePages] Erro ao buscar página por slug', err, {
-        slug,
-      });
-      return null;
+      appError('[usePages] Falha ao buscar página por slug', err, { slug });
+      return { status: 'error' };
     }
   }, [sanitizePageRecord]);
 

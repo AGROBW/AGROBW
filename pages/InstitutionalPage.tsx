@@ -1,48 +1,52 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { usePages, InstitutionalPage as Page } from '../src/hooks/usePages';
 import { sanitizeRichTextHtml } from '../src/utils/sanitizeRichTextHtml';
 import PageSeo from '../components/PageSeo';
 import { buildSeoMetadata } from '../src/lib/seo/buildSeoMetadata';
 import { buildBreadcrumbJsonLd, buildWebPageJsonLd } from '../src/lib/seo/jsonLd';
+import NotFoundView from './NotFoundView';
+import ContentUnavailable from '../components/ContentUnavailable';
+
+type FetchStatus = 'loading' | 'found' | 'not_found' | 'error';
 
 const InstitutionalPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { getPageBySlug } = usePages();
 
   const [page, setPage] = useState<Page | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const [status, setStatus] = useState<FetchStatus>('loading');
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchPage = async () => {
       if (!slug) {
-        setNotFound(true);
-        setIsLoading(false);
+        if (!cancelled) setStatus('not_found');
         return;
       }
 
-      setIsLoading(true);
-      try {
-        const data = await getPageBySlug(slug);
-        if (!data) {
-          setNotFound(true);
-        } else {
-          setPage(data);
-        }
-      } catch (error) {
-        console.error('Erro ao carregar página:', error);
-        setNotFound(true);
-      } finally {
-        setIsLoading(false);
+      setStatus('loading');
+      const result = await getPageBySlug(slug);
+      if (cancelled) return;
+
+      if (result.status === 'found') {
+        setPage(result.page);
+        setStatus('found');
+      } else {
+        // 'not_found' → NotFoundView (404); 'error' → indisponível (nunca 404).
+        setStatus(result.status);
       }
     };
 
-    fetchPage();
+    void fetchPage();
+    return () => {
+      cancelled = true;
+    };
   }, [slug, getPageBySlug]);
 
-  if (isLoading) {
+  if (status === 'loading') {
     return (
       <main className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
@@ -53,8 +57,14 @@ const InstitutionalPage: React.FC = () => {
     );
   }
 
-  if (notFound || !page) {
-    return <Navigate to="/" replace />;
+  if (status === 'error') {
+    // Erro transitório numa página /p/:slug: canonical da própria rota + noIndex
+    // (o servidor devolve 503 para este caso dinâmico).
+    return <ContentUnavailable canonicalPath={`/p/${slug ?? ''}`} noIndex />;
+  }
+
+  if (status === 'not_found' || !page) {
+    return <NotFoundView />;
   }
 
   const sanitizedContent = sanitizeRichTextHtml(page.content);

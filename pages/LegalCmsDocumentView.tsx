@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowUp, ChevronRight, Download, Loader2 } from 'lucide-react';
-import { Navigate, useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { usePages, InstitutionalPage } from '../src/hooks/usePages';
 import { sanitizeRichTextHtml } from '../src/utils/sanitizeRichTextHtml';
 import { useLayout } from '../src/contexts/LayoutContext';
+import ContentUnavailable from '../components/ContentUnavailable';
 import PageSeo from '../components/PageSeo';
 import { buildSeoMetadata } from '../src/lib/seo/buildSeoMetadata';
 import { buildBreadcrumbJsonLd, buildWebPageJsonLd } from '../src/lib/seo/jsonLd';
@@ -82,6 +83,22 @@ const getDocumentPresentation = (slug: string) => {
   };
 };
 
+// Mapeia (puro/testável) o estado de indisponibilidade legal em props do
+// ContentUnavailable. not_found = documento em preparação (sem retry);
+// error = falha transitória (com retry). Ambos permanecem 200/index,follow.
+export const getLegalUnavailableProps = (kind: 'not_found' | 'error') =>
+  kind === 'error'
+    ? {
+        title: 'Documento temporariamente indisponível',
+        message: 'Não foi possível carregar este documento agora. Tente novamente em instantes.',
+        showRetry: true,
+      }
+    : {
+        title: 'Documento em atualização',
+        message: 'Este documento está sendo preparado e estará disponível em breve.',
+        showRetry: false,
+      };
+
 const LegalCmsDocumentView: React.FC = () => {
   const { slug: routeSlug } = useParams<{ slug: string }>();
   const location = useLocation();
@@ -97,7 +114,9 @@ const LegalCmsDocumentView: React.FC = () => {
 
   const [page, setPage] = useState<InstitutionalPage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  // Rota legal é FIXA (200), canonical próprio, index,follow (Opção A). Estados
+  // DISTINTOS: not_found = "em atualização"; error = "temporariamente indisponível".
+  const [docStatus, setDocStatus] = useState<'ok' | 'not_found' | 'error'>('ok');
   const [activeSection, setActiveSection] = useState<string>('');
 
   useEffect(() => {
@@ -105,23 +124,24 @@ const LegalCmsDocumentView: React.FC = () => {
 
     const fetchPage = async () => {
       if (!slug) {
-        setNotFound(true);
+        setDocStatus('not_found');
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
-      setNotFound(false);
+      setDocStatus('ok');
 
-      const data = await getPageBySlug(slug);
+      const result = await getPageBySlug(slug);
 
       if (cancelled) return;
 
-      if (!data) {
-        setNotFound(true);
-        setPage(null);
+      if (result.status === 'found') {
+        setPage(result.page);
       } else {
-        setPage(data);
+        // 'not_found' → em atualização; 'error' → temporariamente indisponível.
+        setPage(null);
+        setDocStatus(result.status);
       }
 
       setIsLoading(false);
@@ -187,8 +207,11 @@ const LegalCmsDocumentView: React.FC = () => {
     );
   }
 
-  if (notFound || !page) {
-    return <Navigate to="/" replace />;
+  if (docStatus !== 'ok' || !page) {
+    // Opção A: rota legal é fixa/válida → canonical da própria rota e
+    // index,follow. not_found e error têm mensagens DISTINTAS.
+    const props = getLegalUnavailableProps(docStatus === 'error' ? 'error' : 'not_found');
+    return <ContentUnavailable {...props} canonicalPath={location.pathname} />;
   }
 
   const canonicalPath = location.pathname || (slug ? `/${slug}` : '/');
