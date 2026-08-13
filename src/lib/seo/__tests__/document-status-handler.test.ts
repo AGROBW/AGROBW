@@ -97,7 +97,7 @@ describe('document-handler: rotas sem consulta ao banco', () => {
     },
   );
 
-  it.each(['/desconhecida', '/anuncio/nao-uuid', '/categoria/inexistente', '/p/politica-de-cookies', '/loja/BAD SLUG'])(
+  it.each(['/desconhecida', '/anuncio/nao-uuid', '/categoria/inexistente', '/p/politica-de-cookies', '/loja/BAD SLUG', '/api', '/assets'])(
     '%s → 404 sem tocar no banco, com X-Robots-Tag noindex',
     async (path) => {
       const createClient = vi.fn(() => makeFakeClient({}));

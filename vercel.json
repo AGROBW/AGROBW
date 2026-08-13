@@ -1,4 +1,5 @@
 {
+  "trailingSlash": false,
   "headers": [
     {
       "source": "/admin",
@@ -54,28 +55,6 @@
   ],
   "rewrites": [
     {
-      "source": "/",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|whatsapp|linkedinbot|slackbot|telegrambot|discordbot|pinterest|redditbot|embedly|skypeuripreview|vkshare|qwantify|bitlybot).*"
-        }
-      ],
-      "destination": "/api/og-loja"
-    },
-    {
-      "source": "/loja/:slug",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": "(?i).*(facebookexternalhit|facebot|twitterbot|whatsapp|linkedinbot|slackbot|telegrambot|discordbot|pinterest|redditbot|embedly|skypeuripreview|vkshare|qwantify|bitlybot).*"
-        }
-      ],
-      "destination": "/api/og-loja?slug=:slug"
-    },
-    {
       "source": "/api/sitemap",
       "destination": "/api/og-loja?_seo_route=sitemap"
     },
@@ -84,8 +63,44 @@
       "destination": "/api/og-loja?_seo_route=sitemap"
     },
     {
-      "source": "/((?!api/|assets/|favicon.ico|robots.txt|sitemap.xml|meta-oauth-callback.html).*)",
+      "source": "/anuncio/:id",
+      "destination": "/api/og-loja?_seo_route=document&path=/anuncio/:id"
+    },
+    {
+      "source": "/loja/:slug",
+      "destination": "/api/og-loja?_seo_route=document&path=/loja/:slug"
+    },
+    {
+      "source": "/noticias/:slug",
+      "destination": "/api/og-loja?_seo_route=document&path=/noticias/:slug"
+    },
+    {
+      "source": "/p/:slug",
+      "destination": "/api/og-loja?_seo_route=document&path=/p/:slug"
+    },
+    {
+      "source": "/categoria/:slug",
+      "destination": "/api/og-loja?_seo_route=document&path=/categoria/:slug"
+    },
+    {
+      "source": "/",
       "destination": "/index.html"
+    },
+    {
+      "source": "/(anuncios|categorias|planos|vitrine|patrocinador|lojas-parceiras|contato|noticias|quem-somos|termos-de-uso|privacidade|politica-de-cookies|politica-de-precos|login|cadastro|redefinir-senha|anunciar|mensagens|favoritos)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/minha-conta/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/((?!api/|assets/|favicon.ico|robots.txt|sitemap.xml|meta-oauth-callback.html|index.html).*)",
+      "destination": "/api/og-loja?_seo_route=document&path=/$1"
     }
   ]
 }

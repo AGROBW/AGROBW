@@ -112,7 +112,11 @@ const RE_CATEGORY = /^\/categoria\/([^/]+)$/;
 export const classifyRoute = (input) => {
   const path = normalizePathname(input);
 
-  if (isExcluded(path)) return { kind: 'excluded', needsDb: false, status: 200 };
+  // Técnicas (api/assets/arquivos): normalmente servidas pela plataforma antes das
+  // rewrites. Se CHEGAREM ao validador (ex.: /api ou /assets exatos, que o
+  // negative-lookahead de prefixo do catch-all não barra), NÃO são páginas
+  // válidas → 404 (evita soft-200). NUNCA consulta banco.
+  if (isExcluded(path)) return { kind: 'excluded', needsDb: false, status: 404 };
   if (STATIC_ROUTES.has(path)) return { kind: 'static', needsDb: false, status: 200 };
   if (isPrivate(path)) return { kind: 'private', needsDb: false, status: 200 };
 

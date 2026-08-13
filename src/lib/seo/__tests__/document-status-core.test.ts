@@ -50,11 +50,11 @@ describe('document-status-core: rotas privadas/técnicas → 200 passthrough sem
   });
 
   const technical = ['/api', '/api/og-loja', '/api/sitemap', '/assets/app.js', '/robots.txt', '/sitemap.xml', '/favicon.ico', '/meta-oauth-callback.html'];
-  it.each(technical)('%s → excluded (fora do validador) 200', (p) => {
+  it.each(technical)('%s → excluded, sem banco, 404 (nunca soft-200)', (p) => {
     const r = classifyRoute(p);
     expect(r.kind).toBe('excluded');
     expect(r.needsDb).toBe(false);
-    expect(r.status).toBe(200);
+    expect(r.status).toBe(404);
   });
 
   it('prefixo privado não casa nome parecido (/minha-contaX)', () => {

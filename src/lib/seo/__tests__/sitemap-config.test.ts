@@ -54,20 +54,22 @@ describe('sitemap 2.3: rewrites da Vercel', () => {
     }
   });
 
-  it('a rewrite de /sitemap.xml vem ANTES do fallback SPA', () => {
+  it('a rewrite de /sitemap.xml vem ANTES do passthrough e do catch-all', () => {
     const idxSitemap = rewrites.findIndex((r) => r.source === '/sitemap.xml');
-    const idxSpa = rewrites.findIndex((r) => r.destination === '/index.html');
+    const idxIndex = rewrites.findIndex((r) => r.destination === '/index.html');
     expect(idxSitemap).toBeGreaterThanOrEqual(0);
-    expect(idxSpa).toBeGreaterThanOrEqual(0);
-    expect(idxSitemap).toBeLessThan(idxSpa);
+    expect(idxIndex).toBeGreaterThanOrEqual(0);
+    expect(idxSitemap).toBeLessThan(idxIndex);
   });
 
-  it('o fallback SPA continua EXCLUINDO sitemap.xml', () => {
-    const spa = rewrites.find((r) => r.destination === '/index.html');
-    expect(spa).toBeDefined();
-    expect(spa?.source).toContain('sitemap.xml');
-    // sitemap.xml está no negative-lookahead → não cai no index.html
-    expect(new RegExp(spa!.source).test('/sitemap.xml')).toBe(false);
+  it('o catch-all (document) continua EXCLUINDO sitemap.xml (não cai no fallback dinâmico)', () => {
+    // Fase 2B: o fallback dinâmico (catch-all → modo document) é o ÚLTIMO rewrite.
+    const catchAll = rewrites[rewrites.length - 1];
+    expect(catchAll.destination).toContain('_seo_route=document');
+    expect(catchAll.source).toContain('sitemap'); // 'sitemap\\.xml' (ponto escapado)
+    expect(new RegExp(`^${catchAll.source}$`).test('/sitemap.xml')).toBe(false);
+    // e /sitemap.xml tem sua própria rewrite explícita (dispatcher do sitemap)
+    expect(rewrites.find((r) => r.source === '/sitemap.xml')?.destination).toContain('_seo_route=sitemap');
   });
 });
 
