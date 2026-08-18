@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Bell, MessageSquare, Briefcase, AlertCircle, CheckCheck, ExternalLink } from 'lucide-react';
+import { X, Bell, MessageSquare, Briefcase, AlertCircle, CheckCheck, ExternalLink, TrendingDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../src/hooks/useNotifications';
 import { useChats } from '../src/hooks/useMessages';
@@ -127,7 +127,7 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
     // Filtrar por aba
     if (activeTab === 'all') return true;
     if (activeTab === 'business') {
-      return notif.type === 'new_lead' || notif.type === 'radar_match';
+      return notif.type === 'new_lead' || notif.type === 'radar_match' || notif.type === 'price_drop';
     }
     if (activeTab === 'messages') {
       return notif.type === 'new_message' || notif.type === 'NEW_MESSAGE';
@@ -176,6 +176,8 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
         return <Briefcase className="w-5 h-5 text-blue-600" />;
       case 'radar_match':
         return <Bell className="w-5 h-5 text-green-600" />;
+      case 'price_drop':
+        return <TrendingDown className="w-5 h-5 text-emerald-600" />;
       case 'new_message':
       case 'NEW_MESSAGE':
         return <MessageSquare className="w-5 h-5 text-purple-600" />;
@@ -267,7 +269,7 @@ const NotificationsModal: React.FC<NotificationsModalProps> = ({ isOpen, onClose
             <div className="flex gap-2 px-6 pt-4 pb-3 border-b border-slate-200 bg-white sticky top-[89px] z-10">
               {[
                 { id: 'all', label: 'Todas', count: notifications.length },
-                { id: 'business', label: 'Negócios', count: notifications.filter(n => n.type === 'new_lead' || n.type === 'radar_match').length },
+                { id: 'business', label: 'Negócios', count: notifications.filter(n => n.type === 'new_lead' || n.type === 'radar_match' || n.type === 'price_drop').length },
                 { id: 'messages', label: 'Mensagens', count: notifications.filter(n => n.type === 'new_message' || n.type === 'NEW_MESSAGE').length },
                 { id: 'system', label: 'Sistema', count: notifications.filter(n => n.type === 'system' || n.type === 'plan_alert' || n.type === 'SYSTEM').length }
               ].map((tab) => (

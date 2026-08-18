@@ -449,7 +449,7 @@ export interface ContactInfo {
 
 export interface Notification {
   id: string;
-  type: 'new_lead' | 'radar_match' | 'new_message' | 'system' | 'plan_alert' | 'ad_edit_rejected' | 'account_verification' | 'SYSTEM' | 'SECURITY' | 'PROMO' | 'AD_STATUS' | 'NEW_MESSAGE';
+  type: 'new_lead' | 'radar_match' | 'price_drop' | 'new_message' | 'system' | 'plan_alert' | 'ad_edit_rejected' | 'account_verification' | 'SYSTEM' | 'SECURITY' | 'PROMO' | 'AD_STATUS' | 'NEW_MESSAGE';
   title: string;
   content: string;
   timestamp: string;
