@@ -15,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useAdminSiteAnalytics, type AnalyticsPeriod } from '../../src/hooks/useAdminSiteAnalytics';
+import GoogleSearchConsolePanel from '../../components/admin/GoogleSearchConsolePanel';
 
 const periodOptions: { value: AnalyticsPeriod; label: string }[] = [
   { value: 7, label: 'Semana' },
@@ -82,6 +83,7 @@ const TableCard: React.FC<{
 
 const SiteAnalyticsView: React.FC = () => {
   const [period, setPeriod] = useState<AnalyticsPeriod>(7);
+  const [analyticsMode, setAnalyticsMode] = useState<'portal' | 'google'>('portal');
   const [filterType, setFilterType] = useState<'all' | 'pages' | 'announcements' | 'stores'>('all');
   const [filterTerm, setFilterTerm] = useState('');
   const {
@@ -137,15 +139,35 @@ const SiteAnalyticsView: React.FC = () => {
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.26em] text-emerald-700">
             <BarChart3 className="h-3.5 w-3.5" />
-            Estatísticas do portal
+            {analyticsMode === 'portal' ? 'Estatísticas do portal' : 'Google Search Console'}
           </div>
-          <h2 className="mt-4 text-2xl font-black text-slate-950">Analytics estilo WP Statistics</h2>
+          <h2 className="mt-4 text-2xl font-black text-slate-950">
+            {analyticsMode === 'portal' ? 'Analytics do portal' : 'Desempenho na Pesquisa Google'}
+          </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-            Veja acessos por período, usuários online, páginas mais visitadas e os anúncios e lojas que mais atraem tráfego.
+            {analyticsMode === 'portal'
+              ? 'Veja acessos por período, usuários online, páginas mais visitadas e os anúncios e lojas que mais atraem tráfego.'
+              : 'Acompanhe cliques, impressões, CTR, posição média e os termos que levam pessoas ao AGRO BW.'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5">
+            <button
+              type="button"
+              onClick={() => setAnalyticsMode('portal')}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${analyticsMode === 'portal' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-white'}`}
+            >
+              Portal
+            </button>
+            <button
+              type="button"
+              onClick={() => setAnalyticsMode('google')}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${analyticsMode === 'google' ? 'bg-sky-600 text-white' : 'text-slate-600 hover:bg-white'}`}
+            >
+              Google Search
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5">
             {periodOptions.map((option) => (
               <button
@@ -160,17 +182,23 @@ const SiteAnalyticsView: React.FC = () => {
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Atualizar
-          </button>
+          {analyticsMode === 'portal' ? (
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Atualizar
+            </button>
+          ) : null}
         </div>
       </div>
 
+      {analyticsMode === 'google' ? (
+        <GoogleSearchConsolePanel period={period} />
+      ) : (
+        <>
       {error ? (
         <div className="rounded-[24px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-medium text-rose-700">
           Não foi possível carregar as estatísticas: {error}
@@ -534,6 +562,8 @@ const SiteAnalyticsView: React.FC = () => {
           )}
         </TableCard>
       </div>
+        </>
+      )}
     </div>
   );
 };
