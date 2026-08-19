@@ -22,11 +22,24 @@ const periodOptions: { value: AnalyticsPeriod; label: string }[] = [
   { value: 30, label: 'Mensal' },
 ];
 
+// As datas do RPC vem como string PURA de data ("2026-08-17", ja no fuso de
+// Sao Paulo). `new Date('2026-08-17')` seria interpretado como meia-noite UTC e,
+// ao formatar em UTC-3, exibiria o dia ANTERIOR (17/08 aparecia como 16/08).
+// Por isso montamos a data no fuso LOCAL a partir dos componentes.
+const parseAnalyticsDate = (value: string) => {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+  return new Date(value);
+};
+
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
-  }).format(new Date(value));
+  }).format(parseAnalyticsDate(value));
 
 const formatDateTime = (value: string) =>
   new Intl.DateTimeFormat('pt-BR', {
@@ -168,7 +181,7 @@ const SiteAnalyticsView: React.FC = () => {
         <SummaryCard title="Online agora" value={summary.onlineUsers} helper="Sessões ativas nos últimos 2 minutos" icon={<Activity className="h-5 w-5 text-emerald-700" />} accent="bg-emerald-50" />
         <SummaryCard title="Usuários logados online" value={summary.onlineLoggedUsers} helper="Pessoas autenticadas navegando agora" icon={<Users className="h-5 w-5 text-sky-700" />} accent="bg-sky-50" />
         <SummaryCard title="Page views" value={summary.totalPageViews} helper={`Visualizações nos últimos ${period} dias`} icon={<Eye className="h-5 w-5 text-violet-700" />} accent="bg-violet-50" />
-        <SummaryCard title="Visitantes únicos" value={summary.uniqueVisitors} helper="Sessões distintas no período" icon={<LineChart className="h-5 w-5 text-amber-700" />} accent="bg-amber-50" />
+        <SummaryCard title="Visitantes únicos" value={summary.uniqueVisitors} helper="Navegadores distintos no período" icon={<LineChart className="h-5 w-5 text-amber-700" />} accent="bg-amber-50" />
         <SummaryCard title="Visitantes logados" value={summary.loggedInVisitors} helper="Usuários identificados no período" icon={<Monitor className="h-5 w-5 text-slate-700" />} accent="bg-slate-100" />
       </div>
 
