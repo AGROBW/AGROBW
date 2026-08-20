@@ -11,7 +11,9 @@ import {
   Check,
   AlertCircle,
   GripVertical,
-  Loader2
+  Loader2,
+  Monitor,
+  Smartphone
 } from 'lucide-react';
 import { useBanners, HomeBanner } from '../../src/hooks/useBanners';
 import { uploadBannerImage, uploadBannerMobileImage } from '../../src/services/bannerService';
@@ -196,10 +198,7 @@ const BannersManagement: React.FC = () => {
             Gerencie os banners exibidos no slider principal
           </p>
           <p className="text-xs text-slate-500 mt-2">
-            Padrão recomendado: <span className="font-semibold text-slate-700">1920x640 px</span> (proporção 3:1). Mantenha textos, logos e elementos principais na área central da arte para evitar cortes.
-          </p>
-          <p className="text-xs text-slate-500 mt-2">
-            Patrocinadores que tambÃ©m devem aparecer na home agora podem ser ativados direto em <span className="font-semibold text-slate-700">Patrocinadores</span>. Use esta tela para banners institucionais e campanhas gerais.
+            Patrocinadores que também devem aparecer na home podem ser ativados direto em <span className="font-semibold text-slate-700">Patrocinadores</span>. Use esta tela para banners institucionais e campanhas gerais.
           </p>
         </div>
         <button
@@ -209,6 +208,34 @@ const BannersManagement: React.FC = () => {
           <Plus className="w-4 h-4" />
           Novo Banner
         </button>
+      </div>
+
+      <div className="grid gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 sm:grid-cols-2">
+        <div className="flex gap-3 rounded-xl border border-white bg-white/80 p-4 shadow-sm">
+          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <Monitor className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">Navegador / desktop</p>
+            <p className="mt-1 text-lg font-black text-slate-900">1920 x 640 px</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
+              Proporção 3:1, usada a partir de 1023px. Mantenha textos, logos e elementos importantes na área central para tolerar o recorte lateral ou vertical.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-3 rounded-xl border border-white bg-white/80 p-4 shadow-sm">
+          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <Smartphone className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">Mobile / tablet</p>
+            <p className="mt-1 text-lg font-black text-slate-900">1200 x 750 px</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">
+              Proporção 16:10, usada até 1022px. Prefira uma arte limpa: título, subtítulo, selo e botão já são aplicados pelo sistema.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Lista de Banners */}
@@ -334,7 +361,7 @@ const BannersManagement: React.FC = () => {
                   Imagem do Banner — Desktop (obrigatória)
                 </label>
                 <p className="mb-3 text-xs text-slate-500">
-                  Arquivo oficial do carrossel: <span className="font-semibold text-slate-700">1920x640 px</span> (proporção 3:1). Posicione os elementos mais importantes no centro da arte para manter o enquadramento em telas menores.
+                  Usada em navegadores a partir de 1023px. Recomendação: <span className="font-semibold text-slate-700">1920x640 px</span> (proporção 3:1). Posicione os elementos mais importantes no centro da arte para manter o enquadramento.
                 </p>
                 
                 {imagePreview ? (
@@ -387,7 +414,7 @@ const BannersManagement: React.FC = () => {
                   Imagem mobile/tablet (opcional)
                 </label>
                 <p className="mb-3 text-xs text-slate-500">
-                  Usada em telas até 1023px. Recomendação: <span className="font-semibold text-slate-700">1200x750 px</span> (proporção ~16:10). Se não enviar, o carrossel usa a arte desktop como fallback. Prefira uma arte <span className="font-semibold text-slate-700">limpa, sem textos embutidos</span> — título, subtítulo, badge e botão já são exibidos como elementos por cima da imagem.
+                  Usada em telas até 1022px. Recomendação: <span className="font-semibold text-slate-700">1200x750 px</span> (proporção ~16:10). Se não enviar, o carrossel usa a arte desktop como fallback. Prefira uma arte <span className="font-semibold text-slate-700">limpa, sem textos embutidos</span> — título, subtítulo, selo e botão já são exibidos como elementos por cima da imagem.
                 </p>
 
                 {mobileImagePreview ? (
