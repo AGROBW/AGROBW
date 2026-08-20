@@ -303,7 +303,8 @@ const Home: React.FC = () => {
         items={highlightedAds}
         isLoading={adsLoading}
         emptyMessage="Nenhum anúncio em destaque no momento."
-        skeletonCount={4}
+        skeletonCount={6}
+        density="compact"
         sectionClassName="w-full border-y py-8 lg:py-10"
         sectionStyle={{
           backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 6%, white)`,
@@ -312,7 +313,7 @@ const Home: React.FC = () => {
         renderItem={(ad) =>
           isAdValid(ad) ? (
             <AdCardErrorBoundary>
-              <AdCard ad={ad} highlightDisplayMode="home" />
+              <AdCard ad={ad} highlightDisplayMode="home" variant="compact" />
             </AdCardErrorBoundary>
           ) : (
             <AdFallbackCard />
