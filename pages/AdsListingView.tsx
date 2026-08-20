@@ -247,6 +247,7 @@ const AdsListingView: React.FC = () => {
   const catSlug = params.get('categoria') || '';
   const subSlug = params.get('subcategoria') || '';
   const queryTerm = params.get('q') || '';
+  const stateTerm = params.get('estado') || '';
 
   const { categories, subcategories } = usePublicCategoryCatalog();
   const categoryGroup = useMemo(() => getCategoryGroupBySlug(catSlug), [catSlug]);
@@ -279,7 +280,7 @@ const AdsListingView: React.FC = () => {
   );
 
   const [searchTerm, setSearchTerm] = useState(queryTerm);
-  const [stateFilter, setStateFilter] = useState('');
+  const [stateFilter, setStateFilter] = useState(stateTerm);
   const [cityFilter, setCityFilter] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');

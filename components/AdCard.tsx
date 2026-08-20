@@ -1,11 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Eye, Heart, Sparkles, Store } from 'lucide-react';
+import { MapPin, Heart } from 'lucide-react';
 import { Ad } from '../types';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useFavorites } from '../src/hooks/useFavorites';
-import VerifiedBadge from './VerifiedBadge';
 import { supabase } from '../src/lib/supabaseClient';
 import { detectUserState } from '../src/utils/geoLocation';
 import { useLayout } from '../src/contexts/LayoutContext';
@@ -17,9 +16,10 @@ import { appWarn } from '../src/utils/appLogger';
 interface AdCardProps {
   ad: Ad;
   highlightDisplayMode?: 'auto' | 'home' | 'category' | 'none';
+  variant?: 'default' | 'compact';
 }
 
-const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) => {
+const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto', variant = 'default' }) => {
   const { user } = useAuth();
   const { toggleFavorite, isFavorited } = useFavorites();
   const { settings } = useLayout();
@@ -123,6 +123,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
       : hasOfficialStore
         ? officialStoreCardStyle
         : undefined;
+  const isCompact = variant === 'compact';
 
   return (
     <div className={`group bg-white rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full relative ${
@@ -130,12 +131,6 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
         ? 'border-2 shadow-lg' 
         : 'border border-slate-100'
     }`} style={cardStyle}>
-      {ad.isPremium && !hasActiveHighlight && (
-        <div className="absolute top-4 left-4 z-10 bg-yellow-400 text-yellow-900 text-[10px] font-black uppercase px-2 py-1 rounded shadow-sm">
-          Premium
-        </div>
-      )}
-      
       {/* Botão de Favoritar */}
       <button
         onClick={handleFavoriteClick}
@@ -153,7 +148,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
       </button>
       
       {/* Image Wrapper */}
-      <div className="relative h-48 overflow-hidden">
+      <div className={`relative overflow-hidden ${isCompact ? 'h-36' : 'h-48'}`}>
         <img 
           src={primaryImage} 
           alt={ad.title} 
@@ -161,7 +156,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
           decoding="async"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+        <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent ${isCompact ? 'p-3' : 'p-4'}`}>
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-white text-xs font-semibold flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5" strokeWidth={1.5} style={{ color: settings.primaryColor }} />
@@ -172,44 +167,20 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
       </div>
 
       {/* Content */}
-      <div className="p-5 flex flex-col flex-grow">
-        <h3 className="text-sm font-semibold text-slate-800 mb-3 line-clamp-2 leading-tight transition-colors h-10 group-hover:opacity-90" style={{ color: 'var(--brand-text)' }}>
+      <div className={`flex flex-grow flex-col ${isCompact ? 'p-3.5' : 'p-5'}`}>
+        <h3 className={`font-semibold text-slate-800 line-clamp-2 leading-tight transition-colors group-hover:opacity-90 ${isCompact ? 'mb-2 h-9 text-[13px]' : 'mb-3 h-10 text-sm'}`} style={{ color: 'var(--brand-text)' }}>
           {ad.title}
         </h3>
         
-        {(ad.seller?.document_verified || hasOfficialStore || ad.acceptsTrade) && (
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            {ad.seller?.document_verified && <VerifiedBadge variant="small" />}
-            {hasOfficialStore && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                <Store className="h-3.5 w-3.5" strokeWidth={1.8} />
-                Loja Parceira
-              </span>
-            )}
-            {ad.acceptsTrade && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
-                <Sparkles className="h-3.5 w-3.5" strokeWidth={1.8} />
-                Aceita troca
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-100">
+        <div className={`mt-auto border-t border-slate-100 ${isCompact ? 'pt-2.5' : 'pt-3'}`}>
           <div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Investimento</p>
-            <p className="text-base font-semibold tracking-tight" style={{ color: settings.primaryColor }}>{displayPrice}</p>
-          </div>
-          <div className="flex flex-col items-end">
-             <div className="flex items-center gap-1 text-slate-400 text-[11px] font-semibold">
-               <Eye className="w-4 h-4" strokeWidth={1.5} />
-               {ad.views.toLocaleString()}
-             </div>
+            {!isCompact ? <p className="mb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Investimento</p> : null}
+            <p className={`${isCompact ? 'text-sm' : 'text-base'} font-semibold tracking-tight`} style={{ color: settings.primaryColor }}>{displayPrice}</p>
           </div>
         </div>
       </div>
       
-      <div className="px-5 pb-5 mt-auto">
+      <div className={`mt-auto ${isCompact ? 'px-3.5 pb-3.5' : 'px-5 pb-5'}`}>
         <Link 
           to={`/anuncio/${ad.id}`}
           onClick={() => {
@@ -244,7 +215,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto' }) =>
               });
             });
           }}
-          className="block w-full text-center h-10 leading-10 text-white rounded-lg text-sm font-semibold transition-all"
+          className={`block w-full rounded-lg text-center font-semibold text-white transition-all ${isCompact ? 'h-9 text-xs leading-9' : 'h-10 text-sm leading-10'}`}
           style={{ backgroundColor: settings.secondaryColor }}
         >
           Ver Detalhes

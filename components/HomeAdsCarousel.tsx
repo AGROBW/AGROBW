@@ -15,11 +15,13 @@ interface HomeAdsCarouselProps<T> {
   sectionClassName?: string;
   sectionStyle?: React.CSSProperties;
   footer?: React.ReactNode;
+  density?: 'standard' | 'compact';
   renderItem: (item: T, index: number) => React.ReactNode;
 }
 
-const getItemsPerView = () => {
+const getItemsPerView = (density: 'standard' | 'compact') => {
   if (typeof window === 'undefined') return 4;
+  if (density === 'compact' && window.innerWidth >= 1280) return 6;
   if (window.innerWidth >= 1024) return 4;
   if (window.innerWidth >= 640) return 2;
   return 1;
@@ -38,12 +40,13 @@ function HomeAdsCarousel<T>({
   sectionClassName = '',
   sectionStyle,
   footer,
+  density = 'standard',
   renderItem,
 }: HomeAdsCarouselProps<T>) {
   const { settings } = useLayout();
   const trackRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const [itemsPerView, setItemsPerView] = useState(getItemsPerView);
+  const [itemsPerView, setItemsPerView] = useState(() => getItemsPerView(density));
   const [activePage, setActivePage] = useState(0);
 
   const maxPage = useMemo(() => {
@@ -55,12 +58,20 @@ function HomeAdsCarousel<T>({
 
   useEffect(() => {
     const handleResize = () => {
-      setItemsPerView(getItemsPerView());
+      setItemsPerView(getItemsPerView(density));
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [density]);
+
+  useEffect(() => {
+    setItemsPerView(getItemsPerView(density));
+  }, [density]);
+
+  const itemWidthClass = density === 'compact'
+    ? 'basis-[calc(100%-1rem)] sm:basis-[calc(50%-0.5rem)] lg:basis-[calc(25%-0.75rem)] xl:basis-[calc(16.666%-0.834rem)]'
+    : 'basis-[calc(100%-1rem)] sm:basis-[calc(50%-0.5rem)] lg:basis-[calc(25%-0.75rem)]';
 
   useEffect(() => {
     if (activePage > maxPage) {
@@ -172,7 +183,7 @@ function HomeAdsCarousel<T>({
             {Array.from({ length: skeletonCount }).map((_, index) => (
               <div
                 key={`carousel-skeleton-${index}`}
-                className="h-72 shrink-0 basis-[calc(100%-1rem)] animate-pulse rounded-xl border border-slate-100 bg-white sm:basis-[calc(50%-0.5rem)] lg:basis-[calc(25%-0.75rem)]"
+                className={`shrink-0 animate-pulse rounded-2xl border border-slate-100 bg-white ${density === 'compact' ? 'h-64' : 'h-80'} ${itemWidthClass}`}
               />
             ))}
           </div>
@@ -188,7 +199,7 @@ function HomeAdsCarousel<T>({
                 ref={(node) => {
                   itemRefs.current[index] = node;
                 }}
-                className="min-w-0 shrink-0 snap-start basis-[calc(100%-1rem)] sm:basis-[calc(50%-0.5rem)] lg:basis-[calc(25%-0.75rem)]"
+                className={`min-w-0 shrink-0 snap-start ${itemWidthClass}`}
               >
                 {renderItem(item, index)}
               </div>

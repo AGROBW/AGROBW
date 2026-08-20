@@ -2,7 +2,7 @@ import React from 'react';
 import { ShieldCheck } from 'lucide-react';
 
 interface VerifiedBadgeProps {
-  variant?: 'default' | 'small' | 'icon-only';
+  variant?: 'default' | 'small' | 'compact' | 'icon-only';
   className?: string;
 }
 
@@ -30,6 +30,18 @@ const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
         className={`inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ${className}`}
       >
         <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.8} />
+        Verificado
+      </span>
+    );
+  }
+
+  if (variant === 'compact') {
+    return (
+      <span
+        className={`inline-flex h-5 shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 text-[9px] font-semibold leading-none text-emerald-700 ${className}`}
+        title="Vendedor Verificado"
+      >
+        <ShieldCheck className="h-2.5 w-2.5" strokeWidth={2} />
         Verificado
       </span>
     );

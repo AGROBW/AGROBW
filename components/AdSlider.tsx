@@ -66,9 +66,9 @@ type SliderItem =
 const fallbackSlides: SliderItem[] = [
   {
     id: 'fallback',
-    badge_text: 'Destaque BWAGRO',
-    title: 'Bem-vindo à BWAGRO',
-    subtitle: 'Conectando o produtor rural às melhores oportunidades.',
+    badge_text: 'Marketplace do agro',
+    title: 'O agro encontra negócios aqui',
+    subtitle: 'Máquinas, animais, insumos, imóveis e oportunidades para todo o Brasil.',
     button_text: 'Ver anúncios',
     button_link: '/anuncios',
     image_url: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1600&auto=format&fit=crop',
@@ -283,11 +283,11 @@ const AdSlider: React.FC = () => {
   };
 
   if (isLoading) {
-    return <div className="relative w-full overflow-hidden bg-slate-100 animate-pulse h-[clamp(240px,62.5vw,560px)] min-[1023px]:h-auto min-[1023px]:aspect-[3.5/1]" />;
+    return <div className="relative h-[430px] w-full animate-pulse overflow-hidden bg-slate-100 lg:h-[500px]" />;
   }
 
   return (
-    <section className="relative w-full overflow-hidden bg-slate-950 h-[clamp(240px,62.5vw,560px)] min-[1023px]:h-auto min-[1023px]:aspect-[3.5/1]">
+    <section className="relative h-[430px] w-full overflow-hidden bg-slate-950 lg:h-[500px]">
       {slides.map((slide, index) => (
         <div
           key={slide.id}
@@ -333,25 +333,26 @@ const AdSlider: React.FC = () => {
                 </>
               );
             })()}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-slate-950/55 to-transparent" />
           </div>
 
-          <div className="relative h-full max-w-7xl mx-auto px-[16px] md:px-10 min-[1023px]:px-14 flex flex-col justify-center items-start text-white">
+          <div className="relative mx-auto flex h-full max-w-7xl flex-col items-start justify-center px-5 pb-20 text-white sm:px-8 lg:px-12 lg:pb-24">
             <div
-              className={`max-w-[min(62%,260px)] md:max-w-[540px] min-[1023px]:max-w-[620px] transform transition-all duration-700 delay-300 ${
+              className={`max-w-[320px] transform transition-all delay-300 duration-700 sm:max-w-[540px] lg:max-w-[620px] ${
                 index === current ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
               }`}
             >
-              <span className="inline-block px-2 py-0.5 md:px-3 md:py-1 bg-green-600 text-xs font-semibold tracking-widest uppercase rounded mb-2 md:mb-3">
+              <span className="mb-3 inline-block rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] backdrop-blur-md">
                 {slide.badge_text}
               </span>
-              <h2 className="text-xl md:text-2xl min-[1023px]:text-[2rem] font-semibold mb-2 md:mb-3 leading-tight line-clamp-2 md:line-clamp-none">{slide.title}</h2>
-              <p className="text-sm md:text-base text-gray-200 mb-4 md:mb-6 max-w-xl line-clamp-2 md:line-clamp-none">{slide.subtitle}</p>
+              <h2 className="mb-3 text-3xl font-black leading-[1.05] tracking-[-0.035em] sm:text-4xl lg:text-5xl">{slide.title}</h2>
+              <p className="mb-6 max-w-xl text-sm leading-6 text-slate-200 sm:text-base">{slide.subtitle}</p>
               <div className="flex gap-4">
                 {slide.slide_type === 'banner' ? (
                   <a
                     href={slide.button_link}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 md:px-5 h-10 text-sm md:text-base rounded-lg font-semibold transition-all flex items-center gap-2 group"
+                    className="group flex h-11 items-center gap-2 rounded-lg bg-green-600 px-5 text-sm font-bold text-white transition-all hover:bg-green-700"
                   >
                     {slide.button_text}
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" strokeWidth={1.5} />
@@ -360,7 +361,7 @@ const AdSlider: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => void handleSponsorClick(slide)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 md:px-5 h-10 text-sm md:text-base rounded-lg font-semibold transition-all flex items-center gap-2 group"
+                    className="group flex h-11 items-center gap-2 rounded-lg bg-green-600 px-5 text-sm font-bold text-white transition-all hover:bg-green-700"
                   >
                     {slide.button_text}
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" strokeWidth={1.5} />

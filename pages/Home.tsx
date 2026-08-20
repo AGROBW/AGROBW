@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Handshake, MessageCircleMore, SquarePen } from 'lucide-react';
 import AdSlider from '../components/AdSlider';
 import HeroSearch from '../components/HeroSearch';
 import AdCard from '../components/AdCard';
@@ -13,7 +13,6 @@ import { HOME_SEO_TITLE_BASE, HOME_SEO_DESCRIPTION } from '../server/home-seo.mj
 import StructuredData from '../components/StructuredData';
 import { CATEGORIES } from '../constants';
 import { usePublicAds } from '../src/hooks/useAds';
-import { useCategoryCounts } from '../src/hooks/useCategoryCounts';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { supabase } from '../src/lib/supabaseClient';
 import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
@@ -88,7 +87,6 @@ type ShowcaseStatsRow = {
 
 const Home: React.FC = () => {
   const { ads, isLoading: adsLoading } = usePublicAds();
-  const { getCountForCategory, hasLoadedRealCounts } = useCategoryCounts();
   const { settings } = useLayout();
   const dailyRotationSeed = getDailyRotationSeed();
   const [homeShowcaseStats, setHomeShowcaseStats] = useState<Record<string, ShowcaseStatsRow>>({});
@@ -246,12 +244,20 @@ const Home: React.FC = () => {
       <AdSlider />
       <HeroSearch />
 
-      <section className="py-16 max-w-7xl mx-auto px-4 w-full">
-        <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
+      <section
+        className="mx-auto w-full max-w-7xl px-4 pb-10 pt-6 lg:pb-12 lg:pt-8"
+        style={{
+          backgroundImage: 'radial-gradient(circle at 50% 0%, rgba(22,163,74,0.06), transparent 42%)',
+        }}
+      >
+        <div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">Categorias em Destaque</h2>
-            <p className="text-slate-500 max-w-xl text-sm">
-              Navegue pelos setores mais movimentados do agronegócio e encontre exatamente o que sua produção precisa.
+            <span className="text-[10px] font-black uppercase tracking-[0.28em]" style={{ color: settings.primaryColor }}>
+              Encontre mais rápido
+            </span>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">Explore por categoria</h2>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+              Navegue pelos principais setores do agro e encontre oportunidades em poucos cliques.
             </p>
           </div>
           <Link to="/categorias" className="font-semibold flex items-center gap-2 hover:underline text-sm" style={{ color: settings.primaryColor }}>
@@ -260,22 +266,25 @@ const Home: React.FC = () => {
           </Link>
         </div>
 
-        <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {CATEGORIES.map((cat) => (
             <Link
               key={cat.id}
               to={`/anuncios?categoria=${cat.slug}`}
-              className="group min-w-[200px] flex-shrink-0 rounded-xl border border-slate-100 bg-white p-4 text-center flex flex-col items-center transition-all"
+              className="group flex min-h-36 flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-4 text-center shadow-[0_18px_45px_-36px_rgba(15,23,42,0.45)] transition duration-300 hover:-translate-y-1 hover:border-green-200 hover:shadow-[0_24px_50px_-32px_rgba(15,23,42,0.35)]"
             >
-              <div className="mb-3 text-slate-600 transition-colors group-hover:opacity-90" style={{ color: 'var(--brand-muted)' }}>
+              <div
+                className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl transition group-hover:scale-105"
+                style={{
+                  color: settings.primaryColor,
+                  backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 9%, white)`,
+                }}
+              >
                 {cat.icon}
               </div>
-              <h3 className="font-semibold text-slate-800 text-sm mb-1 transition-colors group-hover:opacity-90" style={{ color: 'var(--brand-text)' }}>
+              <h3 className="text-sm font-bold text-slate-800 transition-colors group-hover:opacity-90">
                 {cat.name}
               </h3>
-              <p className="text-xs text-slate-400">
-                {hasLoadedRealCounts ? `${getCountForCategory(cat.slug) ?? 0} anúncios` : 'Carregando...'}
-              </p>
             </Link>
           ))}
         </div>
@@ -283,14 +292,19 @@ const Home: React.FC = () => {
 
       <HomeAdsCarousel
         title="Anúncios em Destaque"
-        subtitle="As melhores ofertas verificadas da nossa rede"
-        eyebrow="Seleção Especial"
-        centeredHeader
+        subtitle="Oportunidades com maior visibilidade na plataforma"
+        eyebrow="Seleção especial"
+        headerAction={
+          <Link to="/anuncios" className="inline-flex items-center gap-2 text-sm font-semibold hover:underline" style={{ color: settings.primaryColor }}>
+            Ver todos os destaques
+            <ArrowRight className="h-4 w-4" strokeWidth={1.8} />
+          </Link>
+        }
         items={highlightedAds}
         isLoading={adsLoading}
         emptyMessage="Nenhum anúncio em destaque no momento."
         skeletonCount={4}
-        sectionClassName="py-16 w-full border-y"
+        sectionClassName="w-full border-y py-8 lg:py-10"
         sectionStyle={{
           backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 6%, white)`,
           borderColor: `color-mix(in srgb, ${settings.primaryColor} 18%, white)`,
@@ -306,16 +320,16 @@ const Home: React.FC = () => {
         }
       />
 
-      <NewsGrid />
-
       <HomeAdsCarousel
         title="Publicados Recentemente"
-        subtitle="Atualizado há poucos minutos"
+        subtitle="Os anúncios mais novos que chegaram à plataforma"
+        eyebrow="Novidades do marketplace"
         items={recentAds}
         isLoading={adsLoading}
         emptyMessage="Nenhum anúncio publicado recentemente."
         skeletonCount={8}
-        sectionClassName="py-16 w-full"
+        sectionClassName="w-full py-8 lg:py-10"
+        density="compact"
         footer={
           <Link to="/anuncios" className="inline-block px-8 h-10 leading-10 rounded-lg font-semibold text-center text-white" style={{ backgroundColor: settings.secondaryColor }}>
             Ver Mais Anúncios
@@ -324,7 +338,7 @@ const Home: React.FC = () => {
         renderItem={(ad) =>
           isAdValid(ad) ? (
             <AdCardErrorBoundary>
-              <AdCard ad={ad} />
+              <AdCard ad={ad} variant="compact" />
             </AdCardErrorBoundary>
           ) : (
             <AdFallbackCard />
@@ -332,67 +346,67 @@ const Home: React.FC = () => {
         }
       />
 
-      <section className="relative overflow-hidden py-16" style={{ backgroundColor: settings.secondaryColor }}>
+      <HomeStoresCarousel />
+
+      <NewsGrid />
+
+      <section
+        className="relative overflow-hidden py-9 lg:py-10"
+        style={{
+          backgroundColor: settings.secondaryColor,
+          backgroundImage: `radial-gradient(circle at 80% 20%, color-mix(in srgb, ${settings.primaryColor} 36%, transparent), transparent 28%), linear-gradient(110deg, color-mix(in srgb, ${settings.secondaryColor} 94%, black), color-mix(in srgb, ${settings.primaryColor} 38%, ${settings.secondaryColor}))`,
+        }}
+      >
         <div
-          className="absolute top-0 right-0 h-full w-1/3 translate-x-20 skew-x-12 opacity-50"
-          style={{ backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 30%, ${settings.secondaryColor})` }}
+          className="pointer-events-none absolute inset-0 opacity-[0.08]"
+          style={{ backgroundImage: 'linear-gradient(30deg, transparent 12%, white 12.5%, transparent 13%, transparent 37%, white 37.5%, transparent 38%)', backgroundSize: '72px 72px' }}
         />
         <div className="relative z-10 mx-auto max-w-7xl px-4">
-          <div className="flex flex-col items-center gap-12 lg:flex-row">
-            <div className="flex-1 text-center text-white lg:text-left">
-              <h2 className="mb-4 text-xl font-semibold leading-tight">Pronto para fechar o melhor negócio do ano?</h2>
-              <p className="mb-6 text-sm opacity-90" style={{ color: 'rgba(255,255,255,0.82)' }}>
-                Junte-se a mais de 10.000 produtores rurais que já utilizam a AGRO BW para comprar e vender com segurança e rapidez.
+          <div className="grid items-center gap-9 lg:grid-cols-[1.05fr_1.7fr_auto] lg:gap-10">
+            <div className="text-center text-white lg:text-left">
+              <span className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-300">Comece agora</span>
+              <h2 className="mt-2 text-2xl font-black leading-tight">Tem algo para vender no agro?</h2>
+              <p className="mt-3 text-sm leading-6 text-white/75">
+                Publique gratuitamente e encontre compradores de todo o Brasil.
               </p>
-              <div className="flex flex-col justify-center gap-4 sm:flex-row lg:justify-start">
-                <Link to="/anunciar" className="h-10 rounded-lg px-6 text-sm font-semibold leading-10 transition-all" style={{ backgroundColor: settings.accentColor, color: settings.secondaryColor }}>
-                  Anunciar Agora Grátis
-                </Link>
-                <Link to="/planos" className="h-10 rounded-lg border border-white/20 bg-white/10 px-6 text-sm font-semibold leading-10 text-white backdrop-blur-md transition-all hover:bg-white/20">
-                  Conhecer Planos Premium
-                </Link>
-              </div>
             </div>
-            <div className="hidden flex-1 lg:block">
-              <div className="rounded-xl border border-white/10 bg-white/10 p-6 backdrop-blur-xl">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: settings.primaryColor }}>
-                      1
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-white">Crie seu anúncio</h4>
-                      <p className="text-sm" style={{ color: 'rgba(255,255,255,0.72)' }}>Em menos de 2 minutos seu produto está online.</p>
-                    </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                { icon: SquarePen, title: 'Crie seu anúncio', description: 'Cadastre em poucos minutos' },
+                { icon: MessageCircleMore, title: 'Receba contatos', description: 'Negocie diretamente' },
+                { icon: Handshake, title: 'Feche o negócio', description: 'Venda com segurança' },
+              ].map(({ icon: Icon, title, description }, index) => (
+                <div key={title} className="relative flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.07] p-4 backdrop-blur-sm sm:flex-col sm:text-center lg:bg-transparent lg:p-2">
+                  {index < 2 ? <div className="absolute left-[calc(50%+28px)] top-7 hidden h-px w-[calc(100%-56px)] bg-white/20 sm:block" /> : null}
+                  <div className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-emerald-300">
+                    <Icon className="h-5 w-5" strokeWidth={1.8} />
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: settings.primaryColor }}>
-                      2
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-white">Receba propostas</h4>
-                      <p className="text-sm" style={{ color: 'rgba(255,255,255,0.72)' }}>Compradores reais entrarão em contato direto.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: settings.primaryColor }}>
-                      3
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-white">Feche o negócio</h4>
-                      <p className="text-sm" style={{ color: 'rgba(255,255,255,0.72)' }}>Venda com a melhor margem do mercado.</p>
-                    </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">{title}</h3>
+                    <p className="mt-1 text-xs text-white/60">{description}</p>
                   </div>
                 </div>
-              </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:justify-center lg:flex-col">
+              <Link
+                to="/anunciar"
+                className="inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-7 text-sm font-black shadow-lg transition hover:-translate-y-0.5"
+                style={{ backgroundColor: settings.accentColor, color: settings.secondaryColor }}
+              >
+                Anunciar Grátis
+                <ArrowRight className="h-4 w-4" strokeWidth={2} />
+              </Link>
+              <Link to="/planos" className="text-center text-xs font-semibold text-white/65 transition hover:text-white">
+                Conhecer planos
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      <HomeStoresCarousel />
-
-      <div className="h-px w-full" style={{ backgroundColor: settings.accentColor }} />
     </div>
   );
 };

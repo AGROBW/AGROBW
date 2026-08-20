@@ -17,9 +17,9 @@ const NewsCard: React.FC<NewsCardProps> = ({ news }) => {
   return (
     <a
       href={news.link}
-      className="group block h-full overflow-hidden rounded-xl border border-slate-100 bg-white transition-all duration-300"
+      className="group block h-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_20px_45px_-38px_rgba(15,23,42,0.5)] transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-[0_28px_55px_-36px_rgba(15,23,42,0.42)]"
     >
-      <div className="relative h-40 overflow-hidden">
+      <div className="relative h-44 overflow-hidden">
         <img
           src={news.imageUrl}
           alt={news.title}
@@ -36,7 +36,7 @@ const NewsCard: React.FC<NewsCardProps> = ({ news }) => {
         <div className="absolute inset-0 bg-black/5 transition-colors group-hover:bg-transparent" />
       </div>
 
-        <div className="p-5">
+      <div className="flex min-h-48 flex-col p-5">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
           {formattedDate}
         </p>
@@ -48,10 +48,10 @@ const NewsCard: React.FC<NewsCardProps> = ({ news }) => {
         </p>
 
         <div
-          className="mt-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest opacity-0 transition-opacity group-hover:opacity-100"
+          className="mt-auto flex items-center gap-2 pt-4 text-xs font-semibold"
           style={{ color: linkColor }}
         >
-          Ler notícia completa
+          Ler mais
           <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
         </div>
       </div>

@@ -84,10 +84,10 @@ const Footer: React.FC = () => {
   };
 
   return (
-    <footer className="pb-8 text-slate-300" style={{ backgroundColor: settings.secondaryColor }}>
+    <footer className="border-t border-white/10 pb-8 text-slate-300" style={{ backgroundColor: settings.secondaryColor }}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="border-t border-white/10 pt-12">
-          <div className="mb-12 grid grid-cols-1 gap-8 md:grid-cols-4">
+        <div className="pt-11 lg:pt-12">
+          <div className="mb-10 grid grid-cols-1 gap-9 sm:grid-cols-2 lg:grid-cols-[1.15fr_.75fr_.9fr_1.2fr] lg:gap-12">
             <div className="col-span-1 md:col-span-1">
               <Link to="/" className="mb-4 flex items-center gap-2">
                 {settings.logoLightUrl || settings.logoUrl ? (
@@ -111,7 +111,7 @@ const Footer: React.FC = () => {
                 )}
               </Link>
 
-              <p className="mb-6 text-sm leading-relaxed">
+              <p className="mb-6 max-w-xs text-sm leading-relaxed text-slate-400">
                 {settings.siteTagline ||
                   'Conectando o campo ao mercado com tecnologia, transparencia e as melhores oportunidades para o produtor rural brasileiro.'}
               </p>
@@ -218,7 +218,7 @@ const Footer: React.FC = () => {
                 </li>
               </ul>
 
-              <div className="mt-8">
+              <div className="mt-7">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">Receba novidades</p>
                 <div className="flex">
                   <input
@@ -252,7 +252,7 @@ const Footer: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-800 pt-8 md:flex-row">
+        <div className="flex flex-col items-center justify-between gap-5 border-t border-white/10 pt-7 md:flex-row">
           <p className="text-xs text-slate-500">
             &copy; 2024 {brandName}. Todos os direitos reservados. CNPJ: 66.980.493/0001-81
           </p>
