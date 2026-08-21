@@ -230,9 +230,9 @@ const BannersManagement: React.FC = () => {
           </div>
           <div>
             <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">Mobile / tablet</p>
-            <p className="mt-1 text-lg font-black text-slate-900">1200 x 750 px</p>
+            <p className="mt-1 text-lg font-black text-slate-900">1080 x 1080 px</p>
             <p className="mt-1 text-xs leading-5 text-slate-600">
-              Proporção 16:10, usada até 1022px. Prefira uma arte limpa: título, subtítulo, selo e botão já são aplicados pelo sistema.
+              Proporção 1:1, usada até 1022px e otimizada para preencher melhor celulares. Prefira uma arte limpa: título, subtítulo, selo e botão já são aplicados pelo sistema.
             </p>
           </div>
         </div>
@@ -414,7 +414,7 @@ const BannersManagement: React.FC = () => {
                   Imagem mobile/tablet (opcional)
                 </label>
                 <p className="mb-3 text-xs text-slate-500">
-                  Usada em telas até 1022px. Recomendação: <span className="font-semibold text-slate-700">1200x750 px</span> (proporção ~16:10). Se não enviar, o carrossel usa a arte desktop como fallback. Prefira uma arte <span className="font-semibold text-slate-700">limpa, sem textos embutidos</span> — título, subtítulo, selo e botão já são exibidos como elementos por cima da imagem.
+                  Usada em telas até 1022px. Recomendação: <span className="font-semibold text-slate-700">1080x1080 px</span> (proporção ~1:1). Se não enviar, o carrossel usa a arte desktop como fallback. Prefira uma arte <span className="font-semibold text-slate-700">limpa, sem textos embutidos</span> — título, subtítulo, selo e botão já são exibidos como elementos por cima da imagem.
                 </p>
 
                 {mobileImagePreview ? (
@@ -422,7 +422,7 @@ const BannersManagement: React.FC = () => {
                     <img
                       src={mobileImagePreview}
                       alt="Preview mobile/tablet"
-                      className="w-full aspect-[16/10] object-contain rounded-lg bg-slate-100"
+                      className="w-full aspect-square object-contain rounded-lg bg-slate-100"
                     />
                     <button
                       type="button"
@@ -437,7 +437,7 @@ const BannersManagement: React.FC = () => {
                     </button>
                   </div>
                 ) : (
-                  <label className="flex flex-col items-center justify-center w-full aspect-[16/10] border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-green-500 transition-colors bg-slate-50">
+                  <label className="flex flex-col items-center justify-center w-full aspect-square border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-green-500 transition-colors bg-slate-50">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                       {uploadingMobile ? (
                         <Loader2 className="w-10 h-10 text-green-600 animate-spin mb-2" />
@@ -448,7 +448,7 @@ const BannersManagement: React.FC = () => {
                         {uploadingMobile ? 'Enviando...' : 'Clique para enviar a arte mobile/tablet'}
                       </p>
                       <p className="text-xs text-slate-500 mt-1">
-                        JPG, PNG ou WebP • ~16:10 • mín. 900x560
+                        JPG, PNG ou WebP • ~1:1 • mín. 900x900
                       </p>
                     </div>
                     <input

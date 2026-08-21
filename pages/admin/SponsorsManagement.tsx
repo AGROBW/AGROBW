@@ -324,7 +324,7 @@ const SponsorsManagement: React.FC = () => {
       return;
     }
 
-    // Banner mobile/tablet: mesma validação (~16:10 + resolução mínima) e otimização
+    // Banner mobile/tablet: mesma validação (~1:1 + resolução mínima) e otimização
     // do Banners Home, apenas com bucket/caminho próprios (layout_assets/site-sponsors).
     if (field === 'mobileBannerUrl') {
       try {
@@ -1152,7 +1152,7 @@ const SponsorsManagement: React.FC = () => {
                         ) : null}
                       </div>
                       <p className="text-xs text-slate-500">
-                        Usada no carrossel da home em telas até 1023px. Prefira proporção ~16:10 (ex.: 1200x750). Se vazio, o carrossel usa o banner desktop acima como fallback. Envie preferencialmente uma arte limpa, sem textos embutidos.
+                        Usada no carrossel da home em telas até 1022px. Prefira proporção ~1:1 (ex.: 1080x1080) para preencher melhor celulares. Se vazio, o carrossel usa o banner desktop acima como fallback. Envie preferencialmente uma arte limpa, sem textos embutidos.
                       </p>
                     </div>
                   </div>

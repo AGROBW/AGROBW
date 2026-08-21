@@ -178,7 +178,7 @@ const readImageSize = (file: File): Promise<{ width: number; height: number }> =
 /**
  * Otimiza a arte mobile/tablet PRESERVANDO a proporção original (sem recorte),
  * apenas limitando a largura máxima e convertendo para WebP. Diferente de
- * optimizeImage(), NÃO força 1920x640 — a arte 16:10 precisa aparecer inteira.
+ * optimizeImage(), NÃO força 1920x640 — a arte quadrada precisa aparecer inteira.
  */
 const optimizeMobileImage = async (file: File): Promise<Blob> => {
   return new Promise((resolve, reject) => {
@@ -186,7 +186,7 @@ const optimizeMobileImage = async (file: File): Promise<Blob> => {
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const maxWidth = 1600; // teto para peso; mantém a proporção da arte
+        const maxWidth = 1080; // resolução recomendada; mantém a proporção da arte
         const scale = img.width > maxWidth ? maxWidth / img.width : 1;
         const width = Math.round(img.width * scale);
         const height = Math.round(img.height * scale);
@@ -215,7 +215,7 @@ const optimizeMobileImage = async (file: File): Promise<Blob> => {
 };
 
 /**
- * Valida (proporção ~16:10 APROXIMADA + resolução mínima, sem exigir dimensão exata)
+ * Valida (proporção ~1:1 APROXIMADA + resolução mínima, sem exigir dimensão exata)
  * e otimiza a arte mobile/tablet para WebP PRESERVANDO a proporção. NÃO faz upload —
  * retorna o Blob pronto, para ser reutilizado com diferentes buckets/caminhos.
  */
@@ -231,23 +231,23 @@ export const prepareMobileBannerBlob = async (
     return { blob: null, error: 'Arquivo muito grande. Máximo 10MB.' };
   }
 
-  // Validação aproximada (16:10 = 1.6) + resolução mínima. Não exige dimensão exata.
+  // Validação aproximada (1:1) + resolução mínima. Não exige dimensão exata.
   const { width, height } = await readImageSize(file);
   const MIN_WIDTH = 900;
-  const MIN_HEIGHT = 560;
+  const MIN_HEIGHT = 900;
   if (width < MIN_WIDTH || height < MIN_HEIGHT) {
     return {
       blob: null,
-      error: `Resolução muito baixa. Use ao menos ${MIN_WIDTH}x${MIN_HEIGHT}px (recomendado 1200x750).`,
+      error: `Resolução muito baixa. Use ao menos ${MIN_WIDTH}x${MIN_HEIGHT}px (recomendado 1080x1080).`,
     };
   }
   const ratio = width / height;
-  const target = 16 / 10; // 1.6
-  // Tolerância ~12% para aceitar artes proporcionais de boa qualidade.
-  if (ratio < target * 0.88 || ratio > target * 1.12) {
+  const target = 1;
+  // Tolerância de 10% para aceitar pequenas variações sem comprometer o encaixe.
+  if (ratio < target * 0.9 || ratio > target * 1.1) {
     return {
       blob: null,
-      error: 'Proporção fora do recomendado (~16:10). Envie algo próximo de 1200x750 para não distorcer.',
+      error: 'Proporção fora do recomendado (~1:1). Envie algo próximo de 1080x1080 para preencher melhor o celular.',
     };
   }
 
