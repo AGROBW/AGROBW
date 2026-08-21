@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Heart } from 'lucide-react';
+import { MapPin, Heart, Sparkles, Store } from 'lucide-react';
 import { Ad } from '../types';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useFavorites } from '../src/hooks/useFavorites';
@@ -12,6 +12,7 @@ import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 import { debugLog } from '../src/utils/debugLog';
 import { appWarn } from '../src/utils/appLogger';
+import VerifiedBadge from './VerifiedBadge';
 
 interface AdCardProps {
   ad: Ad;
@@ -131,6 +132,12 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto', vari
         ? 'border-2 shadow-lg' 
         : 'border border-slate-100'
     }`} style={cardStyle}>
+      {ad.isPremium && !hasActiveHighlight && (
+        <div className="absolute left-4 top-4 z-10 rounded bg-yellow-400 px-2 py-1 text-[10px] font-black uppercase text-yellow-900 shadow-sm">
+          Premium
+        </div>
+      )}
+
       {/* Botão de Favoritar */}
       <button
         onClick={handleFavoriteClick}
@@ -171,6 +178,24 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto', vari
         <h3 className={`font-semibold text-slate-800 line-clamp-2 leading-tight transition-colors group-hover:opacity-90 ${isCompact ? 'mb-2 h-9 text-[13px]' : 'mb-3 h-10 text-sm'}`} style={{ color: 'var(--brand-text)' }}>
           {ad.title}
         </h3>
+
+        {(ad.seller?.document_verified || hasOfficialStore || ad.acceptsTrade) && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {ad.seller?.document_verified && <VerifiedBadge variant="small" />}
+            {hasOfficialStore && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                <Store className="h-3.5 w-3.5" strokeWidth={1.8} />
+                Loja Parceira
+              </span>
+            )}
+            {ad.acceptsTrade && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                <Sparkles className="h-3.5 w-3.5" strokeWidth={1.8} />
+                Aceita troca
+              </span>
+            )}
+          </div>
+        )}
         
         <div className={`mt-auto border-t border-slate-100 ${isCompact ? 'pt-2.5' : 'pt-3'}`}>
           <div>

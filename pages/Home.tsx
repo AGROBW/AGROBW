@@ -303,8 +303,7 @@ const Home: React.FC = () => {
         items={highlightedAds}
         isLoading={adsLoading}
         emptyMessage="Nenhum anúncio em destaque no momento."
-        skeletonCount={6}
-        density="compact"
+        skeletonCount={4}
         sectionClassName="w-full border-y py-8 lg:py-10"
         sectionStyle={{
           backgroundColor: `color-mix(in srgb, ${settings.primaryColor} 6%, white)`,
@@ -313,7 +312,7 @@ const Home: React.FC = () => {
         renderItem={(ad) =>
           isAdValid(ad) ? (
             <AdCardErrorBoundary>
-              <AdCard ad={ad} highlightDisplayMode="home" variant="compact" />
+              <AdCard ad={ad} highlightDisplayMode="home" />
             </AdCardErrorBoundary>
           ) : (
             <AdFallbackCard />
@@ -328,9 +327,8 @@ const Home: React.FC = () => {
         items={recentAds}
         isLoading={adsLoading}
         emptyMessage="Nenhum anúncio publicado recentemente."
-        skeletonCount={8}
+        skeletonCount={4}
         sectionClassName="w-full py-8 lg:py-10"
-        density="compact"
         footer={
           <Link to="/anuncios" className="inline-block px-8 h-10 leading-10 rounded-lg font-semibold text-center text-white" style={{ backgroundColor: settings.secondaryColor }}>
             Ver Mais Anúncios
@@ -339,7 +337,7 @@ const Home: React.FC = () => {
         renderItem={(ad) =>
           isAdValid(ad) ? (
             <AdCardErrorBoundary>
-              <AdCard ad={ad} variant="compact" />
+              <AdCard ad={ad} />
             </AdCardErrorBoundary>
           ) : (
             <AdFallbackCard />
@@ -347,9 +345,9 @@ const Home: React.FC = () => {
         }
       />
 
-      <HomeStoresCarousel />
-
       <NewsGrid />
+
+      <HomeStoresCarousel />
 
       <section
         className="relative overflow-hidden py-9 lg:py-10"
