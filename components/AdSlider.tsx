@@ -334,37 +334,37 @@ const AdSlider: React.FC = () => {
               );
             })()}
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-slate-950/55 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-slate-950/75 to-transparent sm:from-slate-950/55" />
           </div>
 
-          <div className="relative mx-auto flex h-full max-w-7xl flex-col items-start justify-center px-5 pb-20 text-white sm:px-8 lg:px-12 lg:pb-24">
+          <div className="relative mx-auto flex h-full max-w-7xl flex-col items-start justify-end px-4 pb-20 text-white sm:justify-center sm:px-8 lg:px-12 lg:pb-24">
             <div
-              className={`max-w-[320px] transform transition-all delay-300 duration-700 sm:max-w-[540px] lg:max-w-[620px] ${
+              className={`max-w-[290px] transform transition-all delay-300 duration-700 sm:max-w-[540px] lg:max-w-[620px] ${
                 index === current ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
               }`}
             >
-              <span className="mb-3 inline-block rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] backdrop-blur-md">
+              <span className="mb-2 inline-block rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] backdrop-blur-md sm:mb-3 sm:px-3 sm:text-[10px] sm:tracking-[0.2em]">
                 {slide.badge_text}
               </span>
-              <h2 className="mb-3 text-3xl font-black leading-[1.05] tracking-[-0.035em] sm:text-4xl lg:text-5xl">{slide.title}</h2>
-              <p className="mb-6 max-w-xl text-sm leading-6 text-slate-200 sm:text-base">{slide.subtitle}</p>
+              <h2 className="mb-2 text-xl font-black leading-tight tracking-[-0.025em] sm:mb-3 sm:text-4xl sm:leading-[1.05] sm:tracking-[-0.035em] lg:text-5xl">{slide.title}</h2>
+              <p className="mb-4 line-clamp-2 max-w-[290px] text-xs leading-5 text-slate-200 sm:mb-6 sm:max-w-xl sm:text-base sm:leading-6">{slide.subtitle}</p>
               <div className="flex gap-4">
                 {slide.slide_type === 'banner' ? (
                   <a
                     href={slide.button_link}
-                    className="group flex h-11 items-center gap-2 rounded-lg bg-green-600 px-5 text-sm font-bold text-white transition-all hover:bg-green-700"
+                    className="group flex h-9 items-center gap-1.5 rounded-lg bg-green-600 px-4 text-xs font-bold text-white transition-all hover:bg-green-700 sm:h-11 sm:gap-2 sm:px-5 sm:text-sm"
                   >
                     {slide.button_text}
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" strokeWidth={1.5} />
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1 sm:h-4 sm:w-4" strokeWidth={1.5} />
                   </a>
                 ) : (
                   <button
                     type="button"
                     onClick={() => void handleSponsorClick(slide)}
-                    className="group flex h-11 items-center gap-2 rounded-lg bg-green-600 px-5 text-sm font-bold text-white transition-all hover:bg-green-700"
+                    className="group flex h-9 items-center gap-1.5 rounded-lg bg-green-600 px-4 text-xs font-bold text-white transition-all hover:bg-green-700 sm:h-11 sm:gap-2 sm:px-5 sm:text-sm"
                   >
                     {slide.button_text}
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" strokeWidth={1.5} />
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1 sm:h-4 sm:w-4" strokeWidth={1.5} />
                   </button>
                 )}
               </div>
