@@ -398,6 +398,7 @@ export interface Message {
   senderAvatar?: string;
   isFiltered?: boolean; // Mensagem filtrada por conter contato não autorizado
   isPending?: boolean;
+  proposal?: import('./src/lib/leads/commercialProposal').CommercialProposal | null;
 }
 
 // Importar tipos de status das constantes centralizadas

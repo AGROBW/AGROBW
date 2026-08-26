@@ -10,6 +10,27 @@ import { Chat, Message, LeadStatus } from '../../types'
 import { LEAD_STATUS } from '../../constants/status'
 import { toast } from 'sonner'
 import { appError, appWarn } from '../utils/appLogger'
+import { normalizeCommercialProposal } from '../lib/leads/commercialProposal'
+
+const MESSAGE_SELECT = `
+  *,
+  users (name, avatar),
+  proposal:lead_commercial_proposals (
+    id,
+    lead_id,
+    chat_id,
+    buyer_id,
+    seller_id,
+    amount,
+    payment_terms,
+    delivery_terms,
+    valid_until,
+    notes,
+    status,
+    created_at,
+    responded_at
+  )
+`
 
 const getChatFreezeState = (
   status?: string | null,
@@ -467,7 +488,8 @@ export const useMessages = (chatId: string | null, fallbackOtherUserName?: strin
       timestamp: msg.created_at,
       isRead: msg.is_read,
       senderAvatar: msg.users?.avatar,
-      isFiltered: msg.is_filtered
+      isFiltered: msg.is_filtered,
+      proposal: normalizeCommercialProposal(msg.proposal)
     }))
   }, [])
 
@@ -551,10 +573,7 @@ export const useMessages = (chatId: string | null, fallbackOtherUserName?: strin
 
       const { data, error } = await supabase
         .from('messages')
-        .select(`
-          *,
-          users (name, avatar)
-        `)
+        .select(MESSAGE_SELECT)
         .eq('chat_id', chatId)
         .order('created_at', { ascending: true })
 
@@ -619,7 +638,8 @@ export const useMessages = (chatId: string | null, fallbackOtherUserName?: strin
             timestamp: payload.new.created_at,
             isRead: payload.new.is_read,
             senderAvatar: userData?.avatar,
-            isFiltered: payload.new.is_filtered
+            isFiltered: payload.new.is_filtered,
+            proposal: null
           }
 
           newMessage.senderName = resolveSenderName(payload.new.sender_id, newMessage.senderName)
@@ -712,10 +732,7 @@ export const useMessages = (chatId: string | null, fallbackOtherUserName?: strin
       startAppSync()
       void supabase
         .from('messages')
-        .select(`
-          *,
-          users (name, avatar)
-        `)
+        .select(MESSAGE_SELECT)
         .eq('chat_id', chatId)
         .order('created_at', { ascending: true })
         .then(async ({ data, error }) => {
@@ -828,7 +845,26 @@ export const useMessages = (chatId: string | null, fallbackOtherUserName?: strin
     return true
   }
 
-  return { messages, isLoading, error, sendMessage, markAsRead, channel }
+  const respondToProposal = async (proposalId: string, response: 'accepted' | 'rejected'): Promise<boolean> => {
+    if (!chatId || !user || !proposalId) return false
+
+    const { error } = await supabase.rpc('respond_lead_commercial_proposal', {
+      p_proposal_id: proposalId,
+      p_response: response
+    })
+
+    if (error) {
+      appError('Erro ao responder proposta comercial', error, { chatId, proposalId, userId: user.id })
+      toast.error('Não foi possível responder a proposta.', { description: error.message })
+      return false
+    }
+
+    toast.success(response === 'accepted' ? 'Proposta aceita.' : 'Proposta recusada.')
+    emitCountsRefresh()
+    return true
+  }
+
+  return { messages, isLoading, error, sendMessage, respondToProposal, markAsRead, channel }
 }
 
 export const useLeadStatus = (chatId: string | null) => {

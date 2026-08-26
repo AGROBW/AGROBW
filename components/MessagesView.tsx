@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Search, Check, CheckCheck, Circle, Loader2, ArrowLeft, AlertCircle, Lock } from 'lucide-react';
+import { Send, Search, Check, CheckCheck, Circle, Loader2, ArrowLeft, AlertCircle, Lock, CalendarDays, CheckCircle2, FileSignature, XCircle } from 'lucide-react';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useChats, useMessages } from '../src/hooks/useMessages';
 import { formatDistanceToNow } from 'date-fns';
@@ -8,6 +8,11 @@ import { ptBR } from 'date-fns/locale';
 import { useLocation, useNavigate } from 'react-router-dom';
 import LogisticsSidebar from './LogisticsSidebar';
 import { debugLog } from '../src/utils/debugLog';
+import {
+  COMMERCIAL_PROPOSAL_STATUS,
+  formatCommercialProposalAmount,
+  isCommercialProposalExpired,
+} from '../src/lib/leads/commercialProposal';
 
 interface MessagesViewProps {
   initialChatId?: string;
@@ -29,13 +34,14 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const [activeTab, setActiveTab] = useState<MessageTab>('sent');
   const [searchQuery, setSearchQuery] = useState('');
   const [messageText, setMessageText] = useState('');
+  const [respondingProposalId, setRespondingProposalId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const selectedChat = chats.find(c => c.id === selectedChatId);
   const selectedChatOtherUserName = selectedChat
     ? (user?.id === selectedChat.buyerId ? selectedChat.sellerName : selectedChat.buyerName)
     : undefined;
   
-  const { messages, isLoading: messagesLoading, sendMessage } = useMessages(selectedChatId, selectedChatOtherUserName);
+  const { messages, isLoading: messagesLoading, sendMessage, respondToProposal } = useMessages(selectedChatId, selectedChatOtherUserName);
   const isSellerInSelectedChat = selectedChat?.sellerId === user?.id;
   const isLeadContactExpired = selectedChat?.freezeReason === 'lead_contact_expired';
   const isReceivedTab = activeTab === 'received';
@@ -493,6 +499,19 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                 {messages.map((message, index) => {
                   const isOwn = message.senderId === user?.id;
                   const showAvatar = index === 0 || messages[index - 1].senderId !== message.senderId;
+                  const proposal = message.proposal;
+                  const proposalExpired = proposal ? isCommercialProposalExpired(proposal) : false;
+                  const canRespondToProposal = !!proposal
+                    && selectedChat?.buyerId === user?.id
+                    && proposal.status === COMMERCIAL_PROPOSAL_STATUS.SENT
+                    && !proposalExpired;
+
+                  const handleProposalResponse = async (response: 'accepted' | 'rejected') => {
+                    if (!proposal || respondingProposalId) return;
+                    setRespondingProposalId(proposal.id);
+                    await respondToProposal(proposal.id, response);
+                    setRespondingProposalId(null);
+                  };
                   
                   return (
                     <motion.div
@@ -515,16 +534,53 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                       
                       {!showAvatar && !isOwn && <div className="w-8" />}
                       
-                      <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
-                        <div
-                          className={`px-4 py-2 rounded-2xl ${
-                            isOwn
-                              ? 'bg-green-600 text-white rounded-br-none'
-                              : 'bg-white border border-slate-200 text-slate-900 rounded-bl-none'
-                          }`}
-                        >
-                          <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-                        </div>
+                      <div className={`${proposal ? 'max-w-[88%] sm:max-w-[420px]' : 'max-w-[70%]'} ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
+                        {proposal ? (
+                          <div className="w-full overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
+                            <div className="flex items-center justify-between gap-3 bg-slate-950 px-4 py-3 text-white">
+                              <div className="flex items-center gap-2"><FileSignature className="h-4 w-4 text-emerald-300" /><span className="text-xs font-black uppercase tracking-[0.14em]">Proposta comercial</span></div>
+                              <span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase ${
+                                proposal.status === COMMERCIAL_PROPOSAL_STATUS.ACCEPTED
+                                  ? 'bg-emerald-400/20 text-emerald-200'
+                                  : proposal.status === COMMERCIAL_PROPOSAL_STATUS.REJECTED
+                                    ? 'bg-rose-400/20 text-rose-200'
+                                    : proposalExpired
+                                      ? 'bg-slate-400/20 text-slate-300'
+                                      : 'bg-amber-400/20 text-amber-200'
+                              }`}>
+                                {proposal.status === COMMERCIAL_PROPOSAL_STATUS.ACCEPTED ? 'Aceita' : proposal.status === COMMERCIAL_PROPOSAL_STATUS.REJECTED ? 'Recusada' : proposalExpired ? 'Expirada' : 'Aguardando resposta'}
+                              </span>
+                            </div>
+                            <div className="space-y-3 p-4">
+                              <div><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Valor proposto</p><p className="mt-1 text-2xl font-black text-emerald-700">{formatCommercialProposalAmount(proposal.amount)}</p></div>
+                              <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600"><CalendarDays className="h-4 w-4 text-emerald-600" />Válida até {new Date(`${proposal.validUntil}T12:00:00`).toLocaleDateString('pt-BR')}</div>
+                              {(proposal.paymentTerms || proposal.deliveryTerms) && (
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                  {proposal.paymentTerms && <div className="rounded-xl border border-slate-100 p-3"><p className="text-[9px] font-black uppercase text-slate-400">Pagamento</p><p className="mt-1 text-xs leading-5 text-slate-700">{proposal.paymentTerms}</p></div>}
+                                  {proposal.deliveryTerms && <div className="rounded-xl border border-slate-100 p-3"><p className="text-[9px] font-black uppercase text-slate-400">Entrega</p><p className="mt-1 text-xs leading-5 text-slate-700">{proposal.deliveryTerms}</p></div>}
+                                </div>
+                              )}
+                              {proposal.notes && <p className="whitespace-pre-wrap rounded-xl bg-emerald-50/70 p-3 text-xs leading-5 text-slate-600">{proposal.notes}</p>}
+                              {canRespondToProposal && (
+                                <div className="grid grid-cols-2 gap-2 pt-1">
+                                  <button type="button" disabled={respondingProposalId === proposal.id} onClick={() => void handleProposalResponse('rejected')} className="flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 px-3 py-2.5 text-xs font-black text-rose-700 hover:bg-rose-50 disabled:opacity-50"><XCircle className="h-4 w-4" />Recusar</button>
+                                  <button type="button" disabled={respondingProposalId === proposal.id} onClick={() => void handleProposalResponse('accepted')} className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-50">{respondingProposalId === proposal.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Aceitar</button>
+                                </div>
+                              )}
+                              <p className="text-[9px] leading-4 text-slate-400">A resposta registra a intenção comercial e não cria cobrança ou contrato automaticamente.</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            className={`px-4 py-2 rounded-2xl ${
+                              isOwn
+                                ? 'bg-green-600 text-white rounded-br-none'
+                                : 'bg-white border border-slate-200 text-slate-900 rounded-bl-none'
+                            }`}
+                          >
+                            <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                          </div>
+                        )}
                         
                         <div className={`flex items-center gap-1 mt-1 px-1 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
                           <span className="text-xs text-slate-400">

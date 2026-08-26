@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Send, AlertCircle } from 'lucide-react';
+import { X, Send, AlertCircle, ChevronDown, Sparkles } from 'lucide-react';
 import { supabase } from '../src/lib/supabaseClient';
 import { useAuth } from '../src/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -9,6 +9,15 @@ import { isTimestampExpired, syncTrustedTime } from '../src/lib/trustedTime';
 import { recordContactLegalConsents } from '../src/lib/legalConsents';
 import { debugLog } from '../src/utils/debugLog';
 import { appError, appWarn } from '../src/utils/appLogger';
+import {
+  PAYMENT_PREFERENCE_OPTIONS,
+  PURCHASE_TIMELINE_OPTIONS,
+  createEmptyLeadQualification,
+  hasLeadQualificationAnswers,
+  type LeadQualificationInput,
+  type PaymentPreference,
+  type PurchaseTimeline,
+} from '../src/lib/leads/leadQualification';
 
 const applyPhoneMask = (value: string) => {
   const numbers = value.replace(/\D/g, '');
@@ -42,6 +51,8 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
   const { settings } = useLayout();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showQualification, setShowQualification] = useState(false);
+  const [qualification, setQualification] = useState<LeadQualificationInput>(createEmptyLeadQualification);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -52,6 +63,8 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
 
   useEffect(() => {
     if (isOpen && user) {
+      setShowQualification(false);
+      setQualification(createEmptyLeadQualification());
       const fetchUserData = async () => {
         const { data, error } = await supabase
           .from('users')
@@ -255,12 +268,15 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
           return;
         }
 
-          debugLog('[Lead] Lead criado com sucesso. ID:', leadData.id);
+        existingLeadId = leadData.id;
+        debugLog('[Lead] Lead criado com sucesso. ID:', leadData.id);
       } else {
         const { data: existingLead, error: existingLeadError } = await supabase
           .from('leads')
           .select('id')
           .eq('chat_id', chatId)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         if (existingLeadError) {
@@ -357,6 +373,37 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         return;
       }
 
+      if (existingLeadId && hasLeadQualificationAnswers(qualification)) {
+        void (async () => {
+          try {
+            const { error: qualificationError } = await supabase.rpc('upsert_lead_qualification', {
+              p_lead_id: existingLeadId,
+              p_purchase_timeline: qualification.purchaseTimeline,
+              p_payment_preference: qualification.paymentPreference,
+              p_has_trade_in: qualification.hasTradeIn,
+              p_purchase_need: qualification.purchaseNeed.trim() || null,
+            });
+
+            if (!qualificationError) return;
+            appWarn('[LeadQualification] Nao foi possivel salvar a qualificacao opcional', {
+              announcementId,
+              sellerId,
+              buyerId: user.id,
+              leadId: existingLeadId,
+              error: qualificationError,
+            });
+          } catch (qualificationError) {
+            appWarn('[LeadQualification] Falha inesperada ao salvar a qualificacao opcional', {
+              announcementId,
+              sellerId,
+              buyerId: user.id,
+              leadId: existingLeadId,
+              error: qualificationError,
+            });
+          }
+        })();
+      }
+
       toast.success('Mensagem enviada com sucesso.', {
         description: 'O vendedor recebeu seu contato e a conversa foi iniciada com sucesso.',
       });
@@ -372,6 +419,8 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
           message: '',
         });
         setAcceptedTerms(false);
+        setShowQualification(false);
+        setQualification(createEmptyLeadQualification());
       }, 300);
     } catch (error) {
       appError('[Contact] Erro inesperado', error, {
@@ -491,6 +540,104 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
                 placeholder="00000-000"
               />
             </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50/50">
+            <button
+              type="button"
+              onClick={() => setShowQualification((current) => !current)}
+              aria-expanded={showQualification}
+              className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-emerald-50"
+            >
+              <span className="flex min-w-0 items-start gap-3">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                  <Sparkles className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-black text-slate-900">Agilize o atendimento</span>
+                    <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700">Opcional</span>
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    Informe seu momento de compra para o vendedor preparar uma resposta melhor.
+                  </span>
+                </span>
+              </span>
+              <ChevronDown className={`h-5 w-5 shrink-0 text-emerald-700 transition ${showQualification ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showQualification && (
+              <div className="space-y-4 border-t border-emerald-200 bg-white p-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-600">Quando pretende comprar?</label>
+                    <select
+                      value={qualification.purchaseTimeline || ''}
+                      onChange={(event) => setQualification((current) => ({
+                        ...current,
+                        purchaseTimeline: (event.target.value || null) as PurchaseTimeline | null,
+                      }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50"
+                    >
+                      <option value="">Nao informar</option>
+                      {PURCHASE_TIMELINE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-600">Como pretende pagar?</label>
+                    <select
+                      value={qualification.paymentPreference || ''}
+                      onChange={(event) => setQualification((current) => ({
+                        ...current,
+                        paymentPreference: (event.target.value || null) as PaymentPreference | null,
+                      }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50"
+                    >
+                      <option value="">Nao informar</option>
+                      {PAYMENT_PREFERENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-600">Possui maquina ou equipamento para troca?</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: 'Nao informar', value: null },
+                      { label: 'Sim', value: true },
+                      { label: 'Nao', value: false },
+                    ].map((option) => (
+                      <button
+                        key={option.label}
+                        type="button"
+                        onClick={() => setQualification((current) => ({ ...current, hasTradeIn: option.value }))}
+                        className={`rounded-xl border px-2 py-2.5 text-xs font-black transition ${
+                          qualification.hasTradeIn === option.value
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-xs font-black uppercase tracking-wide text-slate-600">O que voce precisa resolver?</label>
+                  <textarea
+                    value={qualification.purchaseNeed}
+                    onChange={(event) => setQualification((current) => ({ ...current, purchaseNeed: event.target.value }))}
+                    maxLength={500}
+                    rows={3}
+                    className="w-full resize-none rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700 outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50"
+                    placeholder="Ex.: preciso financiar um equipamento para a proxima safra."
+                  />
+                  <p className="mt-1 text-right text-[10px] text-slate-400">{qualification.purchaseNeed.length}/500</p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
