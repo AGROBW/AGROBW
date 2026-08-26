@@ -81,6 +81,8 @@ const NewsArticleForm: React.FC<NewsArticleFormProps> = ({
   const [generating, setGenerating] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+  const [imagePreviewError, setImagePreviewError] = useState(false);
 
   useEffect(() => {
     setForm(buildInitialState(initialArticle));
@@ -101,6 +103,29 @@ const NewsArticleForm: React.FC<NewsArticleFormProps> = ({
         : null
     );
   }, [initialArticle]);
+
+  useEffect(() => {
+    const candidate = form.featuredImageUrl.trim();
+    setImagePreviewError(false);
+
+    if (!candidate) {
+      setImagePreviewUrl('');
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      try {
+        const parsedUrl = new URL(candidate);
+        setImagePreviewUrl(['http:', 'https:'].includes(parsedUrl.protocol) ? candidate : '');
+        setImagePreviewError(!['http:', 'https:'].includes(parsedUrl.protocol));
+      } catch {
+        setImagePreviewUrl('');
+        setImagePreviewError(true);
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [form.featuredImageUrl]);
 
   const setValue = (field: keyof NewsArticleDraftForm, value: string | NewsArticleStatus | null | undefined) => {
     setForm((prev) => ({ ...prev, [field]: value ?? '' }));
@@ -186,40 +211,58 @@ const NewsArticleForm: React.FC<NewsArticleFormProps> = ({
           <input value={form.originalTitle} onChange={(event) => setValue('originalTitle', event.target.value)} placeholder="Titulo original" className="h-11 rounded-xl border border-slate-200 px-4 text-sm" />
           <input value={form.originalPortalName} onChange={(event) => setValue('originalPortalName', event.target.value)} placeholder="Veiculo / fonte" className="h-11 rounded-xl border border-slate-200 px-4 text-sm" />
           <input value={form.originalPublishedAt} onChange={(event) => setValue('originalPublishedAt', event.target.value)} type="date" className="h-11 rounded-xl border border-slate-200 px-4 text-sm" />
-          <input value={form.featuredImageUrl} onChange={(event) => setValue('featuredImageUrl', event.target.value)} placeholder="Imagem destacada (URL)" className="h-11 rounded-xl border border-slate-200 px-4 text-sm" />
+          <div>
+            <input
+              value={form.featuredImageUrl}
+              onChange={(event) => setValue('featuredImageUrl', event.target.value)}
+              placeholder="Imagem destacada (URL)"
+              inputMode="url"
+              className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm"
+            />
+            <p className={`mt-1.5 text-xs ${imagePreviewError ? 'text-rose-600' : 'text-slate-400'}`}>
+              {imagePreviewError
+                ? 'Nao foi possivel carregar uma imagem valida por esta URL.'
+                : 'A previa abaixo e atualizada automaticamente.'}
+            </p>
+          </div>
         </div>
 
-        {preview ? (
-          <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr,0.8fr]">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                Previa do conteudo extraido
-              </p>
-              <div className="mt-3 space-y-2 text-sm text-slate-600">
-                <p><span className="font-semibold text-slate-900">Titulo original:</span> {preview.originalTitle || 'Nao identificado'}</p>
-                <p><span className="font-semibold text-slate-900">Fonte:</span> {preview.originalPortalName || 'Nao identificada'}</p>
-                <p><span className="font-semibold text-slate-900">Data original:</span> {preview.originalPublishedAt || 'Nao informada'}</p>
+        {(preview || form.featuredImageUrl.trim()) ? (
+          <div className={`mt-5 grid grid-cols-1 gap-4 ${preview ? 'lg:grid-cols-[1.2fr,0.8fr]' : ''}`}>
+            {preview ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                  Previa do conteudo extraido
+                </p>
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  <p><span className="font-semibold text-slate-900">Titulo original:</span> {preview.originalTitle || 'Nao identificado'}</p>
+                  <p><span className="font-semibold text-slate-900">Fonte:</span> {preview.originalPortalName || 'Nao identificada'}</p>
+                  <p><span className="font-semibold text-slate-900">Data original:</span> {preview.originalPublishedAt || 'Nao informada'}</p>
+                </div>
+                <textarea
+                  value={preview.extractedText}
+                  readOnly
+                  rows={10}
+                  className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600"
+                />
               </div>
-              <textarea
-                value={preview.extractedText}
-                readOnly
-                rows={10}
-                className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600"
-              />
-            </div>
+            ) : null}
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
                 Imagem destacada
               </p>
-              {preview.featuredImageUrl ? (
+              {imagePreviewUrl && !imagePreviewError ? (
                 <img
-                  src={preview.featuredImageUrl}
-                  alt={preview.originalTitle || 'Imagem da materia'}
+                  key={imagePreviewUrl}
+                  src={imagePreviewUrl}
+                  alt={form.originalTitle || form.title || 'Imagem da materia'}
+                  onLoad={() => setImagePreviewError(false)}
+                  onError={() => setImagePreviewError(true)}
                   className="mt-3 h-56 w-full rounded-2xl object-cover"
                 />
               ) : (
                 <div className="mt-3 flex h-56 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
-                  Nenhuma imagem detectada
+                  {imagePreviewError ? 'A imagem nao pode ser carregada' : 'Informe uma URL de imagem'}
                 </div>
               )}
             </div>
@@ -248,7 +291,10 @@ const NewsArticleForm: React.FC<NewsArticleFormProps> = ({
           <input value={form.title} onChange={(event) => setValue('title', event.target.value)} placeholder="Titulo novo" className="h-12 rounded-xl border border-slate-200 px-4 text-sm" />
           <input value={form.subtitle} onChange={(event) => setValue('subtitle', event.target.value)} placeholder="Subtitulo" className="h-11 rounded-xl border border-slate-200 px-4 text-sm" />
           <textarea value={form.summary} onChange={(event) => setValue('summary', event.target.value)} placeholder="Resumo" rows={3} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
-          <textarea value={form.content} onChange={(event) => setValue('content', event.target.value)} placeholder="Conteudo da materia" rows={10} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
+          <div>
+            <textarea value={form.content} onChange={(event) => setValue('content', event.target.value)} placeholder="Conteudo da materia" rows={14} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-7" />
+            <p className="mt-2 text-xs text-slate-400">Use uma linha vazia entre parágrafos, <strong>## Subtítulo</strong> para seções e <strong>- item</strong> para listas.</p>
+          </div>
           {settings?.showAgroImpact ? (
             <textarea value={form.agroImpact} onChange={(event) => setValue('agroImpact', event.target.value)} placeholder="Bloco Impacto no Agro" rows={4} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
           ) : null}
