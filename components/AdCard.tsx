@@ -13,6 +13,7 @@ import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 import { debugLog } from '../src/utils/debugLog';
 import { appWarn } from '../src/utils/appLogger';
 import VerifiedBadge from './VerifiedBadge';
+import { getAnnouncementPath } from '../src/lib/announcementUrl';
 
 interface AdCardProps {
   ad: Ad;
@@ -207,7 +208,7 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto', vari
       
       <div className={`mt-auto ${isCompact ? 'px-3.5 pb-3.5' : 'px-5 pb-5'}`}>
         <Link 
-          to={`/anuncio/${ad.id}`}
+          to={getAnnouncementPath(ad)}
           onClick={() => {
             // Captura de cliques por estado para analytics (fire-and-forget)
             detectUserState().then(userState => {

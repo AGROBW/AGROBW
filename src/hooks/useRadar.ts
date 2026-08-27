@@ -43,6 +43,7 @@ export interface OpportunityMatch {
   // Dados do anúncio (via join)
   announcement?: {
     id: string;
+    slug?: string | null;
     title: string;
     price: number;
     images: string[];
@@ -240,6 +241,7 @@ export const useRadar = () => {
           *,
           announcements (
             id,
+            slug,
             title,
             price,
             images,

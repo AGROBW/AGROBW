@@ -88,14 +88,17 @@ const defaultIsSocialCrawler = (req) => SOCIAL_UA_RE.test(String(req?.headers?.[
 const queryOutcome = async (client, route, signal, nowMs) => {
   try {
     if (route.type === 'ad') {
-      const { data, error } = await client
+      let query = client
         .from('announcements')
-        .select('id, status, expires_at')
-        .eq('id', route.id)
-        .abortSignal(signal)
-        .maybeSingle();
+        .select('id, slug, status, expires_at');
+      query = route.lookupBy === 'slug'
+        ? query.eq('slug', route.slug)
+        : query.eq('id', route.id);
+      const { data, error } = await query.abortSignal(signal).maybeSingle();
       if (error) return { outcome: 'transient_error' };
-      return data && isEligibleAnnouncement(data, nowMs) ? { outcome: 'found' } : { outcome: 'not_found' };
+      return data && isEligibleAnnouncement(data, nowMs)
+        ? { outcome: 'found', announcement: data }
+        : { outcome: 'not_found' };
     }
 
     if (route.type === 'store') {
@@ -264,6 +267,34 @@ export const createDocumentStatusHandler = (deps = {}) => {
     const status = mapOutcomeToStatus(result.outcome);
     if (result.outcome !== 'found' && result.outcome !== 'not_found') {
       logger.warn(`[document] ${route.type} indisponivel`);
+    }
+
+    if (
+      status === 200 &&
+      route.type === 'ad' &&
+      route.lookupBy === 'id' &&
+      result.announcement?.slug
+    ) {
+      const search = new URLSearchParams();
+      for (const [key, rawValue] of Object.entries(req.query || {})) {
+        if (key === '_seo_route' || key === 'path') continue;
+        const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+        for (const value of values) {
+          if (typeof value === 'string') search.append(key, value);
+        }
+      }
+      const suffix = search.toString();
+      sendResponse(
+        res,
+        method,
+        308,
+        {
+          'Location': `${CANONICAL_ORIGIN}/anuncio/${result.announcement.slug}${suffix ? `?${suffix}` : ''}`,
+          'Cache-Control': 'public, max-age=3600',
+        },
+        '',
+      );
+      return;
     }
 
     // Loja encontrada + crawler social: HTML com OG específico, reusando os

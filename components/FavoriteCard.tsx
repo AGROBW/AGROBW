@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { useFavorites } from '../src/hooks/useFavorites';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
+import { getAnnouncementPath } from '../src/lib/announcementUrl';
 
 interface FavoriteCardProps {
   favorite: Favorite;
@@ -166,7 +167,7 @@ export const FavoriteCard: React.FC<FavoriteCardProps> = ({
               </span>
             ) : (
               <a
-                href={`/anuncio/${ad.id}`}
+                href={getAnnouncementPath(ad)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-1.5 hover:bg-slate-100 rounded transition-colors"

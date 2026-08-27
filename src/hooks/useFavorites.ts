@@ -34,6 +34,7 @@ export const useFavorites = () => {
         *,
         announcements (
           id,
+          slug,
           title,
           description,
           price,
@@ -67,6 +68,7 @@ export const useFavorites = () => {
           adId: fav.announcement_id,
           ad: {
             id: fav.announcements.id,
+            slug: fav.announcements.slug,
             title: fav.announcements.title,
             description: fav.announcements.description,
             price: parseFloat(fav.announcements.price),

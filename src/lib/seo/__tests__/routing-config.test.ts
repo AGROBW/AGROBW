@@ -50,7 +50,7 @@ describe('vercel.json: OG/sitemap preservados', () => {
 
 describe('vercel.json: rotas dinâmicas → modo document com captura documentada', () => {
   it.each([
-    ['/anuncio/:id', '/api/og-loja?_seo_route=document&path=/anuncio/:id'],
+    ['/anuncio/:identifier', '/api/og-loja?_seo_route=document&path=/anuncio/:identifier'],
     ['/loja/:slug', '/api/og-loja?_seo_route=document&path=/loja/:slug'],
     ['/noticias/:slug', '/api/og-loja?_seo_route=document&path=/noticias/:slug'],
     ['/p/:slug', '/api/og-loja?_seo_route=document&path=/p/:slug'],
@@ -107,7 +107,7 @@ describe('vercel.json: passthrough explícito e catch-all', () => {
   });
 
   it('ordem: dinâmicas < passthrough < catch-all (catch-all é o ÚLTIMO)', () => {
-    const iDyn = indexOfSource((r) => r.source === '/anuncio/:id');
+    const iDyn = indexOfSource((r) => r.source === '/anuncio/:identifier');
     const iPass = indexOfSource((r) => PASSTHROUGH_RE.test(r.source) && r.destination === '/index.html');
     const iCatch = rewrites.length - 1;
     expect(iDyn).toBeGreaterThanOrEqual(0);

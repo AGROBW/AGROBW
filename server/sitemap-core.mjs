@@ -79,10 +79,11 @@ export const cdnCacheControlFor = (mode) =>
     ? 'public, s-maxage=3600, stale-while-revalidate=86400'
     : 'public, s-maxage=60, stale-while-revalidate=300';
 
-const SLUG_RE = /^[a-z0-9-]+$/;
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const isValidSlug = (slug) => typeof slug === 'string' && SLUG_RE.test(slug);
+export const isValidSlug = (slug) =>
+  typeof slug === 'string' && slug.length <= 200 && SLUG_RE.test(slug) && !UUID_RE.test(slug);
 export const isValidUuid = (id) => typeof id === 'string' && UUID_RE.test(id);
 
 export const escapeXml = (value) =>
@@ -103,7 +104,7 @@ export const normalizeLastmod = (value) => {
 // -------- Elegibilidade (regras públicas reais) --------
 
 export const isEligibleAnnouncement = (row, nowMs = Date.now()) => {
-  if (!row || row.status !== 'ACTIVE' || !isValidUuid(row.id)) return false;
+  if (!row || row.status !== 'ACTIVE' || !isValidUuid(row.id) || !isValidSlug(row.slug)) return false;
   if (row.expires_at == null) return true;
   const expiresMs = new Date(row.expires_at).getTime();
   // Data inválida → tratado como sem expiração (espelha isTimestampExpired).
@@ -130,7 +131,7 @@ export const isEligibleCms = (row) =>
 // -------- Mapeamento linha → entrada { path, lastmod? } --------
 
 export const announcementToEntry = (row) => ({
-  path: `/anuncio/${row.id}`,
+  path: `/anuncio/${row.slug}`,
   lastmod: normalizeLastmod(row.updated_at || row.created_at),
 });
 

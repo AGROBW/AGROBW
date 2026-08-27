@@ -7,9 +7,11 @@ import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime'
 import { useHighlightSettings } from './useHighlightSettings'
 import { DEFAULT_HIGHLIGHT_COOLDOWN_DAYS, getEffectiveHighlightCooldownDays } from '../utils/highlightCooldown'
 import { appError, appWarn } from '../utils/appLogger'
+import { isAnnouncementSlug, isAnnouncementUuid } from '../lib/announcementUrl'
 
 const USER_ADS_SELECT = `
   id,
+  slug,
   title,
   description,
   price,
@@ -54,6 +56,7 @@ const USER_ADS_SELECT = `
 
 const USER_ADS_SELECT_FALLBACK = `
   id,
+  slug,
   title,
   description,
   price,
@@ -95,6 +98,7 @@ const USER_ADS_SELECT_FALLBACK = `
 
 const PUBLIC_ADS_SELECT = `
   id,
+  slug,
   title,
   description,
   price,
@@ -140,6 +144,7 @@ const PUBLIC_ADS_SELECT = `
 
 const ADMIN_ADS_SELECT = `
   id,
+  slug,
   title,
   description,
   price,
@@ -181,6 +186,7 @@ const ADMIN_ADS_SELECT = `
 
 const SINGLE_AD_SELECT = `
   id,
+  slug,
   title,
   description,
   price,
@@ -484,6 +490,7 @@ export const useUserAds = () => {
 
           return ({
           id: ad.id,
+          slug: ad.slug,
           title: ad.title,
           description: ad.description,
           price: parseFloat(ad.unit_price || ad.price),
@@ -618,7 +625,7 @@ export const usePublicAds = (filters?: {
         const announcementIds = Array.from(new Set((data || []).map((ad: any) => ad.id).filter(Boolean)))
         const sellerIds = Array.from(new Set((data || []).map((ad: any) => ad.user_id).filter(Boolean)))
         const sellerMap = new Map<string, {
-          name?: string
+          name: string
           avatar?: string
           document_verified?: boolean
           cidade?: string
@@ -687,7 +694,13 @@ export const usePublicAds = (filters?: {
           } else {
             for (const seller of (sellersData as Array<any>) || []) {
               if (!seller?.id) continue
-              sellerMap.set(seller.id, seller)
+              sellerMap.set(seller.id, {
+                name: seller.name || 'Vendedor',
+                avatar: seller.avatar || undefined,
+                document_verified: !!seller.document_verified,
+                cidade: seller.cidade || undefined,
+                estado: seller.estado || undefined,
+              })
             }
           }
 
@@ -741,6 +754,7 @@ export const usePublicAds = (filters?: {
 
         const mappedAds: Ad[] = data.map(ad => ({
           id: ad.id,
+          slug: ad.slug,
           title: ad.title,
           description: ad.description,
           price: parseFloat(ad.unit_price || ad.price),
@@ -832,6 +846,7 @@ export const useAllAds = () => {
       } else {
         const mapped: Ad[] = (data || []).map(ad => ({
           id: ad.id,
+          slug: ad.slug,
           title: ad.title,
           description: ad.description,
           price: parseFloat(ad.unit_price || ad.price),
@@ -884,38 +899,44 @@ export const useAllAds = () => {
 }
 
 // Hook para buscar um anuncio especifico
-export const useAd = (adId: string | undefined) => {
+export const useAd = (adIdentifier: string | undefined) => {
   const [ad, setAd] = useState<Ad | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!adId) {
+    if (!adIdentifier) {
       setIsLoading(false)
       return
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(adId)) {
-      appWarn('[Views] ID invalido', { adId })
-      setError('ID de anuncio invalido')
+    const lookupById = isAnnouncementUuid(adIdentifier)
+    if (!lookupById && !isAnnouncementSlug(adIdentifier)) {
+      appWarn('[useAd] Identificador invalido', { adIdentifier })
+      setError('Endereço de anúncio inválido')
       setIsLoading(false)
       return
     }
 
     const fetchAd = async () => {
       setIsLoading(true)
+      setError(null)
+      setAd(null)
       await syncTrustedTime()
 
-      const { data: adData, error: adError } = await supabase
+      let query = supabase
         .from('announcements')
         .select(SINGLE_AD_SELECT)
-        .eq('id', adId)
-        .maybeSingle()
+
+      query = lookupById
+        ? query.eq('id', adIdentifier)
+        : query.eq('slug', adIdentifier)
+
+      const { data: adData, error: adError } = await query.maybeSingle()
 
       if (adError) {
         setError(adError.message)
-        appError('Erro ao buscar anuncio', adError, { adId })
+        appError('Erro ao buscar anuncio', adError, { adIdentifier })
         setIsLoading(false)
         return
       }
@@ -952,13 +973,13 @@ export const useAd = (adId: string | undefined) => {
         if (!sellerError && sellerList && sellerList.length > 0) {
           sellerData = sellerList[0]
         } else if (sellerError) {
-          appError('[useAd] Erro ao buscar vendedor', sellerError, { adId, sellerId: adData.user_id })
+          appError('[useAd] Erro ao buscar vendedor', sellerError, { adIdentifier, sellerId: adData.user_id })
         }
 
         if (!storeError && storeRow) {
           sellerStoreData = storeRow as { slug: string; store_name: string; logo_url?: string | null; is_verified?: boolean }
         } else if (storeError) {
-          appWarn('[useAd] Nao foi possivel buscar loja do vendedor', { adId, sellerId: adData.user_id, error: storeError })
+          appWarn('[useAd] Nao foi possivel buscar loja do vendedor', { adIdentifier, sellerId: adData.user_id, error: storeError })
         }
       }
 
@@ -977,6 +998,7 @@ export const useAd = (adId: string | undefined) => {
 
       const mappedAd: Ad = {
         id: data.id,
+        slug: data.slug,
         title: data.title,
         description: data.description,
         price: parseFloat(data.unit_price || data.price),
@@ -1037,14 +1059,14 @@ export const useAd = (adId: string | undefined) => {
       } as any
       setAd(mappedAd)
 
-      const viewKey = `viewed_ad_${adId}`
+      const viewKey = `viewed_ad_${data.id}`
       const hasViewed = sessionStorage.getItem(viewKey)
 
       if (!hasViewed) {
-        const { error: viewError } = await supabase.rpc('increment_ad_views', { ad_id: adId })
+        const { error: viewError } = await supabase.rpc('increment_ad_views', { ad_id: data.id })
 
         if (viewError) {
-          appError('[Views] Erro ao incrementar views', viewError, { adId })
+          appError('[Views] Erro ao incrementar views', viewError, { adId: data.id })
         } else {
           sessionStorage.setItem(viewKey, 'true')
         }
@@ -1054,7 +1076,7 @@ export const useAd = (adId: string | undefined) => {
     }
 
     fetchAd()
-  }, [adId])
+  }, [adIdentifier])
 
   return { ad, isLoading, error }
 }

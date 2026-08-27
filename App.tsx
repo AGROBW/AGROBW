@@ -312,7 +312,7 @@ const AppContent: React.FC = () => {
             </Route>
             
             <Route path="/categoria/:slug" element={<AdsListingView />} />
-            <Route path="/anuncio/:id" element={<AdDetailView />} />
+            <Route path="/anuncio/:identifier" element={<AdDetailView />} />
             <Route path="*" element={<NotFoundView />} />
             </Routes>
           </Suspense>

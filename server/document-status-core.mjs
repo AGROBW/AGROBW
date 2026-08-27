@@ -132,10 +132,14 @@ export const classifyRoute = (input) => {
   }
 
   if ((match = RE_AD.exec(path))) {
-    const id = match[1];
-    return isValidUuid(id)
-      ? { kind: 'dynamic', needsDb: true, type: 'ad', id }
-      : { kind: 'invalid', needsDb: false, status: 404 };
+    const identifier = match[1];
+    if (isValidUuid(identifier)) {
+      return { kind: 'dynamic', needsDb: true, type: 'ad', id: identifier, lookupBy: 'id' };
+    }
+    if (isValidSlug(identifier)) {
+      return { kind: 'dynamic', needsDb: true, type: 'ad', slug: identifier, lookupBy: 'slug' };
+    }
+    return { kind: 'invalid', needsDb: false, status: 404 };
   }
 
   if ((match = RE_STORE.exec(path))) {

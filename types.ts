@@ -36,6 +36,7 @@ export interface TechnicalDetail {
 
 export interface Ad {
   id: string;
+  slug?: string;
   title: string;
   description: string;
   price: number;

@@ -122,13 +122,23 @@ describe('document-status-core: categorias (classificação pura, sem banco)', (
 describe('document-status-core: conteúdo dinâmico (formato)', () => {
   it('anúncio com UUID válido → dynamic/ad/needsDb', () => {
     const r = classifyRoute(`/anuncio/${UUID}`);
-    expect(r).toMatchObject({ kind: 'dynamic', type: 'ad', needsDb: true, id: UUID });
+    expect(r).toMatchObject({ kind: 'dynamic', type: 'ad', needsDb: true, id: UUID, lookupBy: 'id' });
     expect(r.status).toBeUndefined();
   });
-  it.each(['nao-uuid', '123', UUID.slice(0, -1), `${UUID}x`])(
-    '/anuncio/%s (UUID inválido) → 404 sem banco',
-    (id) => {
-      const r = classifyRoute(`/anuncio/${id}`);
+  it('anúncio com slug válido → dynamic/ad/needsDb', () => {
+    const r = classifyRoute('/anuncio/trator-john-deere-6145j-buriti-alegre-go');
+    expect(r).toMatchObject({
+      kind: 'dynamic',
+      type: 'ad',
+      needsDb: true,
+      slug: 'trator-john-deere-6145j-buriti-alegre-go',
+      lookupBy: 'slug',
+    });
+  });
+  it.each(['NAO-VALIDO', 'slug_com_underscore', '-slug', 'slug-', 'slug--duplo', 'slug%20invalido'])(
+    '/anuncio/%s (identificador inválido) → 404 sem banco',
+    (identifier) => {
+      const r = classifyRoute(`/anuncio/${identifier}`);
       expect(r.kind).toBe('invalid');
       expect(r.needsDb).toBe(false);
       expect(r.status).toBe(404);
@@ -188,8 +198,9 @@ describe('document-status-core: query/hash não alteram a classificação', () =
   it('categoria válida com query/hash continua 200', () => {
     expect(statusOf('/categoria/animais?utm=x#topo')).toBe(200);
   });
-  it('anúncio com query/hash preserva UUID', () => {
-    expect(classifyRoute(`/anuncio/${UUID}?ref=1#a`)).toMatchObject({ type: 'ad', needsDb: true });
+  it('anúncio com query/hash preserva o tipo do identificador', () => {
+    expect(classifyRoute(`/anuncio/${UUID}?ref=1#a`)).toMatchObject({ type: 'ad', needsDb: true, lookupBy: 'id' });
+    expect(classifyRoute('/anuncio/trator-john-deere?ref=1#a')).toMatchObject({ type: 'ad', needsDb: true, lookupBy: 'slug' });
   });
   it('normalizePathname remove query/hash e aceita URL absoluta', () => {
     expect(normalizePathname('/loja/x?a=1#b')).toBe('/loja/x');

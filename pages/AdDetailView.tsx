@@ -17,6 +17,7 @@ import { useAnnouncementReports } from '../src/hooks/useAnnouncementReports';
 import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 import { getCategoryGroupBySlug, getCategoryGroupForCategorySlug } from '../src/lib/categoryHierarchy';
 import { useFavorites } from '../src/hooks/useFavorites';
+import { getAnnouncementPath, isAnnouncementUuid } from '../src/lib/announcementUrl';
 
 // Mapa de ícones para renderizar dinamicamente
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -31,10 +32,10 @@ const humanizeSlug = (value?: string | null) =>
     .join(' ');
 
 const AdDetailView: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { identifier } = useParams<{ identifier: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const { ad, isLoading, error } = useAd(id);
+  const { ad, isLoading, error } = useAd(identifier);
   const { user } = useAuth();
   const { settings } = useLayout();
   const { toggleFavorite, isFavorited } = useFavorites();
@@ -72,6 +73,13 @@ const AdDetailView: React.FC = () => {
     setSelectedImageIndex(0);
     setIsLightboxOpen(false);
   }, [ad?.id]);
+
+  useEffect(() => {
+    if (!ad?.slug || !isAnnouncementUuid(identifier)) return;
+
+    const canonicalPath = getAnnouncementPath(ad);
+    navigate(`${canonicalPath}${location.search}${location.hash}`, { replace: true });
+  }, [ad, identifier, location.hash, location.search, navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -268,7 +276,7 @@ const AdDetailView: React.FC = () => {
 
     if (!ad) return;
 
-    const shareUrl = buildAbsoluteSiteUrl(`/anuncio/${ad.id}`);
+    const shareUrl = buildAbsoluteSiteUrl(getAnnouncementPath(ad));
     const sharePayload = {
       title: ad.title,
       text: `Confira este anúncio na AGRO BW: ${ad.title}`,
@@ -316,13 +324,15 @@ const AdDetailView: React.FC = () => {
     );
   }
 
+  const announcementPath = getAnnouncementPath(ad);
+
   if (ad.status !== 'ACTIVE') {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-4">
         <SeoHead
           title={ad.title || 'Anúncio indisponível'}
           description="Este anúncio não está ativo no momento na AGRO BW."
-          canonicalPath={`/anuncio/${ad.id}`}
+          canonicalPath={announcementPath}
           noIndex
         />
         <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" strokeWidth={1.5} />
@@ -380,7 +390,7 @@ const AdDetailView: React.FC = () => {
           '@type': 'ListItem',
           position: 3,
           name: ad.title,
-          item: buildAbsoluteSiteUrl(`/anuncio/${ad.id}`),
+          item: buildAbsoluteSiteUrl(announcementPath),
         },
       ],
     },
@@ -397,7 +407,7 @@ const AdDetailView: React.FC = () => {
         ? {
             '@type': 'Offer',
             availability: 'https://schema.org/InStock',
-            url: buildAbsoluteSiteUrl(`/anuncio/${ad.id}`),
+            url: buildAbsoluteSiteUrl(announcementPath),
             priceSpecification: {
               '@type': 'PriceSpecification',
               priceCurrency: 'BRL',
@@ -411,7 +421,7 @@ const AdDetailView: React.FC = () => {
             priceCurrency: 'BRL',
             price: priceToDisplay,
             availability: 'https://schema.org/InStock',
-            url: buildAbsoluteSiteUrl(`/anuncio/${ad.id}`),
+            url: buildAbsoluteSiteUrl(announcementPath),
           },
     },
   ];
@@ -421,7 +431,7 @@ const AdDetailView: React.FC = () => {
       <SeoHead
         title={ad.title}
         description={(safeDescription || `Veja detalhes do anúncio ${ad.title} no marketplace da AGRO BW.`).slice(0, 160)}
-        canonicalPath={`/anuncio/${ad.id}`}
+        canonicalPath={announcementPath}
         image={primaryImage}
       />
       <StructuredData id="ad-detail" data={adStructuredData} />

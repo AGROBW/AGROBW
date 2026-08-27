@@ -128,11 +128,13 @@ describe('sitemap-core: elegibilidade', () => {
   const now = Date.parse('2026-08-11T12:00:00Z');
 
   it('anúncio: ACTIVE não expirado entra; expirado/não-ACTIVE/id inválido saem', () => {
-    expect(isEligibleAnnouncement({ id: UUID, status: 'ACTIVE', expires_at: null }, now)).toBe(true);
-    expect(isEligibleAnnouncement({ id: UUID, status: 'ACTIVE', expires_at: '2999-01-01T00:00:00Z' }, now)).toBe(true);
-    expect(isEligibleAnnouncement({ id: UUID, status: 'ACTIVE', expires_at: '2020-01-01T00:00:00Z' }, now)).toBe(false);
-    expect(isEligibleAnnouncement({ id: UUID, status: 'PAUSED', expires_at: null }, now)).toBe(false);
-    expect(isEligibleAnnouncement({ id: 'nao-uuid', status: 'ACTIVE', expires_at: null }, now)).toBe(false);
+    const base = { id: UUID, slug: 'trator-john-deere', status: 'ACTIVE' };
+    expect(isEligibleAnnouncement({ ...base, expires_at: null }, now)).toBe(true);
+    expect(isEligibleAnnouncement({ ...base, expires_at: '2999-01-01T00:00:00Z' }, now)).toBe(true);
+    expect(isEligibleAnnouncement({ ...base, expires_at: '2020-01-01T00:00:00Z' }, now)).toBe(false);
+    expect(isEligibleAnnouncement({ ...base, status: 'PAUSED', expires_at: null }, now)).toBe(false);
+    expect(isEligibleAnnouncement({ ...base, id: 'nao-uuid', expires_at: null }, now)).toBe(false);
+    expect(isEligibleAnnouncement({ ...base, slug: '', expires_at: null }, now)).toBe(false);
   });
 
   it('loja: precisa is_active + feature + não pausada + slug válido', () => {
@@ -164,8 +166,8 @@ describe('sitemap-core: elegibilidade', () => {
     const entries = mapEligibleEntries(
       {
         announcements: [
-          { id: UUID, status: 'ACTIVE', expires_at: null, updated_at: '2026-08-01T00:00:00Z' },
-          { id: UUID.replace('e', 'a'), status: 'ACTIVE', expires_at: '2020-01-01T00:00:00Z' },
+          { id: UUID, slug: 'trator-john-deere', status: 'ACTIVE', expires_at: null, updated_at: '2026-08-01T00:00:00Z' },
+          { id: UUID.replace('e', 'a'), slug: 'anuncio-expirado', status: 'ACTIVE', expires_at: '2020-01-01T00:00:00Z' },
         ],
         stores: [{ slug: 'loja-x', is_active: true, is_store_feature_enabled: true, is_paused_due_to_plan: false }],
         news: [{ slug: 'materia-1', status: 'published' }],
@@ -177,7 +179,7 @@ describe('sitemap-core: elegibilidade', () => {
       now,
     );
     expect(entries.map((e) => e.path).sort()).toEqual([
-      `/anuncio/${UUID}`,
+      '/anuncio/trator-john-deere',
       '/loja/loja-x',
       '/noticias/materia-1',
       '/p/sobre',
@@ -226,7 +228,7 @@ describe('sitemap-core: dedupe, ordenação, truncamento', () => {
   });
 
   it('inclui todos os registros elegíveis (>1000) e reporta não truncado', () => {
-    const announcements = rows(1500, (i) => ({ id: uuidAt(i), status: 'ACTIVE', expires_at: null }));
+    const announcements = rows(1500, (i) => ({ id: uuidAt(i), slug: `anuncio-${i}`, status: 'ACTIVE', expires_at: null }));
     const entries = mapEligibleEntries({ announcements });
     expect(entries).toHaveLength(1500);
     const { xml, count, truncated } = buildSitemapXml(entries);
@@ -359,7 +361,7 @@ describe('api/sitemap: handler (factory injetável)', () => {
   const fakeCreateClient = () => ({}) as any;
 
   const rowsFor = (key: string) => {
-    if (key === 'announcements') return [{ id: UUID, status: 'ACTIVE', expires_at: null, updated_at: '2026-08-01T00:00:00Z' }];
+    if (key === 'announcements') return [{ id: UUID, slug: 'trator-john-deere', status: 'ACTIVE', expires_at: null, updated_at: '2026-08-01T00:00:00Z' }];
     if (key === 'stores') return [{ slug: 'loja-x', is_active: true, is_store_feature_enabled: true, is_paused_due_to_plan: false }];
     if (key === 'news') return [{ slug: 'materia-1', status: 'published' }];
     if (key === 'cms') return [{ slug: 'sobre', is_published: true }];
@@ -381,7 +383,7 @@ describe('api/sitemap: handler (factory injetável)', () => {
     expect(res.getHeader('X-Sitemap-Mode')).toBe('live');
     expect(res.getHeader('X-Sitemap-Truncated')).toBe('false');
     expect(res.getHeader('Vercel-CDN-Cache-Control')).toBe('public, s-maxage=3600, stale-while-revalidate=86400');
-    expect(String(res.body)).toContain(`/anuncio/${UUID}`);
+    expect(String(res.body)).toContain('/anuncio/trator-john-deere');
     expect(String(res.body)).toContain('/loja/loja-x');
     expect(String(res.body)).toContain('/noticias/materia-1');
     expect(String(res.body)).toContain('/p/sobre');
@@ -418,7 +420,7 @@ describe('api/sitemap: handler (factory injetável)', () => {
     await handler({ method: 'GET' }, res);
     expect(res.getHeader('X-Sitemap-Mode')).toBe('fallback');
     expect(String(res.body)).toContain('/categoria/animais');
-    expect(String(res.body)).not.toContain(`/anuncio/${UUID}`);
+    expect(String(res.body)).not.toContain('/anuncio/trator-john-deere');
   });
 
   it('AbortError não gera 500 (partial)', async () => {

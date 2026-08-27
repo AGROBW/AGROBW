@@ -28,7 +28,7 @@ export const buildQueries = (nowIso) => [
   {
     key: 'announcements',
     table: 'announcements',
-    columns: 'id, updated_at, created_at, status, expires_at',
+    columns: 'id, slug, updated_at, created_at, status, expires_at',
     orderColumn: 'id',
     applyFilters: (q) => q.eq('status', 'ACTIVE').or(`expires_at.is.null,expires_at.gt.${nowIso}`),
   },

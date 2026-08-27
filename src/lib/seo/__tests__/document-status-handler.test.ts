@@ -16,6 +16,7 @@ import { createSeoDispatcher, renderStoreOgHtml } from '../../../../api/og-loja.
 const LOGIN_HTML = '<!doctype html><html><head><title>Login</title></head><body><form>Vercel Authentication</form></body></html>';
 
 const UUID = 'e6067e9b-5547-4fde-8b6a-c0c80f230d1a';
+const AD_SLUG = 'trator-john-deere-6145j-buriti-alegre-go';
 const ENV_OK = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon' };
 const NOW = () => Date.parse('2026-08-11T12:00:00Z');
 const INDEX_HTML = '<html><head></head><body><div id="root"></div></body></html>';
@@ -97,7 +98,7 @@ describe('document-handler: rotas sem consulta ao banco', () => {
     },
   );
 
-  it.each(['/desconhecida', '/anuncio/nao-uuid', '/categoria/inexistente', '/p/politica-de-cookies', '/loja/BAD SLUG', '/api', '/assets'])(
+  it.each(['/desconhecida', '/anuncio/NAO_VALIDO', '/categoria/inexistente', '/p/politica-de-cookies', '/loja/BAD SLUG', '/api', '/assets'])(
     '%s → 404 sem tocar no banco, com X-Robots-Tag noindex',
     async (path) => {
       const createClient = vi.fn(() => makeFakeClient({}));
@@ -114,7 +115,7 @@ describe('document-handler: rotas sem consulta ao banco', () => {
 
 describe('document-handler: conteúdo dinâmico 200/404/503', () => {
   const cases = [
-    { type: 'anúncio', path: `/anuncio/${UUID}`, table: 'announcements', found: { id: UUID, status: 'ACTIVE', expires_at: null } },
+    { type: 'anúncio', path: `/anuncio/${AD_SLUG}`, table: 'announcements', found: { id: UUID, slug: AD_SLUG, status: 'ACTIVE', expires_at: null } },
     { type: 'notícia', path: '/noticias/materia-x', table: 'news_articles', found: { slug: 'materia-x', status: 'published' } },
     { type: 'CMS', path: '/p/sobre', table: 'institutional_pages', found: { slug: 'sobre', is_published: true } },
   ];
@@ -145,10 +146,42 @@ describe('document-handler: conteúdo dinâmico 200/404/503', () => {
 
   it('anúncio ACTIVE porém expirado → 404', async () => {
     const handler = createDocumentStatusHandler(baseDeps({
-      createClient: () => makeFakeClient({ announcements: { data: { id: UUID, status: 'ACTIVE', expires_at: '2020-01-01T00:00:00Z' } } }),
+      createClient: () => makeFakeClient({ announcements: { data: { id: UUID, slug: AD_SLUG, status: 'ACTIVE', expires_at: '2020-01-01T00:00:00Z' } } }),
     }));
-    const res = await run(handler, `/anuncio/${UUID}`);
+    const res = await run(handler, `/anuncio/${AD_SLUG}`);
     expect(res.statusCode).toBe(404);
+  });
+
+  it('URL legada com UUID → 308 para o slug, preservando query pública', async () => {
+    const handler = createDocumentStatusHandler(baseDeps({
+      createClient: () => makeFakeClient({ announcements: { data: { id: UUID, slug: AD_SLUG, status: 'ACTIVE', expires_at: null } } }),
+    }));
+    const res = makeRes();
+    await handler({
+      method: 'GET',
+      query: {
+        _seo_route: 'document',
+        path: `/anuncio/${UUID}`,
+        utm_source: 'whatsapp',
+        ref: ['a', 'b'],
+      },
+    }, res);
+    expect(res.statusCode).toBe(308);
+    expect(res.getHeader('Location')).toBe(
+      `https://agrobw.com.br/anuncio/${AD_SLUG}?utm_source=whatsapp&ref=a&ref=b`,
+    );
+    expect(res.getHeader('Cache-Control')).toBe('public, max-age=3600');
+    expect(res.getHeader('Vary')).toBe('User-Agent');
+  });
+
+  it('HEAD da URL legada → mesmo 308, sem corpo', async () => {
+    const handler = createDocumentStatusHandler(baseDeps({
+      createClient: () => makeFakeClient({ announcements: { data: { id: UUID, slug: AD_SLUG, status: 'ACTIVE', expires_at: null } } }),
+    }));
+    const res = await run(handler, `/anuncio/${UUID}`, 'HEAD');
+    expect(res.statusCode).toBe(308);
+    expect(res.getHeader('Location')).toBe(`https://agrobw.com.br/anuncio/${AD_SLUG}`);
+    expect(res.body).toBeUndefined();
   });
 
   it('timeout real (query pendente + abort) → 503, sem pendurar', async () => {
@@ -325,7 +358,7 @@ describe('document-handler: segurança e ausência de 410', () => {
   it('slug/UUID inválido nunca consulta o banco', async () => {
     const createClient = vi.fn(() => makeFakeClient({}));
     const handler = createDocumentStatusHandler(baseDeps({ createClient }));
-    for (const p of ['/anuncio/nao-uuid', '/loja/-x', '/p/pt.br', '/noticias/COM_MAIUS']) {
+    for (const p of ['/anuncio/NAO_VALIDO', '/loja/-x', '/p/pt.br', '/noticias/COM_MAIUS']) {
       await run(handler, p);
     }
     expect(createClient).not.toHaveBeenCalled();

@@ -27,6 +27,7 @@ type SellerStoreInput = {
 
 type MySellerStoreAnnouncementRow = {
   id: string;
+  slug?: string | null;
   title: string;
   description: string;
   price?: string | number | null;
@@ -119,6 +120,7 @@ const mapStoreRow = (row: SellerStoreRow): SellerStore => ({
 
 const mapAnnouncement = (ad: any): Ad => ({
   id: ad.id,
+  slug: ad.slug,
   title: ad.title,
   description: ad.description,
   price: parseFloat(ad.unit_price || ad.price),
@@ -239,7 +241,7 @@ export const useMySellerStore = () => {
 
     const { data, error: announcementsError } = await supabase
       .from('announcements')
-      .select('id,title,description,price,unit_price,city,state,cep,category_id,sub_category_id,sub_category_label,images,user_id,status,views,is_premium,created_at,store_display_order,expires_at,expired_at,deletion_scheduled_at,highlight_category,highlight_category_until,highlight_home,highlight_home_until,categories(slug)')
+      .select('id,slug,title,description,price,unit_price,city,state,cep,category_id,sub_category_id,sub_category_label,images,user_id,status,views,is_premium,created_at,store_display_order,expires_at,expired_at,deletion_scheduled_at,highlight_category,highlight_category_until,highlight_home,highlight_home_until,categories(slug)')
       .eq('user_id', user.id)
       .eq('status', 'ACTIVE')
       .order('store_display_order', { ascending: true, nullsFirst: false })

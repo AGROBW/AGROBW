@@ -44,6 +44,7 @@ import RecommendedUpgradeModal from './finance/RecommendedUpgradeModal';
 import toast from 'react-hot-toast';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
+import { getAnnouncementPath } from '../src/lib/announcementUrl';
 import {
   CATEGORY_HIERARCHY,
   getCategoryGroupBySlug,
@@ -560,7 +561,10 @@ const RadarView: React.FC = () => {
                     {/* Actions */}
                     <div className="flex gap-2">
                       <Link
-                        to={`/anuncio/${match.announcement_id}`}
+                        to={getAnnouncementPath({
+                          id: match.announcement_id,
+                          slug: match.announcement?.slug,
+                        })}
                         onClick={() => handleViewMatch(match)}
                         className="flex-1 py-2 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-800 transition-colors text-center"
                       >

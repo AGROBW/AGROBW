@@ -42,6 +42,7 @@ import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { DEFAULT_HIGHLIGHT_COOLDOWN_DAYS, formatHighlightCooldownDaysLabel, getEffectiveHighlightCooldownDays } from '../src/utils/highlightCooldown';
 import { appError, appWarn } from '../src/utils/appLogger';
+import { getAnnouncementPath } from '../src/lib/announcementUrl';
 import { 
   DashboardStatsCard, 
   PerformanceAttentionModule,
@@ -2267,11 +2268,11 @@ const UserDashboardView: React.FC = () => {
                   key={ad.id}
                   role="link"
                   tabIndex={0}
-                  onClick={() => navigate(`/anuncio/${ad.id}`)}
+                  onClick={() => navigate(getAnnouncementPath(ad))}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      navigate(`/anuncio/${ad.id}`);
+                      navigate(getAnnouncementPath(ad));
                     }
                   }}
                   className="flex cursor-pointer flex-col gap-3 rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-3 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.32)] transition-all hover:-translate-y-0.5 hover:shadow-[0_24px_55px_-36px_rgba(15,23,42,0.35)] md:h-20 md:flex-row md:items-center md:gap-4"
@@ -5106,4 +5107,3 @@ const UserDashboardView: React.FC = () => {
 };
 
 export default UserDashboardView;
-

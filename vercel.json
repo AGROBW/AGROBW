@@ -63,8 +63,8 @@
       "destination": "/api/og-loja?_seo_route=sitemap"
     },
     {
-      "source": "/anuncio/:id",
-      "destination": "/api/og-loja?_seo_route=document&path=/anuncio/:id"
+      "source": "/anuncio/:identifier",
+      "destination": "/api/og-loja?_seo_route=document&path=/anuncio/:identifier"
     },
     {
       "source": "/loja/:slug",
