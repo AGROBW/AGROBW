@@ -277,7 +277,9 @@ export const createDocumentStatusHandler = (deps = {}) => {
     ) {
       const search = new URLSearchParams();
       for (const [key, rawValue] of Object.entries(req.query || {})) {
-        if (key === '_seo_route' || key === 'path') continue;
+        // A Vercel injeta o parametro nomeado da rewrite na query interna.
+        // Ele nao deve reaparecer na URL publica nem expor o UUID legado.
+        if (key === '_seo_route' || key === 'path' || key === 'identifier') continue;
         const values = Array.isArray(rawValue) ? rawValue : [rawValue];
         for (const value of values) {
           if (typeof value === 'string') search.append(key, value);

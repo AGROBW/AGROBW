@@ -162,6 +162,7 @@ describe('document-handler: conteúdo dinâmico 200/404/503', () => {
       query: {
         _seo_route: 'document',
         path: `/anuncio/${UUID}`,
+        identifier: UUID,
         utm_source: 'whatsapp',
         ref: ['a', 'b'],
       },
