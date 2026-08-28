@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, Inbox, Info, LayoutGrid, LifeBuoy, Lock, LogOut, Map, MapPin, MessageSquare, MoreHorizontal, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store, Megaphone, X } from 'lucide-react';
+import { AlertCircle, Bell, Camera, CheckCircle2, ChevronDown, Clock3, CreditCard, DollarSign, Download, Edit3, ExternalLink, Eye, FileText, Heart, ImagePlus, Inbox, Info, LayoutGrid, LifeBuoy, Lock, LogOut, Map, MapPin, MessageSquare, MoreHorizontal, PauseCircle, Radar, Receipt, ShieldCheck, Trash2, User, TrendingUp, Package, Sparkles, Store, Megaphone, X } from 'lucide-react';
 import { AdStatus, Message, Ad, AdMetrics, Notification, PaymentRecord } from '../types';
 import { LEAD_STATUS } from '../constants/status';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -22,6 +22,7 @@ import LeadsView from '../components/LeadsView';
 import RadarView from '../components/RadarView';
 import MarketingPreferencesCard from '../components/MarketingPreferencesCard';
 import StoreCampaignRequestModal from '../components/dashboard/StoreCampaignRequestModal';
+import AdShareArtworkModal from '../components/dashboard/AdShareArtworkModal';
 import { useStoreCampaignRequests } from '../src/hooks/useStoreCampaignRequests';
 import { getBusinessDescriptionValidationError, MAX_BUSINESS_DESCRIPTION_LENGTH } from '../src/utils/businessDescription';
 import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
@@ -1204,6 +1205,7 @@ const UserDashboardView: React.FC = () => {
       const [adToDelete, setAdToDelete] = useState<Ad | null>(null);
       const [adForModerationDetails, setAdForModerationDetails] = useState<Ad | null>(null);
       const [campaignAd, setCampaignAd] = useState<Ad | null>(null);
+      const [artworkAd, setArtworkAd] = useState<Ad | null>(null);
       const { requests: campaignRequests, metricsByRequest: campaignMetrics, openByAnnouncement: openCampaignByAd, requestCampaign } = useStoreCampaignRequests();
       // Alinhado ao gate do RPC: loja realmente ativa (habilitada e não pausada) + plano com e-mail marketing.
       const storeReallyActive = Boolean(
@@ -1977,6 +1979,13 @@ const UserDashboardView: React.FC = () => {
         : (ad.status === AdStatus.PAUSED ? 'Reativar' : 'Pausar');
 
       const alreadyRequested = openCampaignByAd.has(ad.id);
+      const artworkHasImage = Boolean(getPrimaryImageFromList(ad.images));
+      const artworkIsPublic = ad.status === AdStatus.ACTIVE;
+      const artworkDisabledReason = !artworkHasImage
+        ? 'Adicione pelo menos uma foto ao anuncio para criar a arte.'
+        : !artworkIsPublic
+          ? 'A arte com QR Code fica disponivel quando o anuncio estiver ativo e publico.'
+          : undefined;
 
       return [
         {
@@ -2009,6 +2018,23 @@ const UserDashboardView: React.FC = () => {
           title: homeTitle,
           run: () => handleHighlightClick(ad, 'home'),
           desktopClassName: homeBlocked ? 'cursor-not-allowed text-slate-300' : 'hover:bg-amber-50 hover:text-amber-700',
+          inSheet: true,
+        },
+        {
+          key: 'share_artwork',
+          label: 'Criar arte de divulgacao',
+          icon: <ImagePlus className="w-4 h-4" strokeWidth={1.5} />,
+          visible: true,
+          disabled: Boolean(artworkDisabledReason),
+          disabledReason: artworkDisabledReason,
+          title: artworkDisabledReason || 'Criar arte personalizada para divulgar este anuncio',
+          run: () => {
+            setActionsSheetAd(null);
+            setArtworkAd(ad);
+          },
+          desktopClassName: artworkDisabledReason
+            ? 'cursor-not-allowed text-slate-300'
+            : 'hover:bg-emerald-50 hover:text-emerald-700',
           inSheet: true,
         },
         {
@@ -2434,6 +2460,12 @@ const UserDashboardView: React.FC = () => {
               ? requestCampaign(campaignAd.id, subject, message)
               : Promise.resolve({ error: 'Anúncio inválido.' })
           }
+        />
+
+        <AdShareArtworkModal
+          ad={artworkAd}
+          isOpen={Boolean(artworkAd)}
+          onClose={() => setArtworkAd(null)}
         />
 
         {/* Modal de Confirmação de Exclusão */}
