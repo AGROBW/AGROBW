@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   HOME_SEO_TITLE_BASE,
   HOME_SEO_DESCRIPTION,
@@ -25,6 +27,13 @@ describe('home-seo: fonte canônica única (import seguro Vite + Node)', () => {
   it('título final do navegador (SeoHead) === og:title social (og-loja)', () => {
     // Navegador: SeoHead aplica applyBrandSuffix ao título-base.
     expect(applyBrandSuffix(HOME_SEO_TITLE_BASE)).toBe(HOME_SEO_TITLE_FULL);
+  });
+
+  it('mantém WebSite, sem SearchAction obsoleto que gera URL de busca no Google', () => {
+    const source = fs.readFileSync(path.resolve(process.cwd(), 'pages/Home.tsx'), 'utf8');
+    expect(source).toContain("'@type': 'WebSite'");
+    expect(source).not.toContain("'@type': 'SearchAction'");
+    expect(source).not.toContain('{search_term_string}');
   });
 });
 

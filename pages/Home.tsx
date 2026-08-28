@@ -221,11 +221,6 @@ const Home: React.FC = () => {
             '@type': 'WebSite',
             name: 'AGRO BW',
             url: buildAbsoluteSiteUrl('/'),
-            potentialAction: {
-              '@type': 'SearchAction',
-              target: `${buildAbsoluteSiteUrl('/anuncios')}?q={search_term_string}`,
-              'query-input': 'required name=search_term_string',
-            },
           },
           {
             '@context': 'https://schema.org',
