@@ -26,6 +26,14 @@ import { toast } from 'sonner';
 import { CATEGORY_HIERARCHY, getCategoryGroupBySlug } from '../../src/lib/categoryHierarchy';
 import { getTrustedNowMs, syncTrustedTime } from '../../src/lib/trustedTime';
 import { appError } from '../../src/utils/appLogger';
+import {
+  ADMIN_HIGHLIGHT_PERIOD_OPTIONS,
+  AdminHighlightPeriod,
+  AdminHighlightType,
+  calculateAdminHighlightExpiry,
+  getActiveAdminHighlightType,
+  getAdminHighlightTypeLabel,
+} from '../../src/lib/adminHighlightGrant';
 
 type MonitoringAnnouncement = {
   id: string;
@@ -138,6 +146,12 @@ const AnnouncementsMonitoring: React.FC = () => {
   const [editingHighlightType, setEditingHighlightType] = useState<'home' | 'category' | null>(null);
   const [highlightExpiryInput, setHighlightExpiryInput] = useState('');
   const [isSavingHighlightExpiry, setIsSavingHighlightExpiry] = useState(false);
+  const [highlightGrantTarget, setHighlightGrantTarget] = useState<MonitoringAnnouncement | null>(null);
+  const [highlightGrantType, setHighlightGrantType] = useState<AdminHighlightType>('home');
+  const [highlightGrantPeriod, setHighlightGrantPeriod] = useState<AdminHighlightPeriod>('7');
+  const [highlightGrantCustomExpiry, setHighlightGrantCustomExpiry] = useState('');
+  const [highlightGrantReason, setHighlightGrantReason] = useState('');
+  const [isGrantingHighlight, setIsGrantingHighlight] = useState(false);
   const [openActionsMenuId, setOpenActionsMenuId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -357,6 +371,31 @@ const AnnouncementsMonitoring: React.FC = () => {
     setIsSubmittingPause(false);
   };
 
+  const openHighlightGrantModal = (announcement: MonitoringAnnouncement) => {
+    const activeType = getActiveAdminHighlightType(announcement);
+    const activeUntil = activeType === 'home'
+      ? announcement.highlight_home_until
+      : activeType === 'category'
+        ? announcement.highlight_category_until
+        : null;
+
+    setOpenActionsMenuId(null);
+    setHighlightGrantTarget(announcement);
+    setHighlightGrantType(activeType || 'home');
+    setHighlightGrantPeriod(activeUntil ? 'custom' : '7');
+    setHighlightGrantCustomExpiry(formatDateTimeLocalInputValue(activeUntil));
+    setHighlightGrantReason('');
+  };
+
+  const closeHighlightGrantModal = () => {
+    setHighlightGrantTarget(null);
+    setHighlightGrantType('home');
+    setHighlightGrantPeriod('7');
+    setHighlightGrantCustomExpiry('');
+    setHighlightGrantReason('');
+    setIsGrantingHighlight(false);
+  };
+
   const formatDateTimeLocalInputValue = (value?: string | null) => {
     if (!value) return '';
     const parsed = new Date(value);
@@ -379,6 +418,88 @@ const AnnouncementsMonitoring: React.FC = () => {
       if (!current || current.id !== announcementId) return current;
       return updater(current);
     });
+  };
+
+  const handleGrantHighlight = async () => {
+    if (!highlightGrantTarget) return;
+
+    const { expiresAt, error: expiryError } = calculateAdminHighlightExpiry(
+      highlightGrantPeriod,
+      highlightGrantCustomExpiry,
+      getTrustedNowMs()
+    );
+
+    if (!expiresAt || expiryError) {
+      toast.error(expiryError || 'Não foi possível calcular a expiração do destaque.');
+      return;
+    }
+
+    if (highlightGrantTarget.expires_at && new Date(expiresAt).getTime() > new Date(highlightGrantTarget.expires_at).getTime()) {
+      toast.error('O destaque não pode terminar depois da expiração do anúncio.');
+      return;
+    }
+
+    const previousType = getActiveAdminHighlightType(highlightGrantTarget);
+    const previousExpiry = previousType === 'home'
+      ? highlightGrantTarget.highlight_home_until || null
+      : previousType === 'category'
+        ? highlightGrantTarget.highlight_category_until || null
+        : null;
+
+    try {
+      setIsGrantingHighlight(true);
+
+      const { data, error } = await supabase.rpc('admin_grant_announcement_highlight', {
+        p_announcement_id: highlightGrantTarget.id,
+        p_highlight_type: highlightGrantType,
+        p_expires_at: expiresAt,
+        p_reason: highlightGrantReason.trim() || null,
+      });
+
+      if (error) throw error;
+
+      const updatedAnnouncement = Array.isArray(data) ? data[0] : data;
+      if (!updatedAnnouncement) {
+        throw new Error('Não foi possível confirmar a concessão do destaque.');
+      }
+
+      syncSelectedAnnouncement(highlightGrantTarget.id, (current) => ({
+        ...current,
+        highlight_home: updatedAnnouncement.highlight_home ?? false,
+        highlight_home_until: updatedAnnouncement.highlight_home_until ?? null,
+        highlight_category: updatedAnnouncement.highlight_category ?? false,
+        highlight_category_until: updatedAnnouncement.highlight_category_until ?? null,
+      }));
+
+      await logAction({
+        action: ADMIN_ACTIONS.FEATURE_AD,
+        resourceType: RESOURCE_TYPES.ANNOUNCEMENT,
+        resourceId: highlightGrantTarget.id,
+        oldValue: {
+          highlight_type: previousType,
+          expires_at: previousExpiry,
+        },
+        newValue: {
+          highlight_type: highlightGrantType,
+          expires_at: expiresAt,
+          credit_source: 'admin',
+        },
+        reason: highlightGrantReason.trim() || `Destaque ${getAdminHighlightTypeLabel(highlightGrantType)} concedido pelo monitoramento.`,
+      });
+
+      toast.success(`Destaque ${getAdminHighlightTypeLabel(highlightGrantType)} concedido com sucesso.`);
+      closeHighlightGrantModal();
+      await loadAnnouncements();
+    } catch (error) {
+      appError('[AnnouncementsMonitoring] Erro ao conceder destaque administrativo', error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível conceder o destaque administrativo.'
+      );
+    } finally {
+      setIsGrantingHighlight(false);
+    }
   };
 
   const openHighlightExpiryEditor = (announcement: MonitoringAnnouncement, highlightType: 'home' | 'category') => {
@@ -587,6 +708,18 @@ const AnnouncementsMonitoring: React.FC = () => {
       setIsSubmittingPause(false);
     }
   };
+
+  const highlightGrantPreview = highlightGrantTarget
+    ? calculateAdminHighlightExpiry(
+        highlightGrantPeriod,
+        highlightGrantCustomExpiry,
+        getTrustedNowMs()
+      )
+    : { expiresAt: null, error: null };
+
+  const currentHighlightGrantType = highlightGrantTarget
+    ? getActiveAdminHighlightType(highlightGrantTarget)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -805,6 +938,16 @@ const AnnouncementsMonitoring: React.FC = () => {
                                       )}
                                     </button>
                                   )}
+                                  {announcement.status === 'ACTIVE' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openHighlightGrantModal(announcement)}
+                                      className="flex h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
+                                    >
+                                      <Sparkles className="h-4 w-4" />
+                                      {getActiveAdminHighlightType(announcement) ? 'Gerenciar destaque' : 'Destacar'}
+                                    </button>
+                                  )}
                                   <Link
                                     to={`/admin/users?q=${encodeURIComponent(announcement.owner?.email || announcement.owner?.name || announcement.user_id)}`}
                                     onClick={() => setOpenActionsMenuId(null)}
@@ -1015,6 +1158,16 @@ const AnnouncementsMonitoring: React.FC = () => {
                                       )}
                                     </button>
                                   )}
+                                  {announcement.status === 'ACTIVE' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openHighlightGrantModal(announcement)}
+                                      className="flex h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50"
+                                    >
+                                      <Sparkles className="h-4 w-4" />
+                                      {getActiveAdminHighlightType(announcement) ? 'Gerenciar destaque' : 'Destacar'}
+                                    </button>
+                                  )}
                                   <Link
                                     to={`/admin/users?q=${encodeURIComponent(announcement.owner?.email || announcement.owner?.name || announcement.user_id)}`}
                                     onClick={() => setOpenActionsMenuId(null)}
@@ -1091,6 +1244,136 @@ const AnnouncementsMonitoring: React.FC = () => {
           </div>
         )}
       </section>
+
+      {highlightGrantTarget && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-[2px]">
+          <div className="max-h-full w-full max-w-2xl overflow-y-auto rounded-[30px] border border-slate-200 bg-white shadow-[0_36px_90px_-34px_rgba(15,23,42,0.55)]">
+            <div className="border-b border-slate-100 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_58%)] px-6 py-5 sm:px-7">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Destaque administrativo
+                  </div>
+                  <h3 className="mt-3 text-xl font-black text-slate-900">
+                    {currentHighlightGrantType ? 'Gerenciar destaque' : 'Destacar anúncio'}
+                  </h3>
+                  <p className="mt-1 text-sm font-semibold text-slate-700">{highlightGrantTarget.title}</p>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+                    A concessão administrativa não utiliza créditos do plano nem saldo de booster do anunciante.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeHighlightGrantModal}
+                  disabled={isGrantingHighlight}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 disabled:opacity-50"
+                  aria-label="Fechar modal de destaque"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-5 px-6 py-6 sm:px-7">
+              {currentHighlightGrantType && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                  Este anúncio já possui destaque em <strong>{getAdminHighlightTypeLabel(currentHighlightGrantType)}</strong>.
+                  {currentHighlightGrantType === highlightGrantType
+                    ? ' A data atual será substituída pelo novo período.'
+                    : ` Ao confirmar, ele será movido para ${getAdminHighlightTypeLabel(highlightGrantType)}.`}
+                </div>
+              )}
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-sm font-bold text-slate-700">Local do destaque</span>
+                  <select
+                    value={highlightGrantType}
+                    onChange={(event) => setHighlightGrantType(event.target.value as AdminHighlightType)}
+                    disabled={isGrantingHighlight}
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/15 disabled:opacity-60"
+                  >
+                    <option value="home">Destaque na Home</option>
+                    <option value="category">Destaque na Categoria</option>
+                  </select>
+                </label>
+
+                <label className="space-y-2">
+                  <span className="text-sm font-bold text-slate-700">Período</span>
+                  <select
+                    value={highlightGrantPeriod}
+                    onChange={(event) => setHighlightGrantPeriod(event.target.value as AdminHighlightPeriod)}
+                    disabled={isGrantingHighlight}
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/15 disabled:opacity-60"
+                  >
+                    {ADMIN_HIGHLIGHT_PERIOD_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {highlightGrantPeriod === 'custom' && (
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-slate-700">Encerrar destaque em</span>
+                  <input
+                    type="datetime-local"
+                    value={highlightGrantCustomExpiry}
+                    onChange={(event) => setHighlightGrantCustomExpiry(event.target.value)}
+                    disabled={isGrantingHighlight}
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/15 disabled:opacity-60"
+                  />
+                  <span className="text-xs text-slate-500">O prazo máximo permitido é de 90 dias.</span>
+                </label>
+              )}
+
+              <div className={`rounded-2xl border px-4 py-3 text-sm ${highlightGrantPreview.error ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+                {highlightGrantPreview.error
+                  ? highlightGrantPreview.error
+                  : <>O destaque ficará ativo até <strong>{formatDateTimeDisplay(highlightGrantPreview.expiresAt)}</strong>.</>}
+              </div>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-slate-700">Motivo ou observação <span className="font-normal text-slate-400">(opcional)</span></span>
+                <textarea
+                  value={highlightGrantReason}
+                  onChange={(event) => setHighlightGrantReason(event.target.value.slice(0, 500))}
+                  rows={3}
+                  disabled={isGrantingHighlight}
+                  placeholder="Ex.: campanha comercial aprovada pela administração."
+                  className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/15 disabled:opacity-60"
+                />
+                <div className="text-right text-xs text-slate-400">{highlightGrantReason.length}/500</div>
+              </label>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
+                O destaque não poderá ultrapassar a data de expiração do anúncio: <strong className="text-slate-700">{formatDateTimeDisplay(highlightGrantTarget.expires_at)}</strong>.
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-100 px-6 py-5 sm:flex-row sm:justify-end sm:px-7">
+              <button
+                type="button"
+                onClick={closeHighlightGrantModal}
+                disabled={isGrantingHighlight}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 px-5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleGrantHighlight()}
+                disabled={isGrantingHighlight || Boolean(highlightGrantPreview.error) || !highlightGrantPreview.expiresAt}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Sparkles className="h-4 w-4" />
+                {isGrantingHighlight ? 'Salvando...' : currentHighlightGrantType ? 'Atualizar destaque' : 'Confirmar destaque'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {pauseTarget && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-[1px]">
