@@ -86,7 +86,14 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
     }
   }, [nextPlan]);
 
-  if (!isOpen || !nextPlan) {
+  const isValidUpgrade = Boolean(
+    nextPlan &&
+    nextPlan.is_active &&
+    !nextPlan.is_downgrade_plan &&
+    (!currentPlan || currentPlan.is_downgrade_plan || nextPlan.position > currentPlan.position)
+  );
+
+  if (!isOpen || !nextPlan || !isValidUpgrade) {
     return null;
   }
 

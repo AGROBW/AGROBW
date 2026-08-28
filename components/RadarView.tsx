@@ -50,6 +50,7 @@ import {
   getCategoryGroupBySlug,
   getCategoryGroupForCategorySlug
 } from '../src/lib/categoryHierarchy';
+import { getNextRecommendedUpgradePlan } from '../src/lib/recommendedUpgradePlan';
 
 interface RadarCategoryOption {
   id: string;
@@ -103,8 +104,7 @@ const RadarView: React.FC = () => {
     return activePlans.find((plan) => plan.id === subscription.plan_id) || null;
   }, [activePlans, subscription?.plan_id]);
   const nextRecommendedPlan = useMemo(() => {
-    if (!currentPlanRecord) return null;
-    return activePlans.find((plan) => plan.position > currentPlanRecord.position) || null;
+    return getNextRecommendedUpgradePlan(activePlans, currentPlanRecord);
   }, [activePlans, currentPlanRecord]);
   const userPlan = currentPlanRecord?.name || subscription?.plans?.name || user?.plan || 'Plano';
   const radiusAlertsCount = useMemo(
