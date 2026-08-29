@@ -284,6 +284,124 @@ const drawGlobeIcon = (
   ctx.restore();
 };
 
+const renderShowcaseLandscape = (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  image: HTMLImageElement,
+  logo: HTMLImageElement | null,
+  qr: HTMLImageElement,
+  input: AdShareArtworkRenderInput,
+) => {
+  const pad = width * 0.037;
+  const photoX = width * 0.44;
+  const photoWidth = width - photoX;
+  const footerY = height - 108;
+
+  ctx.fillStyle = COLORS.navy;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(photoX, 0, photoWidth, height);
+  ctx.clip();
+  ctx.filter = 'blur(14px)';
+  drawImageCover(ctx, image, photoX - 20, -20, photoWidth + 40, height + 40);
+  ctx.filter = 'none';
+  ctx.fillStyle = 'rgba(5,16,30,0.46)';
+  ctx.fillRect(photoX, 0, photoWidth, height);
+  drawImageContain(ctx, image, photoX, 0, photoWidth, height);
+
+  const photoGradient = ctx.createLinearGradient(0, height * 0.72, 0, height);
+  photoGradient.addColorStop(0, 'rgba(5,16,30,0)');
+  photoGradient.addColorStop(1, 'rgba(5,16,30,0.28)');
+  ctx.fillStyle = photoGradient;
+  ctx.fillRect(photoX, 0, photoWidth, height);
+  ctx.restore();
+
+  ctx.fillStyle = COLORS.navy;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(photoX, 0);
+  ctx.lineTo(width * 0.4, height);
+  ctx.lineTo(0, height);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = COLORS.greenBright;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(photoX, 0);
+  ctx.lineTo(width * 0.4, height);
+  ctx.stroke();
+
+  drawBrand(ctx, logo, pad, 42, 180);
+
+  ctx.fillStyle = COLORS.greenBright;
+  ctx.font = '900 15px Arial, sans-serif';
+  ctx.fillText('ANUNCIADO NA AGRO BW', pad, 167);
+
+  const titleLength = input.title.trim().length;
+  const titleSize = titleLength > 80 ? 28 : titleLength > 52 ? 31 : 35;
+  const titleY = 218;
+  const titleWidth = width * 0.335;
+  ctx.fillStyle = COLORS.white;
+  ctx.font = `900 ${titleSize}px Arial, sans-serif`;
+  const titleLines = getWrappedLines(ctx, input.title, titleWidth, 3);
+  const titleLineHeight = titleSize * 1.05;
+  drawLines(ctx, titleLines, pad, titleY, titleLineHeight);
+
+  const priceCardX = pad;
+  const priceCardWidth = width * 0.325;
+  const priceCardHeight = 108;
+  const priceCardY = Math.min(
+    Math.max(350, titleY + titleLines.length * titleLineHeight + 24),
+    footerY - priceCardHeight - 20,
+  );
+  ctx.fillStyle = 'rgba(19,34,58,0.88)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.26)';
+  ctx.lineWidth = 2;
+  roundedRect(ctx, priceCardX, priceCardY, priceCardWidth, priceCardHeight, 18);
+  ctx.fill();
+  ctx.stroke();
+
+  const priceInset = 20;
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '800 12px Arial, sans-serif';
+  ctx.fillText('PRECO DO ANUNCIO', priceCardX + priceInset, priceCardY + 26);
+  const priceSize = fitFontSize(ctx, input.priceLabel, priceCardWidth - priceInset * 2, 31, 21);
+  ctx.fillStyle = COLORS.greenBright;
+  ctx.font = `900 ${priceSize}px Arial, sans-serif`;
+  ctx.fillText(
+    input.priceLabel,
+    priceCardX + priceInset,
+    priceCardY + 65,
+    priceCardWidth - priceInset * 2,
+  );
+  ctx.fillStyle = COLORS.white;
+  ctx.font = '700 14px Arial, sans-serif';
+  ctx.fillText(input.locationLabel, priceCardX + priceInset, priceCardY + 91, priceCardWidth - priceInset * 2);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.98)';
+  ctx.fillRect(0, footerY, 500, height - footerY);
+
+  const iconSize = 24;
+  drawGlobeIcon(ctx, pad, footerY + 36, iconSize);
+  const footerTextX = pad + iconSize + 16;
+  ctx.fillStyle = COLORS.navy;
+  ctx.font = '900 17px Arial, sans-serif';
+  ctx.fillText('VEJA O ANUNCIO COMPLETO', footerTextX, footerY + 34);
+  ctx.fillStyle = COLORS.green;
+  ctx.font = '800 16px Arial, sans-serif';
+  ctx.fillText('agrobw.com.br', footerTextX, footerY + 60);
+  ctx.fillStyle = COLORS.slate;
+  ctx.font = '600 11px Arial, sans-serif';
+  ctx.fillText('Aponte a camera para o QR Code', footerTextX, footerY + 82);
+
+  const qrSize = 76;
+  drawQrOnly(ctx, qr, 500 - pad - qrSize, footerY + 16, qrSize);
+};
+
 const renderShowcase = (
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -295,6 +413,11 @@ const renderShowcase = (
 ) => {
   const story = input.format === 'story';
   const landscape = input.format === 'landscape';
+  if (landscape) {
+    renderShowcaseLandscape(ctx, width, height, image, logo, qr, input);
+    return;
+  }
+
   const pad = width * (landscape ? 0.04 : 0.045);
   const photoHeight = story ? height * 0.58 : landscape ? height * 0.58 : height * 0.6;
   const footerHeight = story ? 270 : landscape ? 104 : 180;
