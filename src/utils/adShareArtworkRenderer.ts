@@ -228,39 +228,96 @@ const renderImpact = (
   const pad = width * (landscape ? 0.05 : 0.07);
   drawImageCover(ctx, image, 0, 0, width, height);
 
-  const gradient = ctx.createLinearGradient(0, 0, landscape ? width * 0.78 : 0, landscape ? 0 : height);
-  gradient.addColorStop(0, 'rgba(5,16,30,0.96)');
-  gradient.addColorStop(landscape ? 0.64 : 0.45, 'rgba(5,16,30,0.76)');
-  gradient.addColorStop(1, 'rgba(5,16,30,0.18)');
+  // Mantem a foto viva e concentra o contraste somente onde o texto precisa dele.
+  const gradient = landscape
+    ? ctx.createLinearGradient(0, 0, width * 0.82, 0)
+    : ctx.createLinearGradient(0, height * 0.18, 0, height);
+  gradient.addColorStop(0, landscape ? 'rgba(5,16,30,0.93)' : 'rgba(5,16,30,0.02)');
+  gradient.addColorStop(landscape ? 0.66 : 0.38, landscape ? 'rgba(5,16,30,0.68)' : 'rgba(5,16,30,0.10)');
+  gradient.addColorStop(1, landscape ? 'rgba(5,16,30,0.04)' : 'rgba(5,16,30,0.96)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
-  ctx.fillStyle = COLORS.greenBright;
-  roundedRect(ctx, pad, pad, landscape ? 275 : 340, landscape ? 42 : 56, 28);
+  // Marca em uma placa clara: legivel em qualquer fotografia, sem selo promocional solto.
+  const brandCardWidth = landscape ? 230 : 292;
+  const brandCardHeight = landscape ? 78 : 108;
+  ctx.save();
+  ctx.shadowColor = 'rgba(2, 6, 23, 0.26)';
+  ctx.shadowBlur = landscape ? 18 : 26;
+  ctx.shadowOffsetY = landscape ? 7 : 10;
+  ctx.fillStyle = 'rgba(255,255,255,0.94)';
+  roundedRect(ctx, pad, pad, brandCardWidth, brandCardHeight, landscape ? 18 : 24);
   ctx.fill();
-  ctx.fillStyle = COLORS.navy;
-  ctx.font = `900 ${landscape ? 18 : 23}px Arial, sans-serif`;
-  ctx.fillText('OPORTUNIDADE NO AGRO', pad + 24, pad + (landscape ? 28 : 37));
+  ctx.restore();
+  ctx.fillStyle = COLORS.slate;
+  ctx.font = `800 ${landscape ? 12 : 15}px Arial, sans-serif`;
+  ctx.fillText('ANUNCIADO NA', pad + (landscape ? 16 : 20), pad + (landscape ? 21 : 28));
+  drawBrand(
+    ctx,
+    logo,
+    pad + (landscape ? 16 : 20),
+    pad + (landscape ? 32 : 43),
+    landscape ? 162 : 205,
+  );
 
-  const titleSize = story ? 76 : landscape ? 48 : 62;
+  const titleLength = input.title.trim().length;
+  const titleSize = story
+    ? titleLength > 80 ? 52 : titleLength > 52 ? 60 : 68
+    : landscape
+      ? titleLength > 80 ? 34 : titleLength > 52 ? 40 : 46
+      : titleLength > 80 ? 42 : titleLength > 52 ? 49 : 57;
   ctx.fillStyle = COLORS.white;
   ctx.font = `900 ${titleSize}px Arial, sans-serif`;
-  const maxWidth = landscape ? width * 0.57 : width - pad * 2;
-  const titleY = story ? height * 0.48 : landscape ? height * 0.38 : height * 0.48;
-  const lines = getWrappedLines(ctx, input.title, maxWidth, story ? 4 : 3);
-  drawLines(ctx, lines, pad, titleY, titleSize * 1.03);
+  const maxWidth = landscape ? width * 0.53 : width - pad * 2;
+  const titleY = story ? height * 0.49 : landscape ? height * 0.31 : height * 0.46;
+  const maxTitleLines = landscape ? 2 : 3;
+  const lines = getWrappedLines(ctx, input.title, maxWidth, maxTitleLines);
+  const titleLineHeight = titleSize * 1.06;
+  drawLines(ctx, lines, pad, titleY, titleLineHeight);
 
-  const priceY = titleY + lines.length * titleSize * 1.03 + (story ? 70 : 38);
-  ctx.fillStyle = COLORS.lime;
-  ctx.font = `900 ${story ? 66 : landscape ? 40 : 52}px Arial, sans-serif`;
-  ctx.fillText(input.priceLabel, pad, priceY);
+  // O preco vira o segundo ponto de atencao, dentro de uma faixa consistente.
+  const priceFontSize = story ? 54 : landscape ? 32 : 43;
+  const priceLineHeight = story ? 88 : landscape ? 58 : 72;
+  const priceTop = titleY + lines.length * titleLineHeight + (story ? 48 : landscape ? 24 : 34);
+  ctx.font = `900 ${priceFontSize}px Arial, sans-serif`;
+  const priceWidth = Math.min(
+    maxWidth,
+    ctx.measureText(input.priceLabel).width + (story ? 64 : landscape ? 42 : 52),
+  );
+  ctx.fillStyle = COLORS.green;
+  roundedRect(ctx, pad, priceTop, priceWidth, priceLineHeight, priceLineHeight / 2);
+  ctx.fill();
   ctx.fillStyle = COLORS.white;
-  ctx.font = `600 ${story ? 30 : landscape ? 20 : 25}px Arial, sans-serif`;
-  ctx.fillText(input.locationLabel, pad, priceY + (story ? 62 : 45));
+  ctx.font = `900 ${priceFontSize}px Arial, sans-serif`;
+  ctx.fillText(
+    input.priceLabel,
+    pad + (story ? 32 : landscape ? 21 : 26),
+    priceTop + priceLineHeight * 0.69,
+  );
 
-  const qrSize = story ? 230 : landscape ? 150 : 175;
-  drawQrBlock(ctx, qr, width - pad - qrSize, height - pad - qrSize - qrSize * 0.2, qrSize);
-  drawBrand(ctx, logo, pad, height - pad - (landscape ? 47 : 62), landscape ? 175 : 215);
+  const locationY = priceTop + priceLineHeight + (story ? 44 : landscape ? 30 : 35);
+  ctx.fillStyle = COLORS.white;
+  ctx.font = `700 ${story ? 28 : landscape ? 19 : 23}px Arial, sans-serif`;
+  ctx.fillText(input.locationLabel, pad, locationY);
+
+  // QR e chamada formam um unico bloco, evitando que parecam elementos desconectados.
+  const qrSize = story ? 218 : landscape ? 136 : 164;
+  const qrPanelPad = story ? 18 : landscape ? 12 : 14;
+  const qrPanelWidth = qrSize + qrPanelPad * 2;
+  const qrPanelHeight = qrSize + qrPanelPad * 2 + (story ? 48 : landscape ? 31 : 38);
+  const qrPanelX = width - pad - qrPanelWidth;
+  const qrPanelY = height - pad - qrPanelHeight;
+  ctx.fillStyle = 'rgba(11,23,43,0.90)';
+  roundedRect(ctx, qrPanelX, qrPanelY, qrPanelWidth, qrPanelHeight, story ? 28 : 20);
+  ctx.fill();
+  drawQrBlock(ctx, qr, qrPanelX + qrPanelPad, qrPanelY + qrPanelPad, qrSize);
+
+  ctx.fillStyle = COLORS.white;
+  ctx.font = `800 ${story ? 23 : landscape ? 16 : 19}px Arial, sans-serif`;
+  ctx.fillText('ACESSE O ANUNCIO', pad, height - pad - (story ? 45 : landscape ? 27 : 34));
+  ctx.fillStyle = COLORS.greenBright;
+  ctx.font = `800 ${story ? 25 : landscape ? 17 : 21}px Arial, sans-serif`;
+  ctx.fillText('agrobw.com.br', pad, height - pad);
 };
 
 const renderInstitutional = (
@@ -357,4 +414,3 @@ export const renderAdShareArtwork = async (input: AdShareArtworkRenderInput): Pr
     }, 'image/png', 0.95);
   });
 };
-
