@@ -67,6 +67,55 @@ const drawImageCover = (
   ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
 };
 
+const drawImageContain = (
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) => {
+  const scale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
+  const targetWidth = image.naturalWidth * scale;
+  const targetHeight = image.naturalHeight * scale;
+  const targetX = x + (width - targetWidth) / 2;
+  const targetY = y + (height - targetHeight) / 2;
+  ctx.drawImage(image, targetX, targetY, targetWidth, targetHeight);
+};
+
+const drawShowcasePhoto = (
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) => {
+  const overscan = Math.max(18, Math.round(Math.min(width, height) * 0.04));
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, width, height);
+  ctx.clip();
+
+  // O fundo preenche a area sem obrigar o recorte da fotografia principal.
+  ctx.filter = `blur(${Math.round(overscan * 0.65)}px)`;
+  drawImageCover(
+    ctx,
+    image,
+    x - overscan,
+    y - overscan,
+    width + overscan * 2,
+    height + overscan * 2,
+  );
+  ctx.filter = 'none';
+  ctx.fillStyle = 'rgba(5,16,30,0.28)';
+  ctx.fillRect(x, y, width, height);
+
+  drawImageContain(ctx, image, x, y, width, height);
+  ctx.restore();
+};
+
 const getWrappedLines = (
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -187,9 +236,10 @@ const renderShowcase = (
 
   ctx.fillStyle = COLORS.navy;
   ctx.fillRect(0, 0, width, height);
-  drawImageCover(ctx, image, 0, 0, width, footerY);
 
   if (story) {
+    drawShowcasePhoto(ctx, image, 0, 0, width, footerY * 0.58);
+
     // Nos Stories, a fotografia ocupa o topo e o conteudo fica protegido na metade inferior.
     const panelTop = height * 0.39;
     const panelGradient = ctx.createLinearGradient(0, panelTop - 100, 0, footerY);
@@ -205,9 +255,12 @@ const renderShowcase = (
     ctx.lineTo(width, panelTop - 72);
     ctx.stroke();
   } else {
-    // O recorte diagonal replica a direcao visual da referencia sem esconder o produto.
-    const panelTopX = landscape ? width * 0.43 : width * 0.43;
-    const panelBottomX = landscape ? width * 0.49 : width * 0.52;
+    const photoX = landscape ? width * 0.34 : width * 0.34;
+    drawShowcasePhoto(ctx, image, photoX, 0, width - photoX, footerY);
+
+    // O recorte diagonal preserva a leitura editorial sem cobrir a fotografia inteira.
+    const panelTopX = landscape ? width * 0.39 : width * 0.39;
+    const panelBottomX = landscape ? width * 0.45 : width * 0.47;
     ctx.fillStyle = 'rgba(11,23,43,0.97)';
     ctx.beginPath();
     ctx.moveTo(0, 0);
@@ -223,12 +276,12 @@ const renderShowcase = (
     ctx.lineTo(panelBottomX, footerY);
     ctx.stroke();
 
-    const photoShade = ctx.createLinearGradient(width * 0.48, 0, width, footerY);
+    const photoShade = ctx.createLinearGradient(width * 0.39, 0, width, footerY);
     photoShade.addColorStop(0, 'rgba(11,23,43,0.30)');
     photoShade.addColorStop(0.55, 'rgba(11,23,43,0)');
     photoShade.addColorStop(1, 'rgba(11,23,43,0.16)');
     ctx.fillStyle = photoShade;
-    ctx.fillRect(width * 0.4, 0, width * 0.6, footerY);
+    ctx.fillRect(width * 0.34, 0, width * 0.66, footerY);
   }
 
   const brandX = pad;
@@ -247,15 +300,15 @@ const renderShowcase = (
 
   const titleLength = input.title.trim().length;
   const titleSize = story
-    ? titleLength > 80 ? 52 : titleLength > 52 ? 60 : 69
+    ? titleLength > 80 ? 46 : titleLength > 52 ? 55 : 66
     : landscape
-      ? titleLength > 80 ? 29 : titleLength > 52 ? 34 : 40
-      : titleLength > 80 ? 42 : titleLength > 52 ? 50 : 59;
+      ? titleLength > 80 ? 25 : titleLength > 52 ? 30 : 38
+      : titleLength > 80 ? 35 : titleLength > 52 ? 43 : 56;
   const titleY = story ? badgeY + 115 : landscape ? badgeY + 75 : badgeY + 100;
-  const titleWidth = story ? width - pad * 2 : landscape ? width * 0.36 : width * 0.38;
+  const titleWidth = story ? width - pad * 2 : landscape ? width * 0.32 : width * 0.34;
   ctx.fillStyle = COLORS.white;
   ctx.font = `900 ${titleSize}px Arial, sans-serif`;
-  const titleLines = getWrappedLines(ctx, input.title, titleWidth, story ? 3 : landscape ? 3 : 4);
+  const titleLines = getWrappedLines(ctx, input.title, titleWidth, story ? 4 : landscape ? 4 : 5);
   const titleLineHeight = titleSize * 1.05;
   drawLines(ctx, titleLines, pad, titleY, titleLineHeight);
 
