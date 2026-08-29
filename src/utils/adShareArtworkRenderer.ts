@@ -581,20 +581,22 @@ const renderImpactStory = (
   ctx.fillRect(0, 0, width, photoHeight);
   ctx.restore();
 
-  const brandCardWidth = 292;
-  const brandCardHeight = 108;
+  const brandCardWidth = 220;
+  const brandCardHeight = 72;
+  const brandCardX = pad;
+  const brandCardY = infoY - brandCardHeight - 28;
   ctx.save();
-  ctx.shadowColor = 'rgba(2,6,23,0.30)';
-  ctx.shadowBlur = 26;
-  ctx.shadowOffsetY = 10;
-  ctx.fillStyle = 'rgba(255,255,255,0.95)';
-  roundedRect(ctx, pad, pad, brandCardWidth, brandCardHeight, 24);
+  ctx.shadowColor = 'rgba(2,6,23,0.22)';
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 6;
+  ctx.fillStyle = 'rgba(5,16,30,0.78)';
+  roundedRect(ctx, brandCardX, brandCardY, brandCardWidth, brandCardHeight, 18);
   ctx.fill();
   ctx.restore();
-  ctx.fillStyle = COLORS.slate;
-  ctx.font = '800 15px Arial, sans-serif';
-  ctx.fillText('ANUNCIADO NA', pad + 20, pad + 28);
-  drawBrand(ctx, logo, pad + 20, pad + 43, 205);
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.font = '800 11px Arial, sans-serif';
+  ctx.fillText('ANUNCIADO NA', brandCardX + 16, brandCardY + 19);
+  drawBrand(ctx, logo, brandCardX + 16, brandCardY + 27, 145);
 
   ctx.fillStyle = COLORS.greenBright;
   ctx.fillRect(0, infoY, width, 8);
