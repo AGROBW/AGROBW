@@ -547,6 +547,111 @@ const renderShowcase = (
   ctx.fillText('Aponte a camera para o QR Code', footerTextX, footerY + (story ? 170 : landscape ? 90 : 136));
 };
 
+const renderImpactStory = (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  image: HTMLImageElement,
+  logo: HTMLImageElement | null,
+  qr: HTMLImageElement,
+  input: AdShareArtworkRenderInput,
+) => {
+  const pad = width * 0.065;
+  const photoHeight = height * 0.56;
+  const infoY = photoHeight;
+
+  ctx.fillStyle = COLORS.navy;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, width, photoHeight);
+  ctx.clip();
+  ctx.filter = 'blur(18px)';
+  drawImageCover(ctx, image, -24, -24, width + 48, photoHeight + 48);
+  ctx.filter = 'none';
+  ctx.fillStyle = 'rgba(5,16,30,0.50)';
+  ctx.fillRect(0, 0, width, photoHeight);
+  drawImageContain(ctx, image, 0, 0, width, photoHeight);
+
+  const photoGradient = ctx.createLinearGradient(0, photoHeight * 0.72, 0, photoHeight);
+  photoGradient.addColorStop(0, 'rgba(5,16,30,0)');
+  photoGradient.addColorStop(1, 'rgba(5,16,30,0.30)');
+  ctx.fillStyle = photoGradient;
+  ctx.fillRect(0, 0, width, photoHeight);
+  ctx.restore();
+
+  const brandCardWidth = 292;
+  const brandCardHeight = 108;
+  ctx.save();
+  ctx.shadowColor = 'rgba(2,6,23,0.30)';
+  ctx.shadowBlur = 26;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  roundedRect(ctx, pad, pad, brandCardWidth, brandCardHeight, 24);
+  ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = COLORS.slate;
+  ctx.font = '800 15px Arial, sans-serif';
+  ctx.fillText('ANUNCIADO NA', pad + 20, pad + 28);
+  drawBrand(ctx, logo, pad + 20, pad + 43, 205);
+
+  ctx.fillStyle = COLORS.greenBright;
+  ctx.fillRect(0, infoY, width, 8);
+
+  const badgeY = infoY + 76;
+  ctx.fillStyle = COLORS.greenBright;
+  ctx.font = '900 24px Arial, sans-serif';
+  ctx.fillText('OPORTUNIDADE NO AGRO', pad, badgeY);
+
+  const titleLength = input.title.trim().length;
+  const titleSize = titleLength > 80 ? 48 : titleLength > 52 ? 55 : 62;
+  const titleY = badgeY + 72;
+  const titleWidth = width - pad * 2;
+  ctx.fillStyle = COLORS.white;
+  ctx.font = `900 ${titleSize}px Arial, sans-serif`;
+  const titleLines = getWrappedLines(ctx, input.title, titleWidth, 3);
+  const titleLineHeight = titleSize * 1.06;
+  drawLines(ctx, titleLines, pad, titleY, titleLineHeight);
+
+  const priceTop = titleY + titleLines.length * titleLineHeight + 38;
+  const priceHeight = 86;
+  const priceMaxWidth = width * 0.6;
+  const priceFontSize = fitFontSize(ctx, input.priceLabel, priceMaxWidth - 64, 52, 34);
+  ctx.font = `900 ${priceFontSize}px Arial, sans-serif`;
+  const priceWidth = Math.min(priceMaxWidth, ctx.measureText(input.priceLabel).width + 64);
+  ctx.fillStyle = COLORS.green;
+  roundedRect(ctx, pad, priceTop, priceWidth, priceHeight, priceHeight / 2);
+  ctx.fill();
+  ctx.fillStyle = COLORS.white;
+  ctx.fillText(input.priceLabel, pad + 32, priceTop + priceHeight * 0.69, priceWidth - 64);
+
+  ctx.fillStyle = COLORS.white;
+  ctx.font = '700 27px Arial, sans-serif';
+  ctx.fillText(input.locationLabel, pad, priceTop + priceHeight + 43, width * 0.58);
+
+  const qrSize = 190;
+  const qrPanelPad = 18;
+  const qrPanelWidth = qrSize + qrPanelPad * 2;
+  const qrPanelHeight = qrSize + qrPanelPad * 2 + 48;
+  const qrPanelX = width - pad - qrPanelWidth;
+  const qrPanelY = height - pad - qrPanelHeight;
+  ctx.fillStyle = 'rgba(19,34,58,0.92)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 2;
+  roundedRect(ctx, qrPanelX, qrPanelY, qrPanelWidth, qrPanelHeight, 28);
+  ctx.fill();
+  ctx.stroke();
+  drawQrBlock(ctx, qr, qrPanelX + qrPanelPad, qrPanelY + qrPanelPad, qrSize);
+
+  ctx.fillStyle = COLORS.white;
+  ctx.font = '800 23px Arial, sans-serif';
+  ctx.fillText('ACESSE O ANUNCIO', pad, height - pad - 45);
+  ctx.fillStyle = COLORS.greenBright;
+  ctx.font = '800 25px Arial, sans-serif';
+  ctx.fillText('agrobw.com.br', pad, height - pad);
+};
+
 const renderImpact = (
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -558,6 +663,11 @@ const renderImpact = (
 ) => {
   const landscape = input.format === 'landscape';
   const story = input.format === 'story';
+  if (story) {
+    renderImpactStory(ctx, width, height, image, logo, qr, input);
+    return;
+  }
+
   const pad = width * (landscape ? 0.05 : 0.07);
   drawImageCover(ctx, image, 0, 0, width, height);
 
