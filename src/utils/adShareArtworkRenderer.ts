@@ -157,6 +157,23 @@ const drawLines = (
   lineHeight: number,
 ) => lines.forEach((line, index) => ctx.fillText(line, x, y + index * lineHeight));
 
+const fitFontSize = (
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  preferredSize: number,
+  minimumSize: number,
+  weight = 900,
+) => {
+  let size = preferredSize;
+  while (size > minimumSize) {
+    ctx.font = `${weight} ${size}px Arial, sans-serif`;
+    if (ctx.measureText(text).width <= maxWidth) return size;
+    size -= 1;
+  }
+  return minimumSize;
+};
+
 const drawBrand = (
   ctx: CanvasRenderingContext2D,
   logo: HTMLImageElement | null,
@@ -334,27 +351,34 @@ const renderShowcase = (
       ? titleLength > 80 ? 24 : titleLength > 52 ? 28 : 32
       : titleLength > 80 ? 34 : titleLength > 52 ? 39 : 45;
   const titleY = badgeY + (story ? 68 : landscape ? 38 : 52);
-  const titleWidth = story ? width * 0.58 : landscape ? width * 0.57 : width * 0.58;
+  const titleWidth = story ? width - pad * 2 : landscape ? width * 0.57 : width * 0.58;
   ctx.fillStyle = COLORS.white;
   ctx.font = `900 ${titleSize}px Arial, sans-serif`;
   const titleLines = getWrappedLines(ctx, input.title, titleWidth, 2);
   const titleLineHeight = titleSize * 1.05;
   drawLines(ctx, titleLines, pad, titleY, titleLineHeight);
 
-  const dividerX = width * (story ? 0.64 : landscape ? 0.63 : 0.64);
-  const dividerTop = infoY + infoHeight * 0.22;
-  const dividerBottom = footerY - infoHeight * 0.2;
-  ctx.strokeStyle = COLORS.greenBright;
-  ctx.lineWidth = story ? 5 : landscape ? 3 : 4;
-  ctx.beginPath();
-  ctx.moveTo(dividerX, dividerTop);
-  ctx.lineTo(dividerX, dividerBottom);
-  ctx.stroke();
+  const dividerX = width * (landscape ? 0.63 : 0.64);
+  if (!story) {
+    const dividerTop = infoY + infoHeight * 0.22;
+    const dividerBottom = footerY - infoHeight * 0.2;
+    ctx.strokeStyle = COLORS.greenBright;
+    ctx.lineWidth = landscape ? 3 : 4;
+    ctx.beginPath();
+    ctx.moveTo(dividerX, dividerTop);
+    ctx.lineTo(dividerX, dividerBottom);
+    ctx.stroke();
+  }
 
-  const priceCardX = dividerX + (story ? 34 : landscape ? 20 : 28);
-  const priceCardWidth = width - pad - priceCardX;
-  const priceCardHeight = story ? 196 : landscape ? 112 : 146;
-  const priceCardY = infoY + (infoHeight - priceCardHeight) / 2;
+  const priceCardX = story ? pad : dividerX + (landscape ? 20 : 28);
+  const priceCardWidth = story ? width - pad * 2 : width - pad - priceCardX;
+  const priceCardHeight = story ? 174 : landscape ? 112 : 146;
+  const priceCardY = story
+    ? Math.min(
+      titleY + titleLines.length * titleLineHeight + 32,
+      footerY - priceCardHeight - 34,
+    )
+    : infoY + (infoHeight - priceCardHeight) / 2;
   ctx.fillStyle = 'rgba(19,34,58,0.76)';
   ctx.strokeStyle = 'rgba(255,255,255,0.28)';
   ctx.lineWidth = 2;
@@ -363,14 +387,23 @@ const renderShowcase = (
   ctx.stroke();
 
   ctx.fillStyle = '#cbd5e1';
-  ctx.font = `800 ${story ? 21 : landscape ? 12 : 16}px Arial, sans-serif`;
-  ctx.fillText('PRECO DO ANUNCIO', priceCardX + (story ? 28 : 20), priceCardY + (story ? 43 : landscape ? 28 : 35));
+  const priceInset = story ? 30 : 20;
+  ctx.font = `800 ${story ? 20 : landscape ? 12 : 16}px Arial, sans-serif`;
+  ctx.fillText('PRECO DO ANUNCIO', priceCardX + priceInset, priceCardY + (story ? 38 : landscape ? 28 : 35));
   ctx.fillStyle = COLORS.greenBright;
-  ctx.font = `900 ${story ? 49 : landscape ? 28 : 39}px Arial, sans-serif`;
-  ctx.fillText(input.priceLabel, priceCardX + (story ? 28 : 20), priceCardY + (story ? 105 : landscape ? 65 : 82));
+  const priceSize = story
+    ? fitFontSize(ctx, input.priceLabel, priceCardWidth - priceInset * 2, 52, 34)
+    : landscape ? 28 : 39;
+  ctx.font = `900 ${priceSize}px Arial, sans-serif`;
+  ctx.fillText(
+    input.priceLabel,
+    priceCardX + priceInset,
+    priceCardY + (story ? 99 : landscape ? 65 : 82),
+    priceCardWidth - priceInset * 2,
+  );
   ctx.fillStyle = COLORS.white;
-  ctx.font = `700 ${story ? 25 : landscape ? 15 : 20}px Arial, sans-serif`;
-  ctx.fillText(input.locationLabel, priceCardX + (story ? 28 : 20), priceCardY + (story ? 153 : landscape ? 91 : 116));
+  ctx.font = `700 ${story ? 23 : landscape ? 15 : 20}px Arial, sans-serif`;
+  ctx.fillText(input.locationLabel, priceCardX + priceInset, priceCardY + (story ? 143 : landscape ? 91 : 116));
 
   ctx.fillStyle = 'rgba(255,255,255,0.97)';
   ctx.fillRect(0, footerY, width, footerHeight);
