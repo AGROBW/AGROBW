@@ -320,19 +320,13 @@ const renderShowcaseLandscape = (
   ctx.restore();
 
   ctx.fillStyle = COLORS.navy;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(photoX, 0);
-  ctx.lineTo(width * 0.4, height);
-  ctx.lineTo(0, height);
-  ctx.closePath();
-  ctx.fill();
+  ctx.fillRect(0, 0, photoX, height);
 
   ctx.strokeStyle = COLORS.greenBright;
   ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.moveTo(photoX, 0);
-  ctx.lineTo(width * 0.4, height);
+  ctx.lineTo(photoX, height);
   ctx.stroke();
 
   drawBrand(ctx, logo, pad, 42, 180);
@@ -383,7 +377,7 @@ const renderShowcaseLandscape = (
   ctx.fillText(input.locationLabel, priceCardX + priceInset, priceCardY + 91, priceCardWidth - priceInset * 2);
 
   ctx.fillStyle = 'rgba(255,255,255,0.98)';
-  ctx.fillRect(0, footerY, 500, height - footerY);
+  ctx.fillRect(0, footerY, photoX, height - footerY);
 
   const iconSize = 24;
   drawGlobeIcon(ctx, pad, footerY + 36, iconSize);
@@ -399,7 +393,7 @@ const renderShowcaseLandscape = (
   ctx.fillText('Aponte a camera para o QR Code', footerTextX, footerY + 82);
 
   const qrSize = 76;
-  drawQrOnly(ctx, qr, 500 - pad - qrSize, footerY + 16, qrSize);
+  drawQrOnly(ctx, qr, photoX - pad - qrSize, footerY + 16, qrSize);
 };
 
 const renderShowcase = (
