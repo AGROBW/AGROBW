@@ -154,6 +154,22 @@ const drawQrBlock = (
   ctx.textAlign = 'left';
 };
 
+const drawQrOnly = (
+  ctx: CanvasRenderingContext2D,
+  qr: HTMLImageElement,
+  x: number,
+  y: number,
+  size: number,
+) => {
+  ctx.save();
+  ctx.fillStyle = COLORS.white;
+  roundedRect(ctx, x, y, size, size, Math.round(size * 0.1));
+  ctx.fill();
+  const padding = Math.round(size * 0.08);
+  ctx.drawImage(qr, x + padding, y + padding, size - padding * 2, size - padding * 2);
+  ctx.restore();
+};
+
 const renderShowcase = (
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -165,53 +181,125 @@ const renderShowcase = (
 ) => {
   const story = input.format === 'story';
   const landscape = input.format === 'landscape';
-  const imageHeight = story ? height * 0.58 : landscape ? height * 0.64 : height * 0.57;
-  const pad = width * (landscape ? 0.045 : 0.065);
+  const pad = width * (landscape ? 0.045 : 0.055);
+  const footerHeight = story ? 250 : landscape ? 112 : 166;
+  const footerY = height - footerHeight;
 
   ctx.fillStyle = COLORS.navy;
   ctx.fillRect(0, 0, width, height);
-  drawImageCover(ctx, image, 0, 0, width, imageHeight);
+  drawImageCover(ctx, image, 0, 0, width, footerY);
 
-  const gradient = ctx.createLinearGradient(0, imageHeight * 0.35, 0, imageHeight);
-  gradient.addColorStop(0, 'rgba(11,23,43,0)');
-  gradient.addColorStop(1, COLORS.navy);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, imageHeight + 3);
+  if (story) {
+    // Nos Stories, a fotografia ocupa o topo e o conteudo fica protegido na metade inferior.
+    const panelTop = height * 0.39;
+    const panelGradient = ctx.createLinearGradient(0, panelTop - 100, 0, footerY);
+    panelGradient.addColorStop(0, 'rgba(11,23,43,0)');
+    panelGradient.addColorStop(0.2, 'rgba(11,23,43,0.88)');
+    panelGradient.addColorStop(1, COLORS.navy);
+    ctx.fillStyle = panelGradient;
+    ctx.fillRect(0, panelTop - 100, width, footerY - panelTop + 100);
+    ctx.strokeStyle = COLORS.greenBright;
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(0, panelTop);
+    ctx.lineTo(width, panelTop - 72);
+    ctx.stroke();
+  } else {
+    // O recorte diagonal replica a direcao visual da referencia sem esconder o produto.
+    const panelTopX = landscape ? width * 0.43 : width * 0.43;
+    const panelBottomX = landscape ? width * 0.49 : width * 0.52;
+    ctx.fillStyle = 'rgba(11,23,43,0.97)';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(panelTopX, 0);
+    ctx.lineTo(panelBottomX, footerY);
+    ctx.lineTo(0, footerY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = COLORS.greenBright;
+    ctx.lineWidth = landscape ? 6 : 8;
+    ctx.beginPath();
+    ctx.moveTo(panelTopX, 0);
+    ctx.lineTo(panelBottomX, footerY);
+    ctx.stroke();
 
-  drawBrand(ctx, logo, pad, pad, landscape ? 190 : 220);
+    const photoShade = ctx.createLinearGradient(width * 0.48, 0, width, footerY);
+    photoShade.addColorStop(0, 'rgba(11,23,43,0.30)');
+    photoShade.addColorStop(0.55, 'rgba(11,23,43,0)');
+    photoShade.addColorStop(1, 'rgba(11,23,43,0.16)');
+    ctx.fillStyle = photoShade;
+    ctx.fillRect(width * 0.4, 0, width * 0.6, footerY);
+  }
+
+  const brandX = pad;
+  const brandY = story ? pad : pad * 0.85;
+  drawBrand(ctx, logo, brandX, brandY, story ? 235 : landscape ? 190 : 220);
+
+  const badgeY = story ? height * 0.43 : landscape ? height * 0.20 : height * 0.20;
+  const badgeHeight = story ? 58 : landscape ? 34 : 44;
+  ctx.strokeStyle = COLORS.greenBright;
+  ctx.lineWidth = story ? 4 : 3;
+  roundedRect(ctx, pad, badgeY, story ? 360 : landscape ? 245 : 300, badgeHeight, badgeHeight / 2);
+  ctx.stroke();
   ctx.fillStyle = COLORS.greenBright;
-  ctx.font = `800 ${landscape ? 21 : 25}px Arial, sans-serif`;
-  ctx.fillText('ANUNCIADO NA AGRO BW', pad, imageHeight + (story ? 90 : landscape ? 45 : 65));
+  ctx.font = `900 ${story ? 24 : landscape ? 15 : 19}px Arial, sans-serif`;
+  ctx.fillText('ANUNCIADO NA AGRO BW', pad + (story ? 25 : landscape ? 16 : 20), badgeY + badgeHeight * 0.69);
 
-  const titleSize = story ? 62 : landscape ? 38 : 48;
-  ctx.font = `900 ${titleSize}px Arial, sans-serif`;
+  const titleLength = input.title.trim().length;
+  const titleSize = story
+    ? titleLength > 80 ? 52 : titleLength > 52 ? 60 : 69
+    : landscape
+      ? titleLength > 80 ? 29 : titleLength > 52 ? 34 : 40
+      : titleLength > 80 ? 42 : titleLength > 52 ? 50 : 59;
+  const titleY = story ? badgeY + 115 : landscape ? badgeY + 75 : badgeY + 100;
+  const titleWidth = story ? width - pad * 2 : landscape ? width * 0.36 : width * 0.38;
   ctx.fillStyle = COLORS.white;
-  const qrSize = story ? 220 : landscape ? 145 : 165;
-  const titleMaxWidth = landscape ? width - pad * 3 - qrSize : width - pad * 2;
-  const titleY = imageHeight + (story ? 170 : landscape ? 95 : 130);
-  const titleLines = getWrappedLines(ctx, input.title, titleMaxWidth, landscape ? 2 : 3);
-  drawLines(ctx, titleLines, pad, titleY, titleSize * 1.08);
+  ctx.font = `900 ${titleSize}px Arial, sans-serif`;
+  const titleLines = getWrappedLines(ctx, input.title, titleWidth, story ? 3 : landscape ? 3 : 4);
+  const titleLineHeight = titleSize * 1.05;
+  drawLines(ctx, titleLines, pad, titleY, titleLineHeight);
 
-  const priceY = titleY + titleLines.length * titleSize * 1.08 + (story ? 55 : 25);
-  ctx.fillStyle = COLORS.lime;
-  ctx.font = `900 ${story ? 54 : landscape ? 35 : 42}px Arial, sans-serif`;
-  ctx.fillText(input.priceLabel, pad, priceY);
+  const priceCardY = titleY + titleLines.length * titleLineHeight + (story ? 55 : landscape ? 25 : 36);
+  const priceCardWidth = story ? width - pad * 2 : landscape ? width * 0.38 : width * 0.41;
+  const priceCardHeight = story ? 185 : landscape ? 105 : 140;
+  ctx.fillStyle = 'rgba(19,34,58,0.92)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+  ctx.lineWidth = 2;
+  roundedRect(ctx, pad, priceCardY, priceCardWidth, priceCardHeight, story ? 30 : 22);
+  ctx.fill();
+  ctx.stroke();
 
   ctx.fillStyle = '#cbd5e1';
-  ctx.font = `600 ${story ? 28 : landscape ? 20 : 23}px Arial, sans-serif`;
-  ctx.fillText(input.locationLabel, pad, priceY + (story ? 55 : 42));
+  ctx.font = `800 ${story ? 22 : landscape ? 13 : 17}px Arial, sans-serif`;
+  ctx.fillText('PRECO DO ANUNCIO', pad + (story ? 30 : 22), priceCardY + (story ? 42 : landscape ? 27 : 34));
+  ctx.fillStyle = COLORS.greenBright;
+  ctx.font = `900 ${story ? 53 : landscape ? 29 : 41}px Arial, sans-serif`;
+  ctx.fillText(input.priceLabel, pad + (story ? 30 : 22), priceCardY + (story ? 105 : landscape ? 63 : 82));
+  ctx.fillStyle = COLORS.white;
+  ctx.font = `700 ${story ? 27 : landscape ? 16 : 21}px Arial, sans-serif`;
+  ctx.fillText(input.locationLabel, pad + (story ? 30 : 22), priceCardY + (story ? 151 : landscape ? 88 : 116));
 
-  drawQrBlock(
-    ctx,
-    qr,
-    width - pad - qrSize,
-    height - (story ? 330 : landscape ? 205 : 230),
-    qrSize,
-  );
+  // Rodape branco une acesso, endereco e QR Code sem incluir contato ou promessa comercial.
+  ctx.fillStyle = 'rgba(255,255,255,0.97)';
+  ctx.fillRect(0, footerY, width, footerHeight);
+  ctx.fillStyle = COLORS.green;
+  ctx.fillRect(0, footerY, width, story ? 8 : 6);
 
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = `700 ${story ? 25 : landscape ? 18 : 21}px Arial, sans-serif`;
-  ctx.fillText('agrobw.com.br', pad, height - pad);
+  const qrSize = story ? 190 : landscape ? 88 : 128;
+  const qrX = width - pad - qrSize;
+  const qrY = footerY + (footerHeight - qrSize) / 2;
+  drawQrOnly(ctx, qr, qrX, qrY, qrSize);
+
+  const footerTextX = pad;
+  ctx.fillStyle = COLORS.navy;
+  ctx.font = `900 ${story ? 34 : landscape ? 20 : 27}px Arial, sans-serif`;
+  ctx.fillText('VEJA O ANUNCIO COMPLETO', footerTextX, footerY + (story ? 78 : landscape ? 43 : 62));
+  ctx.fillStyle = COLORS.green;
+  ctx.font = `800 ${story ? 28 : landscape ? 17 : 22}px Arial, sans-serif`;
+  ctx.fillText('agrobw.com.br', footerTextX, footerY + (story ? 128 : landscape ? 72 : 101));
+  ctx.fillStyle = COLORS.slate;
+  ctx.font = `600 ${story ? 22 : landscape ? 13 : 17}px Arial, sans-serif`;
+  ctx.fillText('Aponte a camera para o QR Code', footerTextX, footerY + (story ? 174 : landscape ? 96 : 135));
 };
 
 const renderImpact = (
