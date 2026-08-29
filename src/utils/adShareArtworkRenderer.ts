@@ -216,6 +216,57 @@ const drawQrOnly = (
   ctx.restore();
 };
 
+const drawGlobeIcon = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  centerY: number,
+  size: number,
+) => {
+  const radius = size / 2;
+  const centerX = x + radius;
+
+  ctx.save();
+  ctx.strokeStyle = COLORS.green;
+  ctx.lineWidth = Math.max(2, size * 0.09);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.ellipse(centerX, centerY, radius * 0.42, radius, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(centerX - radius, centerY);
+  ctx.lineTo(centerX + radius, centerY);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(centerX - radius * 0.82, centerY - radius * 0.48);
+  ctx.bezierCurveTo(
+    centerX - radius * 0.28,
+    centerY - radius * 0.2,
+    centerX + radius * 0.28,
+    centerY - radius * 0.2,
+    centerX + radius * 0.82,
+    centerY - radius * 0.48,
+  );
+  ctx.moveTo(centerX - radius * 0.82, centerY + radius * 0.48);
+  ctx.bezierCurveTo(
+    centerX - radius * 0.28,
+    centerY + radius * 0.2,
+    centerX + radius * 0.28,
+    centerY + radius * 0.2,
+    centerX + radius * 0.82,
+    centerY + radius * 0.48,
+  );
+  ctx.stroke();
+  ctx.restore();
+};
+
 const renderShowcase = (
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -332,17 +383,7 @@ const renderShowcase = (
   const iconSize = story ? 42 : landscape ? 25 : 32;
   const iconX = pad;
   const iconY = footerY + footerHeight * 0.34;
-  ctx.strokeStyle = COLORS.green;
-  ctx.lineWidth = story ? 5 : 3;
-  ctx.beginPath();
-  ctx.arc(iconX + iconSize / 2, iconY, iconSize / 2, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(iconX + iconSize / 2, iconY - iconSize / 2);
-  ctx.lineTo(iconX + iconSize / 2, iconY + iconSize / 2);
-  ctx.moveTo(iconX, iconY);
-  ctx.lineTo(iconX + iconSize, iconY);
-  ctx.stroke();
+  drawGlobeIcon(ctx, iconX, iconY, iconSize);
 
   const footerTextX = iconX + iconSize + (story ? 28 : landscape ? 15 : 20);
   ctx.fillStyle = COLORS.navy;
