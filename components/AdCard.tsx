@@ -9,7 +9,7 @@ import { supabase } from '../src/lib/supabaseClient';
 import { detectUserState } from '../src/utils/geoLocation';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
-import { isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
+import { getTrustedHoursAgo, isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 import { debugLog } from '../src/utils/debugLog';
 import { appWarn } from '../src/utils/appLogger';
 import VerifiedBadge from './VerifiedBadge';
@@ -110,6 +110,8 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto', vari
           : isCategoryHighlightActive;
   const hasActiveHighlight = shouldShowCategoryHighlight || shouldShowHomeHighlight;
   const hasOfficialStore = !!ad.seller?.store?.slug;
+  const createdHoursAgo = getTrustedHoursAgo(ad.createdAt);
+  const isRecentlyPublished = createdHoursAgo >= 0 && createdHoursAgo <= 48;
   const categoryHighlightStyle = {
     borderColor: '#93c5fd',
     boxShadow: '0 12px 30px -18px rgba(59, 130, 246, 0.28)',
@@ -118,24 +120,39 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto', vari
     borderColor: '#34d399',
     boxShadow: '0 12px 30px -18px rgba(16, 185, 129, 0.28)',
   } as const;
+  const recentCardStyle = {
+    borderColor: '#94a3b8',
+    boxShadow: '0 12px 30px -18px rgba(71, 85, 105, 0.3)',
+  } as const;
   const cardStyle = shouldShowHomeHighlight
     ? { borderColor: settings.accentColor, boxShadow: `0 12px 30px -18px ${settings.accentColor}66` }
     : shouldShowCategoryHighlight
       ? categoryHighlightStyle
       : hasOfficialStore
         ? officialStoreCardStyle
-        : undefined;
+        : isRecentlyPublished
+          ? recentCardStyle
+          : undefined;
   const isCompact = variant === 'compact';
 
   return (
     <div className={`group bg-white rounded-xl overflow-hidden transition-all duration-300 flex flex-col h-full relative ${
-      hasActiveHighlight || hasOfficialStore
+      hasActiveHighlight || hasOfficialStore || isRecentlyPublished
         ? 'border-2 shadow-lg' 
         : 'border border-slate-100'
     }`} style={cardStyle}>
-      {ad.isPremium && !hasActiveHighlight && (
-        <div className="absolute left-4 top-4 z-10 rounded bg-yellow-400 px-2 py-1 text-[10px] font-black uppercase text-yellow-900 shadow-sm">
-          Premium
+      {(isRecentlyPublished || (ad.isPremium && !hasActiveHighlight)) && (
+        <div className="absolute left-4 top-4 z-10 flex flex-col items-start gap-1.5">
+          {isRecentlyPublished && (
+            <span className="rounded bg-emerald-500 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white shadow-sm">
+              Novo
+            </span>
+          )}
+          {ad.isPremium && !hasActiveHighlight && (
+            <span className="rounded bg-yellow-400 px-2 py-1 text-[10px] font-black uppercase text-yellow-900 shadow-sm">
+              Premium
+            </span>
+          )}
         </div>
       )}
 
