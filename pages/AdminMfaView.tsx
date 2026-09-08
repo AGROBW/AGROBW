@@ -4,6 +4,7 @@ import { KeyRound, QrCode, RefreshCcw, ShieldCheck } from 'lucide-react'
 import { supabase } from '../src/lib/supabaseClient'
 import { useAuth } from '../src/contexts/AuthContext'
 import { toQrImageSrc } from '../src/lib/adminMfa'
+import { appWarn } from '../src/utils/appLogger'
 
 const AdminMfaView: React.FC = () => {
   const navigate = useNavigate()
@@ -44,20 +45,41 @@ const AdminMfaView: React.FC = () => {
     setQrCodeSrc('')
   }
 
+  /**
+   * Registra a conclusao do login administrativo.
+   *
+   * NAO chama mais `register_admin_login_attempt` do navegador. Aquela RPC
+   * aceitava e-mail, sucesso e motivo arbitrarios: qualquer usuario
+   * autenticado podia registrar login administrativo em nome de outra
+   * conta. O registro passa pela Edge Function `admin-security-event`, que
+   * ja verifica o token, confirma o perfil de administrador e usa
+   * `service_role` — o mesmo caminho dos demais sinais desta tela.
+   *
+   * O e-mail deixa de ser enviado: vem do token, no servidor.
+   */
   const finalizeCompletedAdminLogin = async () => {
-    const normalizedEmail = String(user?.email || '').trim().toLowerCase()
-
-    await Promise.allSettled([
+    const [, auditoria] = await Promise.allSettled([
       recordCompletedLogin(),
-      normalizedEmail
-        ? supabase.rpc('register_admin_login_attempt', {
-            p_email: normalizedEmail,
-            p_success: true,
-            p_reason: 'Login administrativo concluido com MFA valido.',
-            p_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null
-          })
-        : Promise.resolve(null)
+      supabase.functions.invoke('admin-security-event', {
+        body: { action: 'admin_login_completed' },
+      })
     ])
+
+    // Falha parcial NAO e auditoria concluida. O login segue — bloquear o
+    // acesso do administrador por falha de registro seria pior — mas o
+    // caso precisa ser visivel, e nao silenciosamente tratado como sucesso.
+    const resultado = auditoria.status === 'fulfilled' ? auditoria.value : null
+    const auditStatus = (resultado as { data?: { audit?: string } } | null)?.data?.audit
+
+    if (auditoria.status === 'rejected' || (resultado as { error?: unknown } | null)?.error) {
+      appWarn('[AdminMfaView] Auditoria do login administrativo nao concluida', {
+        motivo: auditoria.status === 'rejected' ? 'invoke rejeitado' : 'erro na resposta',
+      })
+    } else if (auditStatus === 'falhou') {
+      appWarn('[AdminMfaView] Auditoria do login administrativo falhou no servidor', {
+        auditStatus,
+      })
+    }
   }
 
   const reportSecuritySignal = async (
