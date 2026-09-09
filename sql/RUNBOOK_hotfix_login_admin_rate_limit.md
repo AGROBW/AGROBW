@@ -268,9 +268,9 @@ exatamente o que o `pg_sleep` força.
 
 ---
 
-## O diff — **nove** arquivos
+## O diff — **dez** arquivos
 
-Quatro modificados e cinco novos. A entrega é autocontida: código,
+Quatro modificados e seis novos. A entrega é autocontida: código,
 migração, runbook e roteiro de smoke no mesmo commit.
 
 ```
@@ -285,6 +285,7 @@ migração, runbook e roteiro de smoke no mesmo commit.
 ?? sql/SMOKE_hotfix_login_admin_rate_limit.md         o roteiro de smoke
 ?? sql/PREVERIFICACAO_hotfix_login_admin_rate_limit.sql  a pre-verificacao READ ONLY
 ?? sql/POSVERIFICACAO_hotfix_login_admin_rate_limit.sql  a pos-verificacao READ ONLY
+?? sql/ETAPA9_revogacao_rpcs_antigas.sql              a revogacao (etapa 9)
 ```
 
 ### `supabase/functions/_shared/cors.ts`
@@ -382,13 +383,13 @@ daqui.
 3. build + typecheck no worktree .................. FEITO
 4. aplicar sql/hotfix_login_admin_rate_limit_2026-09-08.sql .... FEITO
      (tabela + RPC; o bloco 4 de REVOGACAO fica fora)
-4b. pos-verificacao READ ONLY ..................... sql/POSVERIFICACAO_hotfix_login_admin_rate_limit.sql
-5. publicar admin-security-event  --use-api  (rollback pronto)
-6. smoke  AAL1 / AAL2 / nao-admin / replay CONCORRENTE
-7. publicar o site do worktree limpo
-8. verificar o bundle publicado
-9. revogar as RPCs antigas de authenticated (anon ja esta sem)
-10. pos-verificacao de permissoes e do fluxo
+4b. pos-verificacao READ ONLY ..................... FEITO  41 OK / 1 INFO / 0 ATENCAO
+5. publicar admin-security-event  --use-api ....... FEITO  versao 6
+6. smoke  AAL1 / AAL2 / nao-admin / replay ........ FEITO  casos 1-4 aprovados
+7. publicar o site do worktree limpo .............. FEITO  dpl_22gu6McqUBpvDUtfqJQkTnV4J4oR
+8. verificar o bundle publicado ................... FEITO  5 marcadores, 137 arquivos
+9. revogar as RPCs antigas de authenticated ....... FEITO  sql/ETAPA9_revogacao_rpcs_antigas.sql
+10. pos-verificacao de permissoes e do fluxo ...... FEITO  chaves 3->4, sucessos 118->119, falhas 0->0
 ```
 
 **4 antes de 5:** a Edge Function nova chama
@@ -512,10 +513,17 @@ fora da entrega mínima e merece o mesmo cuidado que o resto — medir,
 versionar, testar. A consulta reporta o estado e reconhece sozinha se
 alguém já tiver corrigido.
 
-### Etapa 5 — publicar a Edge Function, com a volta pronta
+### Etapa 5 — publicar a Edge Function  ·  **CONCLUÍDA**
 
-**O rollback já está preparado e verificado.** A versão que está no ar
-foi baixada e guardada antes de qualquer publicação.
+**Publicada em 2026-09-09: `admin-security-event` versão 6**, `ACTIVE`,
+`2026-09-09 14:46:14` UTC, ID `e80341e3-03b0-4d27-be1d-b06627ba3b60`.
+
+A primeira tentativa falhou no bundle, com o Docker: o Avast intercepta
+HTTPS e o contêiner não confia na raiz dele. `--use-api` monta o bundle
+no servidor do Supabase e resolveu. Detalhes abaixo.
+
+**O rollback foi preparado ANTES da publicação.** A versão que estava no
+ar (5) foi baixada e guardada.
 
 | | |
 |---|---|
@@ -573,7 +581,12 @@ O manifesto completo está em `MANIFESTO.md`, dentro da pasta.
 > identificadores. Feita assim, o `index.ts` publicado bate com `main` —
 > quem divergia era o `cors.ts`.
 
-### Etapa 6 — smoke
+### Etapa 6 — smoke  ·  **CONCLUÍDA**
+
+Casos 1-4 aprovados em produção. O caso 8 (falha parcial, HTTP 207) foi
+validado em ambiente local descartável, com Postgres real e a falha
+induzida no banco — em produção ele exigiria revogar permissão ou
+derrubar a tabela, e o roteiro marca "nunca em produção".
 
 `sql/SMOKE_hotfix_login_admin_rate_limit.md`, sete casos:
 
@@ -589,10 +602,54 @@ O manifesto completo está em `MANIFESTO.md`, dentro da pasta.
 
 Os dois em negrito são os que a versão anterior não passaria.
 
-### Etapa 9 — revogação
+### Etapas 7 e 8 — site e bundle  ·  **CONCLUÍDAS**
 
-Bloco 4 de `sql/hotfix_login_admin_rate_limit_2026-09-08.sql`. A pré-verificação
-produz o rollback: salve a saída antes.
+Publicado em 2026-09-09 a partir do worktree limpo, commit `07066fe`:
+
+| | |
+|---|---|
+| Deployment | `dpl_22gu6McqUBpvDUtfqJQkTnV4J4oR` |
+| URL | `bwagro-rd4lxzujd-agro-bw.vercel.app` |
+| Aliases | `agrobw.com.br` · `www.agrobw.com.br` · `bwagro-ruddy.vercel.app` · `bwagro-agro-bw.vercel.app` |
+| Rollback | `dpl_HmNxcMXZJZ1yZbDmiPzVoNBj2onK`, ainda `READY` |
+
+Bundle conferido sobre **137 arquivos `.js`** servidos por
+`agrobw.com.br` — as 136 referências de chunk do bundle de entrada, mais
+ele próprio. Nenhum download falhou:
+
+```
+log_security_event             0
+register_admin_login_attempt   0
+api.ipify.org                  0
+log_unauthorized_access        1   entry.js
+admin_login_completed          1   AdminMfaView-0STFjyOC.js
+```
+
+Essa inversão é o que autorizou a etapa 9: revogar antes de o bundle
+publicado ter parado de chamar quebraria produção.
+
+Um deployment anterior ficou `BLOCKED` por identidade de commit
+divergente entre a conta do git local e a dona do projeto. Resolvido com
+um commit vazio assinado por `wallaceejsr <contato@agrobw.com.br>`.
+
+### Etapa 9 — revogação  ·  **CONCLUÍDA**
+
+**Aplicada em produção em 2026-09-09**, por
+`sql/ETAPA9_revogacao_rpcs_antigas.sql` — arquivo próprio, transação
+única, quatro portões que abortam sem deixar revogação pela metade.
+
+Validada pelo smoke seguinte: **chaves 3 → 4 · sucessos 118 → 119 ·
+falhas 0 → 0**. O login administrativo seguiu registrando depois de
+`authenticated` perder o `EXECUTE` — o registro passou a vir só da Edge
+Function com `service_role`.
+
+O bloco 4 comentado dentro de
+`sql/hotfix_login_admin_rate_limit_2026-09-08.sql` foi **substituído**
+por esse arquivo e não deve ser usado: ele não tinha os portões de
+pré-condição nem a checagem de que `log_unauthorized_access` sobrevive à
+revogação.
+
+A pré-verificação produz o rollback: salve a saída antes.
 
 O que a revogação de fato muda, pelo estado medido:
 
@@ -608,10 +665,15 @@ não dá erro, e eles são a defesa preventiva: se um deploy futuro
 reconceder `anon` por engano — como os arquivos versionados sugeririam a
 quem os lesse — este bloco desfaz. Custo zero, e cobre a reincidência.
 
-**`log_security_event` ainda não foi medida.** Ela entrou na
-pré-verificação depois da primeira execução. Rode a versão atual antes
-desta etapa: sem a medida, o rollback dela é chute — e foi exatamente
-assim que a linha de `anon` entrou errada aqui.
+**`log_security_event` foi medida.** Ela entrou na pré-verificação
+depois da primeira execução, e a segunda execução, em 2026-09-09,
+registrou as oito propriedades — `PUBLIC` e `anon` sem `EXECUTE`,
+`authenticated` e `service_role` com, dona `postgres`, `SECURITY
+DEFINER`, `search_path=public`, e o `proacl`
+`{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}`.
+
+Esse é o baseline que o bloco 5 da pós-verificação compara e que o
+rollback da etapa 9 usa. Não é chute: é medida.
 
 `admin-login/index.ts:155` chama `register_admin_login_attempt` para quem
 **ainda não tem sessão**, com `service_role` — continua funcionando. Em
