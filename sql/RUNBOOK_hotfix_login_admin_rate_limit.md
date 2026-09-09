@@ -268,16 +268,17 @@ exatamente o que o `pg_sleep` força.
 
 ---
 
-## O diff — **oito** arquivos
+## O diff — **nove** arquivos
 
-Três modificados e cinco novos. A entrega é autocontida: código,
+Quatro modificados e cinco novos. A entrega é autocontida: código,
 migração, runbook e roteiro de smoke no mesmo commit.
 
 ```
  M pages/AdminMfaView.tsx                            |  44 ++++--
  M src/hooks/useSecurityLog.ts                       | 172 +++++-----------
  M supabase/functions/admin-security-event/index.ts  | 133 ++++++++++++-
-   3 modificados: 197 insercoes, 152 remocoes
+ M supabase/functions/_shared/cors.ts                 |  21 +++
+   4 modificados
 
 ?? sql/hotfix_login_admin_rate_limit_2026-09-08.sql   a migracao
 ?? sql/RUNBOOK_hotfix_login_admin_rate_limit.md       este documento
@@ -285,6 +286,34 @@ migração, runbook e roteiro de smoke no mesmo commit.
 ?? sql/PREVERIFICACAO_hotfix_login_admin_rate_limit.sql  a pre-verificacao READ ONLY
 ?? sql/POSVERIFICACAO_hotfix_login_admin_rate_limit.sql  a pos-verificacao READ ONLY
 ```
+
+### `supabase/functions/_shared/cors.ts`
+
+Acrescenta três origens à allowlist:
+
+```
+https://bwagro.vercel.app
+https://bwagro.com.br
+https://www.bwagro.com.br
+```
+
+**Não é mudança de comportamento — é o contrário.** Essas três já estão
+na função publicada (versão 5, 2026-06-19), conferidas baixando o bundle
+com `supabase functions download`. Elas nunca tinham sido commitadas:
+existiam só em produção.
+
+Sem esta alteração, publicar a Edge Function levaria junto o `cors.ts` de
+`main` e **removeria** as três. `resolveAllowedOrigin` passaria a devolver
+o fallback `ALLOWED_BROWSER_ORIGINS[0]` (`https://agrobw.com.br`) para
+quem chegasse por um domínio `bwagro`, e o navegador recusaria por CORS —
+quebrando o login administrativo de quem ainda usa esses endereços, por
+uma causa sem relação nenhuma com este hotfix.
+
+A lista ficou **idêntica à publicada, na mesma ordem**, inclusive o
+elemento `[0]` de que o fallback depende. Sem curingas.
+
+A eventual remoção desses domínios fica para depois, com análise de uso.
+Não é decisão deste hotfix.
 
 ### `supabase/functions/admin-security-event/index.ts`
 
@@ -354,7 +383,7 @@ daqui.
 4. aplicar sql/hotfix_login_admin_rate_limit_2026-09-08.sql .... FEITO
      (tabela + RPC; o bloco 4 de REVOGACAO fica fora)
 4b. pos-verificacao READ ONLY ..................... sql/POSVERIFICACAO_hotfix_login_admin_rate_limit.sql
-5. publicar admin-security-event
+5. publicar admin-security-event  (rollback ja preparado)
 6. smoke  AAL1 / AAL2 / nao-admin / replay CONCORRENTE
 7. publicar o site do worktree limpo
 8. verificar o bundle publicado
@@ -482,6 +511,47 @@ Não corrijo aqui de propósito: alterar função pré-existente é mudança
 fora da entrega mínima e merece o mesmo cuidado que o resto — medir,
 versionar, testar. A consulta reporta o estado e reconhece sozinha se
 alguém já tiver corrigido.
+
+### Etapa 5 — publicar a Edge Function, com a volta pronta
+
+**O rollback já está preparado e verificado.** A versão que está no ar
+foi baixada e guardada antes de qualquer publicação.
+
+| | |
+|---|---|
+| Projeto | `dockpbyzrvgewgdoaibn` |
+| Função | `admin-security-event`, ID `e80341e3-03b0-4d27-be1d-b06627ba3b60` |
+| Versão ao vivo | **5**, `ACTIVE`, `2026-06-19 10:35:54` UTC |
+| `verify_jwt` | `true` — precisa ser preservado |
+| Artefato | `C:\Users\milor\Documents\AGROBW-Rollbacks\admin-security-event-v5` |
+
+```
+7281c876cec25e1ad18a9229b22262fab578c784ea6233b123ef3c9fbdff1e86  functions/admin-security-event/index.ts
+4b448f46a2c6f524659b0ddde81fa8b9fd272bc6df9abf5a79787120c5d7f35a  functions/_shared/cors.ts
+da1a831530473150c0cabfbcc6a049850e56e477bdc47684ce36986093f40160  functions/_shared/security.ts
+0c7f603c3f8fa5d671fa7dcd759f3ce85573c7e013a0811b2cd238bffebd2f1b  config.toml
+```
+
+Comando de volta:
+
+```
+supabase functions deploy admin-security-event --project-ref dockpbyzrvgewgdoaibn --workdir "C:/Users/milor/Documents/AGROBW-Rollbacks/admin-security-event-v5"
+```
+
+`--project-ref` explícito: não depende de qual diretório está linkado. O
+resultado será **versão 6**, não 5 — o Supabase não reverte, publica uma
+nova com o conteúdo antigo. Versão 6 com o comportamento da 5 é o
+esperado.
+
+O manifesto completo está em `MANIFESTO.md`, dentro da pasta.
+
+> **`supabase functions download` devolve o bundle transpilado**, não o
+> fonte: tipos removidos, formatação normalizada — `index.ts` publicado
+> tem 3.954 B contra 9.907 B do fonte. Os checksums acima provam a
+> integridade do artefato; **não** servem para diff contra o git. A
+> comparação com o repositório teve que ser semântica: literais e
+> identificadores. Feita assim, o `index.ts` publicado bate com `main` —
+> quem divergia era o `cors.ts`.
 
 ### Etapa 6 — smoke
 

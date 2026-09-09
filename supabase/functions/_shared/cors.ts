@@ -13,6 +13,26 @@ const ALLOWED_BROWSER_ORIGINS: readonly string[] = [
   // Domínio oficial de produção
   'https://agrobw.com.br',
   'https://www.agrobw.com.br',
+  // Compatibilidade temporária durante a migração (domínios antigos).
+  //
+  // Estas três reproduzem a allowlist ATUALMENTE PUBLICADA em
+  // `admin-security-event` (projeto dockpbyzrvgewgdoaibn, versão 5,
+  // 2026-06-19), conferida baixando a função com
+  // `supabase functions download`. Elas existiam só no bundle em
+  // produção e nunca tinham sido commitadas.
+  //
+  // Estão aqui para que publicar a Edge Function NÃO mude o
+  // comportamento de CORS. Sem elas, `resolveAllowedOrigin` devolveria
+  // o fallback `ALLOWED_BROWSER_ORIGINS[0]` para quem chegasse por um
+  // domínio `bwagro`, e o navegador recusaria a chamada — quebrando o
+  // login administrativo de quem ainda usa esses endereços, por uma
+  // causa sem relação nenhuma com o hotfix que as trouxe para cá.
+  //
+  // A eventual REMOÇÃO será tratada separadamente, depois de analisar o
+  // uso real desses domínios. Não é decisão deste hotfix.
+  'https://bwagro.vercel.app',
+  'https://bwagro.com.br',
+  'https://www.bwagro.com.br',
   // Desenvolvimento local
   'http://localhost:3000',
   'http://127.0.0.1:3000',
