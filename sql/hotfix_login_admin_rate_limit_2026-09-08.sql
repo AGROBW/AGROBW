@@ -10,15 +10,35 @@
 -- =====================================================================
 -- A VULNERABILIDADE
 -- =====================================================================
--- `register_admin_login_attempt(text, boolean, text, text)` está
--- concedida a `anon` e `authenticated`
--- (sql/create_admin_login_rate_limit.sql:163).
+-- ESTADO REAL DE PRODUÇÃO, medido em 2026-09-09 pela pré-verificação
+-- `sql/PREVERIFICACAO_hotfix_login_admin_rate_limit.sql`:
+--
+--   register_admin_login_attempt(text, boolean, text, text)
+--     PUBLIC ......... sem EXECUTE
+--     anon ........... sem EXECUTE
+--     authenticated .. TEM EXECUTE   <- a exposição
+--     service_role ... TEM EXECUTE   <- legítimo, e precisa continuar
 --
 -- Ela alimenta o RATE LIMIT do login administrativo: chamar com
 -- `p_success = true` e o e-mail de um administrador insere
 -- `admin_login_success` em `security_events` e **reabre a janela de
--- tentativas daquele administrador**. Qualquer visitante pode zerar o
--- bloqueio por força bruta de qualquer admin, repetidamente.
+-- tentativas daquele administrador**.
+--
+-- Ou seja: QUALQUER USUÁRIO AUTENTICADO do site — um cliente comum,
+-- sem nenhum papel administrativo — zera o bloqueio por força bruta de
+-- qualquer admin, repetidamente. É escalada de privilégio a partir de
+-- uma conta comum, não de um visitante anônimo.
+--
+-- NÃO é alcançável sem sessão. `anon` não tem EXECUTE. O quanto isso
+-- reduz a gravidade depende da política de cadastro do site: se abrir
+-- conta é self-service, a barreira é baixa. Essa avaliação é do dono do
+-- produto, não deste arquivo.
+--
+-- CUIDADO COM OS ARQUIVOS DO REPOSITÓRIO: tanto
+-- `sql/create_admin_login_rate_limit.sql:163` quanto o dump
+-- `02_schema.sql:22173` dizem que `anon` TEM o grant. Produção diz que
+-- não. Alguém revogou `anon` depois, e nenhum dos dois foi atualizado.
+-- Os arquivos estão DESATUALIZADOS; a pré-verificação é a fonte.
 --
 -- =====================================================================
 -- O QUE MUDOU EM RELAÇÃO À VERSÃO ANTERIOR DO HOTFIX
@@ -303,12 +323,27 @@ commit;
 --
 -- begin;
 --   -- 4a. register_admin_login_attempt: a vulnerabilidade ativa
---   revoke all on function public.register_admin_login_attempt(text, boolean, text, text) from public;
---   revoke all on function public.register_admin_login_attempt(text, boolean, text, text) from anon;
---   revoke all on function public.register_admin_login_attempt(text, boolean, text, text) from authenticated;
+--   --
+--   -- Medido em producao (2026-09-09): so `authenticated` precisa sair.
+--   -- `public` e `anon` JA ESTAO sem EXECUTE — os dois revokes abaixo
+--   -- sao NO-OP hoje. Ficam de proposito, como defesa preventiva: se
+--   -- alguem reconceder por engano num deploy futuro, este bloco
+--   -- desfaz. `revoke` de quem nao tem permissao nao da erro.
+--   revoke all on function public.register_admin_login_attempt(text, boolean, text, text) from public;        -- no-op hoje
+--   revoke all on function public.register_admin_login_attempt(text, boolean, text, text) from anon;          -- no-op hoje
+--   revoke all on function public.register_admin_login_attempt(text, boolean, text, text) from authenticated; -- <- o efetivo
 --   grant execute on function public.register_admin_login_attempt(text, boolean, text, text) to service_role;
 --
 --   -- 4b. log_security_event
+--   --
+--   -- ATENCAO: os grants ATUAIS desta funcao NAO foram medidos. A
+--   -- pre-verificacao de 2026-09-09 cobriu apenas
+--   -- register_admin_login_attempt. O dump `02_schema.sql` diz que anon
+--   -- e authenticated tem EXECUTE aqui, mas o mesmo dump errou sobre
+--   -- anon na 4a — entao ele nao serve de base.
+--   --
+--   -- RODE A PRE-VERIFICACAO ATUALIZADA ANTES desta etapa: ela agora
+--   -- cobre as duas funcoes. Sem a medida, o rollback de 4b e chute.
 --   revoke all on function public.log_security_event(uuid, text, text, text, text, text, text, text, jsonb) from public;
 --   revoke all on function public.log_security_event(uuid, text, text, text, text, text, text, text, jsonb) from anon;
 --   revoke all on function public.log_security_event(uuid, text, text, text, text, text, text, text, jsonb) from authenticated;
@@ -317,7 +352,13 @@ commit;
 --
 -- ATENÇÃO: `admin-login/index.ts:155` chama `register_admin_login_attempt`
 -- para quem AINDA NÃO TEM SESSÃO, com `service_role` — continua
--- funcionando. Em nenhuma hipótese reconceder a `anon`.
+-- funcionando. É por isso que `service_role` mantém o EXECUTE: o
+-- formulário de login precisa contar tentativas de quem ainda não
+-- autenticou, e faz isso pelo servidor, não pelo navegador.
+--
+-- Em nenhuma hipótese reconceder a `anon`. Ela não tem hoje, e o fato
+-- de o login público continuar funcionando sem ela é a prova de que
+-- não precisa.
 --
 -- `get_admin_login_rate_limit_status(text)` NÃO é revogada: o formulário
 -- de login precisa dela antes de haver sessão, e ela só LÊ.
@@ -341,18 +382,36 @@ commit;
 -- select has_function_privilege('service_role',
 --   'public.register_admin_login_completed(text, uuid, text, text)', 'execute');  -- true
 -- -- depois do bloco 4:
+-- select has_function_privilege('authenticated',
+--   'public.register_admin_login_attempt(text, boolean, text, text)', 'execute'); -- false  <- a mudanca real
+-- select has_function_privilege('service_role',
+--   'public.register_admin_login_attempt(text, boolean, text, text)', 'execute'); -- true   <- PRECISA continuar
 -- select has_function_privilege('anon',
---   'public.register_admin_login_attempt(text, boolean, text, text)', 'execute'); -- false
+--   'public.register_admin_login_attempt(text, boolean, text, text)', 'execute'); -- false, e ja era antes
 
 -- =====================================================================
 -- ROLLBACK
 -- =====================================================================
--- Reconceder EXATAMENTE o que a pré-verificação mostrou como true:
+-- Reconceder EXATAMENTE o que a pré-verificação mostrou como `true` — e
+-- NADA além disso.
+--
+-- Isto aqui já esteve errado: a versão anterior mandava reconceder
+-- `anon`. Como `anon` NÃO tem EXECUTE em produção, esse rollback
+-- CONCEDERIA uma permissão que não existia, deixando o sistema mais
+-- exposto do que antes do hotfix. Rollback que amplia superfície não é
+-- rollback.
+--
+-- Para o estado medido em 2026-09-09:
 --
 -- begin;
---   grant execute on function public.register_admin_login_attempt(text, boolean, text, text) to anon;
 --   grant execute on function public.register_admin_login_attempt(text, boolean, text, text) to authenticated;
---   grant execute on function public.log_security_event(uuid, text, text, text, text, text, text, text, jsonb) to authenticated;
+--   -- NAO reconceder a anon: nao tinha.
+--   -- NAO reconceder a public: nao tinha.
+--   -- service_role nao e tocado pelo bloco 4 — segue com EXECUTE.
+--
+--   -- log_security_event: reconceda conforme a SUA medida, nao esta
+--   -- linha. Se a pre-verificacao mostrar authenticated = true:
+--   -- grant execute on function public.log_security_event(uuid, text, text, text, text, text, text, text, jsonb) to authenticated;
 -- commit;
 --
 -- E, se for preciso desfazer também a parte nova, a ORDEM importa e é

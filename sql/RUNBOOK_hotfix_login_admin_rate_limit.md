@@ -9,16 +9,38 @@ ativa, e ela não deve esperar o deploy dos planos.
 
 ## A vulnerabilidade
 
-`register_admin_login_attempt(text, boolean, text, text)` está concedida
-a `anon` **e** `authenticated` — `sql/create_admin_login_rate_limit.sql:163`.
+Estado **medido em produção** em 2026-09-09, pela pré-verificação:
+
+| role | `register_admin_login_attempt(text,boolean,text,text)` |
+|---|---|
+| `PUBLIC` | sem EXECUTE |
+| `anon` | sem EXECUTE |
+| **`authenticated`** | **TEM EXECUTE** ← a exposição |
+| `service_role` | TEM EXECUTE ← legítimo, precisa continuar |
 
 Ela alimenta o **rate limit** do login administrativo. Chamar com
 `p_success = true` e o e-mail de um administrador insere
 `admin_login_success` em `security_events` e **reabre a janela de
-tentativas daquele administrador**. Qualquer visitante zera o bloqueio
-por força bruta de qualquer admin, quantas vezes quiser.
+tentativas daquele administrador**.
+
+**Qualquer usuário autenticado** — um cliente comum, sem papel
+administrativo nenhum — zera o bloqueio por força bruta de qualquer
+admin, quantas vezes quiser. É escalada de privilégio a partir de uma
+conta comum.
+
+**Não é alcançável sem sessão.** `anon` não tem EXECUTE. O quanto isso
+reduz a gravidade depende da política de cadastro: se abrir conta é
+self-service, a barreira é baixa. Essa leitura é sua, não deste
+documento.
 
 Não é auditoria forjada. É bypass de rate limit.
+
+> **Os arquivos do repositório estão errados sobre isto.**
+> `sql/create_admin_login_rate_limit.sql:163` e o dump
+> `02_schema.sql:22173` dizem que `anon` tem o grant. Produção diz que
+> não — alguém revogou depois, e nenhum dos dois foi atualizado. Este
+> documento afirmou o mesmo até a medição. A pré-verificação é a fonte;
+> os arquivos versionados, não.
 
 ---
 
@@ -67,6 +89,11 @@ dashboard ou métrica.
 ### Commits planejados
 
 Um só, no branch `hotfix/login-admin-rate-limit`:
+
+> **Correção posterior.** A mensagem abaixo é a do commit `8359716`, tal
+> como foi gravada, e diz "concedida a anon e authenticated". A medição
+> em produção mostrou que `anon` **não** tem o grant. O commit não é
+> reescrito; a correção vive nos commits seguintes e neste documento.
 
 ```
 fix(seguranca): fechar bypass de rate limit no login administrativo
@@ -329,7 +356,7 @@ daqui.
 6. smoke  AAL1 / AAL2 / nao-admin / replay CONCORRENTE
 7. publicar o site do worktree limpo
 8. verificar o bundle publicado
-9. revogar as RPCs antigas de anon e authenticated
+9. revogar as RPCs antigas de authenticated (anon ja esta sem)
 10. pos-verificacao de permissoes e do fluxo
 ```
 
@@ -396,6 +423,25 @@ Os dois em negrito são os que a versão anterior não passaria.
 Bloco 4 de `sql/hotfix_login_admin_rate_limit_2026-09-08.sql`. A pré-verificação
 produz o rollback: salve a saída antes.
 
+O que a revogação de fato muda, pelo estado medido:
+
+| comando | efeito real hoje |
+|---|---|
+| `revoke ... from authenticated` | **é este que fecha a vulnerabilidade** |
+| `revoke ... from anon` | **no-op** — `anon` já está sem EXECUTE |
+| `revoke ... from public` | **no-op** — `PUBLIC` já está sem EXECUTE |
+| `grant execute ... to service_role` | mantém o login público funcionando |
+
+Os dois no-op **ficam de propósito**. `revoke` de quem não tem permissão
+não dá erro, e eles são a defesa preventiva: se um deploy futuro
+reconceder `anon` por engano — como os arquivos versionados sugeririam a
+quem os lesse — este bloco desfaz. Custo zero, e cobre a reincidência.
+
+**`log_security_event` ainda não foi medida.** Ela entrou na
+pré-verificação depois da primeira execução. Rode a versão atual antes
+desta etapa: sem a medida, o rollback dela é chute — e foi exatamente
+assim que a linha de `anon` entrou errada aqui.
+
 `admin-login/index.ts:155` chama `register_admin_login_attempt` para quem
 **ainda não tem sessão**, com `service_role` — continua funcionando. Em
 nenhuma hipótese reconceder a `anon`.
@@ -429,7 +475,7 @@ Por etapa:
 
 | Etapa desfeita | Como |
 |---|---|
-| 9 revogações | reconceder **exatamente** o que a pré-verificação mostrou como `true`. Nunca a `anon` por atacado |
+| 9 revogações | reconceder **exatamente** o que a pré-verificação mostrou como `true` — hoje isso é `authenticated` e nada mais. **Nunca** a `anon`: ela não tem, e reconceder ampliaria a superfície em vez de restaurá-la |
 | 7 site | redeploy do build anterior |
 | 5 Edge Function | redeploy da versão anterior; sem estado a desfazer |
 | 4 SQL | `drop` da RPC, da função de limpeza e da tabela — **por último** |

@@ -21,11 +21,19 @@ set transaction read only;
 
 with
 
--- A RPC antiga, resolvida uma vez só. NULL se não existir.
-alvo as (
-  select to_regprocedure(
-           'public.register_admin_login_attempt(text, boolean, text, text)'
-         )::oid as rpc_oid
+-- As DUAS funções que o bloco 4 da migração revoga na etapa 9.
+-- `oid` NULL quando não existe.
+--
+-- log_security_event entrou aqui porque a etapa 9 a revoga, e o rollback
+-- precisa reconceder EXATAMENTE o que existia. Medir só uma das duas
+-- deixaria metade do rollback baseada no dump — que já se mostrou
+-- errado sobre `anon`.
+alvo(rotulo, rpc_oid) as (
+  values
+    ('register_admin_login_attempt(text,boolean,text,text)',
+     to_regprocedure('public.register_admin_login_attempt(text, boolean, text, text)')::oid),
+    ('log_security_event(uuid,text,text,text,text,text,text,text,jsonb)',
+     to_regprocedure('public.log_security_event(uuid, text, text, text, text, text, text, text, jsonb)')::oid)
 ),
 
 -- ---------------------------------------------------------------------
@@ -166,8 +174,19 @@ rastro_indisponivel(bloco, item, encontrado, esperado) as (
 ),
 
 -- ---------------------------------------------------------------------
--- 3 — permissões EXECUTE da RPC antiga
+-- 3 — permissões EXECUTE das RPCs que a etapa 9 revoga
 -- ---------------------------------------------------------------------
+-- MEDIDO EM PRODUÇÃO, 2026-09-09, para register_admin_login_attempt:
+--   PUBLIC .......... sem EXECUTE
+--   anon ............ sem EXECUTE
+--   authenticated ... TEM EXECUTE   <- a exposição real
+--   service_role .... TEM EXECUTE   <- legítimo, tem que continuar
+--
+-- A vulnerabilidade exige SESSÃO. Não é qualquer visitante: é qualquer
+-- usuário autenticado. Os arquivos do repositório (create_admin_login_
+-- rate_limit.sql:163 e 02_schema.sql:22173) dizem que `anon` tem o
+-- grant — estão desatualizados. Esta consulta é a fonte.
+--
 -- PUBLIC não é um role de verdade: `has_function_privilege('public',...)`
 -- estoura. Para PUBLIC a leitura é direto na ACL, com grantee = 0.
 --
@@ -177,8 +196,8 @@ rastro_indisponivel(bloco, item, encontrado, esperado) as (
 -- conclusão. Por isso os dois casos aparecem separados.
 perm_public(bloco, item, encontrado, esperado) as (
   select
-    '3) PERMISSOES EXECUTE da RPC antiga',
-    'role  PUBLIC  (pseudo-role; alcanca todo mundo)',
+    '3) PERMISSOES EXECUTE (RPCs revogadas na etapa 9)',
+    a.rotulo || '  ->  PUBLIC (pseudo-role)',
     case
       when a.rpc_oid is null then '(rpc ausente)'
       when (select p.proacl from pg_proc p where p.oid = a.rpc_oid) is null
@@ -196,8 +215,8 @@ perm_public(bloco, item, encontrado, esperado) as (
 
 perm_roles(bloco, item, encontrado, esperado) as (
   select
-    '3) PERMISSOES EXECUTE da RPC antiga',
-    'role  ' || r.nome,
+    '3) PERMISSOES EXECUTE (RPCs revogadas na etapa 9)',
+    a.rotulo || '  ->  ' || r.nome,
     case
       when a.rpc_oid is null then '(rpc ausente)'
       when has_function_privilege(r.nome, a.rpc_oid, 'EXECUTE')
@@ -213,8 +232,8 @@ perm_roles(bloco, item, encontrado, esperado) as (
 
 perm_roles_ausentes(bloco, item, encontrado, esperado) as (
   select
-    '3) PERMISSOES EXECUTE da RPC antiga',
-    'role  ' || r.nome,
+    '3) PERMISSOES EXECUTE (RPCs revogadas na etapa 9)',
+    'role ausente  ->  ' || r.nome,
     '(role NAO existe neste banco)',
     'informativo'
   from (values ('anon'), ('authenticated'), ('service_role')) r(nome)
@@ -224,27 +243,28 @@ perm_roles_ausentes(bloco, item, encontrado, esperado) as (
 -- ACL crua, para conferência manual
 perm_acl(bloco, item, encontrado, esperado) as (
   select
-    '3) PERMISSOES EXECUTE da RPC antiga',
-    'acl  proacl (bruto, como esta no catalogo)',
+    '3) PERMISSOES EXECUTE (RPCs revogadas na etapa 9)',
+    a.rotulo || '  ->  proacl (bruto, do catalogo)',
     case
-      when (select a.rpc_oid from alvo a) is null then '(rpc ausente)'
+      when a.rpc_oid is null then '(rpc ausente)'
       else coalesce(
-             (select p.proacl::text from pg_proc p, alvo a where p.oid = a.rpc_oid),
+             (select p.proacl::text from pg_proc p where p.oid = a.rpc_oid),
              '(NULL — default do Postgres, ver linha do PUBLIC acima)')
     end,
     'informativo'
+  from alvo a
 ),
 
 -- ---------------------------------------------------------------------
--- 4 — como a RPC antiga esta definida
+-- 4 — como as RPCs estao definidas
 -- ---------------------------------------------------------------------
--- SECURITY DEFINER + EXECUTE para anon/authenticated e' exatamente a
--- combinacao que abre o bypass: a funcao roda com os poderes do dono,
--- chamada por quem nao tem sessao.
+-- SECURITY DEFINER + EXECUTE para `authenticated` e' exatamente a
+-- combinacao que abre o bypass: a funcao roda com os poderes do DONO,
+-- chamada por uma conta comum que nao tem nenhum desses poderes.
 definicao(bloco, item, encontrado, esperado) as (
   select
-    '4) DEFINICAO da RPC antiga',
-    x.item,
+    '4) DEFINICAO das RPCs',
+    a.rotulo || '  ->  ' || x.item,
     x.valor,
     'informativo'
   from alvo a
@@ -302,15 +322,25 @@ rollback;
 --                registrado.
 --
 --   bloco 3  -> só descreve o estado de hoje; não há valor "certo" ainda.
---                O esperado ANTES do hotfix é encontrar EXECUTE para anon
---                e authenticated — é essa a vulnerabilidade. A revogação
---                é a etapa 7, e só depois de o bundle publicado ter
---                parado de chamar a RPC (etapa 6).
+--                Medido em 2026-09-09 para register_admin_login_attempt:
+--                `authenticated` e `service_role` com EXECUTE; `PUBLIC` e
+--                `anon` sem. É `authenticated` a vulnerabilidade.
+--
+--                SALVE ESTA SAÍDA. É ela, e não o dump do repositório,
+--                que define o rollback da etapa 9. Reconceder `anon`
+--                porque um arquivo diz que ela tinha DEIXARIA O SISTEMA
+--                MAIS EXPOSTO do que antes do hotfix.
+--
+--                `log_security_event` ainda NÃO foi medida — foi
+--                acrescentada aqui depois da primeira execução. Rode de
+--                novo antes da etapa 9.
 --
 --   bloco 4  -> SECURITY DEFINER confirma a gravidade: a função roda com
---                os poderes do dono para quem chega sem sessão.
+--                os poderes do dono para uma conta que não os tem.
 --
--- `admin-login/index.ts:155` chama esta RPC com service_role, para quem
--- ainda NÃO tem sessão. service_role precisa continuar com EXECUTE
--- depois da etapa 7. Em nenhuma hipótese reconceder a anon.
+-- `admin-login/index.ts:155` chama `register_admin_login_attempt` com
+-- service_role, para quem ainda NÃO tem sessão. É por isso que
+-- service_role mantém o EXECUTE depois da etapa 9 — e é também a prova
+-- de que `anon` não precisa dele: o login público já funciona hoje sem
+-- que `anon` tenha permissão nenhuma.
 -- =====================================================================
