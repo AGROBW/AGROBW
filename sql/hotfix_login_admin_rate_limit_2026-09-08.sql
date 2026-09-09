@@ -1,7 +1,19 @@
 -- =====================================================================
 -- HOTFIX ISOLADO — login administrativo: idempotência atômica + revogação
 --
--- PARA REVISÃO. **NÃO APLICADO.**
+-- **SEÇÕES 1-3 APLICADAS EM PRODUÇÃO em 2026-09-09**
+-- (projeto dockpbyzrvgewgdoaibn), até o `commit` da seção 3.
+--
+-- Pós-verificação da aplicação, por
+-- `sql/POSVERIFICACAO_hotfix_login_admin_rate_limit.sql`:
+-- 41 OK, 1 INFO, 0 ATENCAO.
+--
+-- O bloco 4 (revogações) NÃO faz parte do que rodou daqui. Ele foi
+-- SUBSTITUÍDO — ver a nota no início do bloco.
+--
+-- Este arquivo fica versionado como registro do que foi aplicado, não
+-- como algo a reaplicar: a pré-condição aborta se qualquer objeto já
+-- existir, e hoje todos existem. A recusa é o comportamento correto.
 --
 -- Entrega MÍNIMA. Não contém regra de planos, banner, dashboard nem
 -- métrica financeira. Só o necessário para fechar a vulnerabilidade
@@ -302,8 +314,35 @@ grant execute on function public.limpar_admin_login_keys(int) to service_role;
 commit;
 
 -- =====================================================================
--- 4. REVOGAÇÕES — transação SEPARADA, e SÓ depois do bundle conferido
+-- 4. REVOGAÇÕES — **SUBSTITUÍDO. NÃO USAR.**
 -- =====================================================================
+-- >>> Este bloco foi substituído por
+-- >>>     `sql/ETAPA9_revogacao_rpcs_antigas.sql`,
+-- >>> que JÁ FOI EXECUTADO em produção em 2026-09-09.
+-- >>>
+-- >>> Resultado, validado pelo smoke seguinte:
+-- >>>     chaves 3 -> 4 · sucessos 118 -> 119 · falhas 0 -> 0
+-- >>>
+-- >>> POR QUE FOI SUBSTITUÍDO — o bloco abaixo revoga e pronto. O
+-- >>> arquivo próprio faz a mesma coisa dentro de UMA transação, com
+-- >>> quatro portões que abortam sem deixar revogação pela metade:
+-- >>>
+-- >>>   1/4  as três funções existem, com as assinaturas exatas
+-- >>>   2/4  o estado de partida é EXATAMENTE o baseline medido
+-- >>>   3/4  `log_unauthorized_access` SOBREVIVE à revogação — ela
+-- >>>        chama `log_security_event` por dentro, e só não quebra
+-- >>>        porque é SECURITY DEFINER; se virar INVOKER, o registro de
+-- >>>        acesso não autorizado morre em silêncio para todo usuário
+-- >>>        logado. O bloco abaixo não checa isso.
+-- >>>   4/4  pós-condição antes do commit, que pega até revogação
+-- >>>        ineficaz por herança de role
+-- >>>
+-- >>> O bloco abaixo fica só como registro histórico do desenho inicial.
+-- >>> Não execute: as permissões já estão no estado final, e rodá-lo
+-- >>> agora não teria efeito útil.
+--
+-- (texto original preservado abaixo)
+--
 -- NÃO execute este bloco junto com o anterior. Ele só pode rodar depois
 -- da etapa de verificação do bundle publicado (3d da ordem): revogar
 -- antes de o cliente ter parado de chamar quebra produção.
@@ -336,14 +375,15 @@ commit;
 --
 --   -- 4b. log_security_event
 --   --
---   -- ATENCAO: os grants ATUAIS desta funcao NAO foram medidos. A
---   -- pre-verificacao de 2026-09-09 cobriu apenas
---   -- register_admin_login_attempt. O dump `02_schema.sql` diz que anon
---   -- e authenticated tem EXECUTE aqui, mas o mesmo dump errou sobre
---   -- anon na 4a — entao ele nao serve de base.
+--   -- Os grants desta funcao FORAM medidos, na segunda execucao da
+--   -- pre-verificacao, em 2026-09-09: PUBLIC e anon sem EXECUTE,
+--   -- authenticated e service_role com, dona postgres, SECURITY
+--   -- DEFINER, search_path=public, proacl
+--   -- {postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}.
 --   --
---   -- RODE A PRE-VERIFICACAO ATUALIZADA ANTES desta etapa: ela agora
---   -- cobre as duas funcoes. Sem a medida, o rollback de 4b e chute.
+--   -- O dump `02_schema.sql` diz que anon tem EXECUTE aqui — e o mesmo
+--   -- dump errou sobre anon na 4a. Ele esta desatualizado; vale a
+--   -- medida, nao o arquivo.
 --   revoke all on function public.log_security_event(uuid, text, text, text, text, text, text, text, jsonb) from public;
 --   revoke all on function public.log_security_event(uuid, text, text, text, text, text, text, text, jsonb) from anon;
 --   revoke all on function public.log_security_event(uuid, text, text, text, text, text, text, text, jsonb) from authenticated;
