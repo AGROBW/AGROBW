@@ -1,18 +1,24 @@
 /**
  * Hook: useSecurityLog
- * 
- * Facilita o registro de eventos de segurança (tentativas de acesso não autorizado)
- * usando a função SECURITY DEFINER do Supabase.
- * 
- * Features:
- * - Detecção automática de IP e User Agent
- * - Função simplificada para logging
- * - Tipos TypeScript completos
- * 
+ *
+ * Registra tentativas de acesso não autorizado via RPC `SECURITY DEFINER`.
+ *
+ * A identidade NÃO é montada no navegador. `log_unauthorized_access`
+ * deriva usuário e e-mail da própria sessão, no servidor. Enviar esses
+ * campos do cliente permitia registrar evento em nome de outra conta.
+ *
+ * O IP **não** é mais detectado nem enviado. A versão anterior chamava
+ * `api.ipify.org` do navegador — um IP não confiável, e o IP do usuário
+ * indo para um terceiro a cada acesso não autorizado. A RPC grava IP
+ * nulo. Para tê-lo com origem confiável, o registro precisaria passar
+ * por Edge Function.
+ *
+ * O que este hook envia: rota e motivo. Só isso.
+ *
  * Uso:
  * ```tsx
  * const { logUnauthorizedAccess } = useSecurityLog();
- * 
+ *
  * await logUnauthorizedAccess({
  *   attemptedRoute: '/admin',
  *   reason: 'Insufficient role: user (required: admin)'
@@ -23,21 +29,9 @@
 import { useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { debugLog } from '../utils/debugLog';
-import { appError, appWarn } from '../utils/appLogger';
+import { appError } from '../utils/appLogger';
 
 // Tipos
-export interface SecurityEventData {
-  userId?: string;
-  email?: string;
-  attemptedRoute: string;
-  attemptedAction?: string;
-  ipAddress?: string;
-  userAgent?: string;
-  severity?: 'info' | 'warning' | 'critical' | 'blocked';
-  reason?: string;
-  metadata?: Record<string, any>;
-}
-
 export interface SecurityLogResult {
   success: boolean;
   eventId?: string;
@@ -49,8 +43,6 @@ export interface UseSecurityLogReturn {
     attemptedRoute: string;
     reason?: string;
   }) => Promise<SecurityLogResult>;
-  
-  logSecurityEvent: (data: SecurityEventData) => Promise<SecurityLogResult>;
 }
 
 /**
@@ -58,63 +50,10 @@ export interface UseSecurityLogReturn {
  */
 export const useSecurityLog = (): UseSecurityLogReturn => {
   /**
-   * Função completa para logar qualquer evento de segurança
-   * com todos os parâmetros disponíveis
-   */
-  const logSecurityEvent = useCallback(async (data: SecurityEventData): Promise<SecurityLogResult> => {
-    try {
-      // Detectar informações de rede (se não fornecidas)
-      const userAgent = data.userAgent || navigator.userAgent;
-      
-      // Chamar função RPC completa do Supabase
-      const { data: result, error } = await supabase.rpc('log_security_event', {
-        p_user_id: data.userId || null,
-        p_email: data.email || null,
-        p_attempted_route: data.attemptedRoute,
-        p_attempted_action: data.attemptedAction || null,
-        p_ip_address: data.ipAddress || null, // IP será detectado no servidor se possível
-        p_user_agent: userAgent,
-        p_severity: data.severity || 'warning',
-        p_reason: data.reason || null,
-        p_metadata: data.metadata ? JSON.stringify(data.metadata) : '{}'
-      });
-
-      if (error) {
-        appError('[useSecurityLog] Erro ao registrar evento completo', error, {
-          attemptedRoute: data.attemptedRoute,
-          attemptedAction: data.attemptedAction || null,
-          severity: data.severity || 'warning',
-          userId: data.userId || null,
-        });
-        return {
-          success: false,
-          error: error.message
-        };
-      }
-
-      debugLog('[useSecurityLog] Evento de segurança completo registrado:', result);
-      
-      return {
-        success: true,
-        eventId: result as string
-      };
-    } catch (error) {
-      appError('[useSecurityLog] Erro inesperado no evento completo', error, {
-        attemptedRoute: data.attemptedRoute,
-        attemptedAction: data.attemptedAction || null,
-        severity: data.severity || 'warning',
-        userId: data.userId || null,
-      });
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
-      };
-    }
-  }, []);
-
-  /**
-   * Função simplificada para logar acesso não autorizado
-   * Detecta automaticamente o usuário logado, IP e informações de rede
+   * Registra uma tentativa de acesso não autorizado.
+   *
+   * Envia SOMENTE a rota e o motivo. Usuário, e-mail e IP são
+   * responsabilidade do servidor — ver o cabeçalho deste arquivo.
    */
   const logUnauthorizedAccess = useCallback(async ({
     attemptedRoute,
@@ -124,45 +63,20 @@ export const useSecurityLog = (): UseSecurityLogReturn => {
     reason?: string;
   }): Promise<SecurityLogResult> => {
     try {
-      // Buscar usuário atual do Supabase
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      // Detectar IP do cliente (async, não bloqueia)
-      let ipAddress: string | null = null;
-      try {
-        // Timeout manual para não travar o log
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
-        
-        const ipData = await fetch('https://api.ipify.org?format=json', {
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        
-        const { ip } = await ipData.json();
-        ipAddress = ip;
-      } catch (ipError) {
-        appWarn('[useSecurityLog] Não foi possível detectar IP', {
+      const { data: result, error } = await supabase.rpc('log_unauthorized_access', {
+        p_attempted_route: attemptedRoute,
+        p_reason: reason
+      });
+
+      if (error) {
+        appError('[useSecurityLog] Erro ao registrar acesso não autorizado', error, {
           attemptedRoute,
-          error: ipError instanceof Error ? ipError.message : String(ipError),
         });
-        // Continua sem IP
+        return { success: false, error: error.message };
       }
 
-      // Detectar user agent
-      const userAgent = navigator.userAgent;
-
-      // Usar função completa internamente
-      return await logSecurityEvent({
-        userId: user?.id,
-        email: user?.email,
-        attemptedRoute,
-        attemptedAction: 'unauthorized_access',
-        ipAddress: ipAddress || undefined,
-        userAgent,
-        severity: 'blocked',
-        reason
-      });
+      debugLog('[useSecurityLog] Acesso não autorizado registrado:', result);
+      return { success: true, eventId: result as string };
     } catch (error) {
       appError('[useSecurityLog] Erro inesperado ao registrar acesso não autorizado', error, {
         attemptedRoute,
@@ -172,31 +86,11 @@ export const useSecurityLog = (): UseSecurityLogReturn => {
         error: error instanceof Error ? error.message : 'Erro desconhecido'
       };
     }
-  }, [logSecurityEvent]);
+  }, []);
 
   return {
-    logUnauthorizedAccess,
-    logSecurityEvent
+    logUnauthorizedAccess
   };
-};
-
-/**
- * Função utilitária para obter o IP do cliente (se disponível)
- * Nota: Em produção, o IP é melhor detectado no servidor (Edge Function ou API)
- * Esta função tenta detectar via headers ou APIs públicas (não recomendado para produção)
- */
-export const getClientIP = async (): Promise<string | null> => {
-  try {
-    // Tentativa 1: Usar API pública (não recomendado em produção por latência)
-    const response = await fetch('https://api.ipify.org?format=json');
-    const data = await response.json();
-    return data.ip || null;
-  } catch (error) {
-    appWarn('[getClientIP] Não foi possível detectar IP', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
 };
 
 /**
