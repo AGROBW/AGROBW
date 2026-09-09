@@ -411,7 +411,8 @@ SQL Editor. `read only`, termina em `rollback`.
 
 **`Success. No rows returned` não é prova de nada.** A migração termina
 em `commit` e não devolve linhas nem quando dá certo. Quem prova é esta
-consulta: 37 linhas, e todas precisam sair `OK` ou `INFO`.
+consulta: **42 linhas — 41 `OK` e 1 `INFO`**. Qualquer `ATENCAO` para
+antes de publicar a Edge Function.
 
 O que ela cobre: tabela e as três colunas (sem `email`), RLS ligada e
 zero políticas, `PRIMARY KEY` em `session_hash`, os dois índices, a FK
@@ -426,10 +427,61 @@ O bloco 5 é o que pega o acidente mais caro: o bloco 4 da migração
 `register_admin_login_attempt`, alguma coisa revogou fora de hora — e o
 site ainda chama essa RPC.
 
-As 4 linhas de `log_security_event` saem como **INFO, não OK**: não há
-baseline: ela entrou na pré-verificação depois que você já a tinha
-executado. Esta saída é a primeira medida dela. **Anote** — é o baseline
-do rollback da etapa 9.
+`log_security_event` **agora tem baseline** — a segunda execução da
+pré-verificação, em 2026-09-09, mediu as oito propriedades. Elas são
+comparadas e saem `OK`:
+
+| propriedade | baseline |
+|---|---|
+| `PUBLIC` | sem EXECUTE |
+| `anon` | sem EXECUTE |
+| `authenticated` | TEM EXECUTE |
+| `service_role` | TEM EXECUTE |
+| `proacl` | `{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}` |
+| dono | `postgres` |
+| `search_path` | `search_path=public` |
+| segurança | `SECURITY DEFINER` |
+
+Esse é também o baseline do rollback da etapa 9.
+
+`proacl` é comparado além dos quatro `EXECUTE` porque pega o que eles não
+pegam: um grant novo para um role que nem está na lista.
+
+De `register_admin_login_attempt` só os quatro `EXECUTE` foram
+registrados. `proacl`, dono, `search_path` e segurança dela **não** —
+essas linhas simplesmente não são emitidas. Comparar com o que não foi
+medido é o erro que colocou `anon` errado neste hotfix; a consulta
+prefere calar a inventar. Para passar a conferi-las, meça e preencha o
+baseline no CTE `antigas`.
+
+#### O que "OK" quer dizer no bloco 5
+
+**Não mudou** — não "está bom". `search_path=public` sai `OK` porque é
+exatamente o que a pré-verificação mediu, e ao mesmo tempo é o achado do
+bloco 6 logo abaixo. O bloco 5 detecta regressão; não avalia qualidade.
+
+### Achado: `log_security_event` sem `pg_temp` — trabalho à parte
+
+O baseline expôs uma coisa que **não** é deste hotfix e **não** bloqueia
+a etapa 5, mas precisa virar tarefa própria.
+
+`log_security_event` é `SECURITY DEFINER` com `search_path=public`, sem
+`pg_temp`. Quando `pg_temp` não é listado, o Postgres o pesquisa
+**implicitamente e antes** dos schemas listados, para nomes de tabela e
+de tipo. Qualquer usuário cria objetos em `pg_temp`.
+
+Numa função `SECURITY DEFINER`, isso significa que quem chama pode
+plantar uma tabela temporária com o nome de uma tabela de `public` e
+fazer a função gravar nela — com os poderes do dono, que aqui é
+`postgres`.
+
+O remédio é listar `pg_temp` por **último**: `search_path=public, pg_temp`
+— que é o que as duas funções novas deste hotfix já fazem.
+
+Não corrijo aqui de propósito: alterar função pré-existente é mudança
+fora da entrega mínima e merece o mesmo cuidado que o resto — medir,
+versionar, testar. A consulta reporta o estado e reconhece sozinha se
+alguém já tiver corrigido.
 
 ### Etapa 6 — smoke
 

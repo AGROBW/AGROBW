@@ -44,19 +44,36 @@ novas(rotulo, oid) as (
 ),
 
 -- As DUAS RPCs pré-existentes que a etapa 9 vai revogar. O bloco 4 da
--- migração está COMENTADO, então nada aqui pode ter mudado.
-antigas(rotulo, oid, baseline_public, baseline_anon, baseline_auth, baseline_srv) as (
+-- migração está COMENTADO, então NADA aqui pode ter mudado.
+--
+-- Baseline medido em produção pela pré-verificação, 2026-09-09, nas
+-- DUAS execuções (a segunda já com log_security_event incluída).
+--
+-- `null` = atributo NÃO medido. A linha correspondente simplesmente não
+-- é emitida — nada de comparar com o que não foi visto, e nada de linha
+-- `informativo` fazendo volume. Para passar a conferir um desses
+-- atributos, meça primeiro e preencha aqui.
+antigas(rotulo, oid,
+        b_public, b_anon, b_auth, b_srv,
+        b_proacl, b_dono, b_search, b_secdef) as (
   values
-    -- baseline medido em produção pela pré-verificação, 2026-09-09
     ('register_admin_login_attempt(text,boolean,text,text)',
      to_regprocedure('public.register_admin_login_attempt(text, boolean, text, text)')::oid,
-     'sem EXECUTE', 'sem EXECUTE', 'TEM EXECUTE', 'TEM EXECUTE'),
-    -- SEM baseline: esta função só entrou na pré-verificação DEPOIS da
-    -- execução dela. Não há com o que comparar; aqui ela é registrada
-    -- para servir de baseline da etapa 9.
+     'sem EXECUTE', 'sem EXECUTE', 'TEM EXECUTE', 'TEM EXECUTE',
+     -- proacl, dono, search_path e seguranca desta funcao nao foram
+     -- registrados. Nao invento baseline.
+     null, null, null, null),
+
     ('log_security_event(uuid,text,...,jsonb)',
      to_regprocedure('public.log_security_event(uuid, text, text, text, text, text, text, text, jsonb)')::oid,
-     null, null, null, null)
+     'sem EXECUTE', 'sem EXECUTE', 'TEM EXECUTE', 'TEM EXECUTE',
+     '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}',
+     'postgres',
+     -- SIM, `public` sozinho. Ver o bloco 6: e um achado, nao um erro
+     -- de digitacao. Aqui o valor esperado e o estado ATUAL, porque o
+     -- que este bloco testa e "nao mudou", nao "esta bom".
+     'search_path=public',
+     'SECURITY DEFINER')
 ),
 
 -- ---------------------------------------------------------------------
@@ -313,39 +330,103 @@ b5(bloco, item, encontrado, esperado) as (
   select '5) RPCs ANTIGAS (nada podia mudar)',
          a.rotulo || '  ->  ' || x.item,
          x.encontrado,
-         -- baseline NULL = sem medida anterior; vira registro, nao teste
-         coalesce(x.esperado, 'informativo')
+         x.esperado
   from antigas a
+  left join pg_proc p on p.oid = a.oid
   cross join lateral (values
     ('EXECUTE para PUBLIC',
      case when a.oid is null then '(rpc AUSENTE)'
-          when (select p.proacl from pg_proc p where p.oid = a.oid) is null
-            then 'TEM (proacl NULL = default)'
-          when exists (select 1 from pg_proc p, aclexplode(p.proacl) x2
-                        where p.oid = a.oid and x2.grantee = 0
-                          and x2.privilege_type = 'EXECUTE')
+          -- proacl NULL nao e "vazio": e o DEFAULT, e o default de
+          -- funcao no Postgres e EXECUTE para PUBLIC.
+          when p.proacl is null then 'TEM (proacl NULL = default)'
+          when exists (select 1 from aclexplode(p.proacl) z
+                        where z.grantee = 0 and z.privilege_type = 'EXECUTE')
             then 'TEM EXECUTE'
           else 'sem EXECUTE' end,
-     a.baseline_public),
+     a.b_public),
 
     ('EXECUTE para anon',
      case when a.oid is null then '(rpc AUSENTE)'
           when has_function_privilege('anon', a.oid, 'EXECUTE') then 'TEM EXECUTE'
           else 'sem EXECUTE' end,
-     a.baseline_anon),
+     a.b_anon),
 
     ('EXECUTE para authenticated',
      case when a.oid is null then '(rpc AUSENTE)'
           when has_function_privilege('authenticated', a.oid, 'EXECUTE') then 'TEM EXECUTE'
           else 'sem EXECUTE' end,
-     a.baseline_auth),
+     a.b_auth),
 
     ('EXECUTE para service_role',
      case when a.oid is null then '(rpc AUSENTE)'
           when has_function_privilege('service_role', a.oid, 'EXECUTE') then 'TEM EXECUTE'
           else 'sem EXECUTE' end,
-     a.baseline_srv)
+     a.b_srv),
+
+    -- A ACL crua pega o que as quatro linhas acima nao pegam: um grant
+    -- novo para um role que nem esta na lista.
+    ('proacl (bruto, do catalogo)',
+     case when a.oid is null then '(rpc AUSENTE)'
+          else coalesce(p.proacl::text, '(NULL = default do Postgres)') end,
+     a.b_proacl),
+
+    ('dono',
+     case when a.oid is null then '(rpc AUSENTE)'
+          else pg_get_userbyid(p.proowner) end,
+     a.b_dono),
+
+    ('search_path fixado',
+     case when a.oid is null then '(rpc AUSENTE)'
+          else coalesce(array_to_string(p.proconfig, ' ; '), '(NAO FIXADO)') end,
+     a.b_search),
+
+    ('seguranca',
+     case when a.oid is null then '(rpc AUSENTE)'
+          when p.prosecdef then 'SECURITY DEFINER' else 'SECURITY INVOKER' end,
+     a.b_secdef)
   ) x(item, encontrado, esperado)
+  -- sem baseline, sem linha
+  where x.esperado is not null
+),
+
+-- ---------------------------------------------------------------------
+-- 6 — achado registrado, FORA do escopo deste hotfix
+-- ---------------------------------------------------------------------
+-- `log_security_event` é SECURITY DEFINER com `search_path=public` — sem
+-- `pg_temp`.
+--
+-- Quando `pg_temp` não é listado explicitamente, o Postgres o pesquisa
+-- IMPLICITAMENTE, e ANTES dos schemas listados, para nomes de TABELA e
+-- de TIPO. Qualquer usuário pode criar objetos em `pg_temp`. Numa função
+-- SECURITY DEFINER, isso significa que quem chama pode criar uma tabela
+-- temporária com o nome de uma tabela de `public` e fazer a função
+-- gravar nela — com os poderes do dono, que aqui é `postgres`.
+--
+-- O remédio é listar `pg_temp` por ÚLTIMO: `search_path=public, pg_temp`.
+-- É o que as duas funções novas deste hotfix já fazem.
+--
+-- NÃO é corrigido aqui, de propósito: alterar essa função é mudança em
+-- objeto pré-existente, fora da entrega mínima, e exige o mesmo cuidado
+-- (medir, versionar, testar) que o resto. Fica registrado para virar
+-- trabalho próprio.
+--
+-- A linha sai como INFO porque NÃO deve bloquear a etapa 5. É achado,
+-- não regressão.
+b6(bloco, item, encontrado, esperado) as (
+  select
+    '6) ACHADO (fora deste hotfix)',
+    'log_security_event  ->  SECURITY DEFINER sem pg_temp no search_path',
+    case
+      when (select a.oid from antigas a where a.rotulo like 'log_security_event%') is null
+        then '(rpc ausente)'
+      when coalesce((select array_to_string(p.proconfig, ' ; ')
+                       from pg_proc p, antigas a
+                      where p.oid = a.oid and a.rotulo like 'log_security_event%'), '')
+           like '%pg_temp%'
+        then 'ja corrigida (pg_temp presente)'
+      else 'search_path sem pg_temp — ver comentario do bloco 6'
+    end,
+    'informativo'
 ),
 
 linhas as (
@@ -356,6 +437,7 @@ linhas as (
   union all select * from b3
   union all select * from b4
   union all select * from b5
+  union all select * from b6
 )
 
 select
@@ -408,13 +490,27 @@ rollback;
 --            algo mudou, ou ele rodou por engano, ou alguem mexeu por
 --            fora. Nos dois casos, PARE.
 --
--- SOBRE log_security_event: as linhas dela saem como INFO, nao OK/
--- ATENCAO, porque NAO HA BASELINE — ela entrou na pre-verificacao
--- depois que a pre-verificacao ja tinha sido executada. Esta saida e a
--- primeira medida dela. ANOTE-A: e ela que vai servir de baseline para
--- o rollback da etapa 9. Reconceder por memoria, ou pelo que os
--- arquivos do repositorio dizem, foi exatamente o erro que colocou
--- `anon` errado na documentacao deste hotfix.
+--   bloco 6  achado      -> INFO, nao bloqueia. `log_security_event` e
+--            SECURITY DEFINER com `search_path=public`, sem `pg_temp`.
+--            Sem `pg_temp` listado, o Postgres o pesquisa IMPLICITAMENTE
+--            e ANTES dos schemas listados, para nomes de tabela e tipo.
+--            Como qualquer usuario cria objetos em `pg_temp`, quem chama
+--            pode plantar uma tabela temporaria com o nome de uma de
+--            `public` e fazer a funcao gravar nela — com os poderes de
+--            `postgres`. O remedio e por `pg_temp` por ULTIMO. Fica
+--            registrado como trabalho proprio, nao e corrigido aqui.
+--
+-- SOBRE O BLOCO 5 e o que "OK" quer dizer ali: OK significa NAO MUDOU,
+-- nao significa "esta bom". `search_path=public` sai OK porque e
+-- exatamente o que a pre-verificacao mediu — e ao mesmo tempo e o
+-- achado do bloco 6. As duas leituras convivem: este bloco detecta
+-- regressao, nao avalia qualidade.
+--
+-- Os atributos `proacl`, `dono`, `search_path` e `seguranca` de
+-- `register_admin_login_attempt` NAO foram registrados na
+-- pre-verificacao. As linhas correspondentes nao sao emitidas — nada de
+-- comparar com o que nao foi visto. Para passar a conferi-los, meca e
+-- preencha o baseline no CTE `antigas`.
 --
 -- PROXIMO PASSO: etapa 5, publicar `admin-security-event`. A ordem
 -- importa — a Edge Function nova chama `register_admin_login_completed`,
