@@ -1,11 +1,28 @@
 # Hotfix isolado — login administrativo
 
-**Nada aplicado, nada publicado, nada commitado.**
+**Hotfix aplicado em produção, validado e incorporado à `main` em
+2026-09-09.** Este documento passou a ser registro histórico da
+implantação — ver *Estado — encerrado*, logo abaixo.
 
-Entrega **mínima**, separada da regra de planos. Existe vulnerabilidade
-ativa, e ela não deve esperar o deploy dos planos.
+Entrega **mínima**. Havia uma vulnerabilidade ativa, tratada
+separadamente da regra de planos para não atrasar a correção.
 
 ---
+
+## Estado — encerrado
+
+| | |
+|---|---|
+| Merge em `main` | `7894dfa2d4dd343707d40dc2fed879ce90b811ec` |
+| Deployment em produção | `dpl_DEWG2t6zUEPNeaYqz6u7w64idA6q` · `bwagro-pj2h5gdg0-agro-bw.vercel.app` · `READY` · `2026-09-09T21:33:33Z` |
+| Edge Function | `admin-security-event` versão 6, `ACTIVE` |
+| Smoke final, pós-merge | **`chaves 4→5 · sucessos 119→120 · falhas 0→0`** |
+| Vulnerabilidade | **fechada** |
+
+Bundle no ar reconferido depois do merge, sobre 137 arquivos `.js`
+servidos por `agrobw.com.br`: `log_security_event` 0,
+`register_admin_login_attempt` 0, `api.ipify.org` 0,
+`log_unauthorized_access` 1, `admin_login_completed` 1.
 
 ## A vulnerabilidade
 
@@ -83,12 +100,14 @@ está lá):
 ?? sql/SMOKE_hotfix_login_admin_rate_limit.md
 ```
 
-Seis arquivos, um commit, nada fora dele. Nenhum hook de plano, banner,
-dashboard ou métrica.
+Esse era o escopo inicial: seis arquivos, sem alterações nos módulos de
+planos, banners, dashboard ou métricas. Os artefatos posteriores de
+verificação e revogação estão registrados na relação final de dez
+arquivos.
 
-### Commits planejados
+### Commit inicial — registro histórico
 
-Um só, no branch `hotfix/login-admin-rate-limit`:
+O primeiro commit da branch foi:
 
 > **Correção posterior.** A mensagem abaixo é a do commit `8359716`, tal
 > como foi gravada, e diz "concedida a anon e authenticated". A medição
@@ -610,8 +629,15 @@ Publicado em 2026-09-09 a partir do worktree limpo, commit `07066fe`:
 |---|---|
 | Deployment | `dpl_22gu6McqUBpvDUtfqJQkTnV4J4oR` |
 | URL | `bwagro-rd4lxzujd-agro-bw.vercel.app` |
-| Aliases | `agrobw.com.br` · `www.agrobw.com.br` · `bwagro-ruddy.vercel.app` · `bwagro-agro-bw.vercel.app` |
-| Rollback | `dpl_HmNxcMXZJZ1yZbDmiPzVoNBj2onK`, ainda `READY` |
+| Aliases na época | `agrobw.com.br` · `www.agrobw.com.br` · `bwagro-ruddy.vercel.app` · `bwagro-agro-bw.vercel.app` |
+
+**Superado depois do merge.** Quem atende `agrobw.com.br` hoje é
+`dpl_DEWG2t6zUEPNeaYqz6u7w64idA6q`
+(`bwagro-pj2h5gdg0-agro-bw.vercel.app`, `READY`, `2026-09-09T21:33:33Z`),
+publicado após o merge de `7894dfa` e validado pelo smoke `5/120/0`.
+
+`dpl_22gu6Mcq…` continua `READY` e passa a ser o **alvo do rollback
+imediato** — ver a seção de rollback.
 
 Bundle conferido sobre **137 arquivos `.js`** servidos por
 `agrobw.com.br` — as 136 referências de chunk do bundle de entrada, mais
@@ -684,32 +710,123 @@ formulário de login precisa dela antes de haver sessão, e ela só lê.
 
 ---
 
-## Rollback — a ordem importa, e é mais longa do que eu havia escrito
+## Rollback
 
-Correção: restaurar **só o site** não basta. A Edge Function nova chama
-`register_admin_login_completed`; se a RPC for removida antes de ela
-voltar à versão anterior, **todo login administrativo cai em
-`audit: 'falhou'`**.
+São **dois** rollbacks diferentes, e confundi-los é o erro caro.
 
-Ordem completa, de trás para frente:
+### Rollback IMEDIATO do site — `dpl_22gu6McqUBpvDUtfqJQkTnV4J4oR`
+
+Para quando o problema estiver no **site publicado depois do merge**, e
+o resto da pilha estiver saudável.
 
 ```
-1. republicar o SITE anterior
-     -> volta a chamar register_admin_login_attempt direto
-2. republicar a EDGE FUNCTION anterior
-     -> para de depender da RPC nova.  SEM ESTE PASSO, o passo 4 quebra
-        a auditoria de todo login
-3. reconceder os EXECUTE que a pre-verificacao registrou
-     -> register_admin_login_attempt e log_security_event
-4. so ENTAO derrubar a RPC nova, a funcao de limpeza e a tabela
+vercel promote dpl_22gu6McqUBpvDUtfqJQkTnV4J4oR --scope team_CSGC9zahAJf4FQD64qNmtCBs --yes
 ```
+
+Não reconstrói: repõe os aliases de produção num deployment já
+construído, e por isso é imediato.
+
+**Por que este e não o antigo:** `dpl_22gu6Mcq…` é o site **com** o
+hotfix — mesmo código de cliente, mesmos cinco marcadores conferidos.
+Voltar para ele desfaz o deployment pós-merge sem mexer em mais nada, e a
+pilha continua coerente: Edge Function versão 6 e as permissões já
+revogadas seguem valendo.
+
+(A allowlist de CORS não entra nessa conta: ela vive em
+`_shared/cors.ts`, dentro da **Edge Function**, e não muda ao promover um
+deployment do site.)
+
+**NÃO use `dpl_HmNxcMXZJZ1yZbDmiPzVoNBj2onK` para isso.** Aquele é o site
+**anterior** ao hotfix: ele chama `register_admin_login_attempt` e
+`log_security_event` direto do navegador, e as duas já foram revogadas de
+`authenticated`.
+
+Promovê-lo sozinho **não** derruba necessariamente o login — o cliente
+antigo trata falha de auditoria com tolerância, então a pessoa pode
+continuar entrando. O que quebra é o **registro** e, com ele, o **rate
+limit**: as chamadas antigas passam a ser negadas, e o contador de
+tentativas do login administrativo deixa de ser alimentado pelo caminho
+que aquele bundle conhece.
+
+Ou seja: como rollback isolado ele é **incompatível e inseguro**, não
+necessariamente uma indisponibilidade. É pior justamente por ser
+silencioso — o login parece funcionar enquanto a proteção que ele
+deveria ter não está registrando nada.
+
+### Rollback COMPLETO — desfazer o hotfix inteiro
+
+`dpl_HmNxcMXZJZ1yZbDmiPzVoNBj2onK` (`bwagro-huuj3c3nd`, ainda `READY`) só
+faz sentido **aqui**, e nunca sozinho. Ele é o site pré-hotfix; sem os
+outros passos, o login administrativo fica pior do que antes:
+
+- o bundle dele chama `register_admin_login_attempt` e
+  `log_security_event` direto do navegador, e **as duas foram revogadas
+  de `authenticated`** na etapa 9 — as chamadas passariam a ser negadas;
+- ele não conhece a ação `admin_login_completed`.
+
+Então promover só ele **quebra** o registro de login administrativo em
+vez de restaurá-lo. Ele exige, junto:
+
+1. **restaurar as permissões** — o bloco de rollback de
+   `sql/ETAPA9_revogacao_rpcs_antigas.sql`, que reconcede
+   **exclusivamente** `authenticated` nas duas RPCs antigas. Nunca `anon`
+   nem `PUBLIC`: eles não tinham a permissão, e concedê-los deixaria
+   produção mais exposta do que antes do hotfix;
+2. **republicar a Edge Function anterior** — versão 5, guardada com os
+   checksums conferidos, publicada com `--use-api`.
+
+Reconceder `authenticated` **reabre a vulnerabilidade**: qualquer usuário
+logado volta a zerar o rate limit de qualquer administrador. É medida
+temporária enquanto a causa real é corrigida, não estado de repouso.
+
+### A ordem, se for o rollback completo
+
+**As permissões voltam PRIMEIRO.** Uma versão anterior deste runbook
+mandava promover o site antigo antes de reconceder os `EXECUTE` — e
+nessa janela o cliente antigo estaria no ar chamando RPCs que ainda
+estavam revogadas, com as chamadas sendo negadas. Publicar o cliente
+enquanto as dependências dele não existem é criar o problema em vez de
+desfazê-lo.
+
+```
+1. restaurar EXCLUSIVAMENTE os EXECUTE de authenticated nas duas
+   RPCs antigas
+     -> bloco de rollback de sql/ETAPA9_revogacao_rpcs_antigas.sql
+     -> NUNCA anon nem PUBLIC
+2. promover o site pre-hotfix dpl_HmNxcMXZJZ1yZbDmiPzVoNBj2onK
+     -> agora ele encontra as RPCs que precisa
+3. republicar a Edge Function versao 5, com --use-api
+     -> para de depender de register_admin_login_completed
+4. verificar o login e a auditoria
+     -> entrar como admin e confirmar que o registro acontece
+5. so ENTAO remover a RPC nova, a funcao de limpeza e a tabela
+```
+
+**O passo 1 reabre temporariamente a vulnerabilidade**: com
+`authenticated` de volta em `register_admin_login_attempt`, qualquer
+usuário logado volta a zerar o rate limit de qualquer administrador.
+
+Isso é aceito de propósito, e é o menor dos males: a alternativa —
+publicar o cliente antigo enquanto suas dependências seguem revogadas —
+deixaria o registro e o rate limit quebrados de forma **silenciosa**,
+sem nem a proteção antiga funcionando. A exposição do passo 1 é
+conhecida, medida e reversível; a outra não é.
+
+Mantenha essa janela curta e feche-a assim que a causa do rollback
+estiver resolvida.
+
+**Por que 3 depois de 2, e 5 por último:** a Edge Function nova chama
+`register_admin_login_completed`. Se a RPC for removida antes de ela
+voltar à versão 5, **todo login administrativo cai em
+`audit: 'falhou'`**. Por isso o `drop` é o último passo, nunca o
+primeiro.
 
 Por etapa:
 
 | Etapa desfeita | Como |
 |---|---|
 | 9 revogações | reconceder **exatamente** o que a pré-verificação mostrou como `true` — hoje isso é `authenticated` e nada mais. **Nunca** a `anon`: ela não tem, e reconceder ampliaria a superfície em vez de restaurá-la |
-| 7 site | redeploy do build anterior |
+| 7 site | `vercel promote` do deployment anterior — `dpl_22gu6Mcq…` para volta imediata, `dpl_HmNx…` só no rollback completo |
 | 5 Edge Function | redeploy da versão anterior; sem estado a desfazer |
 | 4 SQL | `drop` da RPC, da função de limpeza e da tabela — **por último** |
 
