@@ -241,9 +241,9 @@ exatamente o que o `pg_sleep` força.
 
 ---
 
-## O diff — **seis** arquivos
+## O diff — **sete** arquivos
 
-Três modificados e três novos. A entrega é autocontida: código,
+Três modificados e quatro novos. A entrega é autocontida: código,
 migração, runbook e roteiro de smoke no mesmo commit.
 
 ```
@@ -255,6 +255,7 @@ migração, runbook e roteiro de smoke no mesmo commit.
 ?? sql/hotfix_login_admin_rate_limit_2026-09-08.sql   a migracao
 ?? sql/RUNBOOK_hotfix_login_admin_rate_limit.md       este documento
 ?? sql/SMOKE_hotfix_login_admin_rate_limit.md         o roteiro de smoke
+?? sql/PREVERIFICACAO_hotfix_login_admin_rate_limit.sql  a pre-verificacao READ ONLY
 ```
 
 ### `supabase/functions/admin-security-event/index.ts`
@@ -318,6 +319,7 @@ daqui.
 ## Ordem do hotfix isolado
 
 ```
+0. pre-verificacao READ ONLY em producao .......... sql/PREVERIFICACAO_hotfix_login_admin_rate_limit.sql
 1. worktree limpo ................................. FEITO
 2. aplicar so os 3 patches de seguranca ........... FEITO
 3. build + typecheck no worktree .................. FEITO
@@ -344,13 +346,34 @@ de existir na janela entre os deploys.
 chamar quebra produção. A conferência de bundle é a prova, não
 formalidade.
 
+### Etapa 0 — pré-verificação, antes de qualquer coisa
+
+`sql/PREVERIFICACAO_hotfix_login_admin_rate_limit.sql`, colado inteiro no
+SQL Editor. Abre em `read only` e termina em `rollback`: não cria, não
+altera, não revoga.
+
+Responde de uma vez: os pré-requisitos existem, nenhum objeto do hotfix
+existe ainda, e quem tem `EXECUTE` na RPC antiga hoje. **Salve a saída do
+bloco 3** — é ela que produz o rollback da etapa 9. Reconceder de memória
+é como se devolve permissão a mais.
+
+Qualquer `ATENCAO` no bloco 2 significa aplicação anterior: a migração
+vai abortar sozinha, e está certa em abortar. Não force.
+
+> A primeira versão deste arquivo consultava `security_events.event_type`
+> — um nome que eu supus em vez de conferir no DDL. Morreu em produção
+> com `42703: column ... does not exist`. A coluna é `attempted_action`.
+> A verificação agora confere a COLUNA antes de usá-la: se o schema mudar
+> de novo, sai uma linha `[NAO VERIFICADO]` e o resto do relatório
+> continua saindo, em vez de o relatório inteiro morrer.
+
 ### Etapa 4 — SQL
 
 Aplicar `sql/hotfix_login_admin_rate_limit_2026-09-08.sql` **até o `commit` da
 seção 3**. O bloco 4 (revogações) está comentado de propósito e só entra
 na etapa 9.
 
-Pré e pós-verificação estão no rodapé do arquivo.
+Pré e pós-verificação específicas da migração estão no rodapé do arquivo.
 
 ### Etapa 6 — smoke
 
