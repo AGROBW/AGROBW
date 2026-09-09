@@ -383,7 +383,7 @@ daqui.
 4. aplicar sql/hotfix_login_admin_rate_limit_2026-09-08.sql .... FEITO
      (tabela + RPC; o bloco 4 de REVOGACAO fica fora)
 4b. pos-verificacao READ ONLY ..................... sql/POSVERIFICACAO_hotfix_login_admin_rate_limit.sql
-5. publicar admin-security-event  (rollback ja preparado)
+5. publicar admin-security-event  --use-api  (rollback pronto)
 6. smoke  AAL1 / AAL2 / nao-admin / replay CONCORRENTE
 7. publicar o site do worktree limpo
 8. verificar o bundle publicado
@@ -535,13 +535,33 @@ da1a831530473150c0cabfbcc6a049850e56e477bdc47684ce36986093f40160  functions/_sha
 Comando de volta:
 
 ```
-supabase functions deploy admin-security-event --project-ref dockpbyzrvgewgdoaibn --workdir "C:/Users/milor/Documents/AGROBW-Rollbacks/admin-security-event-v5"
+supabase functions deploy admin-security-event --use-api --project-ref dockpbyzrvgewgdoaibn --workdir "C:/Users/milor/Documents/AGROBW-Rollbacks/admin-security-event-v5"
 ```
 
 `--project-ref` explícito: não depende de qual diretório está linkado. O
-resultado será **versão 6**, não 5 — o Supabase não reverte, publica uma
-nova com o conteúdo antigo. Versão 6 com o comportamento da 5 é o
-esperado.
+resultado será uma **versão nova** com o conteúdo antigo — o Supabase não
+reverte para uma versão anterior, ele publica outra. É o esperado.
+
+#### `--use-api` é obrigatório nesta máquina
+
+O deploy padrão monta o bundle dentro de um contêiner Docker. O Avast
+intercepta HTTPS reassinando os certificados (`CN=Avast Web/Mail Shield
+Root`): o host confia nessa raiz, o contêiner não. O bundler morre ao
+buscar o import remoto:
+
+```
+Error: failed to create the graph
+  Import 'https://deno.land/std@0.168.0/http/server.ts' failed:
+  invalid peer certificate: UnknownIssuer
+```
+
+`--use-api` monta o bundle no servidor do Supabase, sem contêiner local,
+e o truststore da máquina deixa de importar.
+
+Descoberto na tentativa de deploy de 2026-09-09, que falhou **antes** de
+enviar qualquer coisa — não houve estado parcial. O rollback usa o mesmo
+caminho da publicação: um rollback guardado com o comando que não roda
+seria descobrir o problema no pior momento possível.
 
 O manifesto completo está em `MANIFESTO.md`, dentro da pasta.
 
