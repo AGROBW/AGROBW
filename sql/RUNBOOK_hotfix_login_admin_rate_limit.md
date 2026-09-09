@@ -268,9 +268,9 @@ exatamente o que o `pg_sleep` força.
 
 ---
 
-## O diff — **sete** arquivos
+## O diff — **oito** arquivos
 
-Três modificados e quatro novos. A entrega é autocontida: código,
+Três modificados e cinco novos. A entrega é autocontida: código,
 migração, runbook e roteiro de smoke no mesmo commit.
 
 ```
@@ -283,6 +283,7 @@ migração, runbook e roteiro de smoke no mesmo commit.
 ?? sql/RUNBOOK_hotfix_login_admin_rate_limit.md       este documento
 ?? sql/SMOKE_hotfix_login_admin_rate_limit.md         o roteiro de smoke
 ?? sql/PREVERIFICACAO_hotfix_login_admin_rate_limit.sql  a pre-verificacao READ ONLY
+?? sql/POSVERIFICACAO_hotfix_login_admin_rate_limit.sql  a pos-verificacao READ ONLY
 ```
 
 ### `supabase/functions/admin-security-event/index.ts`
@@ -350,8 +351,9 @@ daqui.
 1. worktree limpo ................................. FEITO
 2. aplicar so os 3 patches de seguranca ........... FEITO
 3. build + typecheck no worktree .................. FEITO
-4. aplicar sql/hotfix_login_admin_rate_limit_2026-09-08.sql
+4. aplicar sql/hotfix_login_admin_rate_limit_2026-09-08.sql .... FEITO
      (tabela + RPC; o bloco 4 de REVOGACAO fica fora)
+4b. pos-verificacao READ ONLY ..................... sql/POSVERIFICACAO_hotfix_login_admin_rate_limit.sql
 5. publicar admin-security-event
 6. smoke  AAL1 / AAL2 / nao-admin / replay CONCORRENTE
 7. publicar o site do worktree limpo
@@ -401,6 +403,33 @@ seção 3**. O bloco 4 (revogações) está comentado de propósito e só entra
 na etapa 9.
 
 Pré e pós-verificação específicas da migração estão no rodapé do arquivo.
+
+### Etapa 4b — pós-verificação, antes de publicar a Edge Function
+
+`sql/POSVERIFICACAO_hotfix_login_admin_rate_limit.sql`, colado inteiro no
+SQL Editor. `read only`, termina em `rollback`.
+
+**`Success. No rows returned` não é prova de nada.** A migração termina
+em `commit` e não devolve linhas nem quando dá certo. Quem prova é esta
+consulta: 37 linhas, e todas precisam sair `OK` ou `INFO`.
+
+O que ela cobre: tabela e as três colunas (sem `email`), RLS ligada e
+zero políticas, `PRIMARY KEY` em `session_hash`, os dois índices, a FK
+para `auth.users(id)` com `cascade`, tabela vazia, as duas funções novas
+`SECURITY DEFINER` com `search_path` fixado, `anon`/`authenticated`/
+`PUBLIC` sem `EXECUTE` nelas e `service_role` com, e — o bloco 5 — as
+duas RPCs antigas com as permissões **idênticas** à pré-verificação.
+
+O bloco 5 é o que pega o acidente mais caro: o bloco 4 da migração
+(revogações) está comentado e **não pode** ter rodado agora. Se
+`authenticated` já aparecer sem `EXECUTE` em
+`register_admin_login_attempt`, alguma coisa revogou fora de hora — e o
+site ainda chama essa RPC.
+
+As 4 linhas de `log_security_event` saem como **INFO, não OK**: não há
+baseline: ela entrou na pré-verificação depois que você já a tinha
+executado. Esta saída é a primeira medida dela. **Anote** — é o baseline
+do rollback da etapa 9.
 
 ### Etapa 6 — smoke
 
