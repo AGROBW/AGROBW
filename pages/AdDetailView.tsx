@@ -179,20 +179,7 @@ const AdDetailView: React.FC = () => {
   }, [goToNextImage, goToPreviousImage, isLightboxOpen]);
 
   const handleContactSeller = () => {
-    if (!user) {
-      const redirectTarget = `${location.pathname}${location.search}${location.hash}`;
-      navigate(`/cadastro?redirect=${encodeURIComponent(redirectTarget)}&intent=contact-seller`);
-      return;
-    }
-    if (!user) {
-      toast.error('Para negociar, você precisa estar logado em sua conta.', {
-        duration: 4000,
-        icon: '🔒'
-      });
-      return;
-    }
-    
-    if (user.id === ad?.userId) {
+    if (user && user.id === ad?.userId) {
       toast.error('Você não pode enviar mensagem para o seu próprio anúncio.');
       return;
     }

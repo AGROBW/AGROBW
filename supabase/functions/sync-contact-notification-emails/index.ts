@@ -8,6 +8,7 @@ import {
 } from '../_shared/smtpSettings.ts';
 import { getCorsHeadersInternal } from '../_shared/cors.ts';
 import { isAdminAal2Profile, extractBearerToken } from '../_shared/security.ts';
+import { getContactNotificationTemplate } from './template.ts';
 
 // VULN-002 fix: Função interna/cron - sem acesso de browser
 const corsHeaders = getCorsHeadersInternal();
@@ -20,13 +21,15 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) =>
 
 type ContactNotificationEmailJobRow = {
   id: string;
-  source_kind: 'new_message' | 'new_lead';
+  source_kind: 'new_message' | 'new_lead' | 'guest_lead';
   recipient_email: string | null;
   recipient_name: string | null;
   sender_name: string | null;
   announcement_title: string | null;
   message_preview: string | null;
   link: string | null;
+  reply_to_email: string | null;
+  sender_phone: string | null;
   status: 'pending' | 'processing' | 'sent' | 'failed' | 'skipped';
   attempts: number;
 };
@@ -37,96 +40,6 @@ const clampLimit = (value: unknown, fallback = 25) => {
   if (parsed < 1) return 1;
   if (parsed > 100) return 100;
   return Math.floor(parsed);
-};
-
-const getContactNotificationTemplate = (params: {
-  appUrl: string;
-  siteName: string;
-  recipientName: string;
-  senderName: string;
-  announcementTitle: string;
-  messagePreview?: string | null;
-  link?: string | null;
-  sourceKind: 'new_message' | 'new_lead';
-}) => {
-  const isLead = params.sourceKind === 'new_lead';
-  const title = isLead
-    ? `Novo lead no anuncio ${params.announcementTitle}`
-    : `Nova mensagem sobre ${params.announcementTitle}`;
-  const badge = isLead ? 'Novo lead' : 'Nova mensagem';
-  const ctaLabel = isLead ? 'Ver lead' : 'Abrir conversa';
-  const intro = isLead
-    ? `${params.senderName} demonstrou interesse no seu anuncio e abriu um novo contato na ${params.siteName}.`
-    : `${params.senderName} enviou uma nova mensagem para voce na ${params.siteName}.`;
-  const footer = isLead
-    ? 'Acompanhe esse lead o quanto antes para aumentar suas chances de conversao.'
-    : 'Entre na conversa para responder rapido e manter a negociacao ativa.';
-
-  const linkHref = params.link
-    ? params.link.startsWith('http')
-      ? params.link
-      : `${params.appUrl.replace(/\/$/, '')}/#${params.link}`
-    : null;
-
-  const preview = params.messagePreview?.trim();
-
-  const html = `
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>${title}</title>
-      </head>
-      <body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
-        <div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2e8f0;">
-          <div style="padding:28px 32px;background:#0f172a;color:#ffffff;">
-            <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#86efac;">
-              ${badge}
-            </p>
-            <h1 style="margin:0;font-size:24px;line-height:1.2;">${title}</h1>
-          </div>
-          <div style="padding:32px;">
-            <p style="margin:0 0 16px;font-size:15px;">Ola, <strong>${params.recipientName}</strong>.</p>
-            <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#475569;">
-              ${intro}
-            </p>
-            <div style="margin:0 0 20px;padding:18px 20px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">
-              <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#64748b;">
-                Anuncio
-              </p>
-              <p style="margin:0;font-size:17px;font-weight:700;color:#0f172a;">${params.announcementTitle}</p>
-            </div>
-            ${
-              preview
-                ? `<div style="margin:0 0 24px;padding:18px 20px;border-radius:14px;background:#ecfdf5;border:1px solid #bbf7d0;">
-                    <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#15803d;">
-                      ${isLead ? 'Mensagem inicial' : 'Conteudo da mensagem'}
-                    </p>
-                    <p style="margin:0;font-size:15px;line-height:1.7;color:#166534;">${preview}</p>
-                  </div>`
-                : ''
-            }
-            ${
-              linkHref
-                ? `<a
-                    href="${linkHref}"
-                    style="display:inline-block;padding:14px 22px;background:#16a34a;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"
-                  >
-                    ${ctaLabel}
-                  </a>`
-                : ''
-            }
-          </div>
-          <div style="padding:18px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;">
-            ${footer}
-          </div>
-        </div>
-      </body>
-    </html>
-  `.trim();
-
-  return { subject: title, html };
 };
 
 serve(async (req) => {
@@ -213,7 +126,7 @@ serve(async (req) => {
 
     const { data: jobRows, error: jobsError } = await supabaseAdmin
       .from('contact_notification_email_jobs')
-      .select('id, source_kind, recipient_email, recipient_name, sender_name, announcement_title, message_preview, link, status, attempts')
+      .select('id, source_kind, recipient_email, recipient_name, sender_name, announcement_title, message_preview, link, reply_to_email, sender_phone, status, attempts')
       .in('status', ['pending', 'failed'])
       .lt('attempts', 3)
       .order('queued_at', { ascending: true })
@@ -244,7 +157,7 @@ serve(async (req) => {
         })
         .eq('id', job.id)
         .eq('status', job.status)
-        .select('id, source_kind, recipient_email, recipient_name, sender_name, announcement_title, message_preview, link, status, attempts')
+        .select('id, source_kind, recipient_email, recipient_name, sender_name, announcement_title, message_preview, link, reply_to_email, sender_phone, status, attempts')
         .maybeSingle();
 
       if (claimError || !claimedJob) continue;
@@ -276,6 +189,8 @@ serve(async (req) => {
         messagePreview: claimedJob.message_preview,
         link: claimedJob.link,
         sourceKind: claimedJob.source_kind,
+        replyToEmail: claimedJob.reply_to_email,
+        senderPhone: claimedJob.sender_phone,
       });
 
       // VULN-019 fix: Usando sendSmtpEmail() com nodemailer (TLS verificado)
@@ -283,6 +198,7 @@ serve(async (req) => {
         to: claimedJob.recipient_email,
         subject: email.subject,
         html: email.html,
+        replyTo: claimedJob.reply_to_email || undefined,
       });
 
       if (result.success) {
