@@ -3,7 +3,7 @@ import { AlertTriangle, Check, ChevronLeft, ChevronRight, Eye, Filter, PencilLin
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { toast } from 'sonner';
-import { CATEGORY_HIERARCHY, getCategoryGroupBySlug, getGroupCategorySlugs } from '../../src/lib/categoryHierarchy';
+import { useCategoryGroupCatalog } from '../../src/hooks/useCategoryGroupCatalog';
 import { formatPublicationModerationReasons, parsePublicationModerationReasons } from '../../src/utils/publicationModeration';
 import { appError, appWarn } from '../../src/utils/appLogger';
 
@@ -279,6 +279,12 @@ const formatCommunityReportSummary = (value: unknown) => {
 
 const ModerationQueue: React.FC = () => {
   const { logAction } = useAdminAudit();
+  const {
+    groups: categoryGroups,
+    findGroupBySlug,
+    getGroupCategorySlugs,
+    isLoading: categoryCatalogLoading,
+  } = useCategoryGroupCatalog({ includeInactive: true });
   const [activeTab, setActiveTab] = useState<ModerationTab>('announcements');
   const [announcements, setAnnouncements] = useState<PendingAnnouncement[]>([]);
   const [editRequests, setEditRequests] = useState<PendingEditRequest[]>([]);
@@ -295,7 +301,10 @@ const ModerationQueue: React.FC = () => {
   const [publicationRules, setPublicationRules] = useState<PublicationModerationRuleRecord[]>([]);
 
   useEffect(() => setPage(0), [activeTab, filterCategory, searchTerm]);
-  useEffect(() => { void (activeTab === 'announcements' ? loadPendingAnnouncements() : loadPendingEditRequests()); }, [activeTab, page, filterCategory, searchTerm]);
+  useEffect(() => {
+    if (categoryCatalogLoading) return;
+    void (activeTab === 'announcements' ? loadPendingAnnouncements() : loadPendingEditRequests());
+  }, [activeTab, categoryCatalogLoading, getGroupCategorySlugs, page, filterCategory, searchTerm]);
   useEffect(() => { void loadPublicationRules(); }, []);
 
   const totalCount = activeTab === 'announcements' ? totalAnnouncementsCount : totalEditRequestsCount;
@@ -650,12 +659,12 @@ const ModerationQueue: React.FC = () => {
       }
     };
 
-  const getAnnouncementGroupLabel = (announcement: PendingAnnouncement) => getCategoryGroupBySlug(announcement.category_slug)?.name || announcement.category || announcement.category_slug || 'Categoria';
+  const getAnnouncementGroupLabel = (announcement: PendingAnnouncement) => findGroupBySlug(announcement.category_slug)?.name || announcement.category || announcement.category_slug || 'Categoria';
   const getPublicationReviewLabel = (announcement: PendingAnnouncement) => {
     const reasons = parsePublicationModerationReasons(announcement.publication_review_reasons);
     return reasons.length > 0 ? formatPublicationModerationReasons(reasons) : '';
   };
-  const getEditRequestGroupLabel = (request: PendingEditRequest) => getCategoryGroupBySlug(String(request.payload?.category_slug || request.announcement?.category_slug || ''))?.name || request.announcement?.category || 'Categoria';
+  const getEditRequestGroupLabel = (request: PendingEditRequest) => findGroupBySlug(String(request.payload?.category_slug || request.announcement?.category_slug || ''))?.name || request.announcement?.category || 'Categoria';
   const getEditHighlights = (request: PendingEditRequest) => {
     const current = request.announcement; if (!current) return ['Anúncio indisponível'];
     const next = request.payload || {}; const changes: string[] = [];
@@ -687,7 +696,7 @@ const ModerationQueue: React.FC = () => {
   const formatCategory = (slug?: unknown) => {
     const normalized = String(slug ?? '').trim();
     if (!normalized) return 'Não informado';
-    return getCategoryGroupBySlug(normalized)?.name || normalized;
+    return findGroupBySlug(normalized)?.name || normalized;
   };
 
   const buildCategoryRows = (request: PendingEditRequest, variant: 'current' | 'proposed') => {
@@ -847,7 +856,7 @@ const ModerationQueue: React.FC = () => {
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-col gap-4 md:flex-row">
           <div className="flex-1"><div className="relative"><Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" /><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={activeTab === 'announcements' ? 'Buscar por titulo ou descricao...' : 'Buscar alteracoes por titulo ou descricao...'} className="w-full rounded-lg border border-slate-200 py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-green-500" /></div></div>
-          <div className="flex items-center gap-2"><Filter className="h-5 w-5 text-slate-400" /><select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="rounded-lg border border-slate-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"><option value="all">Todas as Categorias</option>{CATEGORY_HIERARCHY.map((group) => <option key={group.slug} value={group.slug}>{group.name}</option>)}</select></div>
+          <div className="flex items-center gap-2"><Filter className="h-5 w-5 text-slate-400" /><select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="rounded-lg border border-slate-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"><option value="all">Todas as Categorias</option>{categoryGroups.map((group) => <option key={group.slug} value={group.slug}>{group.name}</option>)}</select></div>
         </div>
       </div>
 

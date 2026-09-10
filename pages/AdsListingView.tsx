@@ -7,14 +7,11 @@ import SeoHead from '../components/SeoHead';
 import StructuredData from '../components/StructuredData';
 import { usePublicAds } from '../src/hooks/useAds';
 import { usePublicCategoryCatalog } from '../src/hooks/usePublicCategoryCatalog';
+import { useCategoryGroupCatalog } from '../src/hooks/useCategoryGroupCatalog';
 import { useAuth } from '../src/contexts/AuthContext';
 import { supabase } from '../src/lib/supabaseClient';
 import { getTrustedHoursAgo, isTimestampActive, syncTrustedTime } from '../src/lib/trustedTime';
 import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
-import {
-  getCategoryGroupBySlug,
-  getGroupCategorySlugs,
-} from '../src/lib/categoryHierarchy';
 import { getCategorySeoContent } from '../src/lib/categorySeoContent';
 import { Ad } from '../types';
 
@@ -250,7 +247,8 @@ const AdsListingView: React.FC = () => {
   const stateTerm = params.get('estado') || '';
 
   const { categories, subcategories } = usePublicCategoryCatalog();
-  const categoryGroup = useMemo(() => getCategoryGroupBySlug(catSlug), [catSlug]);
+  const { findGroupBySlug, getGroupCategorySlugs } = useCategoryGroupCatalog();
+  const categoryGroup = useMemo(() => findGroupBySlug(catSlug), [catSlug, findGroupBySlug]);
   const categorySeoContent = useMemo(() => getCategorySeoContent(categoryGroup?.slug || catSlug), [categoryGroup?.slug, catSlug]);
   const relevantCategorySlugs = useMemo(
     () => (categoryGroup ? getGroupCategorySlugs(categoryGroup.slug) : catSlug ? [catSlug] : []),

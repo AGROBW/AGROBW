@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Ad, SellerStore } from '../../types';
 import { useAuth } from '../contexts/AuthContext';
-import { getCategoryGroupBySlug, getCategoryGroupForCategorySlug } from '../lib/categoryHierarchy';
+import { useCategoryGroupCatalog } from './useCategoryGroupCatalog';
 import { supabase } from '../lib/supabaseClient';
 import { appError } from '../utils/appLogger';
 
@@ -474,11 +474,17 @@ export const usePublicSellerStore = (slug: string | undefined) => {
 };
 
 export const usePublicSellerStoresCatalog = () => {
+  const {
+    findGroupBySlug,
+    findGroupForCategorySlug,
+    isLoading: categoryCatalogLoading,
+  } = useCategoryGroupCatalog();
   const [stores, setStores] = useState<PublicSellerStoreCatalogItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchStores = useCallback(async () => {
+    if (categoryCatalogLoading) return;
     setIsLoading(true);
     setError(null);
 
@@ -557,7 +563,7 @@ export const usePublicSellerStoresCatalog = () => {
         current.highlightedAdsCount += 1;
       }
 
-      const categoryGroup = getCategoryGroupForCategorySlug(row.category_slug) || getCategoryGroupBySlug(row.category_slug);
+      const categoryGroup = findGroupForCategorySlug(row.category_slug) || findGroupBySlug(row.category_slug);
       if (categoryGroup) {
         current.categoryGroups.set(categoryGroup.slug, categoryGroup.name);
       }
@@ -596,7 +602,7 @@ export const usePublicSellerStoresCatalog = () => {
       })
     );
     setIsLoading(false);
-  }, []);
+  }, [categoryCatalogLoading, findGroupBySlug, findGroupForCategorySlug]);
 
   useEffect(() => {
     void fetchStores();

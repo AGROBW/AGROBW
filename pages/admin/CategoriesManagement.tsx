@@ -12,10 +12,12 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { CATEGORY_HIERARCHY, getCategoryGroupBySlug, getCategoryGroupForCategorySlug } from '../../src/lib/categoryHierarchy';
+import { isValidCategoryGroupSlug, normalizeCategoryGroupSlug } from '../../src/lib/categoryGroups';
+import type { CategoryGroup } from '../../src/lib/categoryGroups';
 import { getCategoryIconComponent } from '../../src/lib/categoryVisuals';
 import { supabase } from '../../src/lib/supabaseClient';
-import { ADMIN_ACTIONS, useAdminAudit } from '../../src/hooks/useAdminAudit';
+import { ADMIN_ACTIONS, RESOURCE_TYPES, useAdminAudit } from '../../src/hooks/useAdminAudit';
+import { useCategoryGroupCatalog } from '../../src/hooks/useCategoryGroupCatalog';
 import { appError } from '../../src/utils/appLogger';
 
 interface CategoryRecord {
@@ -36,6 +38,18 @@ interface CategorySubcategoryRecord {
   sort_order?: number | null;
   is_active?: boolean | null;
 }
+
+const GROUP_ICON_OPTIONS = [
+  { value: 'PawPrint', label: 'Animais' },
+  { value: 'Cog', label: 'Maquinas' },
+  { value: 'Leaf', label: 'Insumos' },
+  { value: 'Home', label: 'Imoveis' },
+  { value: 'Wrench', label: 'Servicos' },
+  { value: 'Sprout', label: 'Sementes' },
+  { value: 'Package', label: 'Produtos' },
+  { value: 'Building2', label: 'Estruturas' },
+  { value: 'Trees', label: 'Natureza' },
+] as const;
 
 const slugify = (value: string) =>
   value
@@ -60,37 +74,52 @@ const emptySubcategoryForm = {
   is_active: true,
 };
 
-const resolveGroupSlug = (category: CategoryRecord) =>
-  category.parent_group_slug ||
-  getCategoryGroupForCategorySlug(category.slug)?.slug ||
-  getCategoryGroupBySlug(category.slug)?.slug ||
-  '';
+const emptyGroupForm = {
+  name: '',
+  slug: '',
+  icon_name: 'Package',
+  sort_order: 0,
+  is_active: true,
+};
 
 const CategoriesManagement: React.FC = () => {
   const { logAction } = useAdminAudit();
+  const {
+    groups: categoryGroups,
+    isLoading: loadingGroups,
+    isFallback: groupsAreFallback,
+    reload: reloadGroups,
+    findGroupForCategorySlug,
+  } = useCategoryGroupCatalog({ includeInactive: true });
   const [loading, setLoading] = useState(true);
+  const [savingGroup, setSavingGroup] = useState(false);
   const [savingCategory, setSavingCategory] = useState(false);
   const [savingSubcategory, setSavingSubcategory] = useState(false);
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [subcategories, setSubcategories] = useState<CategorySubcategoryRecord[]>([]);
-  const [selectedGroupSlug, setSelectedGroupSlug] = useState(CATEGORY_HIERARCHY[0]?.slug || '');
+  const [selectedGroupSlug, setSelectedGroupSlug] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [subcategoryForm, setSubcategoryForm] = useState(emptySubcategoryForm);
+  const [groupForm, setGroupForm] = useState(emptyGroupForm);
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupImages, setGroupImages] = useState<Record<string, string>>({});
   const [uploadingGroupSlug, setUploadingGroupSlug] = useState<string | null>(null);
   const uploadInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const groupedCategories = useMemo(
     () =>
-      CATEGORY_HIERARCHY.map((group) => ({
+      categoryGroups.map((group) => ({
         ...group,
-        categories: categories.filter((category) => resolveGroupSlug(category) === group.slug),
+        categories: categories.filter((category) =>
+          (category.parent_group_slug || findGroupForCategorySlug(category.slug)?.slug || '') === group.slug
+        ),
       })),
-    [categories]
+    [categories, categoryGroups, findGroupForCategorySlug]
   );
 
   const selectedGroup = useMemo(
@@ -204,6 +233,30 @@ const CategoriesManagement: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (categoryGroups.length === 0) {
+      setSelectedGroupSlug('');
+      return;
+    }
+
+    if (!categoryGroups.some((group) => group.slug === selectedGroupSlug)) {
+      setSelectedGroupSlug(categoryGroups[0].slug);
+    }
+  }, [categoryGroups, selectedGroupSlug]);
+
+  useEffect(() => {
+    if (!showGroupForm) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !savingGroup) {
+        setShowGroupForm(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [savingGroup, showGroupForm]);
+
+  useEffect(() => {
     if (!selectedGroup) {
       setSelectedCategoryId('');
       setSubcategories([]);
@@ -234,6 +287,132 @@ const CategoriesManagement: React.FC = () => {
   const resetSubcategoryForm = () => {
     setEditingSubcategoryId(null);
     setSubcategoryForm(emptySubcategoryForm);
+  };
+
+  const openGroupForm = () => {
+    const nextSortOrder = categoryGroups.reduce(
+      (highest, group) => Math.max(highest, group.sortOrder),
+      0
+    ) + 1;
+
+    setGroupForm({ ...emptyGroupForm, sort_order: nextSortOrder });
+    setEditingGroupId(null);
+    setShowGroupForm(true);
+  };
+
+  const openGroupEditForm = (group: CategoryGroup) => {
+    if (!group.id || groupsAreFallback) return;
+
+    setGroupForm({
+      name: group.name,
+      slug: group.slug,
+      icon_name: group.iconName || 'Package',
+      sort_order: group.sortOrder,
+      is_active: group.isActive,
+    });
+    setEditingGroupId(group.id);
+    setShowGroupForm(true);
+  };
+
+  const closeGroupForm = () => {
+    if (savingGroup) return;
+    setShowGroupForm(false);
+    setEditingGroupId(null);
+    setGroupForm(emptyGroupForm);
+  };
+
+  const handleSaveGroup = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (groupsAreFallback) {
+      toast.error('A base dinamica de grupos ainda nao esta disponivel. Aplique a migracao da etapa 1.');
+      return;
+    }
+
+    const payload = {
+      name: groupForm.name.trim(),
+      slug: normalizeCategoryGroupSlug(groupForm.slug || groupForm.name),
+      icon_name: groupForm.icon_name || null,
+      sort_order: Math.max(0, Math.trunc(Number(groupForm.sort_order) || 0)),
+      is_active: groupForm.is_active,
+    };
+
+    if (!payload.name || payload.name.length > 80) {
+      toast.error('Informe um nome de ate 80 caracteres.');
+      return;
+    }
+
+    if (!isValidCategoryGroupSlug(payload.slug)) {
+      toast.error('O slug deve conter apenas letras minusculas, numeros e hifens.');
+      return;
+    }
+
+    if (categoryGroups.some((group) => group.slug === payload.slug && group.id !== editingGroupId)) {
+      toast.error('Ja existe um grupo principal com esse slug.');
+      return;
+    }
+
+    try {
+      setSavingGroup(true);
+      const existingGroup = editingGroupId
+        ? categoryGroups.find((group) => group.id === editingGroupId) || null
+        : null;
+      const query = editingGroupId
+        ? supabase.from('category_groups').update({
+            name: payload.name,
+            icon_name: payload.icon_name,
+            sort_order: payload.sort_order,
+            is_active: payload.is_active,
+          }).eq('id', editingGroupId)
+        : supabase.from('category_groups').insert(payload);
+      const { data, error } = await query
+        .select('id, name, slug, sort_order, icon_name, is_active')
+        .single();
+
+      if (error) throw error;
+
+      await logAction({
+        action: editingGroupId
+          ? ADMIN_ACTIONS.UPDATE_CATEGORY_GROUP
+          : ADMIN_ACTIONS.CREATE_CATEGORY_GROUP,
+        resourceType: RESOURCE_TYPES.CATEGORY_GROUP,
+        resourceId: data.id,
+        oldValue: existingGroup ? {
+          name: existingGroup.name,
+          slug: existingGroup.slug,
+          icon_name: existingGroup.iconName,
+          sort_order: existingGroup.sortOrder,
+          is_active: existingGroup.isActive,
+        } : null,
+        newValue: payload,
+        reason: editingGroupId
+          ? `Grupo principal ${payload.name} atualizado`
+          : `Grupo principal ${payload.name} criado`,
+      });
+
+      setSelectedGroupSlug(data.slug);
+      setShowGroupForm(false);
+      setEditingGroupId(null);
+      setGroupForm(emptyGroupForm);
+      reloadGroups();
+      toast.success(
+        editingGroupId
+          ? 'Grupo principal atualizado com sucesso.'
+          : 'Grupo principal criado com sucesso.'
+      );
+    } catch (error) {
+      appError('[CategoriesManagement] Erro ao criar grupo principal', error);
+      const errorCode = typeof error === 'object' && error !== null && 'code' in error
+        ? String(error.code)
+        : '';
+      toast.error(
+        errorCode === '23505'
+          ? 'Ja existe um grupo principal com esse slug.'
+          : 'Nao foi possivel criar o grupo principal.'
+      );
+    } finally {
+      setSavingGroup(false);
+    }
   };
 
   const handleEditCategory = (category: CategoryRecord) => {
@@ -293,7 +472,7 @@ const CategoriesManagement: React.FC = () => {
         action: ADMIN_ACTIONS.DELETE_PAGE,
         resourceType: 'category',
         resourceId: category.id,
-        previousValue: category,
+        oldValue: category,
         reason: `Categoria secundaria ${category.name} excluida de ${selectedGroup?.name || 'grupo desconhecido'}`,
       });
 
@@ -338,7 +517,7 @@ const CategoriesManagement: React.FC = () => {
         action: ADMIN_ACTIONS.DELETE_PAGE,
         resourceType: 'category_subcategory',
         resourceId: subcategory.id,
-        previousValue: subcategory,
+        oldValue: subcategory,
         reason: `Subcategoria ${subcategory.name} excluida de ${selectedCategory?.name || 'categoria desconhecida'}`,
       });
 
@@ -457,13 +636,15 @@ const CategoriesManagement: React.FC = () => {
     }
   };
 
+  const GroupFormIcon = getCategoryIconComponent(groupForm.icon_name, groupForm.slug);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-black text-slate-900">Categorias</h1>
           <p className="mt-1 text-slate-500">
-            Gerencie os 6 grupos principais, as categorias secundarias e suas subcategorias.
+            Gerencie os grupos principais, as categorias secundarias e suas subcategorias.
           </p>
         </div>
 
@@ -471,6 +652,8 @@ const CategoriesManagement: React.FC = () => {
           type="button"
           onClick={() => {
             void loadCategories();
+            void loadGroupImages();
+            reloadGroups();
           }}
           className="inline-flex items-center gap-2 rounded-lg bg-green-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-600"
         >
@@ -480,16 +663,44 @@ const CategoriesManagement: React.FC = () => {
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5">
-        <div className="mb-4">
-          <h2 className="text-lg font-black text-slate-900">Grupos principais</h2>
-          <p className="text-sm text-slate-500">
-            Esses 6 grupos seguem a mesma logica da primeira etapa de anuncio.
-          </p>
+        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-black text-slate-900">Grupos principais</h2>
+            <p className="text-sm text-slate-500">
+              {categoryGroups.length} grupo{categoryGroups.length !== 1 ? 's' : ''} cadastrado{categoryGroups.length !== 1 ? 's' : ''} para a primeira etapa do anuncio.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={openGroupForm}
+            disabled={loadingGroups || groupsAreFallback}
+            title={groupsAreFallback ? 'Aplique a migracao da etapa 1 para liberar novos grupos.' : undefined}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            Novo grupo principal
+          </button>
         </div>
 
+        {groupsAreFallback && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Exibindo os grupos legados. A criacao sera liberada apos aplicar a migracao da etapa 1.
+          </div>
+        )}
+
+        {loadingGroups ? (
+          <div className="flex min-h-48 items-center justify-center">
+            <Loader2 className="h-7 w-7 animate-spin text-green-600" />
+          </div>
+        ) : groupedCategories.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-12 text-center text-sm text-slate-500">
+            Nenhum grupo principal cadastrado.
+          </div>
+        ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {groupedCategories.map((group) => {
-            const Icon = getCategoryIconComponent(undefined, group.slug);
+            const Icon = getCategoryIconComponent(group.iconName, group.slug);
             const isSelected = group.slug === selectedGroup?.slug;
             const coverUrl = groupImages[group.slug];
             const isUploading = uploadingGroupSlug === group.slug;
@@ -517,9 +728,16 @@ const CategoriesManagement: React.FC = () => {
                     <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isSelected ? 'bg-white text-green-700' : 'bg-slate-50 text-slate-600'}`}>
                       <Icon className="h-6 w-6" strokeWidth={1.8} />
                     </div>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-600">
-                      {group.categories.length} categoria{group.categories.length !== 1 ? 's' : ''}
-                    </span>
+                    <div className="flex flex-col items-end gap-2">
+                      {!group.isActive && (
+                        <span className="rounded-full bg-amber-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-800">
+                          Inativo
+                        </span>
+                      )}
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-600">
+                        {group.categories.length} categoria{group.categories.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
                   </div>
                   <h3 className="mt-4 text-lg font-black text-slate-900">{group.name}</h3>
                   <p className="mt-1 text-sm text-slate-500">
@@ -529,7 +747,18 @@ const CategoriesManagement: React.FC = () => {
 
                 {/* Imagem de capa do card público */}
                 <div className="px-5 pb-5 pt-3 border-t border-slate-100">
-                  <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">Imagem do card</p>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Imagem do card</p>
+                    <button
+                      type="button"
+                      onClick={() => openGroupEditForm(group)}
+                      disabled={!group.id || groupsAreFallback}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Editar grupo
+                    </button>
+                  </div>
                   {coverUrl ? (
                     <div className="relative h-28 w-full overflow-hidden rounded-xl">
                       <img src={coverUrl} alt={group.name} className="h-full w-full object-cover" />
@@ -586,6 +815,7 @@ const CategoriesManagement: React.FC = () => {
             );
           })}
         </div>
+        )}
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
@@ -995,6 +1225,190 @@ const CategoriesManagement: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {showGroupForm && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm sm:items-center"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) closeGroupForm();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-category-group-title"
+            className="w-full max-w-xl overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl"
+          >
+            <div className="relative overflow-hidden bg-slate-950 px-6 py-6 text-white sm:px-8">
+              <div className="absolute -right-12 -top-16 h-40 w-40 rounded-full bg-green-400/20 blur-2xl" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-green-400 text-slate-950">
+                    <FolderTree className="h-6 w-6" strokeWidth={2} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-green-300">Estrutura do catalogo</p>
+                    <h2 id="new-category-group-title" className="mt-1 text-xl font-black">
+                      {editingGroupId ? 'Editar grupo principal' : 'Novo grupo principal'}
+                    </h2>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeGroupForm}
+                  disabled={savingGroup}
+                  aria-label="Fechar"
+                  className="rounded-xl p-2 text-slate-300 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveGroup} className="space-y-5 p-6 sm:p-8">
+              <div className="rounded-2xl border border-green-100 bg-green-50 p-4 text-sm text-green-900">
+                {editingGroupId
+                  ? 'Atualize a apresentacao e a disponibilidade do grupo sem alterar seus vinculos.'
+                  : 'O grupo sera criado vazio. Depois, selecione o novo card para adicionar suas categorias secundarias.'}
+              </div>
+
+              <label className="block" htmlFor="category-group-name">
+                <span className="mb-2 block text-sm font-bold text-slate-700">Nome do grupo</span>
+                <input
+                  id="category-group-name"
+                  type="text"
+                  autoFocus
+                  required
+                  maxLength={80}
+                  value={groupForm.name}
+                  onChange={(event) => {
+                    const nextName = event.target.value;
+                    setGroupForm((current) => ({
+                      ...current,
+                      name: nextName,
+                      slug: editingGroupId
+                        ? current.slug
+                        : current.slug === slugify(current.name)
+                          ? slugify(nextName)
+                          : current.slug,
+                    }));
+                  }}
+                  placeholder="Ex: Tecnologia Rural"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                />
+              </label>
+
+              <label className="block" htmlFor="category-group-slug">
+                <span className="mb-2 block text-sm font-bold text-slate-700">Slug</span>
+                <input
+                  id="category-group-slug"
+                  type="text"
+                  required
+                  maxLength={80}
+                  disabled={Boolean(editingGroupId)}
+                  value={groupForm.slug}
+                  onChange={(event) =>
+                    setGroupForm((current) => ({ ...current, slug: slugify(event.target.value) }))
+                  }
+                  placeholder="tecnologia-rural"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 font-mono text-sm text-slate-900 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                />
+                <span className="mt-1.5 block text-xs text-slate-500">
+                  {editingGroupId
+                    ? 'O slug e permanente para proteger URLs e vinculos existentes.'
+                    : 'Identificador permanente usado nas URLs e integracoes.'}
+                </span>
+              </label>
+
+              <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+                <label className="block" htmlFor="category-group-icon">
+                  <span className="mb-2 block text-sm font-bold text-slate-700">Icone</span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                      <GroupFormIcon className="h-6 w-6" strokeWidth={1.8} />
+                    </div>
+                    <select
+                      id="category-group-icon"
+                      value={groupForm.icon_name}
+                      onChange={(event) =>
+                        setGroupForm((current) => ({ ...current, icon_name: event.target.value }))
+                      }
+                      className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                    >
+                      {GROUP_ICON_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </label>
+
+                <label className="block" htmlFor="category-group-order">
+                  <span className="mb-2 block text-sm font-bold text-slate-700">Ordem</span>
+                  <input
+                    id="category-group-order"
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                    value={groupForm.sort_order}
+                    onChange={(event) =>
+                      setGroupForm((current) => ({
+                        ...current,
+                        sort_order: Math.max(0, Math.trunc(Number(event.target.value) || 0)),
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                  />
+                </label>
+              </div>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={groupForm.is_active}
+                  onChange={(event) =>
+                    setGroupForm((current) => ({ ...current, is_active: event.target.checked }))
+                  }
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-green-600 focus:ring-green-500"
+                />
+                <span>
+                  <span className="block text-sm font-bold text-slate-800">Grupo ativo</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    Grupos inativos ficam visiveis apenas para administradores.
+                  </span>
+                </span>
+              </label>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeGroupForm}
+                  disabled={savingGroup}
+                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingGroup || !groupForm.name.trim() || !groupForm.slug}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingGroup
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : editingGroupId
+                      ? <Pencil className="h-4 w-4" />
+                      : <Plus className="h-4 w-4" />}
+                  {savingGroup
+                    ? 'Salvando grupo...'
+                    : editingGroupId
+                      ? 'Salvar alteracoes'
+                      : 'Criar grupo principal'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

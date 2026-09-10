@@ -1,15 +1,22 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { getCategoryGroupKey } from '../lib/categoryHierarchy';
+import { useCategoryGroupCatalog } from './useCategoryGroupCatalog';
 import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime';
 import { appWarn } from '../utils/appLogger';
 
 export const useCategoryCounts = () => {
+  const {
+    groups: categoryGroups,
+    getCategoryGroupKey,
+    isLoading: categoryGroupsLoading,
+  } = useCategoryGroupCatalog();
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [hasLoadedRealCounts, setHasLoadedRealCounts] = useState(false);
 
   useEffect(() => {
     const loadCategoryCounts = async () => {
+      if (categoryGroupsLoading) return;
+
       try {
         await syncTrustedTime();
 
@@ -47,7 +54,7 @@ export const useCategoryCounts = () => {
     };
 
     void loadCategoryCounts();
-  }, []);
+  }, [categoryGroupsLoading, getCategoryGroupKey]);
 
   const getCountForCategory = (slug: string) => {
     const key = getCategoryGroupKey(slug);
@@ -63,5 +70,7 @@ export const useCategoryCounts = () => {
     categoryCounts,
     getCountForCategory,
     hasLoadedRealCounts,
+    categoryGroups,
+    categoryGroupsLoading,
   };
 };
