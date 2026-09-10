@@ -44,7 +44,8 @@ hash nao estiver configurado.
 
 1. Aplicar `sql/create_guest_announcement_contacts_2026-09-10.sql`.
 2. Configurar os segredos da Edge Function.
-3. Publicar `sync-contact-notification-emails`.
+3. Publicar `sync-contact-notification-emails` com `verify_jwt=false`; o cron
+   externo autentica por `x-cron-secret`, validado dentro da funcao.
 4. Publicar `submit-guest-announcement-contact` com `verify_jwt=false`.
 5. Publicar o site.
 6. Executar o smoke abaixo antes de considerar o release concluido.

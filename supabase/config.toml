@@ -85,6 +85,11 @@ entrypoint = "./functions/submit-guest-announcement-contact/index.ts"
 
 # Crons externos (cron-job.org): autenticação por x-cron-secret próprio no código.
 # verify_jwt=false move a auth do gateway JWT para o secret da função (mesmo padrão dos webhooks).
+[functions.sync-contact-notification-emails]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/sync-contact-notification-emails/index.ts"
+
 [functions.sync-growth-conversion-notifications]
 enabled = true
 verify_jwt = false
