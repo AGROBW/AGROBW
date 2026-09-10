@@ -9,6 +9,7 @@ import { isTimestampExpired, syncTrustedTime } from '../src/lib/trustedTime';
 import { recordContactLegalConsents } from '../src/lib/legalConsents';
 import { debugLog } from '../src/utils/debugLog';
 import { appError, appWarn } from '../src/utils/appLogger';
+import { CaptchaWidget } from './CaptchaWidget';
 import {
   PAYMENT_PREFERENCE_OPTIONS,
   PURCHASE_TIMELINE_OPTIONS,
@@ -32,6 +33,12 @@ const applyCepMask = (value: string) => {
   return numbers.replace(/(\d{5})(\d{0,3})/, '$1-$2').trim();
 };
 
+const resolveCaptchaProvider = (): 'turnstile' | 'hcaptcha' | 'mock' => {
+  if (import.meta.env.VITE_TURNSTILE_SITE_KEY) return 'turnstile';
+  if (import.meta.env.VITE_HCAPTCHA_SITE_KEY) return 'hcaptcha';
+  return 'mock';
+};
+
 interface ContactSellerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -51,6 +58,8 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
   const { settings } = useLayout();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaReset, setCaptchaReset] = useState(0);
   const [showQualification, setShowQualification] = useState(false);
   const [qualification, setQualification] = useState<LeadQualificationInput>(createEmptyLeadQualification);
   const [formData, setFormData] = useState({
@@ -62,9 +71,15 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
   });
 
   useEffect(() => {
-    if (isOpen && user) {
-      setShowQualification(false);
-      setQualification(createEmptyLeadQualification());
+    if (!isOpen) return;
+
+    setAcceptedTerms(false);
+    setCaptchaToken('');
+    setCaptchaReset((current) => current + 1);
+    setShowQualification(false);
+    setQualification(createEmptyLeadQualification());
+
+    if (user) {
       const fetchUserData = async () => {
         const { data, error } = await supabase
           .from('users')
@@ -84,23 +99,83 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
       };
 
       fetchUserData();
+    } else {
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        cep: '',
+        message: `Ola, tenho interesse no anuncio: ${announcementTitle}`,
+      });
     }
   }, [isOpen, user, announcementTitle]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!user) {
-      toast.error('Voce precisa estar logado para enviar mensagens.', {
-        description: 'Entre na sua conta e tente novamente para falar com o vendedor.',
-      });
+  const submitGuestContact = async () => {
+    const captchaProvider = resolveCaptchaProvider();
+    if (captchaProvider === 'mock' || !captchaToken) {
+      toast.error('Complete a verificacao de seguranca antes de enviar.');
       return;
     }
+
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('submit-guest-announcement-contact', {
+        body: {
+          announcementId,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone || null,
+          message: formData.message,
+          acceptedTerms,
+          captchaToken,
+          captchaProvider,
+          userAgent: navigator.userAgent,
+        },
+      });
+
+      if (error) {
+        let description = 'Tente novamente em instantes.';
+        const response = error.context instanceof Response ? error.context : null;
+        if (response) {
+          const payload = await response.clone().json().catch(() => null);
+          if (payload?.error) description = String(payload.error);
+        }
+        throw new Error(description);
+      }
+
+      toast.success(
+        data?.status === 'already_received' ? 'Contato ja recebido.' : 'Contato enviado com sucesso.',
+        {
+          description: 'O vendedor recebera sua mensagem por e-mail e podera responder diretamente.',
+        },
+      );
+      onClose();
+      setFormData({ name: '', email: '', phone: '', cep: '', message: '' });
+      setAcceptedTerms(false);
+    } catch (error) {
+      appError('[GuestContact] Erro ao enviar contato visitante', error, { announcementId });
+      toast.error('Nao foi possivel enviar seu contato.', {
+        description: error instanceof Error ? error.message : 'Tente novamente em instantes.',
+      });
+    } finally {
+      setCaptchaToken('');
+      setCaptchaReset((current) => current + 1);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
     if (!acceptedTerms) {
       toast.error('Aceite os termos antes de continuar.', {
         description: 'Marque a confirmacao de termos para liberar o envio da mensagem.',
       });
+      return;
+    }
+
+    if (!user) {
+      await submitGuestContact();
       return;
     }
 
@@ -436,11 +511,16 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
     }
   };
 
+  const hasValidMessage = user
+    ? formData.message.trim() !== ''
+    : formData.message.trim().length >= 10 && formData.message.length <= 2000;
+
   const isFormValid =
     formData.name.trim() !== '' &&
     formData.email.trim() !== '' &&
-    formData.message.trim() !== '' &&
-    acceptedTerms;
+    hasValidMessage &&
+    acceptedTerms &&
+    (Boolean(user) || Boolean(captchaToken));
 
   if (!isOpen) return null;
 
@@ -469,7 +549,9 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
             <div className="text-sm" style={{ color: settings.textColor }}>
               <p className="mb-1 font-bold">Seus dados estao protegidos</p>
               <p style={{ color: settings.secondaryColor }}>
-                As informacoes abaixo serao compartilhadas apenas com o vendedor deste anuncio.
+                {user
+                  ? 'As informacoes abaixo serao compartilhadas apenas com o vendedor deste anuncio.'
+                  : 'Voce pode enviar este primeiro contato sem criar uma conta. Seus dados serao compartilhados apenas com o vendedor.'}
               </p>
             </div>
           </div>
@@ -486,6 +568,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
               className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none transition-all disabled:cursor-not-allowed disabled:bg-gray-50"
               style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
               placeholder="Seu nome completo"
+              maxLength={120}
               required
             />
           </div>
@@ -502,6 +585,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
               className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none transition-all disabled:cursor-not-allowed disabled:bg-gray-50"
               style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
               placeholder="seu@email.com"
+              maxLength={254}
               required
             />
           </div>
@@ -524,7 +608,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
               />
             </div>
 
-            <div>
+            {user && <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">CEP</label>
               <input
                 type="text"
@@ -539,10 +623,10 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
                 style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
                 placeholder="00000-000"
               />
-            </div>
+            </div>}
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50/50">
+          {user && <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50/50">
             <button
               type="button"
               onClick={() => setShowQualification((current) => !current)}
@@ -638,7 +722,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
                 </div>
               </div>
             )}
-          </div>
+          </div>}
 
           <div>
             <label className="mb-2 block text-sm font-bold text-slate-700">
@@ -650,11 +734,27 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
               className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 outline-none transition-all"
               style={{ ['--tw-ring-color' as any]: `${settings.primaryColor}33` }}
               rows={5}
+              minLength={user ? 1 : 10}
+              maxLength={user ? undefined : 2000}
               placeholder="Escreva sua mensagem para o vendedor..."
               required
             />
             <p className="mt-2 text-xs text-slate-400">{formData.message.length} caracteres</p>
           </div>
+
+          {!user && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                Verificacao de seguranca
+              </p>
+              <CaptchaWidget
+                onVerify={setCaptchaToken}
+                onError={() => setCaptchaToken('')}
+                onExpire={() => setCaptchaToken('')}
+                resetSignal={captchaReset}
+              />
+            </div>
+          )}
 
           <div className="flex items-start gap-3">
             <input
@@ -700,7 +800,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
               ) : (
                 <>
                   <Send className="h-5 w-5" />
-                  Enviar Mensagem
+                  {user ? 'Enviar Mensagem' : 'Enviar contato'}
                 </>
               )}
             </button>

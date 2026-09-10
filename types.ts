@@ -1010,9 +1010,10 @@ export interface PlanAlertEmailDispatchLog {
 
 export interface ContactNotificationEmailJob {
   id: string;
-  sourceKind: 'new_message' | 'new_lead';
+  sourceKind: 'new_message' | 'new_lead' | 'guest_lead';
   messageId?: string | null;
   leadId?: string | null;
+  guestContactId?: string | null;
   recipientUserId: string;
   recipientEmail?: string | null;
   recipientName?: string | null;
@@ -1020,6 +1021,8 @@ export interface ContactNotificationEmailJob {
   announcementTitle?: string | null;
   messagePreview?: string | null;
   link?: string | null;
+  replyToEmail?: string | null;
+  senderPhone?: string | null;
   status: 'pending' | 'processing' | 'sent' | 'failed' | 'skipped';
   provider: string;
   attempts: number;

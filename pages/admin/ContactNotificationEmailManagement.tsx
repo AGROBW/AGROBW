@@ -24,9 +24,10 @@ const statusMeta: Record<
   skipped: { label: 'Ignorado', className: 'border border-slate-200 bg-slate-50 text-slate-600' },
 };
 
-const kindMeta: Record<'new_message' | 'new_lead', { label: string; className: string }> = {
+const kindMeta: Record<'new_message' | 'new_lead' | 'guest_lead', { label: string; className: string }> = {
   new_message: { label: 'Mensagem', className: 'bg-sky-100 text-sky-700' },
   new_lead: { label: 'Lead', className: 'bg-emerald-100 text-emerald-700' },
+  guest_lead: { label: 'Visitante', className: 'bg-amber-100 text-amber-800' },
 };
 
 const formatDateTime = (value?: string | null) => {
@@ -61,7 +62,7 @@ const ContactNotificationEmailManagement: React.FC = () => {
   const { summary, jobs, dispatchLogs, isLoading, error, fetchMonitoring, processQueueNow } =
     useContactNotificationEmailMonitoring();
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'processing' | 'sent' | 'failed' | 'skipped'>('all');
-  const [kindFilter, setKindFilter] = useState<'all' | 'new_message' | 'new_lead'>('all');
+  const [kindFilter, setKindFilter] = useState<'all' | 'new_message' | 'new_lead' | 'guest_lead'>('all');
   const [isProcessingNow, setIsProcessingNow] = useState(false);
 
   const filteredJobs = useMemo(() => {
@@ -164,7 +165,7 @@ const ContactNotificationEmailManagement: React.FC = () => {
                 {option === 'all' ? 'Todos' : statusMeta[option].label}
               </button>
             ))}
-            {(['all', 'new_message', 'new_lead'] as const).map((option) => (
+            {(['all', 'new_message', 'new_lead', 'guest_lead'] as const).map((option) => (
               <button
                 key={option}
                 type="button"
