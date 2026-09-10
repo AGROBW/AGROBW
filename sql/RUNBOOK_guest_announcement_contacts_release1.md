@@ -75,11 +75,11 @@ interpretado corretamente quando o primeiro contato entrar.
 2. Processar ou registrar os jobs `guest_lead` ainda pendentes.
 3. Republicar a versao anterior de `sync-contact-notification-emails`.
 4. Remover `submit-guest-announcement-contact`.
-5. Em transacao, remover o trigger e a funcao de fila, apagar os jobs
-   `guest_lead`, remover as tres colunas adicionadas em
-   `contact_notification_email_jobs`, restaurar as constraints anteriores e
-   somente entao remover a RPC e `guest_announcement_contacts`.
+5. Executar `sql/ROLLBACK_guest_announcement_contacts_release1.sql`.
 
-O rollback SQL deve ser preparado a partir do estado medido imediatamente
-antes da implantacao. Nao executar `drop ... cascade` nem reconstruir
-constraints de memoria.
+O rollback foi construido a partir do estado medido imediatamente antes da
+implantacao: 14 jobs, zero referencias invalidas e as constraints originais
+`contact_notification_email_jobs_check` e
+`contact_notification_email_jobs_source_kind_check`. O script aborta se houver
+job `guest_lead` ainda nao entregue, restaura literalmente as duas regras e nao
+usa `drop ... cascade`.
