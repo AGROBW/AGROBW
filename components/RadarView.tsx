@@ -45,23 +45,14 @@ import toast from 'react-hot-toast';
 import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { getAnnouncementPath } from '../src/lib/announcementUrl';
-import {
-  CATEGORY_HIERARCHY,
-  getCategoryGroupBySlug,
-  getCategoryGroupForCategorySlug
-} from '../src/lib/categoryHierarchy';
+import { useCategoryGroupCatalog } from '../src/hooks/useCategoryGroupCatalog';
 import { getNextRecommendedUpgradePlan } from '../src/lib/recommendedUpgradePlan';
 
 interface RadarCategoryOption {
   id: string;
   name: string;
   slug: string;
-}
-
-interface RadarCategoryGroupOption {
-  id: string;
-  name: string;
-  slug: string;
+  parent_group_slug?: string | null;
 }
 
 const RadarView: React.FC = () => {
@@ -69,6 +60,11 @@ const RadarView: React.FC = () => {
   const { settings } = useLayout();
   const { subscription } = useSubscription();
   const { plansRaw } = usePlans();
+  const {
+    groups: categoryGroups,
+    findGroupBySlug,
+    findGroupForCategorySlug,
+  } = useCategoryGroupCatalog();
   const {
     alerts,
     matches,
@@ -90,7 +86,6 @@ const RadarView: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<OpportunityAlert | null>(null);
   const [categories, setCategories] = useState<RadarCategoryOption[]>([]);
-  const [categoryGroups, setCategoryGroups] = useState<RadarCategoryGroupOption[]>([]);
   const [badgeAnimation, setBadgeAnimation] = useState(false);
   const [prevUnviewedCount, setPrevUnviewedCount] = useState(0);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -141,19 +136,12 @@ const RadarView: React.FC = () => {
       const { supabase } = await import('../src/lib/supabaseClient');
       const { data } = await supabase
         .from('categories')
-        .select('id, name, slug')
+        .select('id, name, slug, parent_group_slug')
+        .eq('is_active', true)
         .order('name');
       
       if (data) setCategories(data as RadarCategoryOption[]);
 
-      const { data: groupsData } = await supabase
-        .from('category_groups')
-        .select('id, name, slug')
-        .order('sort_order');
-
-      if (groupsData) {
-        setCategoryGroups(groupsData as RadarCategoryGroupOption[]);
-      }
     };
     
     fetchCategories();
@@ -185,8 +173,8 @@ const RadarView: React.FC = () => {
   };
 
   const selectedCategoryGroup = useMemo(
-    () => getCategoryGroupBySlug(formData.category_group_slug),
-    [formData.category_group_slug]
+    () => findGroupBySlug(formData.category_group_slug),
+    [findGroupBySlug, formData.category_group_slug]
   );
 
   const availableSpecificCategories = useMemo(() => {
@@ -201,7 +189,9 @@ const RadarView: React.FC = () => {
   const getGroupSlugForCategoryId = (categoryId?: string | null) => {
     if (!categoryId) return '';
     const categoryRecord = categoriesById.get(categoryId);
-    return categoryRecord ? getCategoryGroupForCategorySlug(categoryRecord.slug)?.slug || '' : '';
+    return categoryRecord
+      ? categoryRecord.parent_group_slug || findGroupForCategorySlug(categoryRecord.slug)?.slug || ''
+      : '';
   };
 
   const getCategoryName = (categoryId?: string | null) =>
@@ -211,7 +201,7 @@ const RadarView: React.FC = () => {
     if (categoryId) {
       const categoryRecord = categoriesById.get(categoryId);
       if (categoryRecord) {
-        return getCategoryGroupForCategorySlug(categoryRecord.slug)?.name || null;
+        return findGroupForCategorySlug(categoryRecord.slug)?.name || null;
       }
     }
 
@@ -901,7 +891,7 @@ const RadarView: React.FC = () => {
                     className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
                     <option value="">Todos os grupos</option>
-                    {(categoryGroups.length > 0 ? categoryGroups : CATEGORY_HIERARCHY).map((group) => (
+                    {categoryGroups.map((group) => (
                       <option key={group.slug} value={group.slug}>
                         {group.name}
                       </option>
@@ -921,7 +911,7 @@ const RadarView: React.FC = () => {
                       setFormData({
                         ...formData,
                         category_group_slug: nextCategoryRecord
-                          ? getCategoryGroupForCategorySlug(nextCategoryRecord.slug)?.slug || formData.category_group_slug
+                          ? nextCategoryRecord.parent_group_slug || findGroupForCategorySlug(nextCategoryRecord.slug)?.slug || formData.category_group_slug
                           : formData.category_group_slug,
                         category_id: nextCategoryId
                       });
@@ -1132,7 +1122,7 @@ const RadarView: React.FC = () => {
                     className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
                     <option value="">Todos os grupos</option>
-                    {(categoryGroups.length > 0 ? categoryGroups : CATEGORY_HIERARCHY).map((group) => (
+                    {categoryGroups.map((group) => (
                       <option key={group.slug} value={group.slug}>
                         {group.name}
                       </option>
@@ -1150,7 +1140,7 @@ const RadarView: React.FC = () => {
                       setFormData({
                         ...formData,
                         category_group_slug: nextCategoryRecord
-                          ? getCategoryGroupForCategorySlug(nextCategoryRecord.slug)?.slug || formData.category_group_slug
+                          ? nextCategoryRecord.parent_group_slug || findGroupForCategorySlug(nextCategoryRecord.slug)?.slug || formData.category_group_slug
                           : formData.category_group_slug,
                         category_id: nextCategoryId
                       });

@@ -4,7 +4,6 @@ import { ArrowRight, ChevronRight } from 'lucide-react';
 import { useCategoryCounts } from '../src/hooks/useCategoryCounts';
 import { useCategoryGroupImages } from '../src/hooks/useCategoryGroupImages';
 import { getCategoryIconComponent } from '../src/lib/categoryVisuals';
-import { CATEGORY_HIERARCHY } from '../src/lib/categoryHierarchy';
 import { useLayout } from '../src/contexts/LayoutContext';
 import SeoHead from '../components/SeoHead';
 import StructuredData from '../components/StructuredData';
@@ -22,12 +21,17 @@ const CATEGORY_IMAGES: Record<string, string> = {
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?w=800&q=80';
 
 const CategoriesView: React.FC = () => {
-  const { getCountForCategory, hasLoadedRealCounts } = useCategoryCounts();
+  const {
+    getCountForCategory,
+    hasLoadedRealCounts,
+    categoryGroups,
+    categoryGroupsLoading,
+  } = useCategoryCounts();
   const { settings } = useLayout();
   const { images: groupImages, isLoading: groupImagesLoading } = useCategoryGroupImages();
 
   const totalAds = hasLoadedRealCounts
-    ? CATEGORY_HIERARCHY.reduce((sum, cat) => sum + (getCountForCategory(cat.slug) || 0), 0)
+    ? categoryGroups.reduce((sum, cat) => sum + (getCountForCategory(cat.slug) || 0), 0)
     : null;
 
   return (
@@ -115,7 +119,7 @@ const CategoriesView: React.FC = () => {
                 <p className="text-xs font-semibold text-slate-400">anuncios ativos</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 backdrop-blur-sm">
-                <p className="text-2xl font-black text-white">{CATEGORY_HIERARCHY.length}</p>
+                <p className="text-2xl font-black text-white">{categoryGroupsLoading ? '...' : categoryGroups.length}</p>
                 <p className="text-xs font-semibold text-slate-400">categorias</p>
               </div>
             </div>
@@ -137,8 +141,8 @@ const CategoriesView: React.FC = () => {
 
       <div className="mx-auto max-w-7xl px-4 pb-20 pt-10">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {CATEGORY_HIERARCHY.map((categoryGroup) => {
-            const Icon = getCategoryIconComponent(undefined, categoryGroup.slug);
+          {categoryGroups.map((categoryGroup) => {
+            const Icon = getCategoryIconComponent(categoryGroup.iconName, categoryGroup.slug);
             const count = getCountForCategory(categoryGroup.slug);
             const adminImageUrl = groupImages[categoryGroup.slug];
             const fallbackImageUrl = CATEGORY_IMAGES[categoryGroup.slug] || FALLBACK_IMAGE;

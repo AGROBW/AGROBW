@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CATEGORIES } from '../constants';
 import { AdStatus } from '../types';
-import { CATEGORY_HIERARCHY, getCategoryGroupBySlug, getCategoryGroupForCategorySlug } from '../src/lib/categoryHierarchy';
+import { useCategoryGroupCatalog } from '../src/hooks/useCategoryGroupCatalog';
+import { getCategoryIconComponent } from '../src/lib/categoryVisuals';
 import { usePlanCheck } from '../src/hooks/usePlanCheck';
 import { useSubscription } from '../src/hooks/useSubscription';
 import { useAuth } from '../src/contexts/AuthContext';
@@ -331,6 +332,12 @@ const AdCreationView: React.FC = () => {
   const { settings } = useLayout();
   const { handleAction } = usePlanCheck();
   const { subscription, usage, canCreateAd, adLimitMessage, refreshUsage } = useSubscription();
+  const {
+    groups: categoryGroups,
+    findGroupBySlug,
+    findGroupForCategorySlug,
+    isLoading: categoryCatalogLoading,
+  } = useCategoryGroupCatalog();
 
   const getAdCapacityBlockedMessage = () =>
     adLimitMessage ||
@@ -452,21 +459,21 @@ const AdCreationView: React.FC = () => {
     normalizeTechnicalLabel(field.label || field.key || '') === 'estado_de_conservacao'
   );
   const shouldShowStoreProductCondition = hasStoreListingAccess && !hasConservationStateField;
-  const selectedCategoryGroup = getCategoryGroupBySlug(formData.categoryGroupSlug || formData.categorySlug);
+  const selectedCategoryGroup = findGroupBySlug(formData.categoryGroupSlug || formData.categorySlug);
   const availableSpecificCategories = selectedCategoryGroup
     ? dbCategories.filter((category) => {
         const resolvedGroupSlug =
           category.parent_group_slug ||
-          getCategoryGroupForCategorySlug(category.slug)?.slug ||
-          getCategoryGroupBySlug(category.slug)?.slug ||
+          findGroupForCategorySlug(category.slug)?.slug ||
+          findGroupBySlug(category.slug)?.slug ||
           '';
 
         return resolvedGroupSlug === selectedCategoryGroup.slug;
       })
     : [];
-  const topLevelCategoryGroups = CATEGORY_HIERARCHY.map((group) => {
+  const topLevelCategoryGroups = categoryGroups.map((group) => {
     const matchingVisualCategory = CATEGORIES.find((category) =>
-      group.aliases.includes(category.slug) || category.slug === group.slug
+      category.slug === group.slug
     );
 
     return {
@@ -474,6 +481,7 @@ const AdCreationView: React.FC = () => {
       slug: group.slug,
       name: group.name,
       icon: matchingVisualCategory?.icon,
+      iconName: group.iconName,
     };
   });
 
@@ -540,7 +548,11 @@ const AdCreationView: React.FC = () => {
     'alimentos-para-nutricao-animal': PawPrint,
   };
 
-  const resolveCategoryIcon = (category: { slug: string; name: string }) => {
+  const resolveCategoryIcon = (category: { slug: string; name: string; iconName?: string | null }) => {
+    if (category.iconName) {
+      return getCategoryIconComponent(category.iconName, category.slug);
+    }
+
     const normalizedSlug = category.slug?.toLowerCase() || '';
     const normalizedName = category.name?.toLowerCase() || '';
 
@@ -567,7 +579,7 @@ const AdCreationView: React.FC = () => {
 
   useEffect(() => {
     const loadEditAnnouncement = async () => {
-      if (!editAdId || !user?.id) return;
+      if (!editAdId || !user?.id || categoryCatalogLoading) return;
       if (loadedEditAdIdRef.current === editAdId) return;
 
       setIsLoadingEditAd(true);
@@ -633,7 +645,7 @@ const AdCreationView: React.FC = () => {
           description: requestPayload.description ?? adData.description ?? '',
           price: Number(requestPayload.price ?? adData.price ?? 0),
           priceNegotiable: Boolean(requestPayload.price_negotiable ?? adData.price_negotiable ?? requestPayload.accepts_trade ?? adData.accepts_trade),
-          categoryGroupSlug: getCategoryGroupForCategorySlug(requestPayload.category_slug || adData.category_slug)?.slug || getCategoryGroupBySlug(requestPayload.category_slug || adData.category_slug)?.slug || requestPayload.category_slug || adData.category_slug || '',
+          categoryGroupSlug: findGroupForCategorySlug(requestPayload.category_slug || adData.category_slug)?.slug || findGroupBySlug(requestPayload.category_slug || adData.category_slug)?.slug || requestPayload.category_slug || adData.category_slug || '',
           categoryId: requestPayload.category_id || adData.category_id || '',
           categorySlug: requestPayload.category_slug || adData.category_slug || '',
           subCategoryId: requestPayload.sub_category_id || adData.sub_category_id || '',
@@ -711,7 +723,7 @@ const AdCreationView: React.FC = () => {
     };
 
     void loadEditAnnouncement();
-  }, [editAdId, user?.id, navigate, dbCategories]);
+  }, [categoryCatalogLoading, dbCategories, editAdId, findGroupBySlug, findGroupForCategorySlug, navigate, user?.id]);
 
   useEffect(() => {
     if (pendingTechnicalDetails.length === 0 || technicalFieldsSchema.length === 0) return;
@@ -762,7 +774,7 @@ const AdCreationView: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isEditingExistingAd || hasAppliedCategoryPrefillRef.current || !prefilledCategorySlug || dbCategories.length === 0) {
+    if (categoryCatalogLoading || isEditingExistingAd || hasAppliedCategoryPrefillRef.current || !prefilledCategorySlug || dbCategories.length === 0) {
       return;
     }
 
@@ -772,7 +784,7 @@ const AdCreationView: React.FC = () => {
       return;
     }
 
-    const matchedGroup = getCategoryGroupForCategorySlug(matchedCategory.slug);
+    const matchedGroup = findGroupForCategorySlug(matchedCategory.slug);
     const matchedSubcategory = prefilledSubcategorySlug
       ? dbSubcategories.find((subcategory) => subcategory.slug === prefilledSubcategorySlug)
       : null;
@@ -792,6 +804,8 @@ const AdCreationView: React.FC = () => {
   }, [
     dbCategories,
     dbSubcategories,
+    categoryCatalogLoading,
+    findGroupForCategorySlug,
     isEditingExistingAd,
     prefilledCategorySlug,
     prefilledSubcategorySlug,

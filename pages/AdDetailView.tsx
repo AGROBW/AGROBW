@@ -15,7 +15,7 @@ import { useLayout } from '../src/contexts/LayoutContext';
 import { getPrimaryImageFromList } from '../src/utils/imageFallback';
 import { useAnnouncementReports } from '../src/hooks/useAnnouncementReports';
 import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
-import { getCategoryGroupBySlug, getCategoryGroupForCategorySlug } from '../src/lib/categoryHierarchy';
+import { useCategoryGroupCatalog } from '../src/hooks/useCategoryGroupCatalog';
 import { useFavorites } from '../src/hooks/useFavorites';
 import { getAnnouncementPath, isAnnouncementUuid } from '../src/lib/announcementUrl';
 
@@ -39,6 +39,7 @@ const AdDetailView: React.FC = () => {
   const { user } = useAuth();
   const { settings } = useLayout();
   const { toggleFavorite, isFavorited } = useFavorites();
+  const { findGroupBySlug, findGroupForCategorySlug } = useCategoryGroupCatalog();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -342,8 +343,8 @@ const AdDetailView: React.FC = () => {
       }).format(priceToDisplay);
   const safeDescription = censorContactData(ad.description || '').censored;
   const categoryGroup =
-    getCategoryGroupForCategorySlug(ad.categorySlug) ||
-    getCategoryGroupBySlug(ad.categorySlug);
+    findGroupForCategorySlug(ad.categorySlug) ||
+    findGroupBySlug(ad.categorySlug);
   const breadcrumbCategoryLabel = categoryGroup?.name || humanizeSlug(ad.categorySlug) || 'Anúncios';
   const breadcrumbCategoryHref = categoryGroup?.slug
     ? `/anuncios?categoria=${encodeURIComponent(categoryGroup.slug)}`

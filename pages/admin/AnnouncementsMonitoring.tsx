@@ -23,7 +23,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../src/lib/supabaseClient';
 import { useAdminAudit, ADMIN_ACTIONS, RESOURCE_TYPES } from '../../src/hooks/useAdminAudit';
 import { toast } from 'sonner';
-import { CATEGORY_HIERARCHY, getCategoryGroupBySlug } from '../../src/lib/categoryHierarchy';
+import { useCategoryGroupCatalog } from '../../src/hooks/useCategoryGroupCatalog';
 import { getTrustedNowMs, syncTrustedTime } from '../../src/lib/trustedTime';
 import { appError } from '../../src/utils/appLogger';
 import {
@@ -129,6 +129,12 @@ const getAnnouncementCapacityBlockedAdminMessage = () =>
 
 const AnnouncementsMonitoring: React.FC = () => {
   const { logAction } = useAdminAudit();
+  const {
+    groups: categoryGroups,
+    findGroupBySlug,
+    getGroupCategorySlugs,
+    isLoading: categoryCatalogLoading,
+  } = useCategoryGroupCatalog({ includeInactive: true });
   const [announcements, setAnnouncements] = useState<MonitoringAnnouncement[]>([]);
   const [summary, setSummary] = useState<SummaryMetrics>({
     active: 0,
@@ -160,7 +166,7 @@ const AnnouncementsMonitoring: React.FC = () => {
 
   useEffect(() => {
     void loadAnnouncements();
-  }, [page, statusFilter, categoryFilter, performanceFilter, searchTerm]);
+  }, [categoryCatalogLoading, categoryFilter, getGroupCategorySlugs, page, performanceFilter, searchTerm, statusFilter]);
 
   useEffect(() => {
     const handleClickOutside = () => setOpenActionsMenuId(null);
@@ -169,6 +175,7 @@ const AnnouncementsMonitoring: React.FC = () => {
   }, []);
 
   const loadAnnouncements = async () => {
+    if (categoryCatalogLoading) return;
     setLoading(true);
 
     try {
@@ -198,9 +205,9 @@ const AnnouncementsMonitoring: React.FC = () => {
       }
 
       if (categoryFilter !== 'all') {
-        const group = CATEGORY_HIERARCHY.find((item) => item.slug === categoryFilter);
-        if (group?.categorySlugs?.length) {
-          rows = rows.filter((item) => group.categorySlugs.includes(item.category_slug || ''));
+        const groupedCategorySlugs = getGroupCategorySlugs(categoryFilter);
+        if (groupedCategorySlugs.length) {
+          rows = rows.filter((item) => groupedCategorySlugs.includes(item.category_slug || ''));
         } else {
           rows = rows.filter((item) => item.category_slug === categoryFilter);
         }
@@ -304,7 +311,7 @@ const AnnouncementsMonitoring: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const getCategoryLabel = (announcement: MonitoringAnnouncement) =>
-    getCategoryGroupBySlug(announcement.category_slug)?.name ||
+    findGroupBySlug(announcement.category_slug)?.name ||
     announcement.category_slug ||
     'Categoria';
 
@@ -794,7 +801,7 @@ const AnnouncementsMonitoring: React.FC = () => {
               className="h-11 rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500/20"
             >
               <option value="all">Todas as categorias</option>
-              {CATEGORY_HIERARCHY.map((category) => (
+              {categoryGroups.map((category) => (
                 <option key={category.slug} value={category.slug}>
                   {category.name}
                 </option>

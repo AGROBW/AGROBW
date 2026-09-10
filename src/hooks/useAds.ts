@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { Ad } from '../../types'
-import { getCategoryGroupBySlug, getGroupCategorySlugs } from '../lib/categoryHierarchy'
+import { useCategoryGroupCatalog } from './useCategoryGroupCatalog'
 import { isTimestampExpired, syncTrustedTime } from '../lib/trustedTime'
 import { useHighlightSettings } from './useHighlightSettings'
 import { DEFAULT_HIGHLIGHT_COOLDOWN_DAYS, getEffectiveHighlightCooldownDays } from '../utils/highlightCooldown'
@@ -560,12 +560,18 @@ export const usePublicAds = (filters?: {
   maxPrice?: number
   state?: string
 }) => {
+  const {
+    findGroupBySlug,
+    getGroupCategorySlugs,
+    isLoading: categoryCatalogLoading,
+  } = useCategoryGroupCatalog()
   const [ads, setAds] = useState<Ad[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchAds = async () => {
+      if (categoryCatalogLoading) return
       setIsLoading(true)
       await syncTrustedTime()
 
@@ -592,7 +598,7 @@ export const usePublicAds = (filters?: {
 
           if (category) {
             query = query.eq('category_id', category.id)
-          } else if (!getCategoryGroupBySlug(filters.category)) {
+          } else if (!findGroupBySlug(filters.category)) {
             query = query.eq('category_slug', filters.category)
           }
         }
@@ -818,7 +824,7 @@ export const usePublicAds = (filters?: {
     }
 
     fetchAds()
-  }, [filters?.category, filters?.search, filters?.minPrice, filters?.maxPrice, filters?.state])
+  }, [categoryCatalogLoading, filters?.category, filters?.search, filters?.minPrice, filters?.maxPrice, filters?.state, findGroupBySlug, getGroupCategorySlugs])
 
   return { ads, isLoading, error }
 }
