@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Check,
   FolderTree,
   ImagePlus,
   Loader2,
@@ -14,7 +15,11 @@ import {
 import { toast } from 'sonner';
 import { isValidCategoryGroupSlug, normalizeCategoryGroupSlug } from '../../src/lib/categoryGroups';
 import type { CategoryGroup } from '../../src/lib/categoryGroups';
-import { getCategoryIconComponent } from '../../src/lib/categoryVisuals';
+import {
+  CATEGORY_ICON_OPTIONS,
+  getCategoryIconComponent,
+  getCategoryIconOption,
+} from '../../src/lib/categoryVisuals';
 import { supabase } from '../../src/lib/supabaseClient';
 import { ADMIN_ACTIONS, RESOURCE_TYPES, useAdminAudit } from '../../src/hooks/useAdminAudit';
 import { useCategoryGroupCatalog } from '../../src/hooks/useCategoryGroupCatalog';
@@ -38,18 +43,6 @@ interface CategorySubcategoryRecord {
   sort_order?: number | null;
   is_active?: boolean | null;
 }
-
-const GROUP_ICON_OPTIONS = [
-  { value: 'PawPrint', label: 'Animais' },
-  { value: 'Cog', label: 'Maquinas' },
-  { value: 'Leaf', label: 'Insumos' },
-  { value: 'Home', label: 'Imoveis' },
-  { value: 'Wrench', label: 'Servicos' },
-  { value: 'Sprout', label: 'Sementes' },
-  { value: 'Package', label: 'Produtos' },
-  { value: 'Building2', label: 'Estruturas' },
-  { value: 'Trees', label: 'Natureza' },
-] as const;
 
 const slugify = (value: string) =>
   value
@@ -106,6 +99,8 @@ const CategoriesManagement: React.FC = () => {
   const [subcategoryForm, setSubcategoryForm] = useState(emptySubcategoryForm);
   const [groupForm, setGroupForm] = useState(emptyGroupForm);
   const [showGroupForm, setShowGroupForm] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
+  const [iconSearchTerm, setIconSearchTerm] = useState('');
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupImages, setGroupImages] = useState<Record<string, string>>({});
   const [uploadingGroupSlug, setUploadingGroupSlug] = useState<string | null>(null);
@@ -297,6 +292,8 @@ const CategoriesManagement: React.FC = () => {
 
     setGroupForm({ ...emptyGroupForm, sort_order: nextSortOrder });
     setEditingGroupId(null);
+    setShowIconPicker(false);
+    setIconSearchTerm('');
     setShowGroupForm(true);
   };
 
@@ -311,6 +308,8 @@ const CategoriesManagement: React.FC = () => {
       is_active: group.isActive,
     });
     setEditingGroupId(group.id);
+    setShowIconPicker(false);
+    setIconSearchTerm('');
     setShowGroupForm(true);
   };
 
@@ -319,6 +318,8 @@ const CategoriesManagement: React.FC = () => {
     setShowGroupForm(false);
     setEditingGroupId(null);
     setGroupForm(emptyGroupForm);
+    setShowIconPicker(false);
+    setIconSearchTerm('');
   };
 
   const handleSaveGroup = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -637,6 +638,14 @@ const CategoriesManagement: React.FC = () => {
   };
 
   const GroupFormIcon = getCategoryIconComponent(groupForm.icon_name, groupForm.slug);
+  const selectedGroupIcon = getCategoryIconOption(groupForm.icon_name);
+  const normalizedIconSearch = slugify(iconSearchTerm);
+  const filteredGroupIconOptions = CATEGORY_ICON_OPTIONS.filter((option) => {
+    if (!normalizedIconSearch) return true;
+
+    return slugify([option.label, option.value, ...option.keywords].join(' '))
+      .includes(normalizedIconSearch);
+  });
 
   return (
     <div className="space-y-6">
@@ -1321,26 +1330,28 @@ const CategoriesManagement: React.FC = () => {
               </label>
 
               <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
-                <label className="block" htmlFor="category-group-icon">
+                <div className="block">
                   <span className="mb-2 block text-sm font-bold text-slate-700">Icone</span>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
-                      <GroupFormIcon className="h-6 w-6" strokeWidth={1.8} />
-                    </div>
-                    <select
-                      id="category-group-icon"
-                      value={groupForm.icon_name}
-                      onChange={(event) =>
-                        setGroupForm((current) => ({ ...current, icon_name: event.target.value }))
-                      }
-                      className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
-                    >
-                      {GROUP_ICON_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowIconPicker((current) => !current)}
+                    aria-expanded={showIconPicker}
+                    aria-controls="category-group-icon-picker"
+                    className="flex w-full items-center gap-3 rounded-xl border border-slate-200 px-3 py-2 text-left outline-none transition hover:border-slate-300 focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                      <GroupFormIcon className="h-5 w-5" strokeWidth={1.8} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-slate-800">
+                        {selectedGroupIcon?.label || groupForm.icon_name || 'Produtos'}
+                      </span>
+                      <span className="block text-xs text-slate-500">
+                        {showIconPicker ? 'Ocultar icones' : 'Ver todos os icones'}
+                      </span>
+                    </span>
+                  </button>
+                </div>
 
                 <label className="block" htmlFor="category-group-order">
                   <span className="mb-2 block text-sm font-bold text-slate-700">Ordem</span>
@@ -1361,6 +1372,78 @@ const CategoriesManagement: React.FC = () => {
                   />
                 </label>
               </div>
+
+              {showIconPicker && (
+                <section
+                  id="category-group-icon-picker"
+                  aria-label="Escolher icone do grupo"
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
+                >
+                  <div className="flex flex-col gap-3 border-b border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900">Biblioteca de icones</h3>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {filteredGroupIconOptions.length} de {CATEGORY_ICON_OPTIONS.length} opcoes
+                      </p>
+                    </div>
+                    <label className="relative block sm:w-64" htmlFor="category-group-icon-search">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        id="category-group-icon-search"
+                        type="search"
+                        value={iconSearchTerm}
+                        onChange={(event) => setIconSearchTerm(event.target.value)}
+                        placeholder="Buscar icone..."
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-green-500 focus:ring-4 focus:ring-green-100"
+                      />
+                    </label>
+                  </div>
+
+                  {filteredGroupIconOptions.length > 0 ? (
+                    <div
+                      role="listbox"
+                      aria-label="Icones disponiveis"
+                      className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto p-3 sm:grid-cols-3"
+                    >
+                      {filteredGroupIconOptions.map((option) => {
+                        const isSelected = option.value === groupForm.icon_name;
+                        const Icon = option.Icon;
+
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            onClick={() => {
+                              setGroupForm((current) => ({ ...current, icon_name: option.value }));
+                              setShowIconPicker(false);
+                              setIconSearchTerm('');
+                            }}
+                            className={`group/icon relative flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center transition ${
+                              isSelected
+                                ? 'border-green-500 bg-green-50 text-green-800 shadow-sm'
+                                : 'border-transparent bg-white text-slate-600 hover:border-slate-200 hover:text-slate-900'
+                            }`}
+                          >
+                            {isSelected && (
+                              <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white">
+                                <Check className="h-3 w-3" strokeWidth={3} />
+                              </span>
+                            )}
+                            <Icon className="h-6 w-6" strokeWidth={1.7} />
+                            <span className="line-clamp-2 text-xs font-bold">{option.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="px-4 py-10 text-center text-sm text-slate-500">
+                      Nenhum icone encontrado para "{iconSearchTerm}".
+                    </div>
+                  )}
+                </section>
+              )}
 
               <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <input
