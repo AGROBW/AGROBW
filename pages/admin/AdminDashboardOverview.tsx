@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
+  AlertCircle,
   DollarSign,
   Eye,
   PieChart as PieChartIcon,
@@ -18,6 +19,9 @@ import { supabase } from '../../src/lib/supabaseClient';
 import { appError } from '../../src/utils/appLogger';
 
 type DashboardPeriodDays = 7 | 15 | 30;
+type DashboardSection = 'financial' | 'acquisition' | 'platform';
+
+type DashboardErrors = Record<DashboardSection, string | null>;
 
 interface RevenueByPlanItem {
   name: string;
@@ -108,21 +112,20 @@ const getOverlapDays = (aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) => {
   return diffInDaysInclusive(new Date(start), new Date(end));
 };
 
-const isWithinRange = (value: string | null | undefined, rangeStart: Date, rangeEnd: Date) => {
-  if (!value) {
-    return false;
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return false;
-  }
-
-  return parsed >= rangeStart && parsed <= rangeEnd;
+const EMPTY_DASHBOARD_ERRORS: DashboardErrors = {
+  financial: null,
+  acquisition: null,
+  platform: null,
 };
 
-const sumUniqueVisitors = (rows: Array<{ unique_visitors?: number | string | null }> | null | undefined) =>
-  rows?.reduce((sum, row) => sum + Number(row.unique_visitors ?? 0), 0) ?? 0;
+const assertQuerySucceeded = (
+  error: { message?: string } | null,
+  metricSource: string
+) => {
+  if (error) {
+    throw new Error(`${metricSource}: ${error.message ?? 'consulta indisponivel'}`);
+  }
+};
 
 const getPeriodRange = (days: DashboardPeriodDays) => {
   const rangeEnd = new Date();
@@ -137,8 +140,6 @@ const getPeriodRange = (days: DashboardPeriodDays) => {
     rangeEnd,
     rangeStartIso: rangeStart.toISOString(),
     rangeEndIso: rangeEnd.toISOString(),
-    rangeStartDate: toDateOnly(rangeStart),
-    rangeEndDate: toDateOnly(rangeEnd),
   };
 };
 
@@ -177,6 +178,7 @@ const AdminDashboardOverview: React.FC = () => {
   const [platformMetrics, setPlatformMetrics] = useState<PlatformMetrics | null>(null);
   const [marketingCostInput, setMarketingCostInput] = useState('');
   const [savingCost, setSavingCost] = useState(false);
+  const [dashboardErrors, setDashboardErrors] = useState<DashboardErrors>(EMPTY_DASHBOARD_ERRORS);
 
   const selectedPeriodLabel = useMemo(
     () => PERIOD_OPTIONS.find((option) => option.value === selectedPeriod)?.label ?? 'Mensal',
@@ -186,6 +188,9 @@ const AdminDashboardOverview: React.FC = () => {
     () => `nos ultimos ${selectedPeriod} dias`,
     [selectedPeriod]
   );
+  const failedSections = Object.values(dashboardErrors).filter(Boolean);
+  const metricValue = (section: DashboardSection, value: string) =>
+    dashboardErrors[section] ? '--' : value;
 
   useEffect(() => {
     void loadAllMetrics(selectedPeriod);
@@ -193,11 +198,13 @@ const AdminDashboardOverview: React.FC = () => {
 
   const loadAllMetrics = async (periodDays: DashboardPeriodDays) => {
     setLoading(true);
+    setDashboardErrors(EMPTY_DASHBOARD_ERRORS);
     try {
+      const uniqueVisitorsPromise = loadUniqueVisitors(periodDays);
       await Promise.all([
         loadFinancialMetrics(periodDays),
-        loadAcquisitionMetrics(periodDays),
-        loadPlatformMetrics(periodDays),
+        loadAcquisitionMetrics(periodDays, uniqueVisitorsPromise),
+        loadPlatformMetrics(periodDays, uniqueVisitorsPromise),
       ]);
     } catch (error) {
       appError('[Dashboard BI] Erro ao carregar metricas', error, {
@@ -208,19 +215,27 @@ const AdminDashboardOverview: React.FC = () => {
     }
   };
 
+  const loadUniqueVisitors = async (periodDays: DashboardPeriodDays) => {
+    const result = await supabase.rpc('get_site_analytics_summary', {
+      p_period_days: periodDays,
+    });
+
+    assertQuerySucceeded(result.error, 'Analytics do portal');
+    return Number(result.data?.[0]?.unique_visitors ?? 0);
+  };
+
   const loadFinancialMetrics = async (periodDays: DashboardPeriodDays) => {
     try {
-      const { rangeStart, rangeEnd, rangeStartIso } = getPeriodRange(periodDays);
-      const paymentLookbackStart = new Date(rangeStart);
-      paymentLookbackStart.setDate(paymentLookbackStart.getDate() - 35);
+      const { rangeStart, rangeEnd, rangeStartIso, rangeEndIso } = getPeriodRange(periodDays);
 
-      const [{ data: paymentsData }, { data: startingBaseRows }, { data: churnRows }] =
+      const [paymentsResult, startingBaseResult, churnResult] =
         await Promise.all([
           supabase
             .from('payments')
             .select('user_id, amount, plan_id, paid_at, created_at, status')
             .eq('status', 'approved')
-            .gte('created_at', paymentLookbackStart.toISOString()),
+            .gte('paid_at', rangeStartIso)
+            .lte('paid_at', rangeEndIso),
           supabase
             .from('subscription_history')
             .select('user_id, mrr_contribution')
@@ -237,9 +252,15 @@ const AdminDashboardOverview: React.FC = () => {
             .lte('created_at', rangeEnd.toISOString()),
         ]);
 
-      const filteredPayments = (paymentsData ?? []).filter((payment) =>
-        isWithinRange(payment.paid_at ?? payment.created_at, rangeStart, rangeEnd)
-      );
+      assertQuerySucceeded(paymentsResult.error, 'Pagamentos');
+      assertQuerySucceeded(startingBaseResult.error, 'Base de assinaturas');
+      assertQuerySucceeded(churnResult.error, 'Churn financeiro');
+
+      const paymentsData = paymentsResult.data;
+      const startingBaseRows = startingBaseResult.data;
+      const churnRows = churnResult.data;
+
+      const filteredPayments = paymentsData ?? [];
 
       const confirmedRevenue = filteredPayments.reduce(
         (sum, payment) => sum + Number(payment.amount ?? 0),
@@ -291,10 +312,13 @@ const AdminDashboardOverview: React.FC = () => {
       let planNameMap = new Map<string, string>();
 
       if (planIds.length > 0) {
-        const { data: plansData } = await supabase
+        const plansResult = await supabase
           .from('plans')
           .select('id, name')
           .in('id', planIds);
+
+        assertQuerySucceeded(plansResult.error, 'Planos');
+        const plansData = plansResult.data;
 
         planNameMap = new Map(
           (plansData ?? []).map((plan) => [plan.id as string, normalizePlanLabel(plan.name ?? 'Plano')])
@@ -319,46 +343,49 @@ const AdminDashboardOverview: React.FC = () => {
         revenueByPlan,
       });
     } catch (error) {
+      setFinancialMetrics(null);
+      setDashboardErrors((current) => ({
+        ...current,
+        financial: 'Nao foi possivel carregar os indicadores financeiros.',
+      }));
       appError('[Dashboard BI] Erro ao carregar metricas financeiras', error, {
         periodDays,
       });
     }
   };
 
-  const loadAcquisitionMetrics = async (periodDays: DashboardPeriodDays) => {
+  const loadAcquisitionMetrics = async (
+    periodDays: DashboardPeriodDays,
+    sharedUniqueVisitors?: Promise<number>
+  ) => {
     try {
-      const { rangeStart, rangeEnd, rangeStartIso, rangeEndIso, rangeStartDate, rangeEndDate } =
-        getPeriodRange(periodDays);
+      setDashboardErrors((current) => ({ ...current, acquisition: null }));
+      const { rangeStart, rangeEnd, rangeStartIso, rangeEndIso } = getPeriodRange(periodDays);
       const currentMonthKey = getCurrentMonthKey();
       const firstTouchedMonthKey = toDateOnly(startOfMonth(rangeStart));
       const lastTouchedMonthKey = toDateOnly(startOfMonth(rangeEnd));
 
       const [
-        { count: newUsersCount },
-        { data: visitsData },
-        { data: recentPaidRows },
-        { data: startingCustomerRows },
-        { data: churnedCustomerRows },
-        { data: marketingCostRows },
-        { data: currentMonthCostRow },
+        newUsersResult,
+        uniqueVisitors,
+        recentPaidResult,
+        startingCustomerResult,
+        churnedCustomerResult,
+        marketingCostResult,
+        currentMonthCostResult,
       ] = await Promise.all([
         supabase
           .from('users')
           .select('*', { count: 'exact', head: true })
           .gte('created_at', rangeStartIso)
           .lte('created_at', rangeEndIso),
+        sharedUniqueVisitors ?? loadUniqueVisitors(periodDays),
         supabase
-          .from('website_visits')
-          .select('unique_visitors')
-          .gte('visit_date', rangeStartDate)
-          .lte('visit_date', rangeEndDate),
-        supabase
-          .from('subscription_history')
+          .from('payments')
           .select('user_id')
-          .gt('plan_monthly_price', 0)
-          .in('event_type', ['created', 'trial_converted'])
-          .gte('created_at', rangeStartIso)
-          .lte('created_at', rangeEndIso),
+          .eq('status', 'approved')
+          .gte('paid_at', rangeStartIso)
+          .lte('paid_at', rangeEndIso),
         supabase
           .from('subscription_history')
           .select('user_id')
@@ -385,8 +412,20 @@ const AdminDashboardOverview: React.FC = () => {
           .maybeSingle(),
       ]);
 
-      const uniqueVisitors = sumUniqueVisitors(visitsData);
-      const newUsers = Number(newUsersCount ?? 0);
+
+      assertQuerySucceeded(newUsersResult.error, 'Novos usuarios');
+      assertQuerySucceeded(recentPaidResult.error, 'Novos clientes pagantes');
+      assertQuerySucceeded(startingCustomerResult.error, 'Base inicial de clientes');
+      assertQuerySucceeded(churnedCustomerResult.error, 'Churn de clientes');
+      assertQuerySucceeded(marketingCostResult.error, 'Custos de marketing');
+      assertQuerySucceeded(currentMonthCostResult.error, 'Custo de marketing atual');
+
+      const newUsers = Number(newUsersResult.count ?? 0);
+      const recentPaidRows = recentPaidResult.data;
+      const startingCustomerRows = startingCustomerResult.data;
+      const churnedCustomerRows = churnedCustomerResult.data;
+      const marketingCostRows = marketingCostResult.data;
+      const currentMonthCostRow = currentMonthCostResult.data;
       const newPaidCustomers = new Set(
         (recentPaidRows ?? [])
           .map((row) => row.user_id as string | null)
@@ -424,17 +463,26 @@ const AdminDashboardOverview: React.FC = () => {
         uniqueVisitors,
       });
     } catch (error) {
+      setAcquisitionMetrics(null);
+      setDashboardErrors((current) => ({
+        ...current,
+        acquisition: 'Nao foi possivel carregar os indicadores de aquisicao.',
+      }));
       appError('[Dashboard BI] Erro ao carregar metricas de aquisicao', error, {
         periodDays,
       });
     }
   };
 
-  const loadPlatformMetrics = async (periodDays: DashboardPeriodDays) => {
+  const loadPlatformMetrics = async (
+    periodDays: DashboardPeriodDays,
+    sharedUniqueVisitors?: Promise<number>
+  ) => {
     try {
-      const { rangeStartIso, rangeEndIso, rangeStartDate, rangeEndDate } = getPeriodRange(periodDays);
+      setDashboardErrors((current) => ({ ...current, platform: null }));
+      const { rangeStartIso, rangeEndIso } = getPeriodRange(periodDays);
 
-      const [{ count: publishedAdsCount }, { count: activeAdsCount }, { data: visitsData }] =
+      const [publishedAdsResult, activeAdsResult, uniqueVisitors] =
         await Promise.all([
           supabase
             .from('announcements')
@@ -445,19 +493,23 @@ const AdminDashboardOverview: React.FC = () => {
             .from('announcements')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'ACTIVE'),
-          supabase
-            .from('website_visits')
-            .select('unique_visitors')
-            .gte('visit_date', rangeStartDate)
-            .lte('visit_date', rangeEndDate),
+          sharedUniqueVisitors ?? loadUniqueVisitors(periodDays),
         ]);
 
+      assertQuerySucceeded(publishedAdsResult.error, 'Novos anuncios');
+      assertQuerySucceeded(activeAdsResult.error, 'Inventario de anuncios');
+
       setPlatformMetrics({
-        uniqueVisitors: sumUniqueVisitors(visitsData),
-        publishedAds: publishedAdsCount ?? 0,
-        activeAdsCurrent: activeAdsCount ?? 0,
+        uniqueVisitors,
+        publishedAds: publishedAdsResult.count ?? 0,
+        activeAdsCurrent: activeAdsResult.count ?? 0,
       });
     } catch (error) {
+      setPlatformMetrics(null);
+      setDashboardErrors((current) => ({
+        ...current,
+        platform: 'Nao foi possivel carregar os indicadores de trafego e plataforma.',
+      }));
       appError('[Dashboard BI] Erro ao carregar metricas de plataforma', error, {
         periodDays,
       });
@@ -592,6 +644,21 @@ const AdminDashboardOverview: React.FC = () => {
         </div>
       </div>
 
+      {failedSections.length > 0 ? (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900"
+        >
+          <AlertCircle className="mt-0.5 h-5 w-5 flex-none" />
+          <div>
+            <p className="font-bold">Alguns indicadores estao indisponiveis</p>
+            <p className="mt-1 text-sm">
+              {failedSections.join(' ')} Atualize novamente; os campos afetados aparecem como -- para nao confundir falha de consulta com valor zero.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-emerald-600" />
@@ -601,7 +668,7 @@ const AdminDashboardOverview: React.FC = () => {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
           <KPICard
             title="Receita Confirmada"
-            value={formatCurrency(financialMetrics?.confirmedRevenue ?? 0)}
+            value={metricValue('financial', formatCurrency(financialMetrics?.confirmedRevenue ?? 0))}
             subtitle={`Pagamentos aprovados ${selectedPeriodHelper}`}
             icon={<TrendingUp className="h-6 w-6 text-emerald-700" />}
             colorClass="bg-emerald-100"
@@ -609,7 +676,7 @@ const AdminDashboardOverview: React.FC = () => {
 
           <KPICard
             title="Ticket Medio Pago"
-            value={formatCurrency(financialMetrics?.averageTicket ?? 0)}
+            value={metricValue('financial', formatCurrency(financialMetrics?.averageTicket ?? 0))}
             subtitle={`${formatInteger(financialMetrics?.payingCustomers ?? 0)} cliente(s) pagante(s) ${selectedPeriodHelper}`}
             icon={<Users className="h-6 w-6 text-violet-700" />}
             colorClass="bg-violet-100"
@@ -617,7 +684,7 @@ const AdminDashboardOverview: React.FC = () => {
 
           <KPICard
             title="Clientes Pagantes"
-            value={formatInteger(financialMetrics?.payingCustomers ?? 0)}
+            value={metricValue('financial', formatInteger(financialMetrics?.payingCustomers ?? 0))}
             subtitle={`Usuarios com pagamento aprovado ${selectedPeriodHelper}`}
             icon={<DollarSign className="h-6 w-6 text-blue-700" />}
             colorClass="bg-blue-100"
@@ -625,7 +692,7 @@ const AdminDashboardOverview: React.FC = () => {
 
           <KPICard
             title="Churn Financeiro"
-            value={formatPercent(financialMetrics?.financialChurn ?? 0)}
+            value={metricValue('financial', formatPercent(financialMetrics?.financialChurn ?? 0))}
             subtitle="MRR perdida sobre a base paga no inicio do periodo"
             icon={<TrendingDown className="h-6 w-6 text-rose-700" />}
             colorClass="bg-rose-100"
@@ -667,7 +734,9 @@ const AdminDashboardOverview: React.FC = () => {
               </ResponsiveContainer>
             ) : (
               <div className="flex h-[260px] items-center justify-center text-sm text-slate-400">
-                Sem dados suficientes para distribuir a receita por plano neste periodo.
+                {dashboardErrors.financial
+                  ? 'Dados financeiros indisponiveis neste momento.'
+                  : 'Sem dados suficientes para distribuir a receita por plano neste periodo.'}
               </div>
             )}
           </div>
@@ -718,7 +787,9 @@ const AdminDashboardOverview: React.FC = () => {
                   ) : (
                     <tr>
                       <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-400">
-                        Nenhum plano com pagamento aprovado neste periodo.
+                        {dashboardErrors.financial
+                          ? 'Dados financeiros indisponiveis neste momento.'
+                          : 'Nenhum plano com pagamento aprovado neste periodo.'}
                       </td>
                     </tr>
                   )}
@@ -738,7 +809,7 @@ const AdminDashboardOverview: React.FC = () => {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
           <KPICard
             title="CAC Estimado"
-            value={formatCurrency(acquisitionMetrics?.cac ?? 0)}
+            value={metricValue('acquisition', formatCurrency(acquisitionMetrics?.cac ?? 0))}
             subtitle={`${formatInteger(acquisitionMetrics?.newPaidCustomers ?? 0)} novo(s) cliente(s) pagante(s) ${selectedPeriodHelper}`}
             icon={<DollarSign className="h-6 w-6 text-orange-700" />}
             colorClass="bg-orange-100"
@@ -777,7 +848,7 @@ const AdminDashboardOverview: React.FC = () => {
 
           <KPICard
             title="Taxa de Cadastro"
-            value={formatPercent(acquisitionMetrics?.registrationRate ?? 0)}
+            value={metricValue('acquisition', formatPercent(acquisitionMetrics?.registrationRate ?? 0))}
             subtitle={`${formatInteger(acquisitionMetrics?.newUsers ?? 0)} cadastro(s) sobre ${formatInteger(acquisitionMetrics?.uniqueVisitors ?? 0)} visitante(s) ${selectedPeriodHelper}`}
             icon={<UserPlus className="h-6 w-6 text-emerald-700" />}
             colorClass="bg-emerald-100"
@@ -785,7 +856,7 @@ const AdminDashboardOverview: React.FC = () => {
 
           <KPICard
             title="Conversao para Pago"
-            value={formatPercent(acquisitionMetrics?.paidConversionRate ?? 0)}
+            value={metricValue('acquisition', formatPercent(acquisitionMetrics?.paidConversionRate ?? 0))}
             subtitle={`${formatInteger(acquisitionMetrics?.newPaidCustomers ?? 0)} cliente(s) pagos sobre ${formatInteger(acquisitionMetrics?.newUsers ?? 0)} novo(s) usuario(s)`}
             icon={<TrendingUp className="h-6 w-6 text-blue-700" />}
             colorClass="bg-blue-100"
@@ -793,7 +864,7 @@ const AdminDashboardOverview: React.FC = () => {
 
           <KPICard
             title="Churn de Clientes"
-            value={formatPercent(acquisitionMetrics?.customerChurn ?? 0)}
+            value={metricValue('acquisition', formatPercent(acquisitionMetrics?.customerChurn ?? 0))}
             subtitle="Clientes perdidos sobre a base paga no inicio do periodo"
             icon={<TrendingDown className="h-6 w-6 text-rose-700" />}
             colorClass="bg-rose-100"
@@ -810,15 +881,15 @@ const AdminDashboardOverview: React.FC = () => {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <KPICard
             title="Visitantes do Site"
-            value={formatInteger(platformMetrics?.uniqueVisitors ?? 0)}
+            value={metricValue('platform', formatInteger(platformMetrics?.uniqueVisitors ?? 0))}
             subtitle={`Visitantes unicos acumulados ${selectedPeriodHelper}`}
             icon={<Eye className="h-6 w-6 text-indigo-700" />}
             colorClass="bg-indigo-100"
           />
 
           <KPICard
-            title="Anuncios Publicados"
-            value={formatInteger(platformMetrics?.publishedAds ?? 0)}
+            title="Novos Anuncios"
+            value={metricValue('platform', formatInteger(platformMetrics?.publishedAds ?? 0))}
             subtitle={`Novos anuncios cadastrados ${selectedPeriodHelper}`}
             icon={<ShoppingBag className="h-6 w-6 text-purple-700" />}
             colorClass="bg-purple-100"
