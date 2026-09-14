@@ -147,7 +147,6 @@ const CategoriesView: React.FC = () => {
             const adminImageUrl = groupImages[categoryGroup.slug];
             const fallbackImageUrl = CATEGORY_IMAGES[categoryGroup.slug] || FALLBACK_IMAGE;
             const imgUrl = adminImageUrl || (!groupImagesLoading ? fallbackImageUrl : null);
-            const visibleSubcategories = categoryGroup.children.slice(0, 5);
             const countLabel = count !== null ? `${count} ${count === 1 ? 'anuncio' : 'anuncios'}` : 'Carregando...';
 
             return (
@@ -155,7 +154,12 @@ const CategoriesView: React.FC = () => {
                 key={categoryGroup.slug}
                 className="group flex flex-col overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_4px_24px_-8px_rgba(15,23,42,0.1)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_56px_-16px_rgba(15,23,42,0.2)]"
               >
-                <div className="relative h-44 overflow-hidden">
+                <Link
+                  to={`/anuncios?categoria=${categoryGroup.slug}`}
+                  aria-label={`Ver anuncios em ${categoryGroup.name}`}
+                  className="relative block h-44 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                  style={{ '--tw-ring-color': settings.primaryColor } as React.CSSProperties}
+                >
                   {imgUrl ? (
                     <img
                       src={imgUrl}
@@ -184,35 +188,12 @@ const CategoriesView: React.FC = () => {
                     <h2 className="text-xl font-black text-white drop-shadow-sm">{categoryGroup.name}</h2>
                     <div className="mt-1.5 h-0.5 w-8 rounded-full" style={{ backgroundColor: settings.primaryColor }} />
                   </div>
-                </div>
+                </Link>
 
-                <div className="flex flex-grow flex-col px-5 pb-5 pt-4">
-                  <ul className="flex-grow space-y-1">
-                    {visibleSubcategories.map((subcategory) => (
-                      <li key={subcategory.slug}>
-                        <Link
-                          to={`/anuncios?categoria=${categoryGroup.slug}&subcategoria=${subcategory.slug}`}
-                          className="group/item flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-50 hover:text-slate-900"
-                        >
-                          <span>{subcategory.name}</span>
-                          <ChevronRight
-                            className="h-4 w-4 -translate-x-1 opacity-0 transition-all group-hover/item:translate-x-0 group-hover/item:opacity-100"
-                            strokeWidth={1.5}
-                            style={{ color: settings.primaryColor }}
-                          />
-                        </Link>
-                      </li>
-                    ))}
-                    {categoryGroup.children.length > 5 && (
-                      <li className="px-3 pt-1 text-xs font-semibold text-slate-400">
-                        +{categoryGroup.children.length - 5} subcategorias
-                      </li>
-                    )}
-                  </ul>
-
+                <div className="px-4 py-4">
                   <Link
                     to={`/anuncios?categoria=${categoryGroup.slug}`}
-                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-black text-white transition-all hover:opacity-90"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-black text-white transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                     style={{ backgroundColor: settings.primaryColor }}
                   >
                     Ver tudo em {categoryGroup.name}
