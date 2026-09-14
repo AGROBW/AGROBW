@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { Toaster } from 'sonner';
 import { Toaster as HotToaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { NotificationsCountProvider } from './src/hooks/useNotificationsCount';
 import { LayoutProvider } from './src/contexts/LayoutContext';
 import { useSiteAnalyticsTracking } from './src/hooks/useSiteAnalyticsTracking';
 import { ProtectedAdminRoute } from './components/ProtectedAdminRoute';
@@ -388,9 +389,11 @@ const App = () => (
   <Router>
     <ScrollToTop />
     <AuthProvider>
-      <LayoutProvider>
-        <AppContent />
-      </LayoutProvider>
+      <NotificationsCountProvider>
+        <LayoutProvider>
+          <AppContent />
+        </LayoutProvider>
+      </NotificationsCountProvider>
     </AuthProvider>
   </Router>
 );

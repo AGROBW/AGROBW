@@ -8,6 +8,7 @@ import {
 } from '../_shared/smtpSettings.ts';
 import { getCorsHeadersInternal } from '../_shared/cors.ts';
 import { isAdminAal2Profile, extractBearerToken } from '../_shared/security.ts';
+import { isGuestContactContentLocked } from './access.ts';
 import { getContactNotificationTemplate } from './template.ts';
 
 // VULN-002 fix: Função interna/cron - sem acesso de browser
@@ -30,6 +31,8 @@ type ContactNotificationEmailJobRow = {
   link: string | null;
   reply_to_email: string | null;
   sender_phone: string | null;
+  guest_contact_id: string | null;
+  content_locked: boolean;
   status: 'pending' | 'processing' | 'sent' | 'failed' | 'skipped';
   attempts: number;
 };
@@ -126,7 +129,7 @@ serve(async (req) => {
 
     const { data: jobRows, error: jobsError } = await supabaseAdmin
       .from('contact_notification_email_jobs')
-      .select('id, source_kind, recipient_email, recipient_name, sender_name, announcement_title, message_preview, link, reply_to_email, sender_phone, status, attempts')
+      .select('id, source_kind, guest_contact_id, recipient_email, recipient_name, sender_name, announcement_title, message_preview, link, reply_to_email, sender_phone, content_locked, status, attempts')
       .in('status', ['pending', 'failed'])
       .lt('attempts', 3)
       .order('queued_at', { ascending: true })
@@ -157,7 +160,7 @@ serve(async (req) => {
         })
         .eq('id', job.id)
         .eq('status', job.status)
-        .select('id, source_kind, recipient_email, recipient_name, sender_name, announcement_title, message_preview, link, reply_to_email, sender_phone, status, attempts')
+        .select('id, source_kind, guest_contact_id, recipient_email, recipient_name, sender_name, announcement_title, message_preview, link, reply_to_email, sender_phone, content_locked, status, attempts')
         .maybeSingle();
 
       if (claimError || !claimedJob) continue;
@@ -180,6 +183,34 @@ serve(async (req) => {
         continue;
       }
 
+      let contentLocked = Boolean(claimedJob.content_locked);
+
+      if (claimedJob.source_kind === 'guest_lead') {
+        if (!claimedJob.guest_contact_id) {
+          contentLocked = true;
+        } else {
+          const { data: guestContact, error: guestContactError } = await supabaseAdmin
+            .from('guest_announcement_contacts')
+            .select('contact_expires_at')
+            .eq('id', claimedJob.guest_contact_id)
+            .maybeSingle();
+
+          const liveLocked = isGuestContactContentLocked({
+            lookupFailed: Boolean(guestContactError),
+            contactFound: Boolean(guestContact),
+            contactExpiresAt: guestContact?.contact_expires_at,
+          });
+          contentLocked = Boolean(claimedJob.content_locked) || liveLocked;
+        }
+
+        if (contentLocked !== Boolean(claimedJob.content_locked)) {
+          await supabaseAdmin
+            .from('contact_notification_email_jobs')
+            .update({ content_locked: contentLocked })
+            .eq('id', claimedJob.id);
+        }
+      }
+
       const email = getContactNotificationTemplate({
         appUrl,
         siteName,
@@ -191,6 +222,7 @@ serve(async (req) => {
         sourceKind: claimedJob.source_kind,
         replyToEmail: claimedJob.reply_to_email,
         senderPhone: claimedJob.sender_phone,
+        contentLocked,
       });
 
       // VULN-019 fix: Usando sendSmtpEmail() com nodemailer (TLS verificado)
@@ -198,7 +230,7 @@ serve(async (req) => {
         to: claimedJob.recipient_email,
         subject: email.subject,
         html: email.html,
-        replyTo: claimedJob.reply_to_email || undefined,
+        replyTo: contentLocked ? undefined : claimedJob.reply_to_email || undefined,
       });
 
       if (result.success) {

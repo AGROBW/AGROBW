@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { createContext, createElement, type ReactNode, useContext, useEffect, useRef, useState } from 'react'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
 import { endAppSync, startAppSync } from '../lib/appSyncStatus'
@@ -13,7 +13,9 @@ interface NotificationCounts {
   isLoading: boolean
 }
 
-export const useNotificationsCount = (): NotificationCounts => {
+const NotificationsCountContext = createContext<NotificationCounts | null>(null)
+
+const useNotificationsCountState = (): NotificationCounts => {
   const { user } = useAuth()
   const [messagesCount, setMessagesCount] = useState(0)
   const [notificationsCount, setNotificationsCount] = useState(0)
@@ -46,14 +48,17 @@ export const useNotificationsCount = (): NotificationCounts => {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('chats')
-        .select('unread_count_seller, unread_count_buyer, seller_id, buyer_id')
-        .or(`seller_id.eq.${user.id},buyer_id.eq.${user.id}`)
+      const [chatsResult, guestContactsResult] = await Promise.all([
+        supabase
+          .from('chats')
+          .select('unread_count_seller, unread_count_buyer, seller_id, buyer_id')
+          .or(`seller_id.eq.${user.id},buyer_id.eq.${user.id}`),
+        supabase.rpc('count_my_unread_guest_announcement_contacts')
+      ])
 
-      if (error) throw error
+      if (chatsResult.error) throw chatsResult.error
 
-      const totalUnread = (data || []).reduce((sum, chat) => {
+      const chatUnread = (chatsResult.data || []).reduce((sum, chat) => {
         if (chat.seller_id === user.id) {
           return sum + (chat.unread_count_seller || 0)
         }
@@ -63,7 +68,18 @@ export const useNotificationsCount = (): NotificationCounts => {
         return sum
       }, 0)
 
-      setMessagesCount(totalUnread)
+      if (guestContactsResult.error && !isSupabaseUnauthorizedError(guestContactsResult.error)) {
+        appWarn('[useNotificationsCount] Contador de contatos visitantes indisponivel', {
+          userId: user.id,
+          error: guestContactsResult.error
+        })
+      }
+
+      const guestUnread = guestContactsResult.error
+        ? 0
+        : Math.max(0, Number(guestContactsResult.data) || 0)
+
+      setMessagesCount(chatUnread + guestUnread)
       clearRetry()
     } catch (error) {
       if (isSupabaseUnauthorizedError(error)) {
@@ -251,7 +267,23 @@ export const useNotificationsCount = (): NotificationCounts => {
     }
 
     window.addEventListener('online', handleOnline)
-    return () => window.removeEventListener('online', handleOnline)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void fetchMessagesCount()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    const intervalId = window.setInterval(() => {
+      if (!document.hidden) {
+        void fetchMessagesCount()
+      }
+    }, 15000)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.clearInterval(intervalId)
+    }
   }, [user?.id])
 
   useEffect(() => {
@@ -270,4 +302,19 @@ export const useNotificationsCount = (): NotificationCounts => {
     notificationsCount,
     isLoading
   }
+}
+
+export const NotificationsCountProvider = ({ children }: { children: ReactNode }) => {
+  const counts = useNotificationsCountState()
+  return createElement(NotificationsCountContext.Provider, { value: counts }, children)
+}
+
+export const useNotificationsCount = (): NotificationCounts => {
+  const counts = useContext(NotificationsCountContext)
+
+  if (!counts) {
+    throw new Error('useNotificationsCount deve ser usado dentro de NotificationsCountProvider')
+  }
+
+  return counts
 }

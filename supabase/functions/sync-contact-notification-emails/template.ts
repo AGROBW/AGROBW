@@ -20,23 +20,37 @@ export const getContactNotificationTemplate = (params: {
   sourceKind: ContactNotificationSourceKind;
   replyToEmail?: string | null;
   senderPhone?: string | null;
+  contentLocked?: boolean;
 }) => {
   const isGuestLead = params.sourceKind === 'guest_lead';
+  const isGuestContentLocked = isGuestLead && params.contentLocked === true;
   const isLead = params.sourceKind === 'new_lead' || isGuestLead;
   const announcementTitle = singleLine(params.announcementTitle);
-  const title = isGuestLead
+  const title = isGuestContentLocked
+    ? `Novo contato visitante protegido no anuncio ${announcementTitle}`
+    : isGuestLead
     ? `Novo contato visitante no anuncio ${announcementTitle}`
     : isLead
     ? `Novo lead no anuncio ${announcementTitle}`
     : `Nova mensagem sobre ${announcementTitle}`;
-  const badge = isGuestLead ? 'Contato visitante' : isLead ? 'Novo lead' : 'Nova mensagem';
-  const ctaLabel = isGuestLead ? 'Ver anuncio' : isLead ? 'Ver lead' : 'Abrir conversa';
-  const intro = isGuestLead
+  const badge = isGuestContentLocked
+    ? 'Contato protegido'
+    : isGuestLead
+      ? 'Contato visitante'
+      : isLead
+        ? 'Novo lead'
+        : 'Nova mensagem';
+  const ctaLabel = isGuestLead ? 'Ver mensagens' : isLead ? 'Ver lead' : 'Abrir conversa';
+  const intro = isGuestContentLocked
+    ? `Um visitante demonstrou interesse no seu anuncio. Os dados estao protegidos conforme as regras atuais do seu plano.`
+    : isGuestLead
     ? `${params.senderName} enviou um contato sem criar uma conta na ${params.siteName}. Responda diretamente a este e-mail.`
     : isLead
     ? `${params.senderName} demonstrou interesse no seu anuncio e abriu um novo contato na ${params.siteName}.`
     : `${params.senderName} enviou uma nova mensagem para voce na ${params.siteName}.`;
-  const footer = isGuestLead
+  const footer = isGuestContentLocked
+    ? 'Acesse sua conta para consultar as condicoes de liberacao deste contato.'
+    : isGuestLead
     ? 'Este contato foi protegido por CAPTCHA e limites de envio. Os dados foram compartilhados com o consentimento do visitante.'
     : isLead
     ? 'Acompanhe esse lead o quanto antes para aumentar suas chances de conversao.'
@@ -45,17 +59,21 @@ export const getContactNotificationTemplate = (params: {
   const linkHref = params.link
     ? params.link.startsWith('http')
       ? params.link
-      : `${params.appUrl.replace(/\/$/, '')}/#${params.link}`
+      : `${params.appUrl.replace(/\/$/, '')}${params.link.startsWith('/') ? '' : '/'}${params.link}`
     : null;
-  const preview = params.messagePreview?.trim();
+  const preview = isGuestContentLocked ? null : params.messagePreview?.trim();
   const safeTitle = escapeHtml(title);
   const safeRecipientName = escapeHtml(singleLine(params.recipientName));
   const safeIntro = escapeHtml(intro);
   const safeAnnouncementTitle = escapeHtml(announcementTitle);
   const safePreview = preview ? escapeHtml(preview) : null;
   const safeLinkHref = linkHref ? escapeHtml(linkHref) : null;
-  const safeReplyToEmail = params.replyToEmail ? escapeHtml(singleLine(params.replyToEmail)) : null;
-  const safeSenderPhone = params.senderPhone ? escapeHtml(singleLine(params.senderPhone)) : null;
+  const safeReplyToEmail = !isGuestContentLocked && params.replyToEmail
+    ? escapeHtml(singleLine(params.replyToEmail))
+    : null;
+  const safeSenderPhone = !isGuestContentLocked && params.senderPhone
+    ? escapeHtml(singleLine(params.senderPhone))
+    : null;
 
   const html = `
     <!DOCTYPE html>
