@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Search, Check, CheckCheck, Circle, Loader2, ArrowLeft, AlertCircle, Lock, CalendarDays, CheckCircle2, FileSignature, XCircle } from 'lucide-react';
+import { Send, Search, Check, CheckCheck, Circle, Loader2, ArrowLeft, AlertCircle, Lock, CalendarDays, CheckCircle2, FileSignature, XCircle, Mail, Phone, UserRound, ShieldCheck, MessageSquareOff, Archive, ArchiveRestore, RefreshCw } from 'lucide-react';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useChats, useMessages } from '../src/hooks/useMessages';
 import { formatDistanceToNow } from 'date-fns';
@@ -13,6 +13,9 @@ import {
   formatCommercialProposalAmount,
   isCommercialProposalExpired,
 } from '../src/lib/leads/commercialProposal';
+import { useGuestAnnouncementContact } from '../src/hooks/useGuestAnnouncementContact';
+import { getMessageInboxTargetFromSearch, getMessageInboxTargetStatus } from '../src/lib/guestContactInbox';
+import { toast } from 'sonner';
 
 interface MessagesViewProps {
   initialChatId?: string;
@@ -28,20 +31,40 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const { chats, isLoading: chatsLoading } = useChats();
+  const [showArchivedGuestContacts, setShowArchivedGuestContacts] = useState(false);
+  const { chats, isLoading: chatsLoading, refreshChats } = useChats(undefined, {
+    includeGuestContacts: true,
+    includeArchivedGuestContacts: true,
+  });
   const [selectedChatId, setSelectedChatId] = useState<string | null>(initialChatId || null);
   const [highlightedChatId, setHighlightedChatId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<MessageTab>('sent');
   const [searchQuery, setSearchQuery] = useState('');
   const [messageText, setMessageText] = useState('');
   const [respondingProposalId, setRespondingProposalId] = useState<string | null>(null);
+  const [isUpdatingGuestContact, setIsUpdatingGuestContact] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const guestReadInFlightRef = useRef<string | null>(null);
+  const invalidDeepLinkRef = useRef<string | null>(null);
   const selectedChat = chats.find(c => c.id === selectedChatId);
+  const isSelectedGuestContact = selectedChat?.sourceKind === 'guest_contact';
+  const selectedGuestContactId = isSelectedGuestContact ? selectedChat.guestContactId : null;
   const selectedChatOtherUserName = selectedChat
     ? (user?.id === selectedChat.buyerId ? selectedChat.sellerName : selectedChat.buyerName)
     : undefined;
   
-  const { messages, isLoading: messagesLoading, sendMessage, respondToProposal } = useMessages(selectedChatId, selectedChatOtherUserName);
+  const selectedRegisteredChatId = selectedChat && !isSelectedGuestContact ? selectedChat.id : null;
+  const { messages, isLoading: messagesLoading, sendMessage, respondToProposal } = useMessages(
+    selectedRegisteredChatId,
+    selectedChatOtherUserName,
+  );
+  const {
+    contact: guestContact,
+    isLoading: guestContactLoading,
+    error: guestContactError,
+    markAsRead: markGuestContactAsRead,
+    setArchived: setGuestContactArchived,
+  } = useGuestAnnouncementContact(selectedGuestContactId);
   const isSellerInSelectedChat = selectedChat?.sellerId === user?.id;
   const isLeadContactExpired = selectedChat?.freezeReason === 'lead_contact_expired';
   const isReceivedTab = activeTab === 'received';
@@ -49,15 +72,42 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const isSelectedChatFrozen = !!selectedChat?.isFrozen && (
     selectedChat?.freezeReason !== 'lead_contact_expired' || shouldApplyLeadContactLock
   );
-  const frozenBadgeText = isLeadContactExpired ? 'Novo contato bloqueado' : 'Anuncio expirado';
-  const frozenTitle = isLeadContactExpired ? 'Novo contato bloqueado' : 'Anuncio expirado';
+  const frozenBadgeText = isSelectedGuestContact
+    ? 'Contato visitante bloqueado'
+    : isLeadContactExpired
+      ? 'Novo contato bloqueado'
+      : 'Anuncio expirado';
+  const frozenTitle = frozenBadgeText;
   const frozenDescription = isLeadContactExpired
     ? 'O periodo de acesso a este interessado terminou. Faça upgrade para voltar a visualizar os dados do lead e responder a conversa.'
     : 'Esta conversa foi congelada porque o anuncio venceu. Nenhuma nova mensagem pode ser enviada e os dados da negociacao ficaram bloqueados.';
   
   const effectiveFrozenDescription = isLeadContactExpired
-    ? 'Este contato entrou quando sua conta ja nao estava em um plano elegivel para novos contatos. Renove ou faca upgrade para visualizar os dados do interessado e responder a conversa.'
+    ? isSelectedGuestContact
+      ? 'Este contato visitante chegou quando sua conta nao estava em um plano elegivel. Renove ou faca upgrade para visualizar nome, dados de contato e mensagem.'
+      : 'Este contato entrou quando sua conta ja nao estava em um plano elegivel para novos contatos. Renove ou faca upgrade para visualizar os dados do interessado e responder a conversa.'
     : frozenDescription;
+
+  useEffect(() => {
+    if (
+      !selectedGuestContactId ||
+      selectedChat?.unreadCount === 0 ||
+      guestReadInFlightRef.current === selectedGuestContactId
+    ) {
+      return;
+    }
+
+    guestReadInFlightRef.current = selectedGuestContactId;
+    void markGuestContactAsRead()
+      .then((marked) => {
+        if (marked) return refreshChats(true);
+        guestReadInFlightRef.current = null;
+        return undefined;
+      })
+      .catch(() => {
+        guestReadInFlightRef.current = null;
+      });
+  }, [markGuestContactAsRead, refreshChats, selectedChat?.unreadCount, selectedGuestContactId]);
 
   // Debug: Log dos dados do chat selecionado
   useEffect(() => {
@@ -73,7 +123,12 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
-  const chatsByTab = chats.filter(chat => (chat.direction || 'received') === activeTab);
+  const chatsByTab = showArchivedGuestContacts
+    ? chats.filter(chat => chat.sourceKind === 'guest_contact' && chat.guestContactArchived)
+    : chats.filter(chat =>
+      (chat.direction || 'received') === activeTab &&
+      !(chat.sourceKind === 'guest_contact' && chat.guestContactArchived)
+    );
 
   // Filtrar chats por busca
   const filteredChats = chatsByTab.filter(chat => {
@@ -87,13 +142,36 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   });
 
   const sentChatsCount = chats.filter(chat => (chat.direction || 'received') === 'sent').length;
-  const receivedChatsCount = chats.filter(chat => (chat.direction || 'received') === 'received').length;
+  const receivedChatsCount = chats.filter(chat =>
+    (chat.direction || 'received') === 'received' && !chat.guestContactArchived
+  ).length;
+  const archivedGuestContactsCount = chats.filter(chat =>
+    chat.sourceKind === 'guest_contact' && chat.guestContactArchived
+  ).length;
   const sentUnreadChatsCount = chats.filter(
     chat => (chat.direction || 'received') === 'sent' && chat.unreadCount > 0
   ).length;
   const receivedUnreadChatsCount = chats.filter(
-    chat => (chat.direction || 'received') === 'received' && chat.unreadCount > 0
+    chat => (chat.direction || 'received') === 'received' && !chat.guestContactArchived && chat.unreadCount > 0
   ).length;
+
+  const handleGuestArchiveChange = async () => {
+    if (!selectedGuestContactId || isUpdatingGuestContact) return;
+
+    const nextArchived = !Boolean(selectedChat?.guestContactArchived);
+    setIsUpdatingGuestContact(true);
+    const updated = await setGuestContactArchived(nextArchived);
+
+    if (updated) {
+      toast.success(nextArchived ? 'Contato visitante arquivado.' : 'Contato visitante restaurado.');
+      setSelectedChatId(null);
+      await refreshChats(true);
+    } else {
+      toast.error('Nao foi possivel atualizar o contato visitante.');
+    }
+
+    setIsUpdatingGuestContact(false);
+  };
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -106,49 +184,69 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
         ? String((location.state as { highlightChatId?: string }).highlightChatId || '')
         : '';
     const chatIdFromSearch = searchParams.get('chat') || '';
-    const incomingChatId = chatIdFromState;
-    const incomingHighlightChatId = highlightChatIdFromState || chatIdFromSearch;
+    const guestContactIdFromSearch = searchParams.get('guest') || '';
+    const incomingChatId = chatIdFromState || getMessageInboxTargetFromSearch(location.search) || '';
+    const incomingHighlightChatId = highlightChatIdFromState;
 
     if (!incomingChatId && !incomingHighlightChatId) {
+      invalidDeepLinkRef.current = null;
       return;
     }
 
-    const targetChat = chats.find((chat) => chat.id === (incomingChatId || incomingHighlightChatId));
-    if (targetChat) {
-      const targetTab = (targetChat.direction || 'received') as MessageTab;
-      if (activeTab !== targetTab) {
-        setActiveTab(targetTab);
+    const targetId = incomingChatId || incomingHighlightChatId;
+    const targetStatus = getMessageInboxTargetStatus(targetId, chats.map((chat) => chat.id), chatsLoading);
+    const targetChat = targetStatus === 'found'
+      ? chats.find((chat) => chat.id === targetId)
+      : undefined;
+
+    if (!targetChat) {
+      if (targetStatus === 'missing') {
+        if (invalidDeepLinkRef.current !== targetId) {
+          invalidDeepLinkRef.current = targetId;
+          toast.error('Contato ou conversa nao encontrado.');
+        }
+        navigate(location.pathname, { replace: true, state: null });
       }
+      return;
+    }
+
+    invalidDeepLinkRef.current = null;
+    const targetTab = (targetChat.direction || 'received') as MessageTab;
+    if (activeTab !== targetTab) {
+      setActiveTab(targetTab);
+    }
+    if (targetChat.sourceKind === 'guest_contact') {
+      setShowArchivedGuestContacts(Boolean(targetChat.guestContactArchived));
     }
 
     if (incomingChatId && incomingChatId !== selectedChatId) {
-      setSelectedChatId(incomingChatId);
-      setHighlightedChatId(null);
+      setSelectedChatId(targetChat.id);
+      setHighlightedChatId(targetChat.id);
+    } else if (incomingHighlightChatId) {
+      setHighlightedChatId(targetChat.id);
     }
 
-    if (incomingHighlightChatId) {
-      setHighlightedChatId(incomingHighlightChatId);
-    }
-
-    if (targetChat && (chatIdFromSearch || incomingChatId || incomingHighlightChatId)) {
+    if (chatIdFromSearch || guestContactIdFromSearch || chatIdFromState || incomingHighlightChatId) {
       navigate(location.pathname, { replace: true, state: null });
     }
-  }, [location.pathname, location.search, location.state, chats, activeTab, navigate, selectedChatId]);
+  }, [location.pathname, location.search, location.state, chats, chatsLoading, activeTab, navigate, selectedChatId]);
 
   useEffect(() => {
     if (!selectedChatId) return;
 
     const selected = chats.find(chat => chat.id === selectedChatId);
-    if (!selected) {
+    if (!selected && !chatsLoading) {
       setSelectedChatId(null);
       return;
     }
+
+    if (!selected) return;
 
     if ((selected.direction || 'received') !== activeTab) {
       const replacementChat = chats.find(chat => (chat.direction || 'received') === activeTab);
       setSelectedChatId(replacementChat?.id || null);
     }
-  }, [activeTab, chats, selectedChatId]);
+  }, [activeTab, chats, chatsLoading, selectedChatId]);
 
   useEffect(() => {
     if (!highlightedChatId) return;
@@ -204,9 +302,12 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
           <div className="mb-3 inline-flex w-full rounded-xl bg-slate-100 p-1">
             <button
               type="button"
-              onClick={() => setActiveTab('sent')}
+              onClick={() => {
+                setShowArchivedGuestContacts(false);
+                setActiveTab('sent');
+              }}
               className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                activeTab === 'sent'
+                activeTab === 'sent' && !showArchivedGuestContacts
                   ? 'bg-green-600 text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
@@ -216,19 +317,22 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                 {sentUnreadChatsCount > 0 ? (
                   <span
                     className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${
-                      activeTab === 'sent' ? 'bg-white/90 text-green-700' : 'bg-green-600 text-white'
+                      activeTab === 'sent' && !showArchivedGuestContacts ? 'bg-white/90 text-green-700' : 'bg-green-600 text-white'
                     }`}
                   >
                     {sentUnreadChatsCount}
                   </span>
-                ) : activeTab === 'sent' ? <span className="h-2 w-2 rounded-full bg-white/90" /> : null}
+                ) : activeTab === 'sent' && !showArchivedGuestContacts ? <span className="h-2 w-2 rounded-full bg-white/90" /> : null}
               </span>
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('received')}
+              onClick={() => {
+                setShowArchivedGuestContacts(false);
+                setActiveTab('received');
+              }}
               className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                activeTab === 'received'
+                activeTab === 'received' && !showArchivedGuestContacts
                   ? 'bg-green-600 text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
@@ -238,13 +342,40 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                 {receivedUnreadChatsCount > 0 ? (
                   <span
                     className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${
-                      activeTab === 'received' ? 'bg-white/90 text-green-700' : 'bg-green-600 text-white'
+                      activeTab === 'received' && !showArchivedGuestContacts ? 'bg-white/90 text-green-700' : 'bg-green-600 text-white'
                     }`}
                   >
                     {receivedUnreadChatsCount}
                   </span>
-                ) : activeTab === 'received' ? <span className="h-2 w-2 rounded-full bg-white/90" /> : null}
+                ) : activeTab === 'received' && !showArchivedGuestContacts ? <span className="h-2 w-2 rounded-full bg-white/90" /> : null}
               </span>
+            </button>
+          </div>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('received');
+                setShowArchivedGuestContacts((current) => !current);
+                setSelectedChatId(null);
+              }}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
+                showArchivedGuestContacts
+                  ? 'border-slate-900 bg-slate-900 text-white'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
+              }`}
+            >
+              <Archive className="h-3.5 w-3.5" />
+              Arquivados {archivedGuestContactsCount > 0 ? `(${archivedGuestContactsCount})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => void refreshChats(true)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Atualizar mensagens"
+              title="Atualizar mensagens"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
             </button>
           </div>
           <div className="relative">
@@ -253,7 +384,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar conversas..."
+              placeholder={showArchivedGuestContacts ? 'Buscar contatos arquivados...' : 'Buscar conversas...'}
               className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
@@ -265,10 +396,14 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
             <div className="p-8 text-center">
               <Circle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <p className="text-slate-500 text-sm font-medium">
-                {searchQuery ? 'Nenhuma conversa encontrada' : 'Nenhuma conversa ainda'}
+                {searchQuery
+                  ? 'Nenhuma conversa encontrada'
+                  : showArchivedGuestContacts
+                    ? 'Nenhum contato arquivado'
+                    : 'Nenhuma conversa ainda'}
               </p>
               <p className="text-slate-400 text-xs mt-1">
-                {!searchQuery &&
+                {!searchQuery && !showArchivedGuestContacts &&
                   (activeTab === 'sent'
                     ? 'Entre em contato com vendedores para iniciar conversas'
                     : 'As mensagens recebidas dos seus anuncios aparecerao aqui')}
@@ -326,7 +461,9 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between mb-1">
                       <h3 className={`text-sm truncate ${isUnreadConversation ? 'font-extrabold text-slate-950' : 'font-bold text-slate-900'}`}>
-                        {shouldShowFrozen ? 'Interacao congelada' : getOtherUserName(chat)}
+                        {chat.sourceKind === 'guest_contact'
+                          ? shouldShowFrozen ? 'Contato visitante protegido' : getOtherUserName(chat)
+                          : shouldShowFrozen ? 'Interacao congelada' : getOtherUserName(chat)}
                       </h3>
                       <span className={`text-xs flex-shrink-0 ml-2 ${isUnreadConversation ? 'font-semibold text-emerald-700' : 'text-slate-400'}`}>
                         {formatTime(chat.lastMessageTime)}
@@ -336,6 +473,20 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                     <p className="text-xs text-slate-500 font-medium truncate mb-1">
                       {chat.adTitle || fallbackChatTitle}
                     </p>
+
+                    {chat.sourceKind === 'guest_contact' && (
+                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-sky-700">
+                          <UserRound className="h-3 w-3" />
+                          Visitante sem conta
+                        </span>
+                        {chat.guestContactArchived && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                            <Archive className="h-3 w-3" /> Arquivado
+                          </span>
+                        )}
+                      </div>
+                    )}
                     
                     <div className="flex items-center justify-between">
                       <p className={`text-xs truncate flex-1 ${isUnreadConversation ? 'font-semibold text-slate-700' : 'text-slate-400'}`}>
@@ -389,14 +540,42 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
             
             <div className="flex-1 min-w-0">
               <h3 className="font-bold text-sm text-slate-900 truncate">
-                {isSelectedChatFrozen ? 'Interacao congelada' : getOtherUserName(selectedChat)}
+                {isSelectedGuestContact
+                  ? isSelectedChatFrozen ? 'Contato visitante protegido' : getOtherUserName(selectedChat)
+                  : isSelectedChatFrozen ? 'Interacao congelada' : getOtherUserName(selectedChat)}
               </h3>
               <p className="text-xs text-slate-500 truncate">
                 {selectedChat.adTitle || fallbackChatTitle}
               </p>
+              {isSelectedGuestContact && (
+                <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-sky-700">
+                  <UserRound className="h-3 w-3" /> Visitante sem conta
+                </span>
+              )}
             </div>
             
-            {!isSelectedChatFrozen && (
+            {isSelectedGuestContact && (
+              <button
+                type="button"
+                onClick={() => void handleGuestArchiveChange()}
+                disabled={isUpdatingGuestContact}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60"
+                title={selectedChat.guestContactArchived ? 'Restaurar contato' : 'Arquivar contato'}
+              >
+                {isUpdatingGuestContact ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : selectedChat.guestContactArchived ? (
+                  <ArchiveRestore className="h-4 w-4" />
+                ) : (
+                  <Archive className="h-4 w-4" />
+                )}
+                <span className="hidden lg:inline">
+                  {selectedChat.guestContactArchived ? 'Restaurar' : 'Arquivar'}
+                </span>
+              </button>
+            )}
+
+            {!isSelectedChatFrozen && !isSelectedGuestContact && (
               <div className="text-right">
                 <p className="text-sm font-bold text-green-700">
                   {new Intl.NumberFormat('pt-BR', {
@@ -425,10 +604,12 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                         Acesso premium
                       </span>
                       <p className="mt-3 text-base font-semibold text-slate-900">
-                        Libere este novo contato para continuar a negociacao
+                        {isSelectedGuestContact
+                          ? 'Libere os dados deste contato visitante'
+                          : 'Libere este novo contato para continuar a negociacao'}
                       </p>
                       <p className="mt-1 text-sm text-slate-600">
-                        Este interessado entrou quando sua conta ja nao estava em um plano elegivel para novos contatos. Assine novamente ou faca upgrade para voltar a acessar novos contatos recebidos.
+                        {effectiveFrozenDescription}
                       </p>
                       <p className="mt-2 text-xs text-emerald-700">
                         Este novo contato foi recebido fora da janela elegivel de novos contatos e sera liberado quando voce renovar ou fizer upgrade.
@@ -468,7 +649,7 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
           
           {/* Mensagens */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
-            {messagesLoading ? (
+            {(isSelectedGuestContact ? guestContactLoading : messagesLoading) ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-6 h-6 text-green-600 animate-spin" />
               </div>
@@ -483,6 +664,86 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
                     <p className="mt-2 text-xs text-slate-500">
                       O historico deste anuncio expirado foi congelado. Reativar o anuncio depende de vaga disponivel no plano atual e nao reabre esta conversa automaticamente.
                     </p>
+                  </div>
+                )}
+              </div>
+            ) : isSelectedGuestContact ? (
+              <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 py-2">
+                {guestContactError ? (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">
+                    {guestContactError}
+                  </div>
+                ) : guestContact?.isLocked ? (
+                  <div className="rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-sm">
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                      <Lock className="h-6 w-6" />
+                    </div>
+                    <p className="font-bold text-slate-900">Dados protegidos pelo plano</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      Nome, e-mail, telefone e mensagem permanecem ocultos ate a liberacao deste contato.
+                    </p>
+                  </div>
+                ) : guestContact ? (
+                  <>
+                    <div className="overflow-hidden rounded-3xl border border-sky-200 bg-white shadow-sm">
+                      <div className="flex items-start gap-3 border-b border-sky-100 bg-gradient-to-r from-sky-50 to-emerald-50 px-5 py-4">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
+                          <UserRound className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-bold text-slate-950">{guestContact.visitorName}</p>
+                            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-sky-700">
+                              Visitante
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            Enviou este contato sem criar uma conta na AGRO BW.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 p-5 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                            <Mail className="h-4 w-4 text-emerald-600" /> E-mail
+                          </div>
+                          {guestContact.visitorEmail ? (
+                            <a href={`mailto:${guestContact.visitorEmail}`} className="mt-2 block break-all text-sm font-semibold text-slate-800 hover:text-emerald-700">
+                              {guestContact.visitorEmail}
+                            </a>
+                          ) : (
+                            <p className="mt-2 text-sm text-slate-500">Nao informado</p>
+                          )}
+                        </div>
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                            <Phone className="h-4 w-4 text-emerald-600" /> Telefone
+                          </div>
+                          {guestContact.visitorPhone ? (
+                            <a href={`tel:${guestContact.visitorPhone}`} className="mt-2 block text-sm font-semibold text-slate-800 hover:text-emerald-700">
+                              {guestContact.visitorPhone}
+                            </a>
+                          ) : (
+                            <p className="mt-2 text-sm text-slate-500">Nao informado</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm">
+                      <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                        <ShieldCheck className="h-4 w-4" /> Mensagem enviada pelo formulario protegido
+                      </div>
+                      <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+                        {guestContact.message || 'O visitante nao informou uma mensagem.'}
+                      </p>
+                      <p className="mt-4 text-xs text-slate-400">Recebida {formatTime(guestContact.createdAt)}</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
+                    Contato visitante nao encontrado.
                   </div>
                 )}
               </div>
@@ -608,30 +869,42 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
           
           {/* Input de Mensagem */}
           <div className="p-4 border-t border-slate-200 bg-white">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                placeholder={isSelectedChatFrozen ? `${frozenBadgeText}. Conversa bloqueada.` : 'Digite sua mensagem...'}
-                disabled={isSelectedChatFrozen}
-                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={!messageText.trim() || isSelectedChatFrozen}
-                className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-bold"
-              >
-                <Send className="w-4 h-4" />
-                <span className="hidden sm:inline">Enviar</span>
-              </button>
-            </div>
+            {isSelectedGuestContact ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
+                <MessageSquareOff className="mt-0.5 h-5 w-5 flex-shrink-0 text-sky-700" />
+                <div>
+                  <p className="text-sm font-bold text-sky-950">Resposta pelo painel indisponivel</p>
+                  <p className="mt-1 text-xs leading-5 text-sky-800">
+                    Este visitante nao possui conta. Quando os dados estiverem liberados, use o e-mail ou telefone informado para responder fora da plataforma.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                  placeholder={isSelectedChatFrozen ? `${frozenBadgeText}. Conversa bloqueada.` : 'Digite sua mensagem...'}
+                  disabled={isSelectedChatFrozen}
+                  className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!messageText.trim() || isSelectedChatFrozen}
+                  className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-bold"
+                >
+                  <Send className="w-4 h-4" />
+                  <span className="hidden sm:inline">Enviar</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
         
         {/* Sidebar de Inteligência Logística */}
-        {!isSelectedChatFrozen && isReceivedTab && isSellerInSelectedChat && (
+        {!isSelectedChatFrozen && !isSelectedGuestContact && isReceivedTab && isSellerInSelectedChat && (
           <LogisticsSidebar 
             chatId={selectedChatId}
             adPrice={selectedChat.adPrice}

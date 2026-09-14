@@ -431,6 +431,26 @@ export interface Chat {
   unreadCount: number;
   status: ChatStatus;
   createdAt: string;
+  sourceKind?: 'registered_user' | 'guest_contact';
+  guestContactId?: string;
+  guestContactArchived?: boolean;
+}
+
+export interface GuestAnnouncementContact {
+  contactId: string;
+  announcementId: string;
+  announcementTitle: string;
+  announcementSlug: string | null;
+  announcementImage: string | null;
+  visitorName: string;
+  visitorEmail: string | null;
+  visitorPhone: string | null;
+  message: string | null;
+  createdAt: string;
+  contactExpiresAt: string | null;
+  isLocked: boolean;
+  isRead: boolean;
+  isArchived: boolean;
 }
 
 export interface Lead {

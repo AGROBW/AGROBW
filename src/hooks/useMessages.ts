@@ -11,6 +11,7 @@ import { LEAD_STATUS } from '../../constants/status'
 import { toast } from 'sonner'
 import { appError, appWarn } from '../utils/appLogger'
 import { normalizeCommercialProposal } from '../lib/leads/commercialProposal'
+import { mapGuestContactToChat, normalizeGuestAnnouncementContact } from '../lib/guestContactInbox'
 
 const MESSAGE_SELECT = `
   *,
@@ -164,22 +165,65 @@ const getUnreadCountsByChatId = async (chatIds: string[]) => {
   )
 }
 
-export const useChats = (announcementId?: string | null) => {
+const getGuestContactChats = async (
+  seller: { id: string; name?: string | null },
+  announcementId?: string | null,
+  includeArchived = false
+) => {
+  const rows: Array<Record<string, unknown>> = []
+  const pageSize = 100
+
+  for (let offset = 0; offset < 1000; offset += pageSize) {
+    const { data, error } = await supabase.rpc('list_my_guest_announcement_contacts', {
+      p_limit: pageSize,
+      p_offset: offset,
+      p_include_archived: includeArchived
+    })
+
+    if (error) {
+      throw error
+    }
+
+    const page = (data as Array<Record<string, unknown>> | null) || []
+    rows.push(...page)
+
+    if (page.length < pageSize) {
+      break
+    }
+  }
+
+  return rows
+    .map((row) => normalizeGuestAnnouncementContact(row, 'message_preview'))
+    .filter((contact) => !announcementId || contact.announcementId === announcementId)
+    .filter((contact) => Boolean(contact.contactId && contact.announcementId))
+    .map((contact) => mapGuestContactToChat(contact, seller))
+}
+
+interface UseChatsOptions {
+  includeGuestContacts?: boolean
+  includeArchivedGuestContacts?: boolean
+}
+
+export const useChats = (announcementId?: string | null, options: UseChatsOptions = {}) => {
   const { user } = useAuth()
+  const includeGuestContacts = options.includeGuestContacts === true
+  const includeArchivedGuestContacts = options.includeArchivedGuestContacts === true
   const [chats, setChats] = useState<Chat[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const retryTimeoutRef = useRef<number | null>(null)
   const isFetchingRef = useRef(false)
+  const pendingFetchRef = useRef(false)
+  const fetchChatsRef = useRef<(silent?: boolean) => Promise<void>>(async () => {})
 
-  const clearRetry = () => {
+  const clearRetry = useCallback(() => {
     if (retryTimeoutRef.current !== null && typeof window !== 'undefined') {
       window.clearTimeout(retryTimeoutRef.current)
       retryTimeoutRef.current = null
     }
-  }
+  }, [])
 
-  const fetchChats = async (silent = false) => {
+  const fetchChats = useCallback(async (silent = false) => {
     if (!user) {
       setChats([])
       setIsLoading(false)
@@ -187,6 +231,7 @@ export const useChats = (announcementId?: string | null) => {
     }
 
     if (isFetchingRef.current) {
+      pendingFetchRef.current = true
       return
     }
 
@@ -228,13 +273,14 @@ export const useChats = (announcementId?: string | null) => {
         if (typeof window !== 'undefined' && retryTimeoutRef.current === null) {
           retryTimeoutRef.current = window.setTimeout(() => {
             retryTimeoutRef.current = null
-            void fetchChats(true)
+            void fetchChatsRef.current(true)
           }, 5000)
         }
       } else {
         clearRetry()
         setError(null)
         const chatRows = data || []
+        let guestContactChats: Chat[] = []
         let leadDetailsByChat = new Map<string, { contactExpiresAt: string | null; buyerName: string | null }>()
         let unreadCountsByChatId = new Map<
           string,
@@ -246,6 +292,18 @@ export const useChats = (announcementId?: string | null) => {
           }
         >()
         let publicProfileNamesByUserId = new Map<string, string | null>()
+
+        if (includeGuestContacts) {
+          try {
+            guestContactChats = await getGuestContactChats(user, announcementId, includeArchivedGuestContacts)
+          } catch (guestContactError) {
+            // Keep registered-user chats available while the backend migration is pending or temporarily unavailable.
+            appWarn('[useChats] Contatos visitantes indisponiveis nesta sincronizacao', {
+              userId: user.id,
+              error: guestContactError
+            })
+          }
+        }
 
         try {
           // Use the lead record itself as the source of truth for contact locking and buyer display name.
@@ -347,7 +405,14 @@ export const useChats = (announcementId?: string | null) => {
           createdAt: chat.created_at
         }})
 
-        setChats(mappedChats)
+        const inboxChats = [...mappedChats, ...guestContactChats].sort((left, right) => {
+          const rightTimestamp = Date.parse(right.lastMessageTime || right.createdAt)
+          const leftTimestamp = Date.parse(left.lastMessageTime || left.createdAt)
+          return (Number.isFinite(rightTimestamp) ? rightTimestamp : 0)
+            - (Number.isFinite(leftTimestamp) ? leftTimestamp : 0)
+        })
+
+        setChats(inboxChats)
       }
     } finally {
       setIsLoading(false)
@@ -356,13 +421,19 @@ export const useChats = (announcementId?: string | null) => {
       }
 
       isFetchingRef.current = false
+      if (pendingFetchRef.current) {
+        pendingFetchRef.current = false
+        void fetchChatsRef.current(true)
+      }
     }
-  }
+  }, [announcementId, clearRetry, includeArchivedGuestContacts, includeGuestContacts, user?.id, user?.name])
+
+  fetchChatsRef.current = fetchChats
 
   useEffect(() => {
     void fetchChats()
     return () => clearRetry()
-  }, [user?.id, announcementId])
+  }, [clearRetry, fetchChats])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !user?.id) return
@@ -373,7 +444,7 @@ export const useChats = (announcementId?: string | null) => {
 
     window.addEventListener('online', handleOnline)
     return () => window.removeEventListener('online', handleOnline)
-  }, [user?.id, announcementId])
+  }, [fetchChats, user?.id])
 
   useEffect(() => {
     if (!user?.id) return
@@ -430,7 +501,7 @@ export const useChats = (announcementId?: string | null) => {
     return () => {
       chatsChannel.unsubscribe()
     }
-  }, [user?.id, announcementId])
+  }, [fetchChats, user?.id])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !user?.id) return
@@ -444,14 +515,16 @@ export const useChats = (announcementId?: string | null) => {
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     const intervalId = window.setInterval(() => {
-      void fetchChats(true)
-    }, 5000)
+      if (!document.hidden) {
+        void fetchChats(true)
+      }
+    }, includeGuestContacts ? 15000 : 5000)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.clearInterval(intervalId)
     }
-  }, [user?.id, announcementId])
+  }, [fetchChats, includeGuestContacts, user?.id])
 
   return { chats, isLoading, error, refreshChats: fetchChats }
 }

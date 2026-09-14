@@ -20,6 +20,8 @@ describe('getContactNotificationTemplate', () => {
     expect(email.html).toContain(message);
     expect(email.html).toContain('visitante@example.com');
     expect(email.html).toContain('(11) 99999-9999');
+    expect(email.html).toContain('href="https://agrobw.com.br/anuncio/123"');
+    expect(email.html).not.toContain('/#/anuncio/123');
   });
 
   it('escapa HTML e remove quebras do assunto', () => {
@@ -41,5 +43,30 @@ describe('getContactNotificationTemplate', () => {
     expect(email.html).not.toContain('href="javascript:');
     expect(email.html).toContain('&lt;script&gt;');
     expect(email.html).toContain('&lt;a href=&quot;javascript:alert(1)&quot;&gt;');
+  });
+
+  it('oculta todos os dados do visitante quando o contato esta bloqueado', () => {
+    const email = getContactNotificationTemplate({
+      appUrl: 'https://agrobw.com.br',
+      siteName: 'BW Agro',
+      recipientName: 'Vendedor',
+      senderName: 'NOME_VISITANTE_SECRETO',
+      announcementTitle: 'Trator',
+      messagePreview: 'MENSAGEM_VISITANTE_SECRETA',
+      link: '/minha-conta/mensagens?guest=123',
+      sourceKind: 'guest_lead',
+      replyToEmail: 'email-secreto@example.com',
+      senderPhone: '(11) 98888-7777',
+      contentLocked: true,
+    });
+
+    expect(email.subject).toContain('contato visitante protegido');
+    expect(email.html).toContain('dados estao protegidos');
+    expect(email.html).toContain('Ver mensagens');
+    expect(email.html).not.toContain('NOME_VISITANTE_SECRETO');
+    expect(email.html).not.toContain('MENSAGEM_VISITANTE_SECRETA');
+    expect(email.html).not.toContain('email-secreto@example.com');
+    expect(email.html).not.toContain('(11) 98888-7777');
+    expect(email.html).toContain('href="https://agrobw.com.br/minha-conta/mensagens?guest=123"');
   });
 });
