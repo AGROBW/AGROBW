@@ -83,6 +83,16 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/submit-guest-announcement-contact/index.ts"
 
+[functions.whatsapp-gateway-admin]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/whatsapp-gateway-admin/index.ts"
+
+[functions.sync-whatsapp-gateway-jobs]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/sync-whatsapp-gateway-jobs/index.ts"
+
 # Crons externos (cron-job.org): autenticação por x-cron-secret próprio no código.
 # verify_jwt=false move a auth do gateway JWT para o secret da função (mesmo padrão dos webhooks).
 [functions.sync-contact-notification-emails]
