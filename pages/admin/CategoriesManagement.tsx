@@ -44,6 +44,20 @@ interface CategorySubcategoryRecord {
   is_active?: boolean | null;
 }
 
+interface CategoryGroupDeletionImpact {
+  group_id: string;
+  group_name: string;
+  group_slug: string;
+  group_is_active: boolean;
+  category_count: number;
+  mapping_count: number;
+  announcement_count: number;
+  alert_count: number;
+  active_group_count: number;
+  total_group_count: number;
+  can_delete: boolean;
+}
+
 const slugify = (value: string) =>
   value
     .toLowerCase()
@@ -102,6 +116,11 @@ const CategoriesManagement: React.FC = () => {
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [iconSearchTerm, setIconSearchTerm] = useState('');
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupPendingDeletion, setGroupPendingDeletion] = useState<CategoryGroup | null>(null);
+  const [groupDeletionImpact, setGroupDeletionImpact] = useState<CategoryGroupDeletionImpact | null>(null);
+  const [groupDeletionConfirmation, setGroupDeletionConfirmation] = useState('');
+  const [loadingGroupDeletionImpact, setLoadingGroupDeletionImpact] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
   const [groupImages, setGroupImages] = useState<Record<string, string>>({});
   const [uploadingGroupSlug, setUploadingGroupSlug] = useState<string | null>(null);
   const uploadInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -252,6 +271,21 @@ const CategoriesManagement: React.FC = () => {
   }, [savingGroup, showGroupForm]);
 
   useEffect(() => {
+    if (!groupPendingDeletion) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !deletingGroup) {
+        setGroupPendingDeletion(null);
+        setGroupDeletionImpact(null);
+        setGroupDeletionConfirmation('');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deletingGroup, groupPendingDeletion]);
+
+  useEffect(() => {
     if (!selectedGroup) {
       setSelectedCategoryId('');
       setSubcategories([]);
@@ -320,6 +354,127 @@ const CategoriesManagement: React.FC = () => {
     setGroupForm(emptyGroupForm);
     setShowIconPicker(false);
     setIconSearchTerm('');
+  };
+
+  const closeGroupDeletion = () => {
+    if (deletingGroup) return;
+    setGroupPendingDeletion(null);
+    setGroupDeletionImpact(null);
+    setGroupDeletionConfirmation('');
+    setLoadingGroupDeletionImpact(false);
+  };
+
+  const openGroupDeletion = async (group: CategoryGroup) => {
+    if (!group.id || groupsAreFallback) return;
+
+    setGroupPendingDeletion(group);
+    setGroupDeletionImpact(null);
+    setGroupDeletionConfirmation('');
+    setLoadingGroupDeletionImpact(true);
+
+    try {
+      const { data, error } = await supabase.rpc('get_category_group_deletion_impact_admin', {
+        p_group_id: group.id,
+      });
+      if (error) throw error;
+
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row) throw new Error('CATEGORY_GROUP_IMPACT_NOT_FOUND');
+
+      setGroupDeletionImpact({
+        ...(row as CategoryGroupDeletionImpact),
+        category_count: Number(row.category_count || 0),
+        mapping_count: Number(row.mapping_count || 0),
+        announcement_count: Number(row.announcement_count || 0),
+        alert_count: Number(row.alert_count || 0),
+        active_group_count: Number(row.active_group_count || 0),
+        total_group_count: Number(row.total_group_count || 0),
+        can_delete: row.can_delete === true,
+      });
+    } catch (error) {
+      appError('[CategoriesManagement] Erro ao verificar exclusao do grupo', error);
+      toast.error('Nao foi possivel verificar os vinculos deste grupo.');
+      setGroupPendingDeletion(null);
+    } finally {
+      setLoadingGroupDeletionImpact(false);
+    }
+  };
+
+  const removeCategoryGroupCoverFiles = async (slug: string) => {
+    const { data, error } = await supabase.storage
+      .from('layout_assets')
+      .list('category-covers', { limit: 100, search: `${slug}.` });
+    if (error) throw error;
+
+    const paths = (data || [])
+      .filter((file) => file.name.startsWith(`${slug}.`))
+      .map((file) => `category-covers/${file.name}`);
+    if (paths.length === 0) return;
+
+    const { error: removeError } = await supabase.storage.from('layout_assets').remove(paths);
+    if (removeError) throw removeError;
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!groupPendingDeletion?.id || !groupDeletionImpact?.can_delete) return;
+    if (groupDeletionConfirmation !== groupPendingDeletion.name) {
+      toast.error('Digite o nome exato do grupo para confirmar.');
+      return;
+    }
+
+    try {
+      setDeletingGroup(true);
+      const { data, error } = await supabase.rpc('delete_category_group_admin_safe', {
+        p_group_id: groupPendingDeletion.id,
+        p_confirmation_name: groupDeletionConfirmation,
+      });
+      if (error) throw error;
+
+      const deleted = Array.isArray(data) ? data[0] : data;
+      const deletedSlug = String(deleted?.deleted_slug || groupPendingDeletion.slug);
+
+      try {
+        await removeCategoryGroupCoverFiles(deletedSlug);
+      } catch (storageError) {
+        appError('[CategoriesManagement] Grupo excluido, mas a limpeza da capa falhou', storageError);
+        toast.warning('Grupo excluido. A limpeza do arquivo de capa precisa ser revisada.');
+      }
+
+      setSelectedGroupSlug('');
+      setSelectedCategoryId('');
+      setSubcategories([]);
+      resetCategoryForm();
+      resetSubcategoryForm();
+      setGroupPendingDeletion(null);
+      setGroupDeletionImpact(null);
+      setGroupDeletionConfirmation('');
+      await Promise.all([loadCategories(), loadGroupImages()]);
+      reloadGroups();
+      toast.success('Grupo principal excluido com sucesso.');
+    } catch (error) {
+      appError('[CategoriesManagement] Erro ao excluir grupo principal', error);
+      const errorCode = typeof error === 'object' && error !== null && 'code' in error
+        ? String(error.code)
+        : '';
+      const message = typeof error === 'object' && error !== null && 'message' in error
+        ? String(error.message)
+        : '';
+
+      if (errorCode === '23503') {
+        toast.error('O grupo recebeu novos vinculos e nao pode mais ser excluido.');
+        await openGroupDeletion(groupPendingDeletion);
+      } else if (errorCode === '23514') {
+        toast.error(message || 'O ultimo grupo principal nao pode ser excluido.');
+      } else if (errorCode === '22023') {
+        toast.error('O nome de confirmacao nao corresponde ao grupo.');
+      } else if (errorCode === '55P03') {
+        toast.error('O catalogo esta sendo atualizado. Aguarde e tente novamente.');
+      } else {
+        toast.error('Nao foi possivel excluir o grupo principal.');
+      }
+    } finally {
+      setDeletingGroup(false);
+    }
   };
 
   const handleSaveGroup = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -758,15 +913,26 @@ const CategoriesManagement: React.FC = () => {
                 <div className="px-5 pb-5 pt-3 border-t border-slate-100">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Imagem do card</p>
-                    <button
-                      type="button"
-                      onClick={() => openGroupEditForm(group)}
-                      disabled={!group.id || groupsAreFallback}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Editar grupo
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void openGroupDeletion(group)}
+                        disabled={!group.id || groupsAreFallback}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Excluir
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openGroupEditForm(group)}
+                        disabled={!group.id || groupsAreFallback}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Editar grupo
+                      </button>
+                    </div>
                   </div>
                   {coverUrl ? (
                     <div className="relative h-28 w-full overflow-hidden rounded-xl">
@@ -1234,6 +1400,140 @@ const CategoriesManagement: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {groupPendingDeletion && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) closeGroupDeletion();
+          }}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-category-group-title"
+            aria-describedby="delete-category-group-description"
+            className="w-full max-w-lg overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl"
+          >
+            <div className="bg-slate-950 px-6 py-6 text-white sm:px-8">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-500 text-white">
+                    <Trash2 className="h-6 w-6" strokeWidth={2} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-red-300">Acao permanente</p>
+                    <h2 id="delete-category-group-title" className="mt-1 text-xl font-black">
+                      Excluir grupo principal
+                    </h2>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeGroupDeletion}
+                  disabled={deletingGroup}
+                  aria-label="Fechar"
+                  className="rounded-xl p-2 text-slate-300 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-5 p-6 sm:p-8">
+              <p id="delete-category-group-description" className="text-sm leading-6 text-slate-600">
+                O grupo <strong className="text-slate-900">{groupPendingDeletion.name}</strong> so pode ser
+                excluido quando nao possui categorias, anuncios, alertas ou outros vinculos.
+              </p>
+
+              {loadingGroupDeletionImpact ? (
+                <div className="flex items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-8 text-sm font-semibold text-slate-600">
+                  <Loader2 className="h-5 w-5 animate-spin text-green-600" />
+                  Verificando vinculos...
+                </div>
+              ) : groupDeletionImpact ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {[
+                      ['Categorias', groupDeletionImpact.category_count],
+                      ['Vinculos', groupDeletionImpact.mapping_count],
+                      ['Anuncios', groupDeletionImpact.announcement_count],
+                      ['Alertas', groupDeletionImpact.alert_count],
+                    ].map(([label, count]) => (
+                      <div key={String(label)} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
+                        <p className={`text-xl font-black ${Number(count) > 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                          {count}
+                        </p>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          {label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {groupDeletionImpact.can_delete ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                      Este grupo esta vazio. A exclusao remove o cadastro e a imagem de capa e nao pode ser desfeita.
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                      <p className="font-bold">A exclusao esta bloqueada.</p>
+                      <p className="mt-1">
+                        Remova ou transfira os vinculos primeiro. Se deseja apenas ocultar o grupo, use
+                        <strong> Editar grupo</strong> e desmarque <strong>Grupo ativo</strong>.
+                      </p>
+                      {(groupDeletionImpact.total_group_count <= 1
+                        || (groupDeletionImpact.group_is_active && groupDeletionImpact.active_group_count <= 1)) && (
+                        <p className="mt-2 font-semibold">O ultimo grupo principal ativo deve ser preservado.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {groupDeletionImpact.can_delete && (
+                    <label className="block" htmlFor="category-group-delete-confirmation">
+                      <span className="mb-2 block text-sm font-bold text-slate-700">
+                        Digite <strong>{groupPendingDeletion.name}</strong> para confirmar
+                      </span>
+                      <input
+                        id="category-group-delete-confirmation"
+                        type="text"
+                        autoComplete="off"
+                        value={groupDeletionConfirmation}
+                        onChange={(event) => setGroupDeletionConfirmation(event.target.value)}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                      />
+                    </label>
+                  )}
+                </>
+              ) : null}
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeGroupDeletion}
+                  disabled={deletingGroup}
+                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {groupDeletionImpact?.can_delete ? 'Cancelar' : 'Fechar'}
+                </button>
+                {groupDeletionImpact?.can_delete && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteGroup()}
+                    disabled={deletingGroup || groupDeletionConfirmation !== groupPendingDeletion.name}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deletingGroup
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Trash2 className="h-4 w-4" />}
+                    {deletingGroup ? 'Excluindo...' : 'Excluir permanentemente'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showGroupForm && (
         <div
