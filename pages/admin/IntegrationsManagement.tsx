@@ -17,6 +17,8 @@ import toast from 'react-hot-toast';
 import { usePaymentSettings } from '../../src/hooks/usePaymentSettings';
 import { useWebhookLogs } from '../../src/hooks/useWebhookLogs';
 import WhatsappNotificationsSection from '../../components/admin/integrations/WhatsappNotificationsSection';
+import WhatsappGatewaySection from '../../components/admin/integrations/WhatsappGatewaySection';
+import WhatsappGatewayAutomationSection from '../../components/admin/integrations/WhatsappGatewayAutomationSection';
 
 const IntegrationsManagement: React.FC = () => {
   const {
@@ -473,6 +475,10 @@ const IntegrationsManagement: React.FC = () => {
           ) : null}
         </div>
       </section>
+
+      <WhatsappGatewaySection />
+
+      <WhatsappGatewayAutomationSection />
 
       <WhatsappNotificationsSection />
     </div>

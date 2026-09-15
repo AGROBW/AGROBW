@@ -70,10 +70,10 @@ const WhatsappNotificationsSection: React.FC = () => {
     <>
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
-          Notificações
+          Integracao atual
         </p>
         <h2 className="mt-2 flex items-center gap-2 text-2xl font-bold text-slate-900">
-          <MessageCircle className="h-6 w-6 text-emerald-600" /> WhatsApp do anunciante
+          <MessageCircle className="h-6 w-6 text-emerald-600" /> WhatsApp do anunciante - Meta Cloud API
         </h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
           Avisa o anunciante no WhatsApp quando surge um novo interessado (lead). Usa o WhatsApp Cloud
