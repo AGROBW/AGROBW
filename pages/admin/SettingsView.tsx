@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   BellRing,
+  BarChart3,
   CreditCard,
   FileText,
   Globe,
@@ -34,6 +35,7 @@ import PrivacyPageManagement from './PrivacyPageManagement';
 import RadarMatchEmailManagement from './RadarMatchEmailManagement';
 import RenewalNotificationSettingsManagement from './RenewalNotificationSettingsManagement';
 import TermsPageManagement from './TermsPageManagement';
+import ContextualUpsellSettingsManagement from './ContextualUpsellSettingsManagement';
 
 type SettingsTab =
   | 'banners'
@@ -54,7 +56,8 @@ type SettingsTab =
   | 'renewal'
   | 'ranking'
   | 'highlightCooldown'
-  | 'boosters';
+  | 'boosters'
+  | 'upsell';
 
 const SettingsView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('banners');
@@ -79,6 +82,7 @@ const SettingsView: React.FC = () => {
     { id: 'ranking' as SettingsTab, label: 'Ranking Categorias', icon: SlidersHorizontal },
     { id: 'highlightCooldown' as SettingsTab, label: 'Cooldown Destaques', icon: Sparkles },
     { id: 'boosters' as SettingsTab, label: 'Boosters', icon: Sparkles },
+    { id: 'upsell' as SettingsTab, label: 'Upsell Contextual', icon: BarChart3 },
   ];
 
   return (
@@ -135,6 +139,7 @@ const SettingsView: React.FC = () => {
         {activeTab === 'ranking' && <CategoryRankingSettingsManagement />}
         {activeTab === 'highlightCooldown' && <HighlightSettingsManagement />}
         {activeTab === 'boosters' && <PaymentsBoostersTab />}
+        {activeTab === 'upsell' && <ContextualUpsellSettingsManagement />}
       </div>
     </div>
   );

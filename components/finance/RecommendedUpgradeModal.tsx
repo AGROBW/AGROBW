@@ -20,6 +20,7 @@ interface RecommendedUpgradeModalProps {
   nextPlan: Plan | null;
   userId?: string;
   onScheduledChangeCreated?: () => void | Promise<void>;
+  onCheckoutStarted?: () => void | Promise<void>;
 }
 
 const formatCurrency = (value: number) =>
@@ -38,6 +39,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
   nextPlan,
   userId,
   onScheduledChangeCreated,
+  onCheckoutStarted,
 }) => {
   const { settings } = useLayout();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
@@ -154,7 +156,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
         billingCycle,
         amount,
         userId,
-      });
+      }, { onCheckoutCreated: onCheckoutStarted });
 
       toast.dismiss('upgrade-checkout-loading');
 

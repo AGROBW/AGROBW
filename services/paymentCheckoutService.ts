@@ -12,6 +12,10 @@ export interface CheckoutRequest {
   itemName?: string;
 }
 
+export interface CheckoutLifecycleOptions {
+  onCheckoutCreated?: () => void | Promise<void>;
+}
+
 export interface BoosterCheckoutRequest {
   boosterId: string;
   boosterName: string;
@@ -97,7 +101,8 @@ const readFunctionErrorResponse = async (response?: Response): Promise<string | 
 };
 
 const initiateAsaasCheckout = async (
-  request: CheckoutRequest
+  request: CheckoutRequest,
+  options?: CheckoutLifecycleOptions,
 ): Promise<CheckoutResult> => {
   try {
     const {
@@ -159,6 +164,17 @@ const initiateAsaasCheckout = async (
       };
     }
 
+    if (options?.onCheckoutCreated) {
+      try {
+        await Promise.race([
+          Promise.resolve(options.onCheckoutCreated()),
+          new Promise<void>((resolve) => window.setTimeout(resolve, 800)),
+        ]);
+      } catch (trackingError) {
+        console.warn('Falha nao bloqueante ao registrar origem do checkout:', trackingError);
+      }
+    }
+
     window.location.assign(data.url);
 
     return {
@@ -176,12 +192,13 @@ const initiateAsaasCheckout = async (
 };
 
 export const initiatePlatformPlanCheckout = async (
-  request: CheckoutRequest
+  request: CheckoutRequest,
+  options?: CheckoutLifecycleOptions,
 ): Promise<CheckoutResult> => {
   const result = await initiateAsaasCheckout({
     ...request,
     itemType: 'plan',
-  });
+  }, options);
 
   return { ...result, provider: 'asaas' };
 };

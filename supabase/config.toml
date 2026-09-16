@@ -119,3 +119,8 @@ entrypoint = "./functions/sync-market-quote-sources/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/sync-subscription-downgrades/index.ts"
+
+[functions.purge-contextual-upsell-data]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/purge-contextual-upsell-data/index.ts"

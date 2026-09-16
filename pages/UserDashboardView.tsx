@@ -55,6 +55,11 @@ import {
 import { initiateBoosterCheckout } from '../services/paymentCheckoutService';
 import SellerStoreDashboard from '../components/dashboard/SellerStoreDashboard';
 import CommercialIntelligenceDashboard from '../components/dashboard/CommercialIntelligenceDashboard';
+import ContextualUpsellCard from '../components/finance/ContextualUpsellCard';
+import {
+  readContextualUpsellCheckoutIntent,
+  recordContextualUpsellCheckoutStarted,
+} from '../src/lib/contextualUpsellIntent';
 
 const Icons = {
   Dashboard: () => <LayoutGrid className="w-5 h-5" strokeWidth={1.5} />,
@@ -2159,6 +2164,18 @@ const UserDashboardView: React.FC = () => {
         </div>
         </div>
 
+        <ContextualUpsellCard
+          context="ad_limit"
+          adsLimit={usage.adsLimit}
+          usagePercent={
+            usage.adsLimit === 0
+              ? 100
+              : usage.adsLimit !== null && usage.adsLimit !== undefined && usage.adsLimit > 0
+                ? (usage.adsUsed / usage.adsLimit) * 100
+                : 0
+          }
+        />
+
         {boosters[0] && (
           <>
           <style>{`
@@ -3382,6 +3399,8 @@ const UserDashboardView: React.FC = () => {
       setChangingPlanId(plan.id);
 
       try {
+        const contextualIntent = readContextualUpsellCheckoutIntent();
+        const matchingIntent = contextualIntent?.targetPlanId === plan.id ? contextualIntent : null;
         const amount =
           effectiveBillingCycle === 'yearly'
             ? calculateYearlyTotal(Number(plan.monthly_price ?? 0), Number(plan.yearly_price ?? 0))
@@ -3394,6 +3413,10 @@ const UserDashboardView: React.FC = () => {
           billingCycle: effectiveBillingCycle,
           amount,
           userId: user.id,
+        }, {
+          onCheckoutCreated: matchingIntent
+            ? async () => { await recordContextualUpsellCheckoutStarted(matchingIntent); }
+            : undefined,
         });
 
         if (!result.success) {

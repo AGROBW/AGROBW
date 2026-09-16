@@ -1091,7 +1091,8 @@ serve(async (req) => {
         provider: 'asaas',
         provider_customer_id: providerCustomerId,
         provider_subscription_id: providerSubscriptionId,
-        provider_checkout_session_id: providerCheckoutSessionId,
+        provider_checkout_session_id:
+          providerCheckoutSessionId || existingPayment?.provider_checkout_session_id || null,
         amount_paid: amount,
         currency,
         current_period_start: currentPeriodStart,
@@ -1222,7 +1223,8 @@ serve(async (req) => {
         provider_customer_id: providerCustomerId,
         provider_subscription_id: providerSubscriptionId,
         provider_invoice_id: providerInvoiceId,
-        provider_checkout_session_id: providerCheckoutSessionId,
+        provider_checkout_session_id:
+          providerCheckoutSessionId || existingPayment?.provider_checkout_session_id || null,
         external_reference: externalReference,
         billing_model: itemType === 'plan' ? billingModel || 'one_time' : 'one_time',
         billing_cycle: itemType === 'plan' ? billingCycle : null,
@@ -1330,6 +1332,32 @@ serve(async (req) => {
 
       if (cancelSubscriptionError) {
         throw cancelSubscriptionError;
+      }
+    }
+
+    const finalSubscriptionStatus = mapSubscriptionStatus(
+      eventType,
+      readString(payment.status, subscription.status),
+    );
+    if (itemType === 'plan' && userId && planId && finalSubscriptionStatus === 'active') {
+      const conversionKey = providerCheckoutSessionId
+        || existingPayment?.provider_checkout_session_id
+        || effectivePaymentId;
+      if (conversionKey) {
+        try {
+          const { error: attributionError } = await supabaseAdmin.rpc(
+            'attribute_contextual_upsell_conversion',
+            { p_user_id: userId, p_plan_id: planId, p_conversion_key: conversionKey },
+          );
+          if (attributionError) {
+            console.error('[webhook-asaas] contextual upsell attribution failed', attributionError.code);
+          }
+        } catch (attributionError) {
+          console.error(
+            '[webhook-asaas] contextual upsell attribution threw',
+            attributionError instanceof Error ? attributionError.name : 'UNKNOWN_ERROR',
+          );
+        }
       }
     }
 
