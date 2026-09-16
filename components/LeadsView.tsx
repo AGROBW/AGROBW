@@ -45,6 +45,7 @@ import {
   type LeadQualificationLevel,
 } from '../src/lib/leads/leadQualification';
 import LeadProposalComposer from './leads/LeadProposalComposer';
+import ContextualUpsellCard from './finance/ContextualUpsellCard';
 
 const PAGE_SIZE = 30;
 
@@ -472,6 +473,10 @@ const LeadsView: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {leads.some((lead) => lead.is_locked) && (
+        <ContextualUpsellCard context="lead_locked" resourceType="lead" />
+      )}
 
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
