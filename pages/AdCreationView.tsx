@@ -4,6 +4,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CATEGORIES } from '../constants';
 import { AdStatus } from '../types';
 import { useCategoryGroupCatalog } from '../src/hooks/useCategoryGroupCatalog';
+import {
+  resolveAnnouncementEditSubcategory,
+  resolveAnnouncementEditTaxonomy,
+} from '../src/lib/announcementEditTaxonomy';
 import { getCategoryIconComponent } from '../src/lib/categoryVisuals';
 import { usePlanCheck } from '../src/hooks/usePlanCheck';
 import { useSubscription } from '../src/hooks/useSubscription';
@@ -413,7 +417,8 @@ const AdCreationView: React.FC = () => {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
-  const [dbCategories, setDbCategories] = useState<Array<{ id: string; name: string; slug: string; parent_group_slug?: string | null; icon?: string | null; technical_fields_schema?: any[] }>>([]);
+  const [dbCategories, setDbCategories] = useState<Array<{ id: string; name: string; slug: string; parent_group_slug?: string | null; icon_name?: string | null; technical_fields_schema?: any[] }>>([]);
+  const [dbCategoriesLoading, setDbCategoriesLoading] = useState(true);
   const [dbSubcategories, setDbSubcategories] = useState<Array<{ id: string; category_id: string; name: string; slug: string }>>([]);
   const [technicalFieldsSchema, setTechnicalFieldsSchema] = useState<any[]>([]);
   const [videoItem, setVideoItem] = useState<VideoItem | null>(null);
@@ -579,7 +584,7 @@ const AdCreationView: React.FC = () => {
 
   useEffect(() => {
     const loadEditAnnouncement = async () => {
-      if (!editAdId || !user?.id || categoryCatalogLoading) return;
+      if (!editAdId || !user?.id || categoryCatalogLoading || dbCategoriesLoading) return;
       if (loadedEditAdIdRef.current === editAdId) return;
 
       setIsLoadingEditAd(true);
@@ -640,14 +645,24 @@ const AdCreationView: React.FC = () => {
           return acc;
         }, {});
 
+        const requestedCategoryId = requestPayload.category_id || adData.category_id || '';
+        const requestedCategorySlug = requestPayload.category_slug || adData.category_slug || '';
+        const resolvedTaxonomy = resolveAnnouncementEditTaxonomy({
+          categoryId: requestedCategoryId,
+          categorySlug: requestedCategorySlug,
+          categories: dbCategories,
+          findGroupBySlug,
+          findGroupForCategorySlug,
+        });
+
         const nextFormData = {
           title: requestPayload.title ?? adData.title ?? '',
           description: requestPayload.description ?? adData.description ?? '',
           price: Number(requestPayload.price ?? adData.price ?? 0),
           priceNegotiable: Boolean(requestPayload.price_negotiable ?? adData.price_negotiable ?? requestPayload.accepts_trade ?? adData.accepts_trade),
-          categoryGroupSlug: findGroupForCategorySlug(requestPayload.category_slug || adData.category_slug)?.slug || findGroupBySlug(requestPayload.category_slug || adData.category_slug)?.slug || requestPayload.category_slug || adData.category_slug || '',
-          categoryId: requestPayload.category_id || adData.category_id || '',
-          categorySlug: requestPayload.category_slug || adData.category_slug || '',
+          categoryGroupSlug: resolvedTaxonomy.categoryGroupSlug,
+          categoryId: resolvedTaxonomy.categoryId,
+          categorySlug: resolvedTaxonomy.categorySlug,
           subCategoryId: requestPayload.sub_category_id || adData.sub_category_id || '',
           subCategoryLabel: requestPayload.sub_category_label || adData.sub_category_label || '',
           quantity: Number(requestPayload.quantity ?? adData.quantity ?? 1),
@@ -723,7 +738,7 @@ const AdCreationView: React.FC = () => {
     };
 
     void loadEditAnnouncement();
-  }, [categoryCatalogLoading, dbCategories, editAdId, findGroupBySlug, findGroupForCategorySlug, navigate, user?.id]);
+  }, [categoryCatalogLoading, dbCategories, dbCategoriesLoading, editAdId, findGroupBySlug, findGroupForCategorySlug, navigate, user?.id]);
 
   useEffect(() => {
     if (pendingTechnicalDetails.length === 0 || technicalFieldsSchema.length === 0) return;
@@ -759,18 +774,34 @@ const AdCreationView: React.FC = () => {
   }, [formData.quantity, formData.unitPrice]);
 
   useEffect(() => {
+    let isActive = true;
+
     const loadCategories = async () => {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('id,name,slug,parent_group_slug,icon,technical_fields_schema')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
-        .order('name', { ascending: true });
-      if (!error && data) {
-        setDbCategories(data as Array<{ id: string; name: string; slug: string; parent_group_slug?: string | null; icon?: string | null; technical_fields_schema?: any[] }>);
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('id,name,slug,parent_group_slug,icon_name,technical_fields_schema')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true })
+          .order('name', { ascending: true });
+
+        if (!isActive) return;
+        if (error) throw error;
+
+        setDbCategories((data || []) as Array<{ id: string; name: string; slug: string; parent_group_slug?: string | null; icon_name?: string | null; technical_fields_schema?: any[] }>);
+      } catch (error) {
+        if (!isActive) return;
+        appError('[AdCreation] Erro ao carregar categorias do formulario', error);
+        setDbCategories([]);
+      } finally {
+        if (isActive) setDbCategoriesLoading(false);
       }
     };
-    loadCategories();
+
+    void loadCategories();
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -885,36 +916,21 @@ const AdCreationView: React.FC = () => {
   useEffect(() => {
     if (!formData.categoryId || dbSubcategories.length === 0) return;
 
-    const currentId = String(formData.subCategoryId || '').trim();
-    const currentLabel = String(formData.subCategoryLabel || '').trim();
-    if (!currentId && !currentLabel) return;
-
-    const normalizedCurrentId = normalizeSubcategoryValue(currentId);
-    const normalizedCurrentLabel = normalizeSubcategoryValue(currentLabel);
-    const matchedSubcategory = dbSubcategories.find((subcategory) => (
-      subcategory.id === currentId ||
-      subcategory.slug === currentId ||
-      normalizeSubcategoryValue(subcategory.slug) === normalizedCurrentId ||
-      normalizeSubcategoryValue(subcategory.name) === normalizedCurrentLabel ||
-      normalizeSubcategoryValue(subcategory.name) === normalizedCurrentId
-    ));
-
-    if (!matchedSubcategory) {
-      if (!currentId && currentLabel) {
-        setFormData((prev: any) => ({
-          ...prev,
-          subCategoryId: normalizeSubcategoryValue(currentLabel),
-          subCategoryLabel: currentLabel,
-        }));
-      }
-      return;
-    }
-    if (formData.subCategoryId === matchedSubcategory.id && formData.subCategoryLabel === matchedSubcategory.name) return;
+    const resolvedSubcategory = resolveAnnouncementEditSubcategory(
+      formData.subCategoryId,
+      formData.subCategoryLabel,
+      dbSubcategories
+    );
+    if (!resolvedSubcategory.id && !resolvedSubcategory.label) return;
+    if (
+      formData.subCategoryId === resolvedSubcategory.id
+      && formData.subCategoryLabel === resolvedSubcategory.label
+    ) return;
 
     setFormData((prev: any) => ({
       ...prev,
-      subCategoryId: matchedSubcategory.id,
-      subCategoryLabel: matchedSubcategory.name,
+      subCategoryId: resolvedSubcategory.id,
+      subCategoryLabel: resolvedSubcategory.label,
     }));
   }, [dbSubcategories, formData.categoryId, formData.subCategoryId, formData.subCategoryLabel]);
 
