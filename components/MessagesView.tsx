@@ -16,6 +16,7 @@ import {
 import { useGuestAnnouncementContact } from '../src/hooks/useGuestAnnouncementContact';
 import { getMessageInboxTargetFromSearch, getMessageInboxTargetStatus } from '../src/lib/guestContactInbox';
 import { toast } from 'sonner';
+import ContextualUpsellCard from './finance/ContextualUpsellCard';
 
 interface MessagesViewProps {
   initialChatId?: string;
@@ -148,6 +149,12 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   const archivedGuestContactsCount = chats.filter(chat =>
     chat.sourceKind === 'guest_contact' && chat.guestContactArchived
   ).length;
+  const lockedGuestContact = chats.find(chat =>
+    chat.sourceKind === 'guest_contact'
+    && !chat.guestContactArchived
+    && chat.isFrozen
+    && chat.freezeReason === 'lead_contact_expired'
+  );
   const sentUnreadChatsCount = chats.filter(
     chat => (chat.direction || 'received') === 'sent' && chat.unreadCount > 0
   ).length;
@@ -293,7 +300,18 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
   }
   
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden h-[calc(100vh-200px)] flex">
+    <>
+      {lockedGuestContact && (
+        <ContextualUpsellCard
+          context="lead_locked"
+          resourceType="lead"
+          resourceId={lockedGuestContact.guestContactId}
+          className="mb-4"
+        />
+      )}
+      <div className={`bg-white rounded-2xl border border-slate-200 overflow-hidden flex ${
+        lockedGuestContact ? 'h-[calc(100vh-330px)] min-h-[560px]' : 'h-[calc(100vh-200px)]'
+      }`}>
       {/* Lista de Chats */}
       <div className={`${selectedChatId ? 'hidden md:flex' : 'flex'} w-full md:w-96 flex-col border-r border-slate-200`}>
         {/* Header da Lista */}
@@ -925,7 +943,8 @@ const MessagesView: React.FC<MessagesViewProps> = ({ initialChatId }) => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

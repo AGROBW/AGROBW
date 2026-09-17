@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   useMessages: vi.fn(),
   useGuestContact: vi.fn(),
   toastError: vi.fn(),
+  upsellProps: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -65,6 +66,12 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('../../../components/LogisticsSidebar', () => ({ default: () => null }));
+vi.mock('../../../components/finance/ContextualUpsellCard', () => ({
+  default: (props: Record<string, unknown>) => {
+    mocks.upsellProps.push(props);
+    return null;
+  },
+}));
 
 import MessagesView from '../../../components/MessagesView';
 
@@ -103,6 +110,7 @@ describe('MessagesView guest deep link', () => {
     mocks.useMessages.mockClear();
     mocks.useGuestContact.mockClear();
     mocks.toastError.mockClear();
+    mocks.upsellProps = [];
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -158,5 +166,52 @@ describe('MessagesView guest deep link', () => {
 
     expect(mocks.useMessages.mock.calls.some((call) => call[0] === 'chat-1')).toBe(true);
     expect(mocks.navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('oferece upgrade quando existe contato visitante bloqueado na caixa de entrada', async () => {
+    mocks.location.search = '';
+    mocks.chats = [makeChat({
+      id: 'guest-contact:contact-locked',
+      sourceKind: 'guest_contact',
+      guestContactId: 'contact-locked',
+      isFrozen: true,
+      freezeReason: 'lead_contact_expired',
+      guestContactArchived: false,
+    })];
+    mocks.chatsLoading = false;
+
+    await act(async () => root.render(<MessagesView />));
+
+    expect(mocks.upsellProps).toContainEqual(expect.objectContaining({
+      context: 'lead_locked',
+      resourceType: 'lead',
+      resourceId: 'contact-locked',
+    }));
+  });
+
+  it('nao oferece upgrade por contato visitante liberado ou arquivado', async () => {
+    mocks.location.search = '';
+    mocks.chats = [
+      makeChat({
+        id: 'guest-contact:contact-open',
+        sourceKind: 'guest_contact',
+        guestContactId: 'contact-open',
+        isFrozen: false,
+        guestContactArchived: false,
+      }),
+      makeChat({
+        id: 'guest-contact:contact-archived',
+        sourceKind: 'guest_contact',
+        guestContactId: 'contact-archived',
+        isFrozen: true,
+        freezeReason: 'lead_contact_expired',
+        guestContactArchived: true,
+      }),
+    ];
+    mocks.chatsLoading = false;
+
+    await act(async () => root.render(<MessagesView />));
+
+    expect(mocks.upsellProps).toHaveLength(0);
   });
 });
