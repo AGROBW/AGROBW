@@ -180,6 +180,10 @@ const UserDashboardView: React.FC = () => {
   } = useHighlightBoosters();
   const { settings: highlightSettings } = useHighlightSettings();
   const [newLeadsCount, setNewLeadsCount] = useState(0);
+  const [contextualUpsellIntent] = useState(() => readContextualUpsellCheckoutIntent());
+  const [isPlanChangePanelOpen, setIsPlanChangePanelOpen] = useState(
+    () => Boolean(contextualUpsellIntent)
+  );
   const lastGrowthNotificationIdRef = useRef<string | null>(null);
   const lastRenewalNotificationIdRef = useRef<string | null>(null);
   const sidebarNavRef = useRef<HTMLDivElement | null>(null);
@@ -3096,7 +3100,6 @@ const UserDashboardView: React.FC = () => {
 
   const FinanceDashboard = () => {
     const { plansRaw } = usePlans();
-    const [isPlanChangePanelOpen, setIsPlanChangePanelOpen] = useState(false);
     const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
 
     const activeManagedStatuses = new Set(['active', 'trialing', 'past_due']);
@@ -3284,6 +3287,13 @@ const UserDashboardView: React.FC = () => {
         return 'Falar com comercial';
       }
 
+      if (
+        contextualUpsellIntent?.targetPlanId === plan.id &&
+        !(hasActiveManagedPlan && isCurrentPlanRecurring)
+      ) {
+        return 'Continuar para pagamento';
+      }
+
       if (!hasActiveManagedPlan) {
         return `${getPlanCheckoutVerb(plan)} ${effectiveBillingCycle === 'yearly' ? 'Anual' : 'Mensal'}`;
       }
@@ -3336,6 +3346,13 @@ const UserDashboardView: React.FC = () => {
     const getManagedPlanSupportTextResolvedSafe = (plan: (typeof activePlans)[number]) => {
       if (isCustomPlan(plan.name)) {
         return 'Plano com atendimento consultivo. Fale com a equipe para receber a proposta adequada.';
+      }
+
+      if (
+        contextualUpsellIntent?.targetPlanId === plan.id &&
+        !(hasActiveManagedPlan && isCurrentPlanRecurring)
+      ) {
+        return 'Plano recomendado para a necessidade identificada. Revise o valor e continue para o checkout seguro do Asaas.';
       }
 
       if (!hasActiveManagedPlan) {
@@ -3399,8 +3416,10 @@ const UserDashboardView: React.FC = () => {
       setChangingPlanId(plan.id);
 
       try {
-        const contextualIntent = readContextualUpsellCheckoutIntent();
-        const matchingIntent = contextualIntent?.targetPlanId === plan.id ? contextualIntent : null;
+        const freshContextualIntent = readContextualUpsellCheckoutIntent();
+        const matchingIntent = freshContextualIntent?.targetPlanId === plan.id
+          ? freshContextualIntent
+          : null;
         const amount =
           effectiveBillingCycle === 'yearly'
             ? calculateYearlyTotal(Number(plan.monthly_price ?? 0), Number(plan.yearly_price ?? 0))
@@ -3642,14 +3661,27 @@ const UserDashboardView: React.FC = () => {
                     effectiveBillingCycle === 'yearly'
                       ? calculateYearlyTotal(Number(plan.monthly_price ?? 0), Number(plan.yearly_price ?? 0))
                       : Number(plan.monthly_price ?? 0);
+                  const isContextualRecommendation = Boolean(
+                    contextualUpsellIntent?.targetPlanId === plan.id &&
+                    !(hasActiveManagedPlan && isCurrentPlanRecurring)
+                  );
 
                   return (
                     <div
                       key={plan.id}
-                      className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm"
+                      className={`rounded-[22px] border bg-white p-5 shadow-sm ${
+                        isContextualRecommendation
+                          ? 'border-emerald-400 ring-4 ring-emerald-50'
+                          : 'border-slate-200'
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
+                          {isContextualRecommendation ? (
+                            <span className="mb-3 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">
+                              Recomendado para você
+                            </span>
+                          ) : null}
                           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                             {plan.card_eyebrow?.trim() || 'Plano BWAGRO'}
                           </p>

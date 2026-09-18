@@ -109,6 +109,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
         : nextPlan.monthly_price;
 
   const yearlySavings = calculateYearlySavings(nextPlan.monthly_price, nextPlan.yearly_price);
+  const isConsultativePlan = isCustomPlan(nextPlan.name);
   const checkoutSummary =
     nextPlan.billing_model === 'recurring'
       ? billingCycle === 'monthly'
@@ -118,9 +119,13 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
         ? `Compra avulsa com vigência mensal de R$ ${formatCurrency(nextPlan.monthly_price)}.`
         : `Compra avulsa com vigência anual de R$ ${formatCurrency(calculateYearlyTotal(nextPlan.monthly_price, nextPlan.yearly_price))} cobrados de uma vez.`;
   const checkoutActionLabel =
-    nextPlan.billing_model === 'recurring'
-      ? `Contratar ${getBillingCycleLabel(billingCycle)}`
-      : `Comprar ${getBillingCycleLabel(billingCycle)}`;
+    isConsultativePlan
+      ? 'Falar com comercial'
+      : currentPlan
+      ? 'Revisar upgrade no Financeiro'
+      : nextPlan.billing_model === 'recurring'
+        ? `Contratar ${getBillingCycleLabel(billingCycle)}`
+        : `Comprar ${getBillingCycleLabel(billingCycle)}`;
 
   const handleSubscribe = async () => {
     if (!userId) {
@@ -134,7 +139,7 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
     }
 
     if (currentPlan) {
-      toast('Os ajustes de planos com cobrança recorrente em andamento ficam centralizados na aba Financeiro.');
+      toast(`Confira o plano ${nextPlan.name} no Financeiro antes de continuar para o pagamento.`);
       onClose();
       window.location.href = '/minha-conta/financeiro';
       return;
@@ -198,7 +203,11 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
                 {currentPlan?.name ? `${currentPlan.name} para ${nextPlan.name}` : nextPlan.name}
               </h3>
               <p className="mt-2 text-xs md:text-sm text-slate-200">
-                Use o checkout hospedado do Asaas para ativar uma nova contratação com mais alcance e recursos.
+                {isConsultativePlan
+                  ? 'Converse com a equipe para montar a contratação adequada ao seu negócio.'
+                  : currentPlan
+                  ? 'Revise o plano recomendado no Financeiro antes de continuar para o checkout seguro do Asaas.'
+                  : 'Use o checkout hospedado do Asaas para ativar uma nova contratação com mais alcance e recursos.'}
               </p>
             </div>
             <button
@@ -293,7 +302,11 @@ const RecommendedUpgradeModal: React.FC<RecommendedUpgradeModalProps> = ({
 
             <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <p className="max-w-xl text-xs leading-5 text-slate-500">
-                Novas contratações passam pelo checkout hospedado do Asaas. Mudanças em um plano com cobrança recorrente em andamento ficam centralizadas na aba Financeiro.
+                {isConsultativePlan
+                  ? 'A equipe comercial apresentará condições, vigência e próximos passos para este plano.'
+                  : currentPlan
+                  ? `Você será direcionado ao Financeiro com o plano ${nextPlan.name} destacado para revisar valor e vigência antes do pagamento.`
+                  : 'Novas contratações passam pelo checkout hospedado do Asaas.'}
               </p>
               <button
                 onClick={() => void handleSubscribe()}

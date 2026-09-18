@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const checkoutService = readFileSync(resolve('services/paymentCheckoutService.ts'), 'utf8');
 const dashboard = readFileSync(resolve('pages/UserDashboardView.tsx'), 'utf8');
+const upgradeModal = readFileSync(resolve('components/finance/RecommendedUpgradeModal.tsx'), 'utf8');
 const webhook = readFileSync(resolve('supabase/functions/webhook-asaas/index.ts'), 'utf8');
 const migration = readFileSync(resolve('sql/create_contextual_upsell_2026-09-16.sql'), 'utf8');
 const supabaseConfig = readFileSync(resolve('supabase/config.toml'), 'utf8');
@@ -21,7 +22,25 @@ describe('contextual upsell checkout attribution flow', () => {
   it('transporta o contexto ate o checkout real do Financeiro', () => {
     expect(dashboard).toContain('readContextualUpsellCheckoutIntent()');
     expect(dashboard).toContain('recordContextualUpsellCheckoutStarted(matchingIntent)');
-    expect(dashboard).toContain('contextualIntent?.targetPlanId === plan.id');
+    expect(dashboard).toContain('contextualUpsellIntent?.targetPlanId === plan.id');
+    expect(dashboard).toContain('const freshContextualIntent = readContextualUpsellCheckoutIntent()');
+    expect(dashboard).toContain('freshContextualIntent?.targetPlanId === plan.id');
+  });
+
+  it('explica a revisao no Financeiro e destaca somente o plano recomendado', () => {
+    expect(upgradeModal).toContain("? 'Revisar upgrade no Financeiro'");
+    expect(upgradeModal).toContain('com o plano ${nextPlan.name} destacado');
+    expect(dashboard).toContain("return 'Continuar para pagamento'");
+    expect(dashboard).toContain('Recomendado para você');
+    expect(dashboard).toContain('const isContextualRecommendation = Boolean(');
+    expect(dashboard).toContain('!(hasActiveManagedPlan && isCurrentPlanRecurring)');
+  });
+
+  it('preserva a escolha de fechar o painel durante rerenders do dashboard', () => {
+    const panelState = dashboard.indexOf('const [isPlanChangePanelOpen, setIsPlanChangePanelOpen]');
+    const financeDashboard = dashboard.indexOf('const FinanceDashboard = () =>');
+    expect(panelState).toBeGreaterThan(-1);
+    expect(financeDashboard).toBeGreaterThan(panelState);
   });
 
   it('atribui no webhook depois das gravacoes e sem transformar telemetria em erro de pagamento', () => {
