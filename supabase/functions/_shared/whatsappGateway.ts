@@ -155,6 +155,7 @@ export const createWhatsappGatewayTestPayload = (
   recipientPhone,
   message: WHATSAPP_GATEWAY_TEST_MESSAGE,
   source: 'bwagro_admin_test',
+  eventType: 'message_send',
 });
 
 export const createWhatsappGatewayTextPayload = (params: {
@@ -162,7 +163,7 @@ export const createWhatsappGatewayTextPayload = (params: {
   recipientPhone: string;
   message: string;
   source: string;
-  eventType?: string | null;
+  eventType: string;
 }) => ({
   version: '2026-09-14',
   request_id: params.requestId,
@@ -172,6 +173,6 @@ export const createWhatsappGatewayTextPayload = (params: {
   text: { body: params.message },
   metadata: {
     source: params.source,
-    ...(params.eventType ? { event_type: params.eventType } : {}),
+    event_type: params.eventType,
   },
 });

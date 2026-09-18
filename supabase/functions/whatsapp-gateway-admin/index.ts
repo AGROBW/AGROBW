@@ -162,6 +162,7 @@ serve(async (req) => {
             recipientPhone: settings.default_recipient_phone,
             message: 'Teste de integracao da Central WhatsApp BW Agro. Nenhuma acao e necessaria.',
             source: 'bwagro_admin_test',
+            eventType: 'message_send',
           },
     );
 

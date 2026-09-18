@@ -93,7 +93,7 @@ describe('Central WhatsApp stage 3 worker', () => {
     expect(worker).toContain('MAX_REQUEST_BYTES');
     expect(worker).toContain('MAX_BATCH_RUNTIME_MS = 90_000');
     expect(worker).toContain('return Math.min(25');
-    expect(worker).toContain("supabaseAdmin.rpc(\n        'release_whatsapp_gateway_jobs'");
+    expect(worker).toMatch(/supabaseAdmin\.rpc\(\r?\n\s*'release_whatsapp_gateway_jobs'/);
     expect(worker).toContain('dispatchWhatsappGatewayRequest');
     expect(worker).toContain("await validateWhatsappGatewayDestination(gatewaySettings, 'text')");
     expect(worker.indexOf("await validateWhatsappGatewayDestination(gatewaySettings, 'text')"))
@@ -107,7 +107,9 @@ describe('Central WhatsApp stage 3 worker', () => {
     expect(worker).toContain('transitionErrorCount');
     expect(worker).toContain('p_retryable: !securityError && !terminalPayloadError');
     expect(worker).toContain('RECIPIENT_LOOKUP_FAILED');
+    expect(worker).toContain("errorCode === 'INVALID_EVENT_TYPE'");
     expect(worker).toContain('GATEWAY_DNS_UNAVAILABLE');
+    expect(dispatcher).toContain("typeof request.eventType !== 'string'");
   });
 
   it('registra a funcao interna no Supabase', () => {
