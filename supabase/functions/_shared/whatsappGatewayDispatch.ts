@@ -23,7 +23,7 @@ export type WhatsappGatewayDispatchRequest =
       recipientPhone: string;
       message: string;
       source: string;
-      eventType?: string | null;
+      eventType: string;
     };
 
 export interface WhatsappGatewayDispatchResult {
@@ -85,6 +85,9 @@ export const dispatchWhatsappGatewayRequest = async (
   if (!isHealth) {
     if (!/^[1-9]\d{9,14}$/.test(request.recipientPhone)) throw new Error('INVALID_RECIPIENT_PHONE');
     if (!request.message.trim() || request.message.length > 1800) throw new Error('INVALID_MESSAGE');
+    if (typeof request.eventType !== 'string' || !request.eventType.trim() || request.eventType.length > 80) {
+      throw new Error('INVALID_EVENT_TYPE');
+    }
   }
 
   const payload = isHealth

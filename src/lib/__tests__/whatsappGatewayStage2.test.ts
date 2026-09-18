@@ -73,6 +73,7 @@ describe('Central WhatsApp stage 2 protocol', () => {
     expect(payload.to).toBe('5564999999999');
     expect(payload.text.body).toBe(WHATSAPP_GATEWAY_TEST_MESSAGE);
     expect(payload.idempotency_key).toBe('request-1');
+    expect(payload.metadata).toEqual({ source: 'bwagro_admin_test', event_type: 'message_send' });
   });
 });
 

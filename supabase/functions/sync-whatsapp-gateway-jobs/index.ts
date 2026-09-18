@@ -329,7 +329,8 @@ serve(async (req) => {
         || errorCode === 'UNSAFE_GATEWAY_PATH'
         || errorCode === 'GATEWAY_HOST_NOT_ALLOWED';
       const terminalPayloadError = errorCode === 'INVALID_RECIPIENT_PHONE'
-        || errorCode === 'INVALID_MESSAGE';
+        || errorCode === 'INVALID_MESSAGE'
+        || errorCode === 'INVALID_EVENT_TYPE';
       const persistedErrorCode = securityError || terminalPayloadError
         || errorCode === 'GATEWAY_DNS_UNAVAILABLE'
         || errorCode === 'GATEWAY_DNS_TIMEOUT'
