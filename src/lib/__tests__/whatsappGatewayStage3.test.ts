@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createWhatsappGatewayTextPayload } from '../../../supabase/functions/_shared/whatsappGateway';
+import {
+  createWhatsappGatewayTextPayload,
+  createWhatsappGatewayTransactionalCardPayload,
+} from '../../../supabase/functions/_shared/whatsappGateway';
 
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 const migration = read('sql/create_whatsapp_central_stage3_2026-09-14.sql');
@@ -14,6 +17,11 @@ const config = read('supabase/config.toml');
 describe('Central WhatsApp stage 3 queue', () => {
   it('cria fila idempotente, privada e sem copiar segredo ou telefone', () => {
     expect(migration).toContain('unique index if not exists idx_whatsapp_gateway_jobs_event_unique');
+    expect(migration).toContain('idx_whatsapp_gateway_jobs_idempotency_key');
+    expect(migration).toContain('idx_whatsapp_gateway_jobs_moderation_cycle_unique');
+    expect(migration).toContain('whatsapp_announcement_moderation_state');
+    expect(migration).toContain('after insert or update on public.announcements');
+    expect(migration).not.toContain('create trigger trg_track_whatsapp_announcement_moderation_cycle');
     expect(migration).toContain('on conflict (event_type, event_key) do nothing');
     expect(migration).toContain('force row level security');
     expect(migration).toContain('revoke all on table public.whatsapp_gateway_jobs from public, anon, authenticated');
@@ -95,6 +103,9 @@ describe('Central WhatsApp stage 3 worker', () => {
     expect(worker).toContain('return Math.min(25');
     expect(worker).toMatch(/supabaseAdmin\.rpc\(\r?\n\s*'release_whatsapp_gateway_jobs'/);
     expect(worker).toContain('dispatchWhatsappGatewayRequest');
+    expect(worker).toContain("CANONICAL_APP_URL = 'https://agrobw.com.br'");
+    expect(worker).toContain('idempotencyKey: job.idempotency_key');
+    expect(worker).toContain("kind: 'transactional_card'");
     expect(worker).toContain("await validateWhatsappGatewayDestination(gatewaySettings, 'text')");
     expect(worker.indexOf("await validateWhatsappGatewayDestination(gatewaySettings, 'text')"))
       .toBeLessThan(worker.indexOf("supabaseAdmin.rpc('claim_whatsapp_gateway_jobs'"));
@@ -119,7 +130,8 @@ describe('Central WhatsApp stage 3 worker', () => {
 
   it('gera payload universal com origem, evento e idempotencia', () => {
     const payload = createWhatsappGatewayTextPayload({
-      requestId: 'job-1',
+      requestId: '550e8400-e29b-41d4-a716-446655440000',
+      idempotencyKey: '6ba7b810-9dad-41d1-80b4-00c04fd430c8',
       recipientPhone: '5564999999999',
       message: 'Novo anuncio',
       source: 'bwagro_queue',
@@ -127,12 +139,35 @@ describe('Central WhatsApp stage 3 worker', () => {
     });
     expect(payload).toMatchObject({
       to: '5564999999999',
-      idempotency_key: 'job-1',
+      idempotency_key: '6ba7b810-9dad-41d1-80b4-00c04fd430c8',
       text: { body: 'Novo anuncio' },
       metadata: {
         source: 'bwagro_queue',
         event_type: 'admin_announcement_pending',
       },
+    });
+  });
+
+  it('gera cartao transacional versionado com fallback e acao', () => {
+    const payload = createWhatsappGatewayTransactionalCardPayload({
+      requestId: '550e8400-e29b-41d4-a716-446655440000',
+      idempotencyKey: '6ba7b810-9dad-41d1-80b4-00c04fd430c8',
+      recipientPhone: '5564999999999',
+      imageUrl: 'https://dockpbyzrvgewgdoaibn.supabase.co/storage/v1/object/public/ads-images/ad.webp',
+      message: 'Novo interessado',
+      actionLabel: 'Ver mensagem',
+      actionUrl: 'https://agrobw.com.br/minha-conta/mensagens?chat=550e8400-e29b-41d4-a716-446655440000',
+      fallback: 'Novo interessado. Veja a conversa.',
+      source: 'bwagro_queue',
+      eventType: 'seller_new_lead',
+    });
+    expect(payload).toMatchObject({
+      version: '2026-09-18',
+      type: 'transactional_card',
+      image: { url: expect.stringContaining('/ads-images/') },
+      action: { type: 'url', label: 'Ver mensagem', url: expect.stringContaining('agrobw.com.br') },
+      fallback: { body: 'Novo interessado. Veja a conversa.' },
+      metadata: { source: 'bwagro_queue', event_type: 'seller_new_lead' },
     });
   });
 });

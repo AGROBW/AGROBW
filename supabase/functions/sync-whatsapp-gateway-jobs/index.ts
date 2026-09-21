@@ -3,6 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.48.1';
 import { getCorsHeadersInternal } from '../_shared/cors.ts';
 import {
   dispatchWhatsappGatewayRequest,
+  isAllowedWhatsappCardActionUrl,
+  isAllowedWhatsappCardImageUrl,
   validateWhatsappGatewayDestination,
 } from '../_shared/whatsappGatewayDispatch.ts';
 
@@ -10,14 +12,17 @@ const corsHeaders = getCorsHeadersInternal();
 const MAX_REQUEST_BYTES = 2048;
 const MAX_BATCH_RUNTIME_MS = 90_000;
 const MIN_REMAINING_RUNTIME_MS = 12_000;
+const CANONICAL_APP_URL = 'https://agrobw.com.br';
 
 type WhatsappGatewayJob = {
   id: string;
+  idempotency_key: string;
   event_type: string;
   recipient_kind: 'admin_default' | 'user';
   recipient_user_id: string | null;
   message_body: string;
   link_path: string | null;
+  metadata: Record<string, unknown>;
 };
 
 const jsonResponse = (body: Record<string, unknown>, status = 200) =>
@@ -50,6 +55,12 @@ const normalizeUserPhone = (value: unknown) => {
 };
 
 const isRetryableStatus = (status: number) => status === 408 || status === 425 || status === 429 || status >= 500;
+
+const truncateUtf16Safe = (value: string, maxLength: number) => {
+  const truncated = value.slice(0, Math.max(0, maxLength));
+  const lastCodeUnit = truncated.charCodeAt(truncated.length - 1);
+  return lastCodeUnit >= 0xD800 && lastCodeUnit <= 0xDBFF ? truncated.slice(0, -1) : truncated;
+};
 
 serve(async (req) => {
   const batchStartedAt = Date.now();
@@ -162,7 +173,7 @@ serve(async (req) => {
   }
 
   const jobs = (Array.isArray(claimedRows) ? claimedRows : []) as WhatsappGatewayJob[];
-  const appUrl = (Deno.env.get('APP_URL') || 'https://agrobw.com.br').replace(/\/$/, '');
+  const appUrl = CANONICAL_APP_URL;
   let sentCount = 0;
   let retryCount = 0;
   let deadLetterCount = 0;
@@ -274,20 +285,50 @@ serve(async (req) => {
 
     const linkSuffix = job.link_path ? `\n\nAcessar: ${appUrl}${job.link_path}` : '';
     const maxBodyLength = Math.max(1, 1800 - linkSuffix.length);
-    const message = `${job.message_body.slice(0, maxBodyLength)}${linkSuffix}`;
+    const message = `${truncateUtf16Safe(job.message_body, maxBodyLength)}${linkSuffix}`;
     const requestId = job.id;
+    const imageUrl = typeof job.metadata?.image_url === 'string' ? job.metadata.image_url : null;
+    const actionUrl = typeof job.metadata?.action_url === 'string' ? job.metadata.action_url : null;
+    const cardMetadata = job.event_type === 'seller_new_lead'
+      && job.metadata?.gateway_contract_version === '2026-09-18'
+      && job.metadata?.message_type === 'transactional_card'
+      && imageUrl
+      && actionUrl
+      && isAllowedWhatsappCardImageUrl(imageUrl)
+      && isAllowedWhatsappCardActionUrl(actionUrl)
+      ? { imageUrl, actionUrl }
+      : null;
+    const fallbackPrefix = `${job.message_body}\n\nVer mensagem: `;
+    const fallback = actionUrl
+      ? `${truncateUtf16Safe(fallbackPrefix, Math.max(1, 1800 - actionUrl.length))}${actionUrl}`
+      : message;
 
     try {
       const result = await dispatchWhatsappGatewayRequest(
         gatewaySettings,
-        {
-          kind: 'text',
-          requestId,
-          recipientPhone,
-          message,
-          source: 'bwagro_queue',
-          eventType: job.event_type,
-        },
+        cardMetadata
+          ? {
+              kind: 'transactional_card',
+              requestId,
+              idempotencyKey: job.idempotency_key,
+              recipientPhone,
+              imageUrl: cardMetadata.imageUrl,
+              message: truncateUtf16Safe(job.message_body, 1024),
+              actionLabel: 'Ver mensagem',
+              actionUrl: cardMetadata.actionUrl,
+              fallback,
+              source: 'bwagro_queue',
+              eventType: job.event_type,
+            }
+          : {
+              kind: 'text',
+              requestId,
+              idempotencyKey: job.idempotency_key,
+              recipientPhone,
+              message,
+              source: 'bwagro_queue',
+              eventType: job.event_type,
+            },
       );
 
       if (result.ok) {
@@ -329,8 +370,12 @@ serve(async (req) => {
         || errorCode === 'UNSAFE_GATEWAY_PATH'
         || errorCode === 'GATEWAY_HOST_NOT_ALLOWED';
       const terminalPayloadError = errorCode === 'INVALID_RECIPIENT_PHONE'
+        || errorCode === 'INVALID_REQUEST_ID'
         || errorCode === 'INVALID_MESSAGE'
-        || errorCode === 'INVALID_EVENT_TYPE';
+        || errorCode === 'INVALID_EVENT_TYPE'
+        || errorCode === 'INVALID_IDEMPOTENCY_KEY'
+        || errorCode === 'PAYLOAD_TOO_LARGE'
+        || errorCode.startsWith('INVALID_CARD_');
       const persistedErrorCode = securityError || terminalPayloadError
         || errorCode === 'GATEWAY_DNS_UNAVAILABLE'
         || errorCode === 'GATEWAY_DNS_TIMEOUT'

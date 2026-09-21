@@ -32,8 +32,12 @@ create table if not exists public.whatsapp_gateway_templates (
 
 create table if not exists public.whatsapp_gateway_jobs (
   id uuid primary key default gen_random_uuid(),
+  idempotency_key uuid not null default gen_random_uuid(),
+  idempotency_contract_version text not null default 'persisted-key-2026-09-21'
+    check (idempotency_contract_version in ('legacy-job-id-2026-09-21', 'persisted-key-2026-09-21')),
   event_type text not null references public.whatsapp_gateway_templates(event_type),
   event_key text not null,
+  event_cycle bigint,
   source_table text not null,
   source_id uuid,
   recipient_kind text not null default 'admin_default'
@@ -58,6 +62,8 @@ create table if not exists public.whatsapp_gateway_jobs (
   updated_at timestamptz not null default now(),
   constraint whatsapp_gateway_jobs_event_key
     check (char_length(trim(event_key)) between 3 and 300),
+  constraint whatsapp_gateway_jobs_event_cycle
+    check (event_cycle is null or event_cycle > 0),
   constraint whatsapp_gateway_jobs_source_table
     check (source_table ~ '^[a-z][a-z0-9_]{2,79}$'),
   constraint whatsapp_gateway_jobs_message
@@ -72,6 +78,14 @@ create table if not exists public.whatsapp_gateway_jobs (
     check (last_error_code is null or char_length(last_error_code) <= 160),
   constraint whatsapp_gateway_jobs_provider_id
     check (provider_message_id is null or char_length(provider_message_id) <= 255)
+);
+
+create table if not exists public.whatsapp_announcement_moderation_state (
+  announcement_id uuid primary key references public.announcements(id) on delete cascade,
+  moderation_cycle bigint not null default 0 check (moderation_cycle >= 0),
+  in_moderation boolean not null default false,
+  last_entered_at timestamptz,
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.whatsapp_gateway_enqueue_failures (
@@ -94,6 +108,17 @@ alter table public.whatsapp_gateway_templates
 
 create unique index if not exists idx_whatsapp_gateway_jobs_event_unique
   on public.whatsapp_gateway_jobs (event_type, event_key);
+create unique index if not exists idx_whatsapp_gateway_jobs_idempotency_key
+  on public.whatsapp_gateway_jobs (idempotency_key);
+create unique index if not exists idx_whatsapp_gateway_jobs_moderation_cycle_unique
+  on public.whatsapp_gateway_jobs (
+    event_type,
+    source_id,
+    event_cycle,
+    recipient_kind,
+    coalesce(recipient_user_id, '00000000-0000-0000-0000-000000000000'::uuid)
+  )
+  where event_type = 'admin_announcement_pending' and event_cycle is not null;
 create index if not exists idx_whatsapp_gateway_jobs_claim
   on public.whatsapp_gateway_jobs (available_at, created_at)
   where status in ('pending', 'retry');
@@ -162,19 +187,76 @@ create trigger trigger_touch_whatsapp_gateway_jobs
 before update on public.whatsapp_gateway_jobs
 for each row execute function public.touch_whatsapp_gateway_queue_updated_at();
 
+create or replace function public.prepare_whatsapp_gateway_job_contract()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public, pg_temp
+as $$
+declare
+  v_cycle bigint;
+  v_chat_id uuid;
+  v_image_url text;
+begin
+  new.idempotency_key := coalesce(new.idempotency_key, gen_random_uuid());
+
+  if new.event_type = 'admin_announcement_pending' and new.source_id is not null then
+    select state.moderation_cycle into v_cycle
+    from public.whatsapp_announcement_moderation_state state
+    where state.announcement_id = new.source_id;
+    v_cycle := greatest(coalesce(v_cycle, 1), 1);
+    new.event_cycle := v_cycle;
+    new.event_key := new.source_id::text || ':moderation:' || v_cycle::text || ':'
+      || new.recipient_kind || ':' || coalesce(new.recipient_user_id::text, 'default');
+    new.metadata := coalesce(new.metadata, '{}'::jsonb)
+      || jsonb_build_object('moderation_cycle', v_cycle);
+  elsif new.event_type = 'seller_new_lead' and new.source_id is not null then
+    select leads.chat_id, nullif(trim(announcements.images[1]), '')
+    into v_chat_id, v_image_url
+    from public.leads leads
+    join public.announcements announcements on announcements.id = leads.announcement_id
+    where leads.id = new.source_id;
+
+    if v_image_url !~* '^https://dockpbyzrvgewgdoaibn\.supabase\.co/storage/v1/object/public/ads-images/.+\.(jpe?g|png|webp)$' then
+      v_image_url := null;
+    end if;
+    new.metadata := coalesce(new.metadata, '{}'::jsonb)
+      || jsonb_strip_nulls(jsonb_build_object(
+        'image_url', v_image_url,
+        'action_url', case when v_chat_id is not null
+          then 'https://agrobw.com.br/minha-conta/mensagens?chat=' || v_chat_id::text
+          else null
+        end,
+        'gateway_contract_version', '2026-09-18',
+        'message_type', 'transactional_card'
+      ));
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_prepare_whatsapp_gateway_job_contract on public.whatsapp_gateway_jobs;
+create trigger trg_prepare_whatsapp_gateway_job_contract
+before insert on public.whatsapp_gateway_jobs
+for each row execute function public.prepare_whatsapp_gateway_job_contract();
+
 alter table public.whatsapp_gateway_templates enable row level security;
 alter table public.whatsapp_gateway_templates force row level security;
 alter table public.whatsapp_gateway_jobs enable row level security;
 alter table public.whatsapp_gateway_jobs force row level security;
+alter table public.whatsapp_announcement_moderation_state enable row level security;
+alter table public.whatsapp_announcement_moderation_state force row level security;
 alter table public.whatsapp_gateway_enqueue_failures enable row level security;
 alter table public.whatsapp_gateway_enqueue_failures force row level security;
 
 revoke all on table public.whatsapp_gateway_templates from public, anon, authenticated;
 revoke all on table public.whatsapp_gateway_jobs from public, anon, authenticated;
+revoke all on table public.whatsapp_announcement_moderation_state from public, anon, authenticated;
 revoke all on table public.whatsapp_gateway_enqueue_failures from public, anon, authenticated;
 revoke all on sequence public.whatsapp_gateway_enqueue_failures_id_seq from public, anon, authenticated;
 grant select, insert, update, delete on table public.whatsapp_gateway_templates to service_role;
 grant select, insert, update, delete on table public.whatsapp_gateway_jobs to service_role;
+grant select, insert, update, delete on table public.whatsapp_announcement_moderation_state to service_role;
 grant select, delete on table public.whatsapp_gateway_enqueue_failures to service_role;
 
 create or replace function public.render_whatsapp_gateway_template(
@@ -283,8 +365,10 @@ begin
   end if;
 
   insert into public.whatsapp_gateway_jobs (
+    idempotency_key,
     event_type,
     event_key,
+    event_cycle,
     source_table,
     source_id,
     recipient_kind,
@@ -293,8 +377,14 @@ begin
     link_path,
     metadata
   ) values (
+    gen_random_uuid(),
     p_event_type,
     trim(p_event_key),
+    case
+      when p_event_type = 'admin_announcement_pending'
+        then nullif(p_payload->>'moderation_cycle', '')::bigint
+      else null
+    end,
     p_source_table,
     p_source_id,
     p_recipient_kind,
@@ -722,7 +812,15 @@ language plpgsql
 security definer
 set search_path = pg_catalog, public, pg_temp
 as $$
+declare
+  v_new_in_moderation boolean := upper(coalesce(new.status, '')) in ('PENDING', 'UNDER_REVIEW');
+  v_old_in_moderation boolean := false;
+  v_moderation_cycle bigint;
 begin
+  if tg_op = 'UPDATE' then
+    v_old_in_moderation := upper(coalesce(old.status, '')) in ('PENDING', 'UNDER_REVIEW');
+  end if;
+
   if tg_op = 'INSERT' then
     if new.community_reported_to_review_at is not null then
       perform public.try_enqueue_whatsapp_gateway_event(
@@ -730,12 +828,37 @@ begin
         'announcements', new.id, jsonb_build_object('title', left(coalesce(nullif(trim(new.title), ''), 'Anuncio'), 300)),
         '/admin/announcement-reports'
       );
-    elsif upper(coalesce(new.status, '')) in ('PENDING', 'UNDER_REVIEW') then
+    elsif v_new_in_moderation then
+      insert into public.whatsapp_announcement_moderation_state as state (
+        announcement_id, moderation_cycle, in_moderation, last_entered_at, updated_at
+      ) values (
+        new.id, 1, true, now(), now()
+      )
+      on conflict (announcement_id) do update set
+        moderation_cycle = case
+          when state.in_moderation then state.moderation_cycle
+          else state.moderation_cycle + 1
+        end,
+        in_moderation = true,
+        last_entered_at = case when state.in_moderation then state.last_entered_at else now() end,
+        updated_at = now()
+      returning moderation_cycle into v_moderation_cycle;
+
       perform public.try_enqueue_whatsapp_gateway_event(
-        'admin_announcement_pending', new.id::text || ':' || floor(extract(epoch from clock_timestamp()) / 600)::bigint::text,
-        'announcements', new.id, jsonb_build_object('title', left(coalesce(nullif(trim(new.title), ''), 'Anuncio'), 300)),
+        'admin_announcement_pending',
+        new.id::text || ':moderation:' || v_moderation_cycle::text || ':admin_default',
+        'announcements', new.id,
+        jsonb_build_object(
+          'title', left(coalesce(nullif(trim(new.title), ''), 'Anuncio'), 300),
+          'moderation_cycle', v_moderation_cycle
+        ),
         '/admin/moderation'
       );
+    else
+      insert into public.whatsapp_announcement_moderation_state (
+        announcement_id, moderation_cycle, in_moderation, updated_at
+      ) values (new.id, 0, false, now())
+      on conflict (announcement_id) do nothing;
     end if;
     return new;
   end if;
@@ -746,14 +869,50 @@ begin
       'announcements', new.id, jsonb_build_object('title', left(coalesce(nullif(trim(new.title), ''), 'Anuncio'), 300)),
       '/admin/announcement-reports'
     );
-  elsif upper(coalesce(new.status, '')) in ('PENDING', 'UNDER_REVIEW')
-    and upper(coalesce(old.status, '')) not in ('PENDING', 'UNDER_REVIEW')
+  elsif v_new_in_moderation
+    and not v_old_in_moderation
     and new.community_reported_to_review_at is null then
+    insert into public.whatsapp_announcement_moderation_state as state (
+      announcement_id, moderation_cycle, in_moderation, last_entered_at, updated_at
+    ) values (
+      new.id, 1, true, now(), now()
+    )
+    on conflict (announcement_id) do update set
+      moderation_cycle = case
+        when state.in_moderation then state.moderation_cycle
+        else state.moderation_cycle + 1
+      end,
+      in_moderation = true,
+      last_entered_at = case when state.in_moderation then state.last_entered_at else now() end,
+      updated_at = now()
+    returning moderation_cycle into v_moderation_cycle;
+
     perform public.try_enqueue_whatsapp_gateway_event(
-      'admin_announcement_pending', new.id::text || ':' || floor(extract(epoch from clock_timestamp()) / 600)::bigint::text,
-      'announcements', new.id, jsonb_build_object('title', left(coalesce(nullif(trim(new.title), ''), 'Anuncio'), 300)),
+      'admin_announcement_pending',
+      new.id::text || ':moderation:' || v_moderation_cycle::text || ':admin_default',
+      'announcements', new.id,
+      jsonb_build_object(
+        'title', left(coalesce(nullif(trim(new.title), ''), 'Anuncio'), 300),
+        'moderation_cycle', v_moderation_cycle
+      ),
       '/admin/moderation'
     );
+  end if;
+
+  if v_old_in_moderation and not v_new_in_moderation then
+    insert into public.whatsapp_announcement_moderation_state (
+      announcement_id, moderation_cycle, in_moderation, updated_at
+    ) values (new.id, 0, false, now())
+    on conflict (announcement_id) do update set
+      in_moderation = false,
+      updated_at = now();
+  elsif v_new_in_moderation then
+    insert into public.whatsapp_announcement_moderation_state (
+      announcement_id, moderation_cycle, in_moderation, last_entered_at, updated_at
+    ) values (new.id, 1, true, now(), now())
+    on conflict (announcement_id) do update set
+      in_moderation = true,
+      updated_at = now();
   end if;
   return new;
 end;
@@ -900,7 +1059,7 @@ $$;
 
 drop trigger if exists trg_queue_whatsapp_admin_announcement on public.announcements;
 create trigger trg_queue_whatsapp_admin_announcement
-after insert or update of status, community_reported_to_review_at on public.announcements
+after insert or update on public.announcements
 for each row execute function public.queue_whatsapp_admin_announcement_event();
 
 drop trigger if exists trg_queue_whatsapp_admin_edit_request on public.announcement_edit_requests;
@@ -919,6 +1078,7 @@ after insert or update of status on public.seller_store_campaign_requests
 for each row execute function public.queue_whatsapp_admin_store_campaign_event();
 
 revoke all on function public.touch_whatsapp_gateway_queue_updated_at() from public, anon, authenticated;
+revoke all on function public.prepare_whatsapp_gateway_job_contract() from public, anon, authenticated;
 revoke all on function public.render_whatsapp_gateway_template(text, jsonb) from public, anon, authenticated;
 revoke all on function public.enqueue_whatsapp_gateway_event(text, text, text, uuid, jsonb, text, text, uuid) from public, anon, authenticated;
 revoke all on function public.try_enqueue_whatsapp_gateway_event(text, text, text, uuid, jsonb, text, text, uuid) from public, anon, authenticated;

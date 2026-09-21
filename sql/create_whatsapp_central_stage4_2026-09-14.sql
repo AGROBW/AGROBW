@@ -84,28 +84,38 @@ declare
   v_recipient_name text;
   v_recipient_phone text;
   v_announcement_title text;
+  v_announcement_image_url text;
   v_legacy_status text := 'pending';
   v_legacy_error text := null;
   v_fallback_error_code text;
   v_contact_locked boolean := new.contact_expires_at is not null
     and new.contact_expires_at <= now();
 begin
-  select announcements.title into v_announcement_title
+  select announcements.title, nullif(trim(announcements.images[1]), '')
+  into v_announcement_title, v_announcement_image_url
   from public.announcements announcements
   where announcements.id = new.announcement_id;
+
+  if v_announcement_image_url !~* '^https://dockpbyzrvgewgdoaibn\.supabase\.co/storage/v1/object/public/ads-images/.+\.(jpe?g|png|webp)$' then
+    v_announcement_image_url := null;
+  end if;
 
   v_job_id := public.try_enqueue_whatsapp_gateway_event(
     'seller_new_lead',
     new.id::text,
     'leads',
     new.id,
-    jsonb_build_object(
+    jsonb_strip_nulls(jsonb_build_object(
       'buyer', case
         when v_contact_locked then 'Um novo interessado'
         else left(coalesce(nullif(trim(new.buyer_name), ''), 'Um comprador'), 120)
       end,
-      'title', left(coalesce(nullif(trim(v_announcement_title), ''), 'seu anuncio'), 300)
-    ),
+      'title', left(coalesce(nullif(trim(v_announcement_title), ''), 'seu anuncio'), 300),
+      'image_url', v_announcement_image_url,
+      'action_url', 'https://agrobw.com.br/minha-conta/mensagens?chat=' || new.chat_id::text,
+      'gateway_contract_version', '2026-09-18',
+      'message_type', 'transactional_card'
+    )),
     '/minha-conta/mensagens',
     'user',
     new.seller_id
