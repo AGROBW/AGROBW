@@ -27,6 +27,11 @@ describe('Central WhatsApp stage 4 routing', () => {
     expect(migration).not.toMatch(/insert into public\.whatsapp_gateway_jobs[\s\S]{0,500}recipient_phone/);
     expect(worker).toContain("job.recipient_kind === 'user'");
     expect(worker).toContain(".select('phone')");
+    expect(migration).toContain("'image_url', v_announcement_image_url");
+    expect(migration).toContain("'action_url', 'https://agrobw.com.br/minha-conta/mensagens?chat='");
+    expect(migration).toContain("'gateway_contract_version', '2026-09-18'");
+    expect(worker).toContain("job.event_type === 'seller_new_lead'");
+    expect(worker).toContain("kind: 'transactional_card'");
   });
 
   it('mantem campanha de anuncio inativa ate existir opt-in de WhatsApp', () => {

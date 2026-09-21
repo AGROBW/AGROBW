@@ -160,6 +160,7 @@ export const createWhatsappGatewayTestPayload = (
 
 export const createWhatsappGatewayTextPayload = (params: {
   requestId: string;
+  idempotencyKey?: string;
   recipientPhone: string;
   message: string;
   source: string;
@@ -167,10 +168,41 @@ export const createWhatsappGatewayTextPayload = (params: {
 }) => ({
   version: '2026-09-14',
   request_id: params.requestId,
-  idempotency_key: params.requestId,
+  idempotency_key: params.idempotencyKey || params.requestId,
   to: params.recipientPhone,
   type: 'text',
   text: { body: params.message },
+  metadata: {
+    source: params.source,
+    event_type: params.eventType,
+  },
+});
+
+export const createWhatsappGatewayTransactionalCardPayload = (params: {
+  requestId: string;
+  idempotencyKey: string;
+  recipientPhone: string;
+  imageUrl: string;
+  message: string;
+  actionLabel: string;
+  actionUrl: string;
+  fallback: string;
+  source: string;
+  eventType: string;
+}) => ({
+  version: '2026-09-18',
+  request_id: params.requestId,
+  idempotency_key: params.idempotencyKey,
+  to: params.recipientPhone,
+  type: 'transactional_card',
+  image: { url: params.imageUrl },
+  text: { body: params.message },
+  action: {
+    type: 'url',
+    label: params.actionLabel,
+    url: params.actionUrl,
+  },
+  fallback: { body: params.fallback },
   metadata: {
     source: params.source,
     event_type: params.eventType,
