@@ -5,8 +5,8 @@ import {
   buildSellerStoreCatalogDocument,
   SELLER_STORE_CATALOG_IMAGE_HOSTS,
   type SellerStoreCatalogDocument,
-} from '../src/lib/sellerStoreCatalog/documentModel';
-import { renderSellerStoreCatalogHtml } from '../src/lib/sellerStoreCatalog/renderHtml';
+} from '../src/lib/sellerStoreCatalog/documentModel.js';
+import { renderSellerStoreCatalogHtml } from '../src/lib/sellerStoreCatalog/renderHtml.js';
 
 const CATALOG_BUCKET = 'seller-store-catalogs';
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;

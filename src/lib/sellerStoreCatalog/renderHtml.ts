@@ -3,7 +3,7 @@ import type {
   SellerStoreCatalogDocument,
   SellerStoreCatalogPage,
   SellerStoreCatalogProduct,
-} from './documentModel';
+} from './documentModel.js';
 
 export type SellerStoreCatalogHtmlOptions = {
   platformLogoUrl?: string;
