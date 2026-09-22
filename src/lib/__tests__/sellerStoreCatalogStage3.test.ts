@@ -65,6 +65,7 @@ describe('Seller Store PDF Catalog worker', () => {
   });
 
   it('protects the cron endpoint and constrains serverless execution', () => {
+    expect(endpoint).toContain("from '../../server/seller-store-catalog-worker.js'");
     expect(endpoint).toContain('CATALOG_EXPORT_CRON_SECRET');
     expect(endpoint).toContain("req.headers['x-cron-secret']");
     expect(endpoint).toContain('timingSafeEqual');
