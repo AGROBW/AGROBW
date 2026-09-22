@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { processSellerStoreCatalogJobs } from '../../server/seller-store-catalog-worker';
+import { processSellerStoreCatalogJobs } from '../../server/seller-store-catalog-worker.js';
 
 const MAX_REQUEST_BYTES = 1024;
 
