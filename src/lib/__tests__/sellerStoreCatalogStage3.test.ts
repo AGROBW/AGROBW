@@ -12,6 +12,7 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8'
 const migration = read('sql/create_seller_store_catalog_exports_stage3_2026-09-21.sql');
 const transactionalValidator = read('sql/VALIDATE_create_seller_store_catalog_exports_stage3_transactional_2026-09-21.sql');
 const worker = read('server/seller-store-catalog-worker.ts');
+const renderHtml = read('src/lib/sellerStoreCatalog/renderHtml.ts');
 const endpoint = read('api/catalog/process-jobs.ts');
 const download = read('supabase/functions/seller-store-catalog-download/index.ts');
 const config = read('supabase/config.toml');
@@ -66,6 +67,9 @@ describe('Seller Store PDF Catalog worker', () => {
 
   it('protects the cron endpoint and constrains serverless execution', () => {
     expect(endpoint).toContain("from '../../server/seller-store-catalog-worker.js'");
+    expect(worker).toContain("from '../src/lib/sellerStoreCatalog/documentModel.js'");
+    expect(worker).toContain("from '../src/lib/sellerStoreCatalog/renderHtml.js'");
+    expect(renderHtml).toContain("from './documentModel.js'");
     expect(endpoint).toContain('CATALOG_EXPORT_CRON_SECRET');
     expect(endpoint).toContain("req.headers['x-cron-secret']");
     expect(endpoint).toContain('timingSafeEqual');
