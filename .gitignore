@@ -38,3 +38,5 @@ backup*
 sql/add_dynamic_sections_to_terms_page_2026-06-29.sql
 /graphify-out/
 /videos/
+/tmp/pdfs/
+/output/pdf/*.pdf

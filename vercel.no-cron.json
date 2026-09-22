@@ -1,4 +1,11 @@
 {
+  "functions": {
+    "api/catalog/process-jobs.ts": {
+      "maxDuration": 300,
+      "memory": 1024,
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+    }
+  },
   "headers": [
     {
       "source": "/admin",

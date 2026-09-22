@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.17.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -16,6 +19,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@google/genai": "^1.38.0",
+    "@sparticuz/chromium": "152.0.0",
     "@supabase/supabase-js": "^2.48.1",
     "@vercel/functions": "^3.9.3",
     "browser-image-compression": "^2.0.2",
@@ -24,6 +28,7 @@
     "framer-motion": "^12.30.0",
     "lucide-react": "^0.563.0",
     "nodemailer": "^9.0.3",
+    "puppeteer-core": "25.10.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

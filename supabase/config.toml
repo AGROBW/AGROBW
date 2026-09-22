@@ -124,3 +124,8 @@ entrypoint = "./functions/sync-subscription-downgrades/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/purge-contextual-upsell-data/index.ts"
+
+[functions.seller-store-catalog-download]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/seller-store-catalog-download/index.ts"
