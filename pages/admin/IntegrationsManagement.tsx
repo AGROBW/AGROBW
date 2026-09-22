@@ -19,6 +19,7 @@ import { useWebhookLogs } from '../../src/hooks/useWebhookLogs';
 import WhatsappNotificationsSection from '../../components/admin/integrations/WhatsappNotificationsSection';
 import WhatsappGatewaySection from '../../components/admin/integrations/WhatsappGatewaySection';
 import WhatsappGatewayAutomationSection from '../../components/admin/integrations/WhatsappGatewayAutomationSection';
+import SellerStoreCatalogOperationsSection from '../../components/admin/integrations/SellerStoreCatalogOperationsSection';
 
 const IntegrationsManagement: React.FC = () => {
   const {
@@ -479,6 +480,8 @@ const IntegrationsManagement: React.FC = () => {
       <WhatsappGatewaySection />
 
       <WhatsappGatewayAutomationSection />
+
+      <SellerStoreCatalogOperationsSection />
 
       <WhatsappNotificationsSection />
     </div>

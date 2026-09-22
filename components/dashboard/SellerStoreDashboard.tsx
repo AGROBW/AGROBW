@@ -10,6 +10,7 @@ import { slugifyStoreValue, useMySellerStore } from '../../src/hooks/useSellerSt
 import type { Ad } from '../../types';
 import { supabase } from '../../src/lib/supabaseClient';
 import { optimizeStoreCoverImage } from '../../src/utils/storeCoverImage';
+import SellerStoreCatalogPanel from './SellerStoreCatalogPanel';
 
 type SellerStoreDashboardProps = {
   hasStoreAccess: boolean;
@@ -433,6 +434,14 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
           </div>
         </section>
       ) : null}
+
+      <SellerStoreCatalogPanel
+        hasStoreAccess={hasStoreAccess}
+        ownerUserId={user?.id}
+        store={store}
+        announcements={orderedAnnouncements}
+        isLoadingAnnouncements={isLoadingAnnouncements}
+      />
 
       <section className="grid gap-8 xl:grid-cols-[1.25fr,0.95fr]">
         <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">

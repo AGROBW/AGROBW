@@ -38,6 +38,8 @@
     "pages/**/*.tsx",
     "components/**/*.ts",
     "components/**/*.tsx",
+    "api/**/*.ts",
+    "server/**/*.ts",
     "services/**/*.ts",
     "services/**/*.tsx"
   ],
