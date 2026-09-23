@@ -23,7 +23,7 @@ const matrix: Array<{
   { count: 2, priceMode: 'consult', coverAlignment: 'center', withoutBrandAssets: true },
   { count: 5, priceMode: 'show', coverAlignment: 'right' },
   { count: 20, priceMode: 'show', coverAlignment: 'left', worstCaseIndex: true },
-  { count: 100, priceMode: 'hide', coverAlignment: 'right' },
+  { count: 180, priceMode: 'hide', coverAlignment: 'right' },
 ];
 
 const announcement = (index: number, worstCaseIndex = false) => ({
@@ -81,6 +81,8 @@ const inputFor = (
 await mkdir(outputDirectory, { recursive: true });
 const logo = await readFile(new URL('../public/agrobw-logo.png', import.meta.url));
 const platformLogoUrl = `data:image/png;base64,${logo.toString('base64')}`;
+const institutionalBackground = await readFile(new URL('../public/images/catalog-cover-institutional-v2.png', import.meta.url));
+const institutionalBackgroundUrl = `data:image/png;base64,${institutionalBackground.toString('base64')}`;
 const fixtureImage = Buffer.from(`
   <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
     <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#173f35"/><stop offset="1" stop-color="#9cc680"/></linearGradient></defs>
@@ -109,7 +111,10 @@ try {
       scenario.withoutBrandAssets,
       scenario.worstCaseIndex,
     ));
-    const html = makeSelfContained(await renderSellerStoreCatalogHtml(document, { platformLogoUrl }));
+    const html = makeSelfContained(await renderSellerStoreCatalogHtml(document, {
+      platformLogoUrl,
+      institutionalBackgroundUrl,
+    }));
     const basename = `catalog-${String(scenario.count).padStart(3, '0')}-items`;
     const htmlPath = resolve(outputDirectory, `${basename}.html`);
     const pdfPath = resolve(outputDirectory, `${basename}.pdf`);
@@ -132,7 +137,7 @@ try {
     const layoutChecks = await page.$$eval('.catalog-page', (pages) => pages.map((catalogPage, index) => {
       const pageBounds = catalogPage.getBoundingClientRect();
       const footer = catalogPage.querySelector('.page-footer')?.getBoundingClientRect();
-      const guardedItems = Array.from(catalogPage.querySelectorAll('.store-intro, .index-grid, .index-item, .product-card'));
+      const guardedItems = Array.from(catalogPage.querySelectorAll('.products-grid, .product-card'));
       const itemBounds = guardedItems.map((item) => item.getBoundingClientRect());
       const contentBottom = guardedItems.reduce(
         (maximum, item) => Math.max(maximum, item.getBoundingClientRect().bottom),

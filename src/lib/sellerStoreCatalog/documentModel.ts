@@ -1,9 +1,7 @@
 export const SELLER_STORE_CATALOG_SCHEMA_VERSION = '2026-09-21' as const;
-export const SELLER_STORE_CATALOG_LAYOUT_VERSION = 'premium-v2' as const;
-export const SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE = 2;
-// Six rows leave print-safe space for two-line titles and font metric variation.
-export const SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE = 12;
-export const SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT = 4;
+export const SELLER_STORE_CATALOG_LAYOUT_VERSION = 'premium-v4' as const;
+export const SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE = 6;
+export const SELLER_STORE_CATALOG_MAX_PRODUCTS = 200;
 export const SELLER_STORE_CATALOG_IMAGE_HOSTS = new Set([
   'agrobw.com.br',
   'www.agrobw.com.br',
@@ -66,6 +64,7 @@ export type SellerStoreCatalogStore = {
   description: string;
   logoUrl: string | null;
   coverUrl: string | null;
+  coverAspectRatio: number | null;
   coverAlignment: SellerStoreCatalogCoverAlignment;
   location: string;
   verified: boolean;
@@ -89,7 +88,6 @@ export type SellerStoreCatalogProduct = {
 
 export type SellerStoreCatalogPage =
   | { kind: 'cover'; pageNumber: 1 }
-  | { kind: 'index'; pageNumber: number; products: SellerStoreCatalogProduct[] }
   | { kind: 'products'; pageNumber: number; products: SellerStoreCatalogProduct[] }
   | { kind: 'back-cover'; pageNumber: number };
 
@@ -122,6 +120,8 @@ const AVAILABILITY_LABELS: Record<string, string> = {
   preorder: 'Sob encomenda',
   sob_encomenda: 'Sob encomenda',
 };
+
+const HIDDEN_CATALOG_LABELS = new Set(['consultar_estoque']);
 
 const stripMarkup = (value: unknown): string => String(value ?? '')
   .replace(/<[^>]*>/g, ' ')
@@ -179,6 +179,7 @@ const formatLocation = (city: unknown, state: unknown): string => {
 const formatMappedLabel = (value: unknown, labels: Record<string, string>): string | null => {
   const normalized = stripMarkup(value).toLocaleLowerCase('pt-BR').replace(/[\s-]+/g, '_');
   if (!normalized) return null;
+  if (HIDDEN_CATALOG_LABELS.has(normalized)) return null;
   return labels[normalized] ?? truncate(stripMarkup(value), 36);
 };
 
@@ -188,9 +189,9 @@ const formatPrice = (
   priceNegotiable = false,
 ): string | null => {
   if (mode === 'hide') return null;
-  if (mode === 'consult' || priceNegotiable) return 'Consulte o vendedor';
+  if (mode === 'consult' || priceNegotiable) return 'Sob consulta';
   const numericValue = typeof value === 'number' ? value : Number(String(value ?? '').replace(',', '.'));
-  if (!Number.isFinite(numericValue) || numericValue <= 0) return 'Consulte o vendedor';
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return 'Consulte';
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -211,7 +212,7 @@ export const buildSellerStoreCatalogDocument = (
   input: SellerStoreCatalogBuildInput,
 ): SellerStoreCatalogDocument => {
   if (!input.exportId.trim()) throw new Error('CATALOG_DOCUMENT_EXPORT_ID_REQUIRED');
-  if (!input.announcements.length || input.announcements.length > 100) {
+  if (!input.announcements.length || input.announcements.length > SELLER_STORE_CATALOG_MAX_PRODUCTS) {
     throw new Error('CATALOG_DOCUMENT_ANNOUNCEMENT_LIMIT');
   }
   if (!['show', 'hide', 'consult'].includes(input.priceMode)) {
@@ -228,10 +229,11 @@ export const buildSellerStoreCatalogDocument = (
   const products = input.announcements.map((announcement, index): SellerStoreCatalogProduct => {
     const conditionLabel = formatMappedLabel(announcement.product_condition, CONDITION_LABELS);
     const availabilityLabel = formatMappedLabel(announcement.availability, AVAILABILITY_LABELS);
-    const badges = [
-      announcement.price_negotiable ? 'Sob consulta' : null,
+    const badges = [...new Set([
+      conditionLabel,
+      availabilityLabel,
       announcement.accepts_trade ? 'Aceita troca' : null,
-    ].filter((badge): badge is string => Boolean(badge));
+    ].filter((badge): badge is string => Boolean(badge)))].slice(0, 2);
 
     return {
       id: announcement.id,
@@ -250,14 +252,7 @@ export const buildSellerStoreCatalogDocument = (
   });
 
   const pages: SellerStoreCatalogPage[] = [{ kind: 'cover', pageNumber: 1 }];
-  const isSmallCatalog = products.length <= SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT;
-  if (!isSmallCatalog) {
-    for (const productsPage of chunk(products, SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE)) {
-      pages.push({ kind: 'index', pageNumber: pages.length + 1, products: productsPage });
-    }
-  }
-  const productsPerPage = isSmallCatalog ? 1 : SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE;
-  for (const productsPage of chunk(products, productsPerPage)) {
+  for (const productsPage of chunk(products, SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE)) {
     pages.push({ kind: 'products', pageNumber: pages.length + 1, products: productsPage });
   }
   pages.push({ kind: 'back-cover', pageNumber: pages.length + 1 });
@@ -276,6 +271,7 @@ export const buildSellerStoreCatalogDocument = (
       description: truncate(stripMarkup(input.store.description), 680),
       logoUrl: safeImageUrl(input.store.logo_url),
       coverUrl: safeImageUrl(input.store.cover_url) ?? safeImageUrl(input.store.cover_mobile_url),
+      coverAspectRatio: null,
       coverAlignment,
       location: formatLocation(input.store.city, input.store.state),
       verified: input.store.is_verified === true,

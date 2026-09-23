@@ -3,7 +3,10 @@
     "api/catalog/process-jobs.ts": {
       "maxDuration": 300,
       "memory": 1024,
-      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+      "includeFiles": [
+        "node_modules/@sparticuz/chromium/bin/**",
+        "public/images/catalog-cover-institutional-v2.png"
+      ]
     }
   },
   "trailingSlash": false,

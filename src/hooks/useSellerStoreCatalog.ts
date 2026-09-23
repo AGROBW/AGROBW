@@ -79,7 +79,7 @@ const FRIENDLY_ERRORS: Record<string, string> = {
   CATALOG_EXPORT_AUTH_REQUIRED: 'Entre novamente na sua conta para gerar o catálogo.',
   CATALOG_EXPORT_STORE_PLAN_REQUIRED: 'Sua Loja Parceira precisa estar ativa para gerar catálogos.',
   CATALOG_EXPORT_RUNTIME_DISABLED: 'O gerador de catálogos está temporariamente indisponível.',
-  CATALOG_EXPORT_ANNOUNCEMENT_LIMIT: 'Selecione entre 1 e 100 anúncios ativos.',
+  CATALOG_EXPORT_ANNOUNCEMENT_LIMIT: 'Selecione entre 1 e 200 anúncios ativos.',
   CATALOG_EXPORT_DUPLICATE_ANNOUNCEMENT: 'A seleção contém anúncios repetidos.',
   CATALOG_EXPORT_ANNOUNCEMENT_NOT_ELIGIBLE: 'Um dos anúncios não está mais ativo. Atualize a seleção e tente novamente.',
   CATALOG_EXPORT_CONCURRENCY_LIMIT: 'Você já possui duas gerações em andamento. Aguarde uma delas terminar.',

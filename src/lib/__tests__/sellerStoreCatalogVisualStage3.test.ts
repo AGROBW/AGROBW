@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildSellerStoreCatalogDocument,
-  SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE,
   SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE,
-  SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT,
   type SellerStoreCatalogBuildInput,
   type SellerStoreCatalogPriceMode,
 } from '../sellerStoreCatalog/documentModel';
@@ -43,14 +41,10 @@ const input = (count: number, priceMode: SellerStoreCatalogPriceMode = 'show'): 
   announcements: Array.from({ length: count }, (_, index) => announcement(index + 1, index % 3 !== 0)),
 });
 
-const expectedPages = (count: number) => count <= SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT
-  ? count + 2
-  : 2
-    + Math.ceil(count / SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE)
-    + Math.ceil(count / SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE);
+const expectedPages = (count: number) => 2 + Math.ceil(count / SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE);
 
 describe('Seller Store PDF Catalog visual stage 3 matrix', () => {
-  it.each([1, 2, 5, 20, 100])('keeps deterministic pagination for %i announcements', (count) => {
+  it.each([1, 2, 5, 20, 180])('keeps deterministic pagination for %i announcements', (count) => {
     const document = buildSellerStoreCatalogDocument(input(count));
     expect(document.totalPages).toBe(expectedPages(count));
     expect(document.pages.at(-1)?.kind).toBe('back-cover');
@@ -59,10 +53,10 @@ describe('Seller Store PDF Catalog visual stage 3 matrix', () => {
     );
   });
 
-  it('keeps no more than six index rows and reserves print-safe footer space', () => {
-    expect(SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE).toBe(12);
-    expect(expectedPages(20)).toBe(14);
-    expect(expectedPages(100)).toBe(61);
+  it('keeps six products per page and scales without duplicated index pages', () => {
+    expect(SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE).toBe(6);
+    expect(expectedPages(20)).toBe(6);
+    expect(expectedPages(180)).toBe(32);
   });
 
   it('constrains long copy and keeps missing images as safe placeholders', async () => {
@@ -77,6 +71,9 @@ describe('Seller Store PDF Catalog visual stage 3 matrix', () => {
     expect(document.products.some((product) => product.images.length === 0)).toBe(true);
     expect(html).toContain('image-placeholder');
     expect(html).toContain('cover-title-long');
+    expect(html).not.toContain('class="description"');
+    expect(html).not.toContain('class="location"');
+    expect(html.match(/class="product-card"/g)).toHaveLength(5);
   });
 
   it('renders a single branded cover fallback when the store has no cover or logo', async () => {
@@ -87,9 +84,10 @@ describe('Seller Store PDF Catalog visual stage 3 matrix', () => {
       qrCodeFactory: async () => 'data:image/png;base64,qr',
     });
 
-    expect(html.match(/class="cover-empty"/g)).toHaveLength(1);
-    expect(html).not.toContain('cover-image-backdrop image-placeholder');
-    expect(html).not.toContain('cover-image-main image-placeholder');
+    expect(html.match(/class="cover-hero-fallback"/g)).toHaveLength(1);
+    expect(html).toContain('cover-store-logo image-placeholder');
+    expect(html).not.toContain('cover-image-backdrop');
+    expect(html).not.toContain('cover-image-main');
   });
 
   it('matches the production browser isolation and rejects measurable overflow', () => {
@@ -99,14 +97,14 @@ describe('Seller Store PDF Catalog visual stage 3 matrix', () => {
     expect(qaScript).toContain('CATALOG_QA_LAYOUT_OVERFLOW');
     expect(qaScript).toContain('withoutBrandAssets: true');
     expect(qaScript).toContain('worstCaseIndex: true');
-    expect(qaScript).toContain("'.store-intro, .index-grid, .index-item, .product-card'");
+    expect(qaScript).toContain("'.products-grid, .product-card'");
     expect(qaScript).toContain('.slice(0, 680)');
     expect(qaScript).not.toContain('networkidle0');
   });
 
   it.each([
     ['show', 'R$'],
-    ['consult', 'Consulte o vendedor'],
+    ['consult', 'Sob consulta'],
     ['hide', null],
   ] as const)('applies the %s price policy throughout the document', (priceMode, expected) => {
     const document = buildSellerStoreCatalogDocument(input(5, priceMode));

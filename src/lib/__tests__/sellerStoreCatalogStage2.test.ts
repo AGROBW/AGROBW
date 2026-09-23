@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildSellerStoreCatalogDocument,
-  SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE,
   SELLER_STORE_CATALOG_LAYOUT_VERSION,
+  SELLER_STORE_CATALOG_MAX_PRODUCTS,
   SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE,
-  SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT,
   type SellerStoreCatalogBuildInput,
 } from '../sellerStoreCatalog/documentModel';
 import { renderSellerStoreCatalogHtml } from '../sellerStoreCatalog/renderHtml';
@@ -64,28 +63,24 @@ describe('Seller Store PDF Catalog premium document', () => {
     expect(first.products[0].publicUrl).toBe('https://agrobw.com.br/anuncio/maquina-1');
   });
 
-  it('paginates index and product spreads with stable limits', () => {
+  it('paginates six-product grids without a duplicated index', () => {
     const document = buildSellerStoreCatalogDocument(input(35));
-    const indexPages = document.pages.filter((page) => page.kind === 'index');
     const productPages = document.pages.filter((page) => page.kind === 'products');
 
-    expect(indexPages).toHaveLength(Math.ceil(35 / SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE));
+    expect(document.pages.some((page) => (page as { kind: string }).kind === 'index')).toBe(false);
     expect(productPages).toHaveLength(Math.ceil(35 / SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE));
-    expect(indexPages.every((page) => page.products.length <= SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE)).toBe(true);
     expect(productPages.every((page) => page.products.length <= SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE)).toBe(true);
     expect(document.pages.map((page) => page.pageNumber)).toEqual(
       Array.from({ length: document.totalPages }, (_, index) => index + 1),
     );
   });
 
-  it('uses an editorial one-product layout and omits the index for small catalogs', () => {
-    const document = buildSellerStoreCatalogDocument(input(SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT));
-    const indexPages = document.pages.filter((page) => page.kind === 'index');
+  it('fits up to six products on a single compact page', () => {
+    const document = buildSellerStoreCatalogDocument(input(6));
     const productPages = document.pages.filter((page) => page.kind === 'products');
 
-    expect(indexPages).toHaveLength(0);
-    expect(productPages).toHaveLength(SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT);
-    expect(productPages.every((page) => page.products.length === 1)).toBe(true);
+    expect(productPages).toHaveLength(1);
+    expect(productPages[0].products).toHaveLength(6);
   });
 
   it('preserves a valid cover alignment and renders it as a constrained class', async () => {
@@ -95,7 +90,39 @@ describe('Seller Store PDF Catalog premium document', () => {
     });
 
     expect(document.store.coverAlignment).toBe('right');
-    expect(html).toContain('cover-page cover-align-right');
+    expect(html).toContain('cover-page cover-align-right cover-hero-standard');
+    expect(html).toContain('.cover-align-right .cover-hero-image { object-position: right top; }');
+  });
+
+  it('uses the natural proportional height for ultrawide banners without leaving a fixed hero gap', async () => {
+    const document = buildSellerStoreCatalogDocument(input(1));
+    document.store.coverAspectRatio = 6.8;
+    const html = await renderSellerStoreCatalogHtml(document, {
+      qrCodeFactory: async () => 'data:image/png;base64,qr',
+    });
+
+    expect(html).toContain('cover-hero-ultrawide');
+    expect(html).toContain('--cover-hero-height: 30.88mm; --cover-content-top: 41.88mm;');
+    expect(html).toContain('.cover-hero-ultrawide .cover-hero-image { object-fit: contain; }');
+    expect(html).toContain('height: 6mm; background: linear-gradient');
+  });
+
+  it('sizes the cover heading from the store name and keeps the catalog label separate', async () => {
+    const longName = input(1);
+    longName.store.store_name = 'Cooperativa Regional de Máquinas Implementos e Soluções para o Campo';
+    longName.catalogTitle = 'Um título curto que não deve controlar o tamanho da capa';
+    const document = buildSellerStoreCatalogDocument(longName);
+    const html = await renderSellerStoreCatalogHtml(document, {
+      institutionalBackgroundUrl: 'data:image/png;base64,background',
+      qrCodeFactory: async () => 'data:image/png;base64,qr',
+    });
+
+    expect(html).toContain(`class="cover-title-long">${document.store.name}</h1>`);
+    expect(html).toContain('class="cover-catalog-label">| Cat&aacute;logo</span>');
+    expect(html).not.toContain(`>${document.title}</h1>`);
+    expect(html).toContain('class="cover-institutional-bg"');
+    expect(html).not.toContain('class="cover-store-name"');
+    expect(html).toContain('class="cover-store-location"');
   });
 
   it('applies all price disclosure modes', () => {
@@ -105,15 +132,26 @@ describe('Seller Store PDF Catalog premium document', () => {
 
     expect(visible.products[0].priceLabel).toMatch(/R\$\s*120\.001,00/);
     expect(hidden.products[0].priceLabel).toBeNull();
-    expect(consult.products[0].priceLabel).toBe('Consulte o vendedor');
+    expect(consult.products[0].priceLabel).toBe('Sob consulta');
   });
 
   it('never exposes a numeric price when the announcement is negotiable', () => {
     const negotiable = input(2);
     const document = buildSellerStoreCatalogDocument(negotiable);
 
-    expect(document.products[1].badges).toContain('Sob consulta');
-    expect(document.products[1].priceLabel).toBe('Consulte o vendedor');
+    expect(document.products[1].badges).toEqual(['Usado', 'Disponivel']);
+    expect(document.products[1].priceLabel).toBe('Sob consulta');
+  });
+
+  it('hides technical stock values and limits each product to two friendly badges', () => {
+    const technical = input(1);
+    technical.announcements[0].availability = 'consultar_estoque';
+    technical.announcements[0].accepts_trade = true;
+    const document = buildSellerStoreCatalogDocument(technical);
+
+    expect(document.products[0].availabilityLabel).toBeNull();
+    expect(document.products[0].badges).toEqual(['Usado', 'Aceita troca']);
+    expect(document.products[0].badges).toHaveLength(2);
   });
 
   it('falls back to canonical AGRO BW URLs', () => {
@@ -128,7 +166,8 @@ describe('Seller Store PDF Catalog premium document', () => {
 
   it('rejects empty and oversized catalogs', () => {
     expect(() => buildSellerStoreCatalogDocument(input(0))).toThrow('CATALOG_DOCUMENT_ANNOUNCEMENT_LIMIT');
-    expect(() => buildSellerStoreCatalogDocument(input(101))).toThrow('CATALOG_DOCUMENT_ANNOUNCEMENT_LIMIT');
+    expect(() => buildSellerStoreCatalogDocument(input(SELLER_STORE_CATALOG_MAX_PRODUCTS))).not.toThrow();
+    expect(() => buildSellerStoreCatalogDocument(input(SELLER_STORE_CATALOG_MAX_PRODUCTS + 1))).toThrow('CATALOG_DOCUMENT_ANNOUNCEMENT_LIMIT');
   });
 
   it('renders A4 print HTML with one QR code per product and one for the store', async () => {
@@ -146,12 +185,19 @@ describe('Seller Store PDF Catalog premium document', () => {
     expect(html).toContain('@page { size: A4 portrait; margin: 0; }');
     expect(html).toContain(`data-layout-version="${SELLER_STORE_CATALOG_LAYOUT_VERSION}"`);
     expect(html.match(/class="catalog-page/g)).toHaveLength(document.totalPages);
-    expect(html).toContain('class="cover-image-main"');
-    expect(html).toContain('object-fit: contain');
-    expect(html).toContain('products-stack products-stack-single');
+    expect(html).toContain('class="cover-hero-image"');
+    expect(html).toContain('.cover-hero-image {');
+    expect(html).toContain('.cover-hero-ultrawide .cover-hero-image { object-fit: contain; }');
+    expect(html).toContain('.cover-hero-standard .cover-hero-image { object-fit: cover; }');
+    expect(html).toContain(`<h1 class="cover-title-short">${document.store.name}</h1>`);
+    expect(html).not.toContain(`<h1 class="cover-title-short">${document.title}</h1>`);
+    expect(html).toContain('class="products-grid"');
+    expect(html.match(/class="product-card"/g)).toHaveLength(3);
     expect(html).not.toContain('class="catalog-page content-page index-page"');
-    expect(html).toContain('Escaneie para acessar');
-    expect(html).not.toContain('<p>Equipamento revisado');
+    expect(html).toContain('Ver an&uacute;ncio');
+    expect(html).not.toContain('class="description"');
+    expect(html).not.toContain('class="location"');
+    expect(html).not.toContain('Escaneie para acessar');
   });
 
   it('escapes text again at the HTML boundary', async () => {
