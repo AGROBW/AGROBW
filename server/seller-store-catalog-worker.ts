@@ -370,7 +370,6 @@ export const prepareSellerStoreCatalogImagesForPdf = async (
     preparedImageBytes: preparedBytes,
   };
 };
-
 const resolveChromiumLaunch = async () => {
   const localExecutable = process.env.CATALOG_CHROME_EXECUTABLE_PATH?.trim();
   if (localExecutable) {

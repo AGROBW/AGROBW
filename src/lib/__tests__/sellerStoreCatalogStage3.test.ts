@@ -201,7 +201,6 @@ describe('Seller Store PDF Catalog worker', () => {
     expect(prepared.platformLogoDataUrl).toMatch(/^data:image\/webp;base64,/);
     expect(prepared.preparedImageBytes).toBeGreaterThan(0);
   });
-
   it('classifies malformed documents and oversized PDFs as permanent failures', () => {
     expect(isPermanentCatalogError(new Error('CATALOG_DOCUMENT_INVALID_PRICE_MODE'))).toBe(true);
     expect(isPermanentCatalogError(new Error('CATALOG_EXPORT_PDF_TOO_LARGE'))).toBe(true);
