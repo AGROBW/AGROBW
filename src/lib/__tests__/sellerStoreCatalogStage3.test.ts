@@ -5,6 +5,7 @@ import {
   embedSellerStoreCatalogImages,
   fetchTrustedCatalogImage,
   isPermanentCatalogError,
+  optimizeSellerStoreCatalogImages,
 } from '../../../server/seller-store-catalog-worker';
 import { buildSellerStoreCatalogDocument } from '../sellerStoreCatalog/documentModel';
 
@@ -128,6 +129,50 @@ describe('Seller Store PDF Catalog worker', () => {
     expect(embedded.document.store.logoUrl).toBeNull();
     expect(embedded.document.store.coverUrl).toBeNull();
     expect(embedded.document.products[0].images).toEqual([]);
+  });
+
+  it('optimizes every embedded image while deduplicating equal inputs', async () => {
+    const source = `data:image/webp;base64,${'a'.repeat(400)}`;
+    const catalog = document();
+    catalog.store.logoUrl = source;
+    catalog.store.coverUrl = source;
+    catalog.products.push(structuredClone(catalog.products[0]));
+    catalog.products.forEach((product) => { product.images = [source]; });
+    const optimizeImage = vi.fn(async (_dataUrl: string, options: { mimeType: string }) => (
+      `data:${options.mimeType};base64,${'b'.repeat(40)}`
+    ));
+
+    const optimized = await optimizeSellerStoreCatalogImages(catalog, source, optimizeImage);
+
+    expect(optimizeImage).toHaveBeenCalledTimes(3);
+    expect(optimized.document.store.logoUrl).toMatch(/^data:image\/webp;base64,/);
+    expect(optimized.document.store.coverUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(optimized.document.products).toHaveLength(2);
+    expect(optimized.document.products.every((product) => product.images[0].startsWith('data:image/jpeg;base64,')))
+      .toBe(true);
+    expect(optimized.platformLogoDataUrl).toMatch(/^data:image\/webp;base64,/);
+  });
+
+  it('keeps the original image when recompression would increase its size', async () => {
+    const source = 'data:image/webp;base64,YWJj';
+    const catalog = document();
+    catalog.store.logoUrl = source;
+    catalog.store.coverUrl = null;
+    catalog.products[0].images = [];
+    const optimizeImage = vi.fn(async () => `data:image/webp;base64,${'x'.repeat(100)}`);
+
+    const optimized = await optimizeSellerStoreCatalogImages(catalog, '', optimizeImage);
+
+    expect(optimized.document.store.logoUrl).toBe(source);
+  });
+
+  it('uses bounded canvas recompression before the isolated PDF render', () => {
+    expect(worker).toContain('maxWidth: 1280');
+    expect(worker).toContain("mimeType: 'image/jpeg'");
+    expect(worker).toContain("globalThis.document.createElement('canvas')");
+    expect(worker).toContain('canvas.toDataURL(settings.mimeType, settings.quality)');
+    expect(worker.indexOf('optimizeSellerStoreCatalogImages('))
+      .toBeLessThan(worker.indexOf('await page.setJavaScriptEnabled(false)'));
   });
 
   it('classifies malformed documents and oversized PDFs as permanent failures', () => {

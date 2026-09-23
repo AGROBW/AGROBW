@@ -16,6 +16,37 @@ const IMAGE_TIMEOUT_MS = 8_000;
 const IMAGE_DOWNLOAD_CONCURRENCY = 8;
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
+export type CatalogImageOptimizationOptions = {
+  maxWidth: number;
+  maxHeight: number;
+  mimeType: 'image/jpeg' | 'image/webp';
+  quality: number;
+};
+
+type CatalogImageOptimizer = (
+  dataUrl: string,
+  options: CatalogImageOptimizationOptions,
+) => Promise<string>;
+
+const COVER_IMAGE_OPTIMIZATION: CatalogImageOptimizationOptions = {
+  maxWidth: 1600,
+  maxHeight: 1200,
+  mimeType: 'image/jpeg',
+  quality: 0.76,
+};
+const PRODUCT_IMAGE_OPTIMIZATION: CatalogImageOptimizationOptions = {
+  maxWidth: 1280,
+  maxHeight: 960,
+  mimeType: 'image/jpeg',
+  quality: 0.74,
+};
+const LOGO_IMAGE_OPTIMIZATION: CatalogImageOptimizationOptions = {
+  maxWidth: 512,
+  maxHeight: 512,
+  mimeType: 'image/webp',
+  quality: 0.82,
+};
+
 type CatalogExportRow = {
   id: string;
   user_id: string;
@@ -195,6 +226,55 @@ export const embedSellerStoreCatalogImages = async (
   };
 };
 
+const dataUrlByteLength = (value: string) => {
+  const commaIndex = value.indexOf(',');
+  if (commaIndex < 0) return Number.POSITIVE_INFINITY;
+  const payload = value.slice(commaIndex + 1);
+  return Math.ceil(payload.length * 0.75);
+};
+
+export const optimizeSellerStoreCatalogImages = async (
+  document: SellerStoreCatalogDocument,
+  platformLogoDataUrl: string,
+  optimizeImage: CatalogImageOptimizer,
+) => {
+  const copy = structuredClone(document);
+  const cache = new Map<string, Promise<string>>();
+  const optimize = async (dataUrl: string | null, options: CatalogImageOptimizationOptions) => {
+    if (!dataUrl) return dataUrl;
+    const cacheKey = `${options.maxWidth}:${options.maxHeight}:${options.mimeType}:${options.quality}:${dataUrl}`;
+    let pending = cache.get(cacheKey);
+    if (!pending) {
+      pending = optimizeImage(dataUrl, options).then((candidate) => {
+        if (!candidate.startsWith(`data:${options.mimeType};base64,`)) {
+          throw new Error('CATALOG_EXPORT_IMAGE_OPTIMIZATION_INVALID');
+        }
+        return dataUrlByteLength(candidate) < dataUrlByteLength(dataUrl) ? candidate : dataUrl;
+      });
+      cache.set(cacheKey, pending);
+    }
+    return pending;
+  };
+
+  try {
+    copy.store.logoUrl = await optimize(copy.store.logoUrl, LOGO_IMAGE_OPTIMIZATION);
+    copy.store.coverUrl = await optimize(copy.store.coverUrl, COVER_IMAGE_OPTIMIZATION);
+    for (const product of copy.products) {
+      if (product.images[0]) {
+        product.images = [await optimize(product.images[0], PRODUCT_IMAGE_OPTIMIZATION) as string];
+      }
+    }
+    const optimizedPlatformLogo = await optimize(platformLogoDataUrl || null, LOGO_IMAGE_OPTIMIZATION);
+    return {
+      document: copy,
+      platformLogoDataUrl: optimizedPlatformLogo ?? '',
+    };
+  } catch (error) {
+    if (errorMessage(error).startsWith('CATALOG_EXPORT_IMAGE_OPTIMIZATION_')) throw error;
+    throw new Error('CATALOG_EXPORT_IMAGE_OPTIMIZATION_FAILED');
+  }
+};
+
 const resolveChromiumLaunch = async () => {
   const localExecutable = process.env.CATALOG_CHROME_EXECUTABLE_PATH?.trim();
   if (localExecutable) {
@@ -212,13 +292,48 @@ export const renderSellerStoreCatalogPdf = async (
   document: SellerStoreCatalogDocument,
   platformLogoDataUrl: string,
 ): Promise<Buffer> => {
-  const html = await renderSellerStoreCatalogHtml(document, { platformLogoUrl: platformLogoDataUrl });
   const launch = await resolveChromiumLaunch();
   const browser = await puppeteer.launch({
     ...launch,
+    protocolTimeout: 120_000,
     defaultViewport: { width: 794, height: 1123, deviceScaleFactor: 1 },
   });
   try {
+    const optimizerPage = await browser.newPage();
+    const optimized = await optimizeSellerStoreCatalogImages(
+      document,
+      platformLogoDataUrl,
+      async (dataUrl, options) => optimizerPage.evaluate(async ({ source, settings }) => {
+        const image = new Image();
+        await new Promise<void>((resolve, reject) => {
+          image.onload = () => resolve();
+          image.onerror = () => reject(new Error('CATALOG_EXPORT_IMAGE_OPTIMIZATION_DECODE_FAILED'));
+          image.src = source;
+        });
+
+        const scale = Math.min(
+          1,
+          settings.maxWidth / image.naturalWidth,
+          settings.maxHeight / image.naturalHeight,
+        );
+        const canvas = globalThis.document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('CATALOG_EXPORT_IMAGE_OPTIMIZATION_CONTEXT_FAILED');
+        if (settings.mimeType === 'image/jpeg') {
+          context.fillStyle = '#ffffff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL(settings.mimeType, settings.quality);
+      }, { source: dataUrl, settings: options }),
+    );
+    await optimizerPage.close();
+
+    const html = await renderSellerStoreCatalogHtml(optimized.document, {
+      platformLogoUrl: optimized.platformLogoDataUrl,
+    });
     const page = await browser.newPage();
     await page.setJavaScriptEnabled(false);
     await page.setRequestInterception(true);
@@ -230,7 +345,7 @@ export const renderSellerStoreCatalogPdf = async (
       }
       void request.abort('blockedbyclient');
     });
-    await page.setContent(html, { waitUntil: 'load', timeout: 30_000 });
+    await page.setContent(html, { waitUntil: 'load', timeout: 60_000 });
     await page.evaluate(() => globalThis.document.fonts.ready);
     await page.emulateMediaType('print');
     const pdf = Buffer.from(await page.pdf({
