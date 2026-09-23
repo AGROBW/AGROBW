@@ -6,6 +6,7 @@ import {
   fetchTrustedCatalogImage,
   isPermanentCatalogError,
   optimizeSellerStoreCatalogImages,
+  prepareSellerStoreCatalogImagesForPdf,
 } from '../../../server/seller-store-catalog-worker';
 import { buildSellerStoreCatalogDocument } from '../sellerStoreCatalog/documentModel';
 
@@ -76,6 +77,9 @@ describe('Seller Store PDF Catalog worker', () => {
     expect(endpoint).toContain('timingSafeEqual');
     expect(vercel).toContain('api/catalog/process-jobs.ts');
     expect(vercel).toContain('"maxDuration": 300');
+    expect(vercel).toContain('public/images/catalog-cover-institutional-v2.png');
+    expect(worker).toContain('CATALOG_EXPORT_INSTITUTIONAL_BACKGROUND_UNAVAILABLE');
+    expect(worker).toContain('institutionalBackgroundUrl: await loadInstitutionalBackground()');
     expect(endpoint).toContain("Buffer.byteLength(JSON.stringify(req.body ?? {}), 'utf8')");
   });
 
@@ -167,7 +171,9 @@ describe('Seller Store PDF Catalog worker', () => {
   });
 
   it('uses bounded canvas recompression before the isolated PDF render', () => {
-    expect(worker).toContain('maxWidth: 1280');
+    expect(worker).toContain('maxWidth: 720');
+    expect(worker).toContain('MAX_PREPARED_IMAGE_BYTES');
+    expect(worker).toContain('prepareSellerStoreCatalogImagesForPdf(');
     expect(worker).toContain("mimeType: 'image/jpeg'");
     expect(worker).toContain("globalThis.document.createElement('canvas')");
     expect(worker).toContain('canvas.toDataURL(settings.mimeType, settings.quality)');
@@ -175,6 +181,26 @@ describe('Seller Store PDF Catalog worker', () => {
       .toBeLessThan(worker.indexOf('await page.setJavaScriptEnabled(false)'));
   });
 
+  it('fetches each source once and stores only optimized images for the PDF', async () => {
+    const catalog = document();
+    const largeWebpBytes = new Uint8Array(500);
+    largeWebpBytes.set(webpBytes);
+    const fetchImpl = vi.fn(async () => new Response(largeWebpBytes, {
+      status: 200,
+      headers: { 'content-type': 'image/webp' },
+    }));
+    const optimizeImage = vi.fn(async (_source: string, options: { mimeType: string }) => (
+      `data:${options.mimeType};base64,${'z'.repeat(32)}`
+    ));
+
+    const prepared = await prepareSellerStoreCatalogImagesForPdf(catalog, '', fetchImpl as typeof fetch, optimizeImage);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(prepared.document.store.coverUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(prepared.document.products[0].images[0]).toMatch(/^data:image\/jpeg;base64,/);
+    expect(prepared.platformLogoDataUrl).toMatch(/^data:image\/webp;base64,/);
+    expect(prepared.preparedImageBytes).toBeGreaterThan(0);
+  });
   it('classifies malformed documents and oversized PDFs as permanent failures', () => {
     expect(isPermanentCatalogError(new Error('CATALOG_DOCUMENT_INVALID_PRICE_MODE'))).toBe(true);
     expect(isPermanentCatalogError(new Error('CATALOG_EXPORT_PDF_TOO_LARGE'))).toBe(true);

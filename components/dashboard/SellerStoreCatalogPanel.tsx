@@ -123,7 +123,7 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
   useEffect(() => {
     const availableIds = new Set(announcements.map((announcement) => announcement.id));
     if (!selectionInitialized.current && announcements.length) {
-      setSelectedIds(announcements.slice(0, 100).map((announcement) => announcement.id));
+      setSelectedIds(announcements.slice(0, 200).map((announcement) => announcement.id));
       selectionInitialized.current = true;
       return;
     }
@@ -158,7 +158,7 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
   };
 
   const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : announcements.slice(0, 100).map((announcement) => announcement.id));
+    setSelectedIds(allSelected ? [] : announcements.slice(0, 200).map((announcement) => announcement.id));
   };
 
   const handleCreate = async () => {

@@ -1,5 +1,7 @@
 import chromium from '@sparticuz/chromium';
 import { createClient } from '@supabase/supabase-js';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import puppeteer from 'puppeteer-core';
 import {
   buildSellerStoreCatalogDocument,
@@ -11,10 +13,22 @@ import { renderSellerStoreCatalogHtml } from '../src/lib/sellerStoreCatalog/rend
 const CATALOG_BUCKET = 'seller-store-catalogs';
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_EMBEDDED_IMAGE_BYTES = 24 * 1024 * 1024;
+const MAX_PREPARED_IMAGE_BYTES = 28 * 1024 * 1024;
 const MAX_PDF_BYTES = 30 * 1024 * 1024;
 const IMAGE_TIMEOUT_MS = 8_000;
 const IMAGE_DOWNLOAD_CONCURRENCY = 8;
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const INSTITUTIONAL_BACKGROUND_PATH = 'public/images/catalog-cover-institutional-v2.png';
+
+let institutionalBackgroundPromise: Promise<string> | null = null;
+const loadInstitutionalBackground = () => {
+  institutionalBackgroundPromise ??= readFile(resolve(process.cwd(), INSTITUTIONAL_BACKGROUND_PATH))
+    .then((bytes) => `data:image/png;base64,${bytes.toString('base64')}`)
+    .catch(() => {
+      throw new Error('CATALOG_EXPORT_INSTITUTIONAL_BACKGROUND_UNAVAILABLE');
+    });
+  return institutionalBackgroundPromise;
+};
 
 export type CatalogImageOptimizationOptions = {
   maxWidth: number;
@@ -35,10 +49,10 @@ const COVER_IMAGE_OPTIMIZATION: CatalogImageOptimizationOptions = {
   quality: 0.76,
 };
 const PRODUCT_IMAGE_OPTIMIZATION: CatalogImageOptimizationOptions = {
-  maxWidth: 1280,
-  maxHeight: 960,
+  maxWidth: 720,
+  maxHeight: 540,
   mimeType: 'image/jpeg',
-  quality: 0.74,
+  quality: 0.62,
 };
 const LOGO_IMAGE_OPTIMIZATION: CatalogImageOptimizationOptions = {
   maxWidth: 512,
@@ -83,6 +97,7 @@ export const isPermanentCatalogError = (error: unknown) => {
   const code = safeErrorCode(error);
   return code.startsWith('CATALOG_DOCUMENT_')
     || code === 'CATALOG_EXPORT_INVALID_SNAPSHOT'
+    || code === 'CATALOG_EXPORT_PREPARED_IMAGES_TOO_LARGE'
     || code === 'CATALOG_EXPORT_PDF_TOO_LARGE';
 };
 
@@ -275,6 +290,86 @@ export const optimizeSellerStoreCatalogImages = async (
   }
 };
 
+export const prepareSellerStoreCatalogImagesForPdf = async (
+  document: SellerStoreCatalogDocument,
+  platformLogoDataUrl: string,
+  fetchImpl: typeof fetch,
+  optimizeImage: CatalogImageOptimizer,
+) => {
+  const copy = structuredClone(document);
+  let preparedPlatformLogo = platformLogoDataUrl;
+  let preparedBytes = 0;
+  const accounted = new Set<string>();
+  const sourceCache = new Map<string, Promise<string | null>>();
+  const cache = new Map<string, Promise<string | null>>();
+  const loadSource = (source: string) => {
+    if (source.startsWith('data:')) return Promise.resolve(source);
+    let pending = sourceCache.get(source);
+    if (!pending) {
+      pending = fetchTrustedCatalogImage(source, fetchImpl)
+        .then((result) => result.dataUrl)
+        .catch(() => null);
+      sourceCache.set(source, pending);
+    }
+    return pending;
+  };
+  const prepare = (source: string | null, options: CatalogImageOptimizationOptions) => {
+    if (!source) return Promise.resolve(null);
+    const key = `${options.maxWidth}:${options.maxHeight}:${options.mimeType}:${options.quality}:${source}`;
+    let pending = cache.get(key);
+    if (!pending) {
+      pending = (async () => {
+        const dataUrl = await loadSource(source);
+        if (!dataUrl) return null;
+        const candidate = await optimizeImage(dataUrl, options);
+        if (!candidate.startsWith(`data:${options.mimeType};base64,`)) {
+          throw new Error('CATALOG_EXPORT_IMAGE_OPTIMIZATION_INVALID');
+        }
+        const result = dataUrlByteLength(candidate) < dataUrlByteLength(dataUrl) ? candidate : dataUrl;
+        if (!accounted.has(key)) {
+          preparedBytes += dataUrlByteLength(result);
+          accounted.add(key);
+          if (preparedBytes > MAX_PREPARED_IMAGE_BYTES) {
+            throw new Error('CATALOG_EXPORT_PREPARED_IMAGES_TOO_LARGE');
+          }
+        }
+        return result;
+      })();
+      cache.set(key, pending);
+    }
+    return pending;
+  };
+
+  const jobs: Array<{ run: () => Promise<void> }> = [];
+  jobs.push({ run: async () => { copy.store.logoUrl = await prepare(copy.store.logoUrl, LOGO_IMAGE_OPTIMIZATION); } });
+  jobs.push({ run: async () => { copy.store.coverUrl = await prepare(copy.store.coverUrl, COVER_IMAGE_OPTIMIZATION); } });
+  copy.products.forEach((product) => {
+    jobs.push({
+      run: async () => {
+        const prepared = await prepare(product.images[0] ?? null, PRODUCT_IMAGE_OPTIMIZATION);
+        product.images = prepared ? [prepared] : [];
+      },
+    });
+  });
+  jobs.push({
+    run: async () => {
+      preparedPlatformLogo = await prepare(
+        platformLogoDataUrl || 'https://agrobw.com.br/agrobw-logo.png',
+        LOGO_IMAGE_OPTIMIZATION,
+      ) ?? '';
+    },
+  });
+
+  for (let index = 0; index < jobs.length; index += IMAGE_DOWNLOAD_CONCURRENCY) {
+    await Promise.all(jobs.slice(index, index + IMAGE_DOWNLOAD_CONCURRENCY).map((job) => job.run()));
+  }
+
+  return {
+    document: copy,
+    platformLogoDataUrl: preparedPlatformLogo,
+    preparedImageBytes: preparedBytes,
+  };
+};
 const resolveChromiumLaunch = async () => {
   const localExecutable = process.env.CATALOG_CHROME_EXECUTABLE_PATH?.trim();
   if (localExecutable) {
@@ -290,7 +385,8 @@ const resolveChromiumLaunch = async () => {
 
 export const renderSellerStoreCatalogPdf = async (
   document: SellerStoreCatalogDocument,
-  platformLogoDataUrl: string,
+  platformLogoDataUrl = '',
+  fetchImpl: typeof fetch = fetch,
 ): Promise<Buffer> => {
   const launch = await resolveChromiumLaunch();
   const browser = await puppeteer.launch({
@@ -300,9 +396,10 @@ export const renderSellerStoreCatalogPdf = async (
   });
   try {
     const optimizerPage = await browser.newPage();
-    const optimized = await optimizeSellerStoreCatalogImages(
+    const optimized = await prepareSellerStoreCatalogImagesForPdf(
       document,
       platformLogoDataUrl,
+      fetchImpl,
       async (dataUrl, options) => optimizerPage.evaluate(async ({ source, settings }) => {
         const image = new Image();
         await new Promise<void>((resolve, reject) => {
@@ -329,10 +426,22 @@ export const renderSellerStoreCatalogPdf = async (
         return canvas.toDataURL(settings.mimeType, settings.quality);
       }, { source: dataUrl, settings: options }),
     );
+    if (optimized.document.store.coverUrl) {
+      optimized.document.store.coverAspectRatio = await optimizerPage.evaluate(async (source) => {
+        const image = new Image();
+        await new Promise<void>((resolve, reject) => {
+          image.onload = () => resolve();
+          image.onerror = () => reject(new Error('CATALOG_EXPORT_COVER_DECODE_FAILED'));
+          image.src = source;
+        });
+        return image.naturalHeight > 0 ? image.naturalWidth / image.naturalHeight : null;
+      }, optimized.document.store.coverUrl);
+    }
     await optimizerPage.close();
 
     const html = await renderSellerStoreCatalogHtml(optimized.document, {
       platformLogoUrl: optimized.platformLogoDataUrl,
+      institutionalBackgroundUrl: await loadInstitutionalBackground(),
     });
     const page = await browser.newPage();
     await page.setJavaScriptEnabled(false);
@@ -468,11 +577,7 @@ export const processSellerStoreCatalogJobs = async (options: {
         store: job.store_snapshot,
         announcements: job.announcement_snapshot,
       });
-      const embedded = await embedSellerStoreCatalogImages(document, options.fetchImpl);
-      const pdf = await (options.renderPdf ?? renderSellerStoreCatalogPdf)(
-        embedded.document,
-        embedded.platformLogoDataUrl,
-      );
+      const pdf = await (options.renderPdf ?? renderSellerStoreCatalogPdf)(document, '', options.fetchImpl);
       const storagePath = `${job.user_id}/${job.id}.pdf`;
       const { error: uploadError } = await supabase.storage.from(CATALOG_BUCKET).upload(storagePath, pdf, {
         contentType: 'application/pdf',

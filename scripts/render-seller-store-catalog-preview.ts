@@ -73,8 +73,10 @@ const document = buildSellerStoreCatalogDocument({
 });
 
 const logo = await readFile(new URL('../public/agrobw-logo.png', import.meta.url));
+const institutionalBackground = await readFile(new URL('../public/images/catalog-cover-institutional-v2.png', import.meta.url));
 const html = await renderSellerStoreCatalogHtml(document, {
   platformLogoUrl: `data:image/png;base64,${logo.toString('base64')}`,
+  institutionalBackgroundUrl: `data:image/png;base64,${institutionalBackground.toString('base64')}`,
 });
 
 await mkdir(dirname(output), { recursive: true });
