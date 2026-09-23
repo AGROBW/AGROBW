@@ -4,11 +4,13 @@ with readiness as (
       and to_regclass('public.seller_store_catalog_runtime_settings') is not null
       and to_regclass('public.seller_store_catalog_worker_runs') is not null as estrutura_completa,
     to_regprocedure('public.request_seller_store_catalog_export(uuid[],text,text,text)') is not null
+      and to_regprocedure('public.request_seller_store_catalog_export_v2(uuid[],text,text,text,text)') is not null
       and to_regprocedure('public.claim_seller_store_catalog_exports(integer,uuid)') is not null
       and to_regprocedure('public.begin_seller_store_catalog_worker_run(uuid,integer)') is not null
       and to_regprocedure('public.finish_seller_store_catalog_worker_run(uuid,boolean,jsonb,text,integer)') is not null
       and to_regprocedure('public.get_seller_store_catalog_health_admin()') is not null
       and to_regprocedure('public.list_my_seller_store_catalog_exports(integer)') is not null
+      and to_regprocedure('public.list_my_seller_store_catalog_exports_v2(integer)') is not null
       and to_regprocedure('public.get_seller_store_catalog_availability()') is not null
       and to_regprocedure('public.update_seller_store_catalog_runtime_admin(boolean,integer,integer)') is not null
       as contratos_completos,

@@ -1,7 +1,9 @@
 export const SELLER_STORE_CATALOG_SCHEMA_VERSION = '2026-09-21' as const;
-export const SELLER_STORE_CATALOG_LAYOUT_VERSION = 'premium-v1' as const;
+export const SELLER_STORE_CATALOG_LAYOUT_VERSION = 'premium-v2' as const;
 export const SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE = 2;
-export const SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE = 16;
+// Six rows leave print-safe space for two-line titles and font metric variation.
+export const SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE = 12;
+export const SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT = 4;
 export const SELLER_STORE_CATALOG_IMAGE_HOSTS = new Set([
   'agrobw.com.br',
   'www.agrobw.com.br',
@@ -9,6 +11,7 @@ export const SELLER_STORE_CATALOG_IMAGE_HOSTS = new Set([
 ]);
 
 export type SellerStoreCatalogPriceMode = 'show' | 'hide' | 'consult';
+export type SellerStoreCatalogCoverAlignment = 'left' | 'center' | 'right';
 
 export type SellerStoreCatalogStoreSnapshot = {
   id: string;
@@ -51,6 +54,7 @@ export type SellerStoreCatalogBuildInput = {
   catalogTitle: string;
   catalogSubtitle?: string | null;
   priceMode: SellerStoreCatalogPriceMode;
+  coverAlignment?: SellerStoreCatalogCoverAlignment;
   generatedAt: string;
   store: SellerStoreCatalogStoreSnapshot;
   announcements: SellerStoreCatalogAnnouncementSnapshot[];
@@ -62,6 +66,7 @@ export type SellerStoreCatalogStore = {
   description: string;
   logoUrl: string | null;
   coverUrl: string | null;
+  coverAlignment: SellerStoreCatalogCoverAlignment;
   location: string;
   verified: boolean;
   publicUrl: string;
@@ -217,6 +222,9 @@ export const buildSellerStoreCatalogDocument = (
   }
 
   const storeName = truncate(stripMarkup(input.store.store_name) || 'Loja Parceira', 80);
+  const coverAlignment: SellerStoreCatalogCoverAlignment = ['left', 'center', 'right'].includes(input.coverAlignment || '')
+    ? input.coverAlignment as SellerStoreCatalogCoverAlignment
+    : 'center';
   const products = input.announcements.map((announcement, index): SellerStoreCatalogProduct => {
     const conditionLabel = formatMappedLabel(announcement.product_condition, CONDITION_LABELS);
     const availabilityLabel = formatMappedLabel(announcement.availability, AVAILABILITY_LABELS);
@@ -242,10 +250,14 @@ export const buildSellerStoreCatalogDocument = (
   });
 
   const pages: SellerStoreCatalogPage[] = [{ kind: 'cover', pageNumber: 1 }];
-  for (const productsPage of chunk(products, SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE)) {
-    pages.push({ kind: 'index', pageNumber: pages.length + 1, products: productsPage });
+  const isSmallCatalog = products.length <= SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT;
+  if (!isSmallCatalog) {
+    for (const productsPage of chunk(products, SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE)) {
+      pages.push({ kind: 'index', pageNumber: pages.length + 1, products: productsPage });
+    }
   }
-  for (const productsPage of chunk(products, SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE)) {
+  const productsPerPage = isSmallCatalog ? 1 : SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE;
+  for (const productsPage of chunk(products, productsPerPage)) {
     pages.push({ kind: 'products', pageNumber: pages.length + 1, products: productsPage });
   }
   pages.push({ kind: 'back-cover', pageNumber: pages.length + 1 });
@@ -264,6 +276,7 @@ export const buildSellerStoreCatalogDocument = (
       description: truncate(stripMarkup(input.store.description), 680),
       logoUrl: safeImageUrl(input.store.logo_url),
       coverUrl: safeImageUrl(input.store.cover_url) ?? safeImageUrl(input.store.cover_mobile_url),
+      coverAlignment,
       location: formatLocation(input.store.city, input.store.state),
       verified: input.store.is_verified === true,
       publicUrl: canonicalPlatformUrl(input.store.public_url, `/loja/${encodeURIComponent(input.store.slug)}`),

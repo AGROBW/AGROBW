@@ -22,6 +22,7 @@ type CatalogExportRow = {
   catalog_title: string;
   catalog_subtitle: string | null;
   price_mode: 'show' | 'hide' | 'consult';
+  cover_alignment?: 'left' | 'center' | 'right';
   created_at: string;
   store_snapshot: Parameters<typeof buildSellerStoreCatalogDocument>[0]['store'];
   announcement_snapshot: Parameters<typeof buildSellerStoreCatalogDocument>[0]['announcements'];
@@ -347,6 +348,7 @@ export const processSellerStoreCatalogJobs = async (options: {
         catalogTitle: job.catalog_title,
         catalogSubtitle: job.catalog_subtitle,
         priceMode: job.price_mode,
+        coverAlignment: job.cover_alignment,
         generatedAt: job.created_at,
         store: job.store_snapshot,
         announcements: job.announcement_snapshot,

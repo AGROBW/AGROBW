@@ -11,6 +11,7 @@ const document = buildSellerStoreCatalogDocument({
   catalogTitle: 'Selecao para a proxima safra',
   catalogSubtitle: 'Maquinas e equipamentos escolhidos para transformar produtividade em resultado.',
   priceMode: 'show',
+  coverAlignment: 'right',
   generatedAt: '2026-09-21T18:00:00.000Z',
   store: {
     id: 'store-preview',

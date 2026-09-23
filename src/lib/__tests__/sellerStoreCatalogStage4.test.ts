@@ -31,11 +31,11 @@ describe('Seller Store PDF Catalog experience', () => {
   });
 
   it('uses only RPCs for client mutations and polls only while work is open', () => {
-    expect(hook).toContain("supabase.rpc('request_seller_store_catalog_export'");
+    expect(hook).toContain("supabase.rpc('request_seller_store_catalog_export_v2'");
     expect(hook).toContain("supabase.rpc('cancel_seller_store_catalog_export'");
     expect(hook).not.toMatch(/\.from\('seller_store_catalog_exports'\)\s*\.insert/);
     expect(hook).not.toMatch(/\.from\('seller_store_catalog_exports'\)\s*\.update/);
-    expect(hook).toContain("supabase.rpc('list_my_seller_store_catalog_exports'");
+    expect(hook).toContain("supabase.rpc('list_my_seller_store_catalog_exports_v2'");
     expect(hook).not.toContain(".from('seller_store_catalog_exports')");
     expect(hook).toContain("item.status === 'queued' || item.status === 'processing'");
     expect(hook).toContain('window.setInterval(() => pollExports(), 5_000)');
