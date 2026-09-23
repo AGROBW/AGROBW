@@ -77,6 +77,8 @@ describe('Seller Store PDF Catalog controlled rollout', () => {
   it('ships a read-only final validator with structural and live checks', () => {
     expect(validator).toContain('estrutura_completa');
     expect(validator).toContain('contratos_completos');
+    expect(validator).toContain('request_seller_store_catalog_export_v2');
+    expect(validator).toContain('list_my_seller_store_catalog_exports_v2');
     expect(validator).toContain('bucket_privado');
     expect(validator).toContain('bucket_sem_policy_browser');
     expect(validator).toContain('sem_jobs_travados');

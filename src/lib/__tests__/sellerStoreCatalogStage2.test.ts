@@ -4,6 +4,7 @@ import {
   SELLER_STORE_CATALOG_INDEX_ITEMS_PER_PAGE,
   SELLER_STORE_CATALOG_LAYOUT_VERSION,
   SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE,
+  SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT,
   type SellerStoreCatalogBuildInput,
 } from '../sellerStoreCatalog/documentModel';
 import { renderSellerStoreCatalogHtml } from '../sellerStoreCatalog/renderHtml';
@@ -53,6 +54,7 @@ describe('Seller Store PDF Catalog premium document', () => {
 
     expect(second).toEqual(first);
     expect(first.layoutVersion).toBe(SELLER_STORE_CATALOG_LAYOUT_VERSION);
+    expect(first.store.coverAlignment).toBe('center');
     expect(first.store.description).toBe('Negocios confiaveis para todo o Brasil.');
     expect(first.store.publicUrl).toBe('https://agrobw.com.br/loja/campo-forte');
     expect(first.products[0].description).toBe('Equipamento revisado para a safra 1.');
@@ -74,6 +76,26 @@ describe('Seller Store PDF Catalog premium document', () => {
     expect(document.pages.map((page) => page.pageNumber)).toEqual(
       Array.from({ length: document.totalPages }, (_, index) => index + 1),
     );
+  });
+
+  it('uses an editorial one-product layout and omits the index for small catalogs', () => {
+    const document = buildSellerStoreCatalogDocument(input(SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT));
+    const indexPages = document.pages.filter((page) => page.kind === 'index');
+    const productPages = document.pages.filter((page) => page.kind === 'products');
+
+    expect(indexPages).toHaveLength(0);
+    expect(productPages).toHaveLength(SELLER_STORE_CATALOG_SMALL_CATALOG_LIMIT);
+    expect(productPages.every((page) => page.products.length === 1)).toBe(true);
+  });
+
+  it('preserves a valid cover alignment and renders it as a constrained class', async () => {
+    const document = buildSellerStoreCatalogDocument({ ...input(1), coverAlignment: 'right' });
+    const html = await renderSellerStoreCatalogHtml(document, {
+      qrCodeFactory: async () => 'data:image/png;base64,qr',
+    });
+
+    expect(document.store.coverAlignment).toBe('right');
+    expect(html).toContain('cover-page cover-align-right');
   });
 
   it('applies all price disclosure modes', () => {
@@ -124,6 +146,10 @@ describe('Seller Store PDF Catalog premium document', () => {
     expect(html).toContain('@page { size: A4 portrait; margin: 0; }');
     expect(html).toContain(`data-layout-version="${SELLER_STORE_CATALOG_LAYOUT_VERSION}"`);
     expect(html.match(/class="catalog-page/g)).toHaveLength(document.totalPages);
+    expect(html).toContain('class="cover-image-main"');
+    expect(html).toContain('object-fit: contain');
+    expect(html).toContain('products-stack products-stack-single');
+    expect(html).not.toContain('class="catalog-page content-page index-page"');
     expect(html).toContain('Escaneie para acessar');
     expect(html).not.toContain('<p>Equipamento revisado');
   });

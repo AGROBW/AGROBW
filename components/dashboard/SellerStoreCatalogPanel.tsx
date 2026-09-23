@@ -20,7 +20,10 @@ import {
   type SellerStoreCatalogExport,
   type SellerStoreCatalogExportStatus,
 } from '../../src/hooks/useSellerStoreCatalog';
-import type { SellerStoreCatalogPriceMode } from '../../src/lib/sellerStoreCatalog/documentModel';
+import type {
+  SellerStoreCatalogCoverAlignment,
+  SellerStoreCatalogPriceMode,
+} from '../../src/lib/sellerStoreCatalog/documentModel';
 
 type SellerStoreCatalogPanelProps = {
   hasStoreAccess: boolean;
@@ -38,6 +41,12 @@ const PRICE_OPTIONS: Array<{
   { value: 'show', label: 'Mostrar preços', description: 'Exibe os valores atuais dos anúncios.' },
   { value: 'consult', label: 'Sob consulta', description: 'Substitui todos os valores por “Consulte o vendedor”.' },
   { value: 'hide', label: 'Ocultar preços', description: 'Cria um catálogo institucional sem valores.' },
+];
+
+const COVER_ALIGNMENT_OPTIONS: Array<{ value: SellerStoreCatalogCoverAlignment; label: string }> = [
+  { value: 'left', label: 'Esquerda' },
+  { value: 'center', label: 'Centro' },
+  { value: 'right', label: 'Direita' },
 ];
 
 const STATUS_LABELS: Record<SellerStoreCatalogExportStatus, string> = {
@@ -107,6 +116,7 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
   const [catalogTitle, setCatalogTitle] = useState('');
   const [catalogSubtitle, setCatalogSubtitle] = useState('');
   const [priceMode, setPriceMode] = useState<SellerStoreCatalogPriceMode>('show');
+  const [coverAlignment, setCoverAlignment] = useState<SellerStoreCatalogCoverAlignment>('center');
   const selectionInitialized = useRef(false);
   const titleInitializedForStore = useRef<string | null>(null);
 
@@ -123,12 +133,21 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
   useEffect(() => {
     if (!store || titleInitializedForStore.current === store.id) return;
     setCatalogTitle(`${store.storeName} | Catálogo`);
+    setCoverAlignment(
+      typeof store.coverPositionX === 'number' && store.coverPositionX < 34
+        ? 'left'
+        : typeof store.coverPositionX === 'number' && store.coverPositionX > 66
+          ? 'right'
+          : 'center',
+    );
     titleInitializedForStore.current = store.id;
   }, [store]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allSelected = announcements.length > 0 && selectedIds.length === Math.min(announcements.length, 100);
   const latestOpenExport = catalogExports.find((item) => item.status === 'queued' || item.status === 'processing');
+  const coverImageUrl = store?.coverUrl || store?.coverMobileUrl || null;
+  const coverObjectPosition = `${coverAlignment} center`;
 
   const toggleAnnouncement = (announcementId: string) => {
     setSelectedIds((current) => (
@@ -166,6 +185,7 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
         catalogTitle,
         catalogSubtitle,
         priceMode,
+        coverAlignment,
       });
       toast.success('Catálogo adicionado à fila de geração.');
     } catch (createError) {
@@ -254,6 +274,74 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
               />
             </label>
           </div>
+
+          <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <div className="grid lg:grid-cols-[minmax(220px,0.72fr)_minmax(0,1fr)]">
+              <div className="flex items-center justify-center bg-slate-100 p-5">
+                <div className="relative aspect-[210/297] w-full max-w-[250px] overflow-hidden rounded-[1.4rem] bg-[#071722] text-white shadow-xl shadow-slate-900/15">
+                  <div className="absolute inset-x-0 top-0 h-[41%] overflow-hidden bg-slate-800">
+                    {coverImageUrl ? (
+                      <>
+                        <img
+                          src={coverImageUrl}
+                          alt=""
+                          className="absolute -inset-3 h-[calc(100%+1.5rem)] w-[calc(100%+1.5rem)] scale-110 object-cover opacity-45 blur-xl"
+                        />
+                        <img
+                          src={coverImageUrl}
+                          alt="Prévia do enquadramento da capa"
+                          className="absolute inset-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] object-contain drop-shadow-lg transition-[object-position] duration-300"
+                          style={{ objectPosition: coverObjectPosition }}
+                        />
+                      </>
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-xs font-black uppercase tracking-[0.25em] text-emerald-300">AGRO BW</div>
+                    )}
+                  </div>
+                  <div className="absolute left-[9%] top-[5%] flex items-center gap-2 rounded-xl border border-white/20 bg-slate-950/70 p-2 backdrop-blur">
+                    <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-white p-1 text-[8px] font-black text-emerald-700">
+                      {store?.logoUrl ? <img src={store.logoUrl} alt="" className="h-full w-full object-contain" /> : 'LOJA'}
+                    </div>
+                    <span className="text-[7px] font-black uppercase tracking-[0.18em]">Loja Parceira</span>
+                  </div>
+                  <div className="absolute inset-x-[9%] top-[47%]">
+                    <p className="text-[7px] font-black uppercase tracking-[0.22em] text-lime-200">Catálogo de oportunidades</p>
+                    <h4 className="mt-3 line-clamp-3 font-serif text-xl font-bold leading-[1.02]">{catalogTitle || 'Título do catálogo'}</h4>
+                    {catalogSubtitle ? <p className="mt-3 line-clamp-3 text-[8px] leading-relaxed text-slate-300">{catalogSubtitle}</p> : null}
+                    <div className="mt-4 flex items-start gap-2">
+                      <span className="mt-1 h-0.5 w-7 bg-emerald-400" />
+                      <div><strong className="block text-[8px]">{store?.storeName || 'Sua loja'}</strong><span className="text-[7px] text-slate-400">{[store?.city, store?.state].filter(Boolean).join(' - ')}</span></div>
+                    </div>
+                  </div>
+                  <div className="absolute inset-x-[9%] bottom-[5%] flex items-center justify-between border-t border-white/10 pt-2 text-[6px] text-slate-400"><strong className="text-emerald-300">AGRO BW</strong><span>agrobw.com.br</span></div>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-center p-5 md:p-6">
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">Prévia da capa</span>
+                <h3 className="mt-2 text-lg font-black text-slate-900">Escolha o enquadramento da imagem</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">A imagem sempre será preservada. Esta opção define para qual lado ela se alinha quando sobra espaço na composição.</p>
+                <p className="mt-2 text-xs leading-5 text-slate-400">Em imagens panorâmicas que já ocupam toda a largura, a diferença entre os alinhamentos pode ser sutil ou inexistente.</p>
+                <div className="mt-5 grid grid-cols-3 gap-2" role="group" aria-label="Enquadramento da imagem da capa">
+                  {COVER_ALIGNMENT_OPTIONS.map((option) => {
+                    const selected = coverAlignment === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setCoverAlignment(option.value)}
+                        disabled={!catalogEnabled}
+                        aria-pressed={selected}
+                        className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${selected ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-100' : 'border-slate-200 text-slate-600 hover:border-emerald-300'}`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
 
           <fieldset className="mt-6">
             <legend className="text-sm font-bold text-slate-800">Como exibir os preços</legend>
@@ -427,6 +515,7 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
 
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                     <span>{catalog.announcementIds.length} anúncio(s)</span>
+                    <span>Capa: {COVER_ALIGNMENT_OPTIONS.find((option) => option.value === catalog.coverAlignment)?.label ?? 'Centro'}</span>
                     {catalog.pageCount ? <span>{catalog.pageCount} página(s)</span> : null}
                     {fileSize ? <span>{fileSize}</span> : null}
                     {catalog.attempts > 0 ? <span>Tentativa {catalog.attempts}/{catalog.maxAttempts}</span> : null}

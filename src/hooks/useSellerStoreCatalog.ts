@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import type { SellerStoreCatalogPriceMode } from '../lib/sellerStoreCatalog/documentModel';
+import type {
+  SellerStoreCatalogCoverAlignment,
+  SellerStoreCatalogPriceMode,
+} from '../lib/sellerStoreCatalog/documentModel';
 
 export type SellerStoreCatalogExportStatus =
   | 'queued'
@@ -14,6 +17,7 @@ export type SellerStoreCatalogExport = {
   id: string;
   status: SellerStoreCatalogExportStatus;
   priceMode: SellerStoreCatalogPriceMode;
+  coverAlignment: SellerStoreCatalogCoverAlignment;
   catalogTitle: string;
   catalogSubtitle: string | null;
   announcementIds: string[];
@@ -31,6 +35,7 @@ type CatalogExportRow = {
   id: string;
   status: SellerStoreCatalogExportStatus;
   price_mode: SellerStoreCatalogPriceMode;
+  cover_alignment: SellerStoreCatalogCoverAlignment;
   catalog_title: string;
   catalog_subtitle: string | null;
   announcement_ids: string[];
@@ -56,6 +61,7 @@ const mapExport = (row: CatalogExportRow): SellerStoreCatalogExport => ({
   id: row.id,
   status: row.status,
   priceMode: row.price_mode,
+  coverAlignment: row.cover_alignment || 'center',
   catalogTitle: row.catalog_title,
   catalogSubtitle: row.catalog_subtitle,
   announcementIds: Array.isArray(row.announcement_ids) ? row.announcement_ids : [],
@@ -80,6 +86,9 @@ const FRIENDLY_ERRORS: Record<string, string> = {
   CATALOG_EXPORT_DAILY_LIMIT: 'O limite diário de 20 catálogos foi atingido. Tente novamente mais tarde.',
   CATALOG_EXPORT_INVALID_TITLE: 'Use um título entre 3 e 120 caracteres.',
   CATALOG_EXPORT_INVALID_SUBTITLE: 'Use um subtítulo entre 3 e 240 caracteres.',
+  CATALOG_EXPORT_INVALID_COVER_ALIGNMENT: 'Escolha um enquadramento válido para a imagem da capa.',
+  CATALOG_EXPORT_ALREADY_PROCESSING: 'Este catálogo já está sendo processado e não pode mais ter a capa alterada.',
+  CATALOG_EXPORT_ALIGNMENT_CONFLICT: 'Já existe um catálogo igual na fila com outro enquadramento. Cancele-o antes de gerar uma nova versão.',
 };
 
 export const getSellerStoreCatalogErrorMessage = (error: unknown, fallback: string): string => {
@@ -128,7 +137,7 @@ export const useSellerStoreCatalog = (enabled: boolean, ownerUserId: string | nu
 
     if (!options.silent) setIsRefreshing(true);
     const [exportsResult, availabilityResult] = await Promise.all([
-      supabase.rpc('list_my_seller_store_catalog_exports', { p_limit: 12 }),
+      supabase.rpc('list_my_seller_store_catalog_exports_v2', { p_limit: 12 }),
       supabase.rpc('get_seller_store_catalog_availability'),
     ]);
     const { data, error: fetchError } = exportsResult;
@@ -184,15 +193,17 @@ export const useSellerStoreCatalog = (enabled: boolean, ownerUserId: string | nu
     catalogTitle: string;
     catalogSubtitle?: string | null;
     priceMode: SellerStoreCatalogPriceMode;
+    coverAlignment: SellerStoreCatalogCoverAlignment;
   }) => {
     setIsCreating(true);
     setError(null);
     try {
-      const { data, error: createError } = await supabase.rpc('request_seller_store_catalog_export', {
+      const { data, error: createError } = await supabase.rpc('request_seller_store_catalog_export_v2', {
         p_announcement_ids: input.announcementIds,
         p_catalog_title: input.catalogTitle.trim(),
         p_catalog_subtitle: input.catalogSubtitle?.trim() || null,
         p_price_mode: input.priceMode,
+        p_cover_alignment: input.coverAlignment,
       });
       if (createError) throw createError;
       const exportId = String(data || '');
