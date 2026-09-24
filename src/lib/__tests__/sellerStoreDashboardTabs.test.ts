@@ -8,10 +8,11 @@ const dashboard = readFileSync(
 );
 
 describe('Seller Store dashboard tabbed experience', () => {
-  it('defines the four expected navigation categories with overview as the default', () => {
+  it('defines the five expected navigation categories with overview as the default', () => {
     expect(dashboard).toContain("useState<StoreDashboardTab>('overview')");
     expect(dashboard).toContain("label: 'Visão geral'");
     expect(dashboard).toContain("label: 'Vitrine'");
+    expect(dashboard).toContain("label: 'Catálogo'");
     expect(dashboard).toContain("label: 'Aparência'");
     expect(dashboard).toContain("label: 'Publicação'");
   });
@@ -24,7 +25,7 @@ describe('Seller Store dashboard tabbed experience', () => {
     expect(dashboard).toContain("['ArrowLeft', 'ArrowRight', 'Home', 'End']");
     expect(dashboard).toContain('overflow-x-auto');
 
-    for (const panel of ['overview', 'showcase', 'appearance', 'publication']) {
+    for (const panel of ['overview', 'showcase', 'catalog', 'appearance', 'publication']) {
       expect(dashboard).toContain(`id="store-panel-${panel}"`);
       expect(dashboard).toContain(`hidden={activeTab !== '${panel}'}`);
     }
@@ -47,14 +48,18 @@ describe('Seller Store dashboard tabbed experience', () => {
     expect(dashboard).toContain("handleChange('isActive', !formData.isActive)");
   });
 
-  it('uses an on-demand preview and keeps the full editors below the compact module', () => {
+  it('uses an on-demand preview and keeps the catalog mounted inside its tab', () => {
     expect(dashboard).toContain('isPreviewOpen ? (');
     expect(dashboard).toContain('aria-modal="true"');
     expect(dashboard).toContain('id="store-data-editor"');
     expect(dashboard).toContain('id="store-appearance-editor"');
-    expect(dashboard.indexOf('id="store-data-editor"')).toBeLessThan(
+    expect(dashboard.indexOf('id="store-panel-catalog"')).toBeLessThan(
       dashboard.indexOf('<SellerStoreCatalogPanel'),
     );
+    expect(dashboard.indexOf('<SellerStoreCatalogPanel')).toBeLessThan(
+      dashboard.indexOf('id="store-data-editor"'),
+    );
+    expect(dashboard.match(/<SellerStoreCatalogPanel/g)).toHaveLength(1);
     expect(dashboard).not.toContain('Monte a vitrine oficial do seu negócio no agro');
   });
 });

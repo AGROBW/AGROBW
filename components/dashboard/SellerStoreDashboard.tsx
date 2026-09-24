@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ExternalLink,
   Eye,
+  FileText,
   Globe,
   Image,
   LayoutDashboard,
@@ -33,7 +34,7 @@ type SellerStoreDashboardProps = {
 
 const STORE_DESCRIPTION_MAX_LENGTH = 280;
 
-type StoreDashboardTab = 'overview' | 'showcase' | 'appearance' | 'publication';
+type StoreDashboardTab = 'overview' | 'showcase' | 'catalog' | 'appearance' | 'publication';
 
 const STORE_DASHBOARD_TABS: Array<{
   id: StoreDashboardTab;
@@ -42,6 +43,7 @@ const STORE_DASHBOARD_TABS: Array<{
 }> = [
   { id: 'overview', label: 'Visão geral', icon: LayoutDashboard },
   { id: 'showcase', label: 'Vitrine', icon: ShoppingBag },
+  { id: 'catalog', label: 'Catálogo', icon: FileText },
   { id: 'appearance', label: 'Aparência', icon: Palette },
   { id: 'publication', label: 'Publicação', icon: Globe },
 ];
@@ -641,6 +643,16 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
             )}
           </div>
 
+          <div id="store-panel-catalog" role="tabpanel" aria-labelledby="store-tab-catalog" hidden={activeTab !== 'catalog'}>
+            <SellerStoreCatalogPanel
+              hasStoreAccess={hasStoreAccess}
+              ownerUserId={user?.id}
+              store={store}
+              announcements={orderedAnnouncements}
+              isLoadingAnnouncements={isLoadingAnnouncements}
+            />
+          </div>
+
           <div id="store-panel-appearance" role="tabpanel" aria-labelledby="store-tab-appearance" hidden={activeTab !== 'appearance'}>
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1017,14 +1029,6 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
           </div>
         </aside>
       </section>
-
-      <SellerStoreCatalogPanel
-        hasStoreAccess={hasStoreAccess}
-        ownerUserId={user?.id}
-        store={store}
-        announcements={orderedAnnouncements}
-        isLoadingAnnouncements={isLoadingAnnouncements}
-      />
 
       {isPreviewOpen ? (
         <div
