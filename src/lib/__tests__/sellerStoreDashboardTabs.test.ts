@@ -79,4 +79,15 @@ describe('Seller Store dashboard tabbed experience', () => {
     expect(catalogPanel).toContain('onClick={() => void handleDownload(catalog)}');
     expect(catalogPanel).toContain('onClick={() => void handleCancel(catalog.id)}');
   });
+
+  it('paginates and filters large product selections without losing the 200 item contract', () => {
+    expect(catalogPanel).toContain('const CATALOG_PRODUCT_LIMIT = 200');
+    expect(catalogPanel).toContain('const CATALOG_PRODUCTS_PER_PAGE = 10');
+    expect(catalogPanel).toContain('filteredAnnouncements');
+    expect(catalogPanel).toContain('paginatedAnnouncements');
+    expect(catalogPanel).toContain('Buscar por produto, cidade ou estado');
+    expect(catalogPanel).toContain('Página {currentProductPage} de {productPageCount}');
+    expect(catalogPanel).toContain('current.length < CATALOG_PRODUCT_LIMIT');
+    expect(catalogPanel).not.toContain('current.length < 100');
+  });
 });

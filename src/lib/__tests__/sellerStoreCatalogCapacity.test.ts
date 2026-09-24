@@ -17,7 +17,8 @@ describe('Seller Store PDF Catalog capacity', () => {
   it('supports compact catalogs with up to 200 products', () => {
     expect(SELLER_STORE_CATALOG_MAX_PRODUCTS).toBe(200);
     expect(SELLER_STORE_CATALOG_PRODUCTS_PER_PAGE).toBe(6);
-    expect(panel).toContain('announcements.slice(0, 200)');
+    expect(panel).toContain('const CATALOG_PRODUCT_LIMIT = 200');
+    expect(panel).toContain('announcements.slice(0, CATALOG_PRODUCT_LIMIT)');
     expect(hook).toContain('Selecione entre 1 e 200 anúncios ativos.');
   });
 

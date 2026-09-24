@@ -3,11 +3,14 @@ import {
   BookOpen,
   Check,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Download,
   FileText,
   Loader2,
   RefreshCw,
+  Search,
   ShoppingBag,
   Sparkles,
   X,
@@ -33,6 +36,9 @@ type SellerStoreCatalogPanelProps = {
   announcements: Ad[];
   isLoadingAnnouncements: boolean;
 };
+
+const CATALOG_PRODUCT_LIMIT = 200;
+const CATALOG_PRODUCTS_PER_PAGE = 10;
 
 const PRICE_OPTIONS: Array<{
   value: SellerStoreCatalogPriceMode;
@@ -118,13 +124,15 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
   const [catalogSubtitle, setCatalogSubtitle] = useState('');
   const [priceMode, setPriceMode] = useState<SellerStoreCatalogPriceMode>('show');
   const [coverAlignment, setCoverAlignment] = useState<SellerStoreCatalogCoverAlignment>('center');
+  const [productSearch, setProductSearch] = useState('');
+  const [productPage, setProductPage] = useState(1);
   const selectionInitialized = useRef(false);
   const titleInitializedForStore = useRef<string | null>(null);
 
   useEffect(() => {
     const availableIds = new Set(announcements.map((announcement) => announcement.id));
     if (!selectionInitialized.current && announcements.length) {
-      setSelectedIds(announcements.slice(0, 200).map((announcement) => announcement.id));
+      setSelectedIds(announcements.slice(0, CATALOG_PRODUCT_LIMIT).map((announcement) => announcement.id));
       selectionInitialized.current = true;
       return;
     }
@@ -145,7 +153,34 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
   }, [store]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-  const allSelected = announcements.length > 0 && selectedIds.length === Math.min(announcements.length, 100);
+  const selectableAnnouncementIds = useMemo(
+    () => announcements.slice(0, CATALOG_PRODUCT_LIMIT).map((announcement) => announcement.id),
+    [announcements],
+  );
+  const allSelected = selectableAnnouncementIds.length > 0
+    && selectableAnnouncementIds.every((announcementId) => selectedSet.has(announcementId));
+  const filteredAnnouncements = useMemo(() => {
+    const normalizedSearch = productSearch.trim().toLocaleLowerCase('pt-BR');
+    if (!normalizedSearch) return announcements;
+    return announcements.filter((announcement) => (
+      [announcement.title, announcement.location.city, announcement.location.state]
+        .filter(Boolean)
+        .some((value) => value.toLocaleLowerCase('pt-BR').includes(normalizedSearch))
+    ));
+  }, [announcements, productSearch]);
+  const productPageCount = Math.max(1, Math.ceil(filteredAnnouncements.length / CATALOG_PRODUCTS_PER_PAGE));
+  const currentProductPage = Math.min(productPage, productPageCount);
+  const paginatedAnnouncements = filteredAnnouncements.slice(
+    (currentProductPage - 1) * CATALOG_PRODUCTS_PER_PAGE,
+    currentProductPage * CATALOG_PRODUCTS_PER_PAGE,
+  );
+  const productResultStart = filteredAnnouncements.length === 0
+    ? 0
+    : (currentProductPage - 1) * CATALOG_PRODUCTS_PER_PAGE + 1;
+  const productResultEnd = Math.min(
+    currentProductPage * CATALOG_PRODUCTS_PER_PAGE,
+    filteredAnnouncements.length,
+  );
   const latestOpenExport = catalogExports.find((item) => item.status === 'queued' || item.status === 'processing');
   const coverImageUrl = store?.coverUrl || store?.coverMobileUrl || null;
   const coverObjectPosition = `${coverAlignment} center`;
@@ -153,16 +188,20 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
   const selectedPriceLabel = PRICE_OPTIONS.find((option) => option.value === priceMode)?.label ?? 'Mostrar preços';
   const selectedAlignmentLabel = COVER_ALIGNMENT_OPTIONS.find((option) => option.value === coverAlignment)?.label ?? 'Centro';
 
+  useEffect(() => {
+    if (productPage > productPageCount) setProductPage(productPageCount);
+  }, [productPage, productPageCount]);
+
   const toggleAnnouncement = (announcementId: string) => {
     setSelectedIds((current) => (
       current.includes(announcementId)
         ? current.filter((id) => id !== announcementId)
-        : current.length < 100 ? [...current, announcementId] : current
+        : current.length < CATALOG_PRODUCT_LIMIT ? [...current, announcementId] : current
     ));
   };
 
   const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : announcements.slice(0, 200).map((announcement) => announcement.id));
+    setSelectedIds(allSelected ? [] : selectableAnnouncementIds);
   };
 
   const handleCreate = async () => {
@@ -324,9 +363,80 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
               <div className="flex items-start gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-black text-emerald-700">3</span><div><h3 className="text-base font-black text-slate-900">Produtos selecionados</h3><p className="mt-0.5 text-xs text-slate-500">{selectedIds.length} de {announcements.length} anúncio(s) farão parte do catálogo.</p></div></div>
               <button type="button" onClick={toggleAll} disabled={!catalogEnabled || !announcements.length} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-50">{allSelected ? 'Limpar seleção' : 'Selecionar todos'}</button>
             </div>
-            <div className="mt-4 max-h-[360px] space-y-2 overflow-y-auto pr-1">
-              {isLoadingAnnouncements ? Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-xl bg-slate-100" />) : announcements.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">Publique pelo menos um anúncio ativo para montar seu catálogo.</div> : announcements.map((announcement) => { const selected = selectedSet.has(announcement.id); return <button key={announcement.id} type="button" onClick={() => toggleAnnouncement(announcement.id)} disabled={!catalogEnabled} aria-pressed={selected} className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition disabled:cursor-not-allowed ${selected ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-100 bg-slate-50/60 opacity-70'}`}><span className="h-11 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-100">{announcement.images?.[0] ? <img src={announcement.images[0]} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full items-center justify-center text-slate-400"><FileText className="h-4 w-4" /></span>}</span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-black text-slate-900">{announcement.title}</span><span className="mt-1 block truncate text-[11px] text-slate-500">{announcement.location.city} - {announcement.location.state}</span></span><span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 text-transparent'}`}><Check className="h-3.5 w-3.5" /></span></button>; })}
+            {announcements.length > CATALOG_PRODUCT_LIMIT ? (
+              <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800">
+                É possível incluir até {CATALOG_PRODUCT_LIMIT} anúncios em cada catálogo.
+              </p>
+            ) : null}
+            <label className="relative mt-4 block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <span className="sr-only">Buscar anúncios para o catálogo</span>
+              <input
+                type="search"
+                value={productSearch}
+                onChange={(event) => {
+                  setProductSearch(event.target.value);
+                  setProductPage(1);
+                }}
+                placeholder="Buscar por produto, cidade ou estado"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-xs outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+              />
+            </label>
+            <div className="mt-3 min-h-[150px] space-y-2">
+              {isLoadingAnnouncements ? (
+                Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-xl bg-slate-100" />)
+              ) : announcements.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">Publique pelo menos um anúncio ativo para montar seu catálogo.</div>
+              ) : filteredAnnouncements.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">Nenhum anúncio encontrado para esta busca.</div>
+              ) : paginatedAnnouncements.map((announcement) => {
+                const selected = selectedSet.has(announcement.id);
+                return (
+                  <button
+                    key={announcement.id}
+                    type="button"
+                    onClick={() => toggleAnnouncement(announcement.id)}
+                    disabled={!catalogEnabled || (!selected && selectedIds.length >= CATALOG_PRODUCT_LIMIT)}
+                    aria-pressed={selected}
+                    className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-50 ${selected ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-100 bg-slate-50/60'}`}
+                  >
+                    <span className="h-11 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                      {announcement.images?.[0] ? <img src={announcement.images[0]} alt="" className="h-full w-full object-cover" /> : <span className="flex h-full items-center justify-center text-slate-400"><FileText className="h-4 w-4" /></span>}
+                    </span>
+                    <span className="min-w-0 flex-1"><span className="block truncate text-xs font-black text-slate-900">{announcement.title}</span><span className="mt-1 block truncate text-[11px] text-slate-500">{announcement.location.city} - {announcement.location.state}</span></span>
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 text-transparent'}`}><Check className="h-3.5 w-3.5" /></span>
+                  </button>
+                );
+              })}
             </div>
+            {!isLoadingAnnouncements && announcements.length > 0 ? (
+              <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-[11px] text-slate-500">
+                  Exibindo {productResultStart}-{productResultEnd} de {filteredAnnouncements.length} anúncio(s)
+                </p>
+                <nav className="flex items-center gap-2" aria-label="Paginação dos anúncios do catálogo">
+                  <button
+                    type="button"
+                    onClick={() => setProductPage((current) => Math.max(1, current - 1))}
+                    disabled={currentProductPage === 1}
+                    aria-label="Página anterior"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="min-w-[92px] text-center text-xs font-bold text-slate-700">Página {currentProductPage} de {productPageCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => setProductPage((current) => Math.min(productPageCount, current + 1))}
+                    disabled={currentProductPage === productPageCount}
+                    aria-label="Próxima página"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </nav>
+              </div>
+            ) : null}
           </section>
         </div>
 
@@ -344,7 +454,7 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3"><div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><Clock3 className="h-4 w-4" /></span><div><h3 className="text-base font-black text-slate-900">Seus catálogos</h3><p className="mt-0.5 text-xs text-slate-500">Histórico dos últimos 12 arquivos gerados.</p></div></div><button type="button" onClick={() => void refresh().catch((refreshError) => toast.error(refreshError.message))} disabled={isRefreshing} aria-label="Atualizar histórico de catálogos" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} /></button></div>
-            {latestOpenExport ? <div aria-live="polite" className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3"><div className="flex items-start gap-2.5"><Loader2 className="mt-0.5 h-4 w-4 animate-spin text-sky-700" /><div><p className="text-xs font-black text-sky-950">{latestOpenExport.status === 'queued' ? 'Seu catálogo está na fila' : 'Estamos montando seu PDF'}</p><p className="mt-1 text-[11px] leading-4 text-sky-800">O status é atualizado automaticamente.</p></div></div></div> : null}
+             {latestOpenExport ? <div aria-live="polite" className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3"><div className="flex items-start gap-2.5"><Loader2 className="mt-0.5 h-4 w-4 animate-spin text-sky-700" /><div><p className="text-xs font-black text-sky-950">{latestOpenExport.status === 'queued' ? 'Seu catálogo está na fila' : 'Estamos montando seu PDF'}</p><p className="mt-1 text-[11px] leading-4 text-sky-800">Você pode continuar usando a plataforma. O status é atualizado automaticamente.</p></div></div></div> : null}
             {error ? <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">{error}</div> : null}
             <div className="mt-4 max-h-[520px] space-y-3 overflow-y-auto pr-1">
               {isLoading ? Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-xl bg-slate-100" />) : catalogExports.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-7 text-center"><BookOpen className="mx-auto h-7 w-7 text-slate-300" /><p className="mt-3 text-sm font-bold text-slate-700">Nenhum catálogo gerado ainda</p><p className="mt-1 text-xs leading-5 text-slate-500">Sua primeira versão aparecerá aqui com acesso privado por 30 dias.</p></div> : catalogExports.map((catalog) => { const effectiveStatus = getEffectiveCatalogStatus(catalog); const isBusy = busyExportId === catalog.id; const fileSize = formatFileSize(catalog.fileSizeBytes); return <article key={catalog.id} className="rounded-xl border border-slate-200 bg-white p-3.5"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-xs font-black text-slate-900">{catalog.catalogTitle}</p><p className="mt-1 text-[10px] text-slate-500">{formatDateTime(catalog.createdAt)}</p></div><span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black ring-1 ring-inset ${STATUS_STYLES[effectiveStatus]}`}><CatalogStatusIcon status={effectiveStatus} />{STATUS_LABELS[effectiveStatus]}</span></div><div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500"><span>{catalog.announcementIds.length} anúncio(s)</span><span>Capa: {COVER_ALIGNMENT_OPTIONS.find((option) => option.value === catalog.coverAlignment)?.label ?? 'Centro'}</span>{catalog.pageCount ? <span>{catalog.pageCount} página(s)</span> : null}{fileSize ? <span>{fileSize}</span> : null}{catalog.attempts > 0 ? <span>Tentativa {catalog.attempts}/{catalog.maxAttempts}</span> : null}</div>{effectiveStatus === 'failed' ? <p className="mt-2 rounded-lg bg-rose-50 px-2.5 py-2 text-[11px] leading-4 text-rose-800">Não foi possível concluir este arquivo. Gere uma nova versão ou tente novamente mais tarde.</p> : null}{effectiveStatus === 'ready' ? <p className="mt-2 text-[10px] text-slate-500">Download disponível até {formatDateTime(catalog.expiresAt)}.</p> : null}<div className="mt-3 flex gap-2">{effectiveStatus === 'ready' ? <button type="button" onClick={() => void handleDownload(catalog)} disabled={isBusy} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-[11px] font-black text-white transition hover:bg-emerald-700 disabled:opacity-50">{isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}Baixar PDF</button> : null}{catalog.status === 'queued' ? <button type="button" onClick={() => void handleCancel(catalog.id)} disabled={isBusy} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">{isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}Cancelar</button> : null}</div></article>; })}
