@@ -6,6 +6,10 @@ const dashboard = readFileSync(
   resolve(process.cwd(), 'components/dashboard/SellerStoreDashboard.tsx'),
   'utf8',
 );
+const catalogPanel = readFileSync(
+  resolve(process.cwd(), 'components/dashboard/SellerStoreCatalogPanel.tsx'),
+  'utf8',
+);
 
 describe('Seller Store dashboard tabbed experience', () => {
   it('defines the five expected navigation categories with overview as the default', () => {
@@ -61,5 +65,18 @@ describe('Seller Store dashboard tabbed experience', () => {
     );
     expect(dashboard.match(/<SellerStoreCatalogPanel/g)).toHaveLength(1);
     expect(dashboard).not.toContain('Monte a vitrine oficial do seu negócio no agro');
+  });
+
+  it('organizes the smart catalog as a guided responsive workspace', () => {
+    expect(catalogPanel).toContain('Informações do catálogo');
+    expect(catalogPanel).toContain('Aparência da capa');
+    expect(catalogPanel).toContain('Produtos selecionados');
+    expect(catalogPanel).toContain('Resumo do catálogo');
+    expect(catalogPanel).toContain('Seus catálogos');
+    expect(catalogPanel).toContain("xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.95fr)]");
+    expect(catalogPanel).toContain('xl:sticky xl:top-5');
+    expect(catalogPanel).toContain('onClick={() => void handleCreate()}');
+    expect(catalogPanel).toContain('onClick={() => void handleDownload(catalog)}');
+    expect(catalogPanel).toContain('onClick={() => void handleCancel(catalog.id)}');
   });
 });
