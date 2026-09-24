@@ -2,7 +2,22 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlertTriangle, ExternalLink, Globe, Image, MapPin, Save, ShieldCheck, ShoppingBag, Store, UploadCloud, UserRound } from 'lucide-react';
+import {
+  AlertTriangle,
+  ExternalLink,
+  Eye,
+  Globe,
+  Image,
+  LayoutDashboard,
+  MapPin,
+  Palette,
+  Save,
+  ShoppingBag,
+  Store,
+  UploadCloud,
+  UserRound,
+  X,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -17,6 +32,19 @@ type SellerStoreDashboardProps = {
 };
 
 const STORE_DESCRIPTION_MAX_LENGTH = 280;
+
+type StoreDashboardTab = 'overview' | 'showcase' | 'appearance' | 'publication';
+
+const STORE_DASHBOARD_TABS: Array<{
+  id: StoreDashboardTab;
+  label: string;
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+}> = [
+  { id: 'overview', label: 'Visão geral', icon: LayoutDashboard },
+  { id: 'showcase', label: 'Vitrine', icon: ShoppingBag },
+  { id: 'appearance', label: 'Aparência', icon: Palette },
+  { id: 'publication', label: 'Publicação', icon: Globe },
+];
 
 const extractStoreAssetPath = (publicUrl?: string | null) => {
   if (!publicUrl) return null;
@@ -117,6 +145,8 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
     coverMobileUrl: [],
   });
   const [orderedAnnouncements, setOrderedAnnouncements] = useState<Ad[]>([]);
+  const [activeTab, setActiveTab] = useState<StoreDashboardTab>('overview');
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [formData, setFormData] = useState({
     storeName: '',
     slug: '',
@@ -181,6 +211,68 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
     if (!normalizedSlug || typeof window === 'undefined') return null;
     return `${window.location.origin}/loja/${normalizedSlug}`;
   }, [formData.slug, formData.storeName]);
+
+  const storeStatus = useMemo(() => {
+    if (!hasStoreAccess) return { label: 'Plano necessário', tone: 'amber' as const };
+    if (store?.isPausedDueToPlan) return { label: 'Pausada', tone: 'amber' as const };
+    if (!store) return { label: 'Rascunho', tone: 'slate' as const };
+    if (!formData.isActive) return { label: 'Oculta', tone: 'slate' as const };
+    return { label: 'Publicada', tone: 'emerald' as const };
+  }, [formData.isActive, hasStoreAccess, store]);
+
+  const appearanceIssueCount = Number(!formData.logoUrl) + Number(!formData.coverUrl);
+  const showcaseIssueCount = isLoadingAnnouncements ? 0 : Number(orderedAnnouncements.length === 0);
+  const publicationIssueCount = Number(
+    !hasStoreAccess || !!store?.isPausedDueToPlan || !store || !formData.isActive || !publicStoreUrl,
+  );
+
+  const primaryAlert = useMemo(() => {
+    if (!hasStoreAccess) {
+      return { message: 'Seu plano atual não inclui a Loja Parceira.', action: 'Ver planos', href: '/planos' };
+    }
+    if (store?.isPausedDueToPlan) {
+      return {
+        message: 'Sua loja está pausada até a renovação do plano.',
+        action: 'Renovar plano',
+        href: '/planos?source=minha-loja&intent=renewal',
+      };
+    }
+    if (!store) return { message: 'Complete os dados abaixo para criar e publicar sua loja.' };
+    if (!formData.isActive) return { message: 'Sua página pública está oculta no momento.' };
+    if (!isLoadingAnnouncements && orderedAnnouncements.length === 0) {
+      return { message: 'Sua loja está publicada, mas ainda não possui anúncios ativos na vitrine.' };
+    }
+    return null;
+  }, [formData.isActive, hasStoreAccess, isLoadingAnnouncements, orderedAnnouncements.length, store]);
+
+  useEffect(() => {
+    if (!isPreviewOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsPreviewOpen(false);
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isPreviewOpen]);
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const lastIndex = STORE_DASHBOARD_TABS.length - 1;
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? lastIndex
+        : event.key === 'ArrowRight'
+          ? (index + 1) % STORE_DASHBOARD_TABS.length
+          : (index - 1 + STORE_DASHBOARD_TABS.length) % STORE_DASHBOARD_TABS.length;
+    const nextTab = STORE_DASHBOARD_TABS[nextIndex];
+    setActiveTab(nextTab.id);
+    document.getElementById(`store-tab-${nextTab.id}`)?.focus();
+  };
+
+  const scrollToEditor = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const handleChange = (field: keyof typeof formData, value: string | boolean | number) => {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -354,97 +446,252 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
 
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-[2rem] border border-emerald-100 bg-white shadow-sm">
-        <div className="relative bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 px-8 py-10 text-white">
-          <div className="absolute inset-y-0 right-0 hidden w-1/3 bg-[radial-gradient(circle_at_top_right,_rgba(74,222,128,0.28),_transparent_60%)] md:block" />
-          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-2xl space-y-4">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-black uppercase tracking-[0.3em] text-emerald-200">
-                <Store className="h-4 w-4" strokeWidth={1.5} />
-                Loja Parceira
-              </span>
-              <div>
-                <h1 className="text-3xl font-black tracking-tight">Monte a vitrine oficial do seu negócio no agro</h1>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-200">
-                  Personalize sua presença dentro da BWAGRO com logo, capa, descrição institucional e uma página pública dedicada para concentrar todos os seus anúncios.
-                </p>
+      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+        <header className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 px-5 py-5 text-white sm:px-7">
+          <div className="absolute inset-y-0 right-0 hidden w-1/3 bg-[radial-gradient(circle_at_top_right,_rgba(74,222,128,0.24),_transparent_62%)] md:block" />
+          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-emerald-200">
+                  <Store className="h-5 w-5" strokeWidth={1.6} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-200">Minha loja</p>
+                  <h1 className="truncate text-xl font-black tracking-tight sm:text-2xl">
+                    {formData.storeName || 'Sua Loja Parceira'}
+                  </h1>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  storeStatus.tone === 'emerald'
+                    ? 'bg-emerald-400/15 text-emerald-200'
+                    : storeStatus.tone === 'amber'
+                      ? 'bg-amber-400/15 text-amber-200'
+                      : 'bg-white/10 text-slate-200'
+                }`}>
+                  {storeStatus.label}
+                </span>
               </div>
+              <p className="mt-2 truncate text-sm text-slate-300">
+                {publicStoreUrl ? publicStoreUrl.replace(/^https?:\/\//, '') : 'Defina o nome e o endereço público da sua loja'}
+              </p>
             </div>
 
-            <div className="grid gap-3 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm backdrop-blur lg:min-w-[320px]">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-300">Status da loja</span>
-                <span className={`rounded-full px-3 py-1 text-xs font-bold ${hasStoreAccess ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200'}`}>
-                  {hasStoreAccess ? 'Recurso liberado' : 'Exige plano Loja Parceira'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-300">Página pública</span>
-                <span className="font-semibold text-white">
-                  {store?.isPausedDueToPlan ? 'Pausada por vencimento' : store ? 'Disponível para edição' : 'Pronta para criar'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-300">Exposição</span>
-                <span className="font-semibold text-white">Perfil institucional + catálogo</span>
-              </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+              >
+                <Eye className="h-4 w-4" strokeWidth={1.6} />
+                Abrir prévia
+              </button>
+              {publicStoreUrl && store ? (
+                <a
+                  href={publicStoreUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200"
+                >
+                  <ExternalLink className="h-4 w-4" strokeWidth={1.6} />
+                  Ver loja
+                </a>
+              ) : null}
             </div>
+          </div>
+        </header>
+
+        {primaryAlert ? (
+          <div className="flex flex-col gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" strokeWidth={1.8} />
+              <span className="font-semibold">{primaryAlert.message}</span>
+            </div>
+            {'href' in primaryAlert && primaryAlert.href ? (
+              <Link to={primaryAlert.href} className="shrink-0 font-bold text-amber-800 underline decoration-amber-300 underline-offset-4 hover:text-amber-950">
+                {primaryAlert.action}
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="overflow-x-auto border-b border-slate-200 px-3 sm:px-5">
+          <div className="flex min-w-max" role="tablist" aria-label="Configurações da loja">
+            {STORE_DASHBOARD_TABS.map((tab, index) => {
+              const Icon = tab.icon;
+              const issueCount = tab.id === 'showcase'
+                ? showcaseIssueCount
+                : tab.id === 'appearance'
+                  ? appearanceIssueCount
+                  : tab.id === 'publication'
+                    ? publicationIssueCount
+                    : 0;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  id={`store-tab-${tab.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={`store-panel-${tab.id}`}
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={() => setActiveTab(tab.id)}
+                  onKeyDown={(event) => handleTabKeyDown(event, index)}
+                  className={`relative inline-flex h-14 items-center gap-2 px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 ${
+                    isActive ? 'text-emerald-700' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" strokeWidth={1.7} />
+                  {tab.label}
+                  {issueCount > 0 ? (
+                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
+                      {issueCount}
+                    </span>
+                  ) : null}
+                  {isActive ? <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-emerald-500" /> : null}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {!hasStoreAccess ? (
-          <div className="border-t border-amber-100 bg-amber-50/70 px-8 py-5 text-sm text-amber-900">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <p>
-                Seu plano atual não inclui a Loja Parceira. Faça upgrade para publicar uma página da sua empresa com identidade própria e catálogo dedicado.
-              </p>
-              <Link
-                to="/planos"
-                className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white hover:bg-emerald-700"
+        <div className="p-5 sm:p-7">
+          <div
+            id="store-panel-overview"
+            role="tabpanel"
+            aria-labelledby="store-tab-overview"
+            hidden={activeTab !== 'overview'}
+            className="grid gap-5 lg:grid-cols-[1.35fr,0.65fr]"
+          >
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
+              <div
+                className="relative h-32 bg-cover sm:h-36"
+                style={{
+                  backgroundImage: formData.coverUrl
+                    ? `linear-gradient(90deg, rgba(9,15,25,.52), rgba(9,15,25,.12)), url(${formData.coverUrl})`
+                    : 'linear-gradient(135deg, #022c22 0%, #064e3b 45%, #0f172a 100%)',
+                  backgroundPosition: `${formData.coverPositionX}% ${formData.coverPositionY}%`,
+                }}
               >
-                Ver planos
-              </Link>
-            </div>
-          </div>
-        ) : null}
-      </section>
-
-      {store?.isPausedDueToPlan ? (
-        <section className="rounded-[2rem] border border-amber-200 bg-amber-50/80 p-5 text-amber-900 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="flex gap-3">
-              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
-                <AlertTriangle className="h-5 w-5" strokeWidth={1.8} />
+                <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 p-4 text-white">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white bg-white text-slate-500 shadow-sm">
+                    {formData.logoUrl ? (
+                      <img src={formData.logoUrl} alt="" className="h-full w-full object-contain p-1.5" />
+                    ) : (
+                      <ShoppingBag className="h-6 w-6" strokeWidth={1.5} />
+                    )}
+                  </div>
+                  <div className="min-w-0 pb-0.5">
+                    <p className="truncate text-lg font-black">{formData.storeName || 'Sua loja parceira'}</p>
+                    <p className="truncate text-xs text-slate-200">
+                      {[formData.city, formData.state].filter(Boolean).join(' - ') || 'Localização não informada'}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-black uppercase tracking-[0.22em] text-amber-700">Loja pausada</p>
-                <h3 className="mt-1 text-lg font-black text-amber-950">Sua Loja Parceira foi pausada até a renovação do plano</h3>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-900/90">
-                  Os dados da loja, capa, logo e configurações continuam salvos. A página pública e o selo premium
-                  ficam desativados até que um plano com esse recurso seja reativado.
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Anúncios ativos</p>
+                <p className="mt-1 text-2xl font-black text-slate-900">{isLoadingAnnouncements ? '—' : orderedAnnouncements.length}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Identidade visual</p>
+                <p className={`mt-1 text-sm font-black ${appearanceIssueCount === 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {appearanceIssueCount === 0 ? 'Completa' : `${appearanceIssueCount} item(ns) pendente(s)`}
                 </p>
               </div>
             </div>
-            <Link
-              to="/planos?source=minha-loja&intent=renewal"
-              className="inline-flex items-center justify-center rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-600"
-            >
-              Renovar plano
-            </Link>
           </div>
-        </section>
-      ) : null}
 
-      <SellerStoreCatalogPanel
-        hasStoreAccess={hasStoreAccess}
-        ownerUserId={user?.id}
-        store={store}
-        announcements={orderedAnnouncements}
-        isLoadingAnnouncements={isLoadingAnnouncements}
-      />
+          <div id="store-panel-showcase" role="tabpanel" aria-labelledby="store-tab-showcase" hidden={activeTab !== 'showcase'}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-700">Vitrine da loja</p>
+                <h2 className="mt-2 text-xl font-black text-slate-900">Organize a ordem dos anúncios</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">Arraste os cards para definir quais anúncios aparecem primeiro na página pública.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveAnnouncementOrder}
+                disabled={!hasStoreAccess || !!store?.isPausedDueToPlan || isSavingAnnouncementOrder || orderedAnnouncements.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" strokeWidth={1.5} />
+                {isSavingAnnouncementOrder ? 'Salvando...' : 'Salvar ordem'}
+              </button>
+            </div>
+            {!hasStoreAccess || !!store?.isPausedDueToPlan ? (
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">A organização fica disponível quando a Loja Parceira estiver ativa.</div>
+            ) : isLoadingAnnouncements ? (
+              <div className="mt-5 grid gap-3 md:grid-cols-2">{Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-2xl bg-slate-100" />)}</div>
+            ) : orderedAnnouncements.length === 0 ? (
+              <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-7 text-center text-sm text-slate-500">Você ainda não tem anúncios ativos para organizar.</div>
+            ) : (
+              <div className="mt-5">
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleAnnouncementDragEnd}>
+                  <SortableContext items={orderedAnnouncements.map((announcement) => announcement.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-3">
+                      {orderedAnnouncements.map((announcement, index) => <SortableStoreAnnouncementCard key={announcement.id} announcement={announcement} index={index} />)}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </div>
+            )}
+          </div>
+
+          <div id="store-panel-appearance" role="tabpanel" aria-labelledby="store-tab-appearance" hidden={activeTab !== 'appearance'}>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-3 flex items-center justify-between"><p className="text-sm font-black text-slate-900">Capa desktop</p><span className="text-xs font-semibold text-slate-500">a partir de 1024px</span></div>
+                <div className="relative h-24 overflow-hidden rounded-xl bg-slate-900">
+                  {formData.coverUrl ? <img src={formData.coverUrl} alt="Prévia da capa desktop" className="h-full w-full object-contain" /> : <div className="flex h-full items-center justify-center text-xs text-slate-300">Capa não enviada</div>}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-3 flex items-center justify-between"><p className="text-sm font-black text-slate-900">Capa mobile</p><span className="text-xs font-semibold text-slate-500">até 1023px</span></div>
+                <div className="relative h-24 overflow-hidden rounded-xl bg-slate-900">
+                  {formData.coverMobileUrl || formData.coverUrl ? <img src={formData.coverMobileUrl || formData.coverUrl} alt="Prévia da capa mobile" className="h-full w-full object-contain" /> : <div className="flex h-full items-center justify-center text-xs text-slate-300">Capa não enviada</div>}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-600">Logo, capas e enquadramento continuam editáveis na seção de imagens abaixo.</p>
+              <button type="button" onClick={() => scrollToEditor('store-appearance-editor')} className="shrink-0 rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-800 transition hover:border-emerald-300 hover:text-emerald-700">Editar imagens</button>
+            </div>
+          </div>
+
+          <div id="store-panel-publication" role="tabpanel" aria-labelledby="store-tab-publication" hidden={activeTab !== 'publication'}>
+            <div className="grid gap-4 lg:grid-cols-[1fr,auto] lg:items-center">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-700">Endereço público</p>
+                <p className="mt-2 break-all text-base font-black text-slate-900">{publicStoreUrl || 'O endereço será criado a partir do nome da loja.'}</p>
+                <p className="mt-1 text-sm text-slate-500">Status atual: {storeStatus.label}</p>
+              </div>
+              {publicStoreUrl && store ? <a href={publicStoreUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-800 hover:border-emerald-300 hover:text-emerald-700"><ExternalLink className="h-4 w-4" /> Abrir página</a> : null}
+            </div>
+            <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div><p className="text-sm font-black text-slate-900">Loja visível publicamente</p><p className="mt-1 text-xs text-slate-500">Desative temporariamente para ocultar a página sem apagar seus dados.</p></div>
+              <button
+                type="button"
+                onClick={() => handleChange('isActive', !formData.isActive)}
+                disabled={!hasStoreAccess}
+                aria-pressed={formData.isActive}
+                className={`inline-flex h-11 shrink-0 items-center rounded-full px-5 text-sm font-bold transition ${formData.isActive ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'} disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                {formData.isActive ? 'Ativa' : 'Oculta'}
+              </button>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button type="button" onClick={handleSave} disabled={isSaving || !hasStoreAccess || isUploadingLogo || isUploadingCover || isUploadingCoverMobile} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"><Save className="h-4 w-4" />{isSaving ? 'Salvando...' : 'Salvar publicação'}</button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="grid gap-8 xl:grid-cols-[1.25fr,0.95fr]">
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+        <div id="store-data-editor" className="scroll-mt-6 rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <h2 className="text-2xl font-black text-slate-900">Dados da loja</h2>
@@ -504,6 +751,12 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
                 Use uma apresentação curta e objetiva da empresa, destacando atuação, região e tipo de produto.
               </p>
             </label>
+
+            <div id="store-appearance-editor" className="scroll-mt-6 border-t border-slate-200 pt-6 md:col-span-2">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-700">Banners e imagens</p>
+              <h3 className="mt-2 text-lg font-black text-slate-900">Identidade visual da loja</h3>
+              <p className="mt-1 text-sm text-slate-500">Gerencie logo, capas e o enquadramento usado na página pública.</p>
+            </div>
 
             <div className="space-y-2">
               <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -693,6 +946,11 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
               </p>
             </label>
 
+            <div className="border-t border-slate-200 pt-6 md:col-span-2">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-700">Contato e localização</p>
+              <h3 className="mt-2 text-lg font-black text-slate-900">Como os clientes encontram sua empresa</h3>
+            </div>
+
             <label className="space-y-2">
               <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <UserRound className="h-4 w-4 text-slate-400" strokeWidth={1.5} />
@@ -746,207 +1004,9 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
             </label>
           </div>
 
-          <div className="mt-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-800">Loja visível publicamente</p>
-              <p className="text-xs text-slate-500">Desative temporariamente se quiser pausar a página da loja.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleChange('isActive', !formData.isActive)}
-              disabled={!hasStoreAccess}
-              className={`inline-flex h-11 items-center rounded-full px-5 text-sm font-bold transition ${
-                formData.isActive ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
-              } disabled:cursor-not-allowed disabled:opacity-50`}
-            >
-              {formData.isActive ? 'Ativa' : 'Oculta'}
-            </button>
-          </div>
-          <div className="mt-8 rounded-[2rem] border border-slate-200 bg-slate-50/70 p-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div className="max-w-2xl">
-                <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-700">Vitrine da loja</p>
-                <h3 className="mt-2 text-xl font-black text-slate-900">Organize a ordem dos anúncios na sua página pública</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Arraste os cards para definir quais anúncios aparecem primeiro dentro da sua Loja Parceira. Essa ordem vale apenas para a vitrine da loja.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleSaveAnnouncementOrder}
-                disabled={!hasStoreAccess || !!store?.isPausedDueToPlan || isSavingAnnouncementOrder || orderedAnnouncements.length === 0}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" strokeWidth={1.5} />
-                {isSavingAnnouncementOrder ? 'Salvando ordem...' : 'Salvar ordem da vitrine'}
-              </button>
-            </div>
-
-            {!hasStoreAccess || !!store?.isPausedDueToPlan ? (
-              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                A organização manual da vitrine fica disponível somente quando o recurso da Loja Parceira estiver ativo.
-              </div>
-            ) : isLoadingAnnouncements ? (
-              <div className="mt-5 space-y-3">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div key={index} className="h-28 animate-pulse rounded-3xl border border-slate-200 bg-white" />
-                ))}
-              </div>
-            ) : orderedAnnouncements.length === 0 ? (
-              <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-500">
-                Você ainda não tem anúncios ativos para organizar na vitrine da loja.
-              </div>
-            ) : (
-              <div className="mt-5">
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleAnnouncementDragEnd}>
-                  <SortableContext items={orderedAnnouncements.map((announcement) => announcement.id)} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-3">
-                      {orderedAnnouncements.map((announcement, index) => (
-                        <SortableStoreAnnouncementCard
-                          key={announcement.id}
-                          announcement={announcement}
-                          index={index}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-              </div>
-            )}
-          </div>
         </div>
 
         <aside className="space-y-6">
-          {/* Pré-visualização da capa (modelo público futuro: fundo cover+blur + arte contain). */}
-          <div className="space-y-4 rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-sm font-semibold text-slate-700">Pré-visualização da capa</p>
-
-            <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Desktop (a partir de 1024px)</p>
-              <div className="relative h-24 overflow-hidden rounded-2xl bg-slate-900">
-                {formData.coverUrl ? (
-                  <>
-                    <div
-                      aria-hidden="true"
-                      className="absolute inset-0 scale-110 bg-cover bg-center opacity-90 blur-xl"
-                      style={{
-                        backgroundImage: `url(${formData.coverUrl})`,
-                        backgroundPosition: `${formData.coverPositionX}% ${formData.coverPositionY}%`,
-                      }}
-                    />
-                    <img src={formData.coverUrl} alt="Prévia da capa desktop" className="absolute inset-0 h-full w-full object-contain" />
-                  </>
-                ) : (
-                  <div className="flex h-full items-center justify-center px-4 text-center text-xs font-medium text-slate-300">
-                    Envie a capa desktop (recomendado 2000x300).
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Mobile/tablet (até 1023px)</p>
-              <div className="relative h-40 overflow-hidden rounded-2xl bg-slate-900">
-                {formData.coverMobileUrl || formData.coverUrl ? (
-                  <>
-                    <div
-                      aria-hidden="true"
-                      className="absolute inset-0 scale-110 bg-cover bg-center opacity-90 blur-xl"
-                      style={{
-                        backgroundImage: `url(${formData.coverMobileUrl || formData.coverUrl})`,
-                        backgroundPosition: `${formData.coverPositionX}% ${formData.coverPositionY}%`,
-                      }}
-                    />
-                    <img
-                      src={formData.coverMobileUrl || formData.coverUrl}
-                      alt="Prévia da capa mobile/tablet"
-                      className="absolute inset-0 h-full w-full object-contain"
-                    />
-                    {!formData.coverMobileUrl && formData.coverUrl ? (
-                      <span className="absolute bottom-1.5 right-1.5 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold text-white">
-                        Fallback: capa desktop
-                      </span>
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="flex h-full items-center justify-center px-4 text-center text-xs font-medium text-slate-300">
-                    Envie a capa mobile (recomendado 1200x600) ou use a desktop como fallback.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-            <div
-              className="h-40 bg-cover"
-              style={{
-                backgroundImage: formData.coverUrl
-                  ? `linear-gradient(90deg, rgba(9, 15, 25, 0.36) 0%, rgba(9, 15, 25, 0.28) 24%, rgba(9, 15, 25, 0.14) 48%, rgba(9, 15, 25, 0.08) 72%, rgba(9, 15, 25, 0.18) 100%), url(${formData.coverUrl})`
-                  : 'linear-gradient(135deg, #022c22 0%, #064e3b 45%, #0f172a 100%)',
-                backgroundPosition: `${formData.coverPositionX}% ${formData.coverPositionY}%`,
-              }}
-            />
-            <div className="relative px-6 pb-6">
-              <div className="-mt-10 flex h-20 w-24 items-center justify-center overflow-hidden rounded-3xl border-4 border-white bg-white text-slate-500 shadow-sm">
-                {formData.logoUrl ? (
-                  <img src={formData.logoUrl} alt={formData.storeName || 'Logo da loja'} className="h-full w-full object-contain p-2.5" />
-                ) : (
-                  <ShoppingBag className="h-8 w-8" strokeWidth={1.5} />
-                )}
-              </div>
-
-              <div className="mt-4 space-y-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xl font-black text-slate-900">{formData.storeName || 'Sua loja parceira'}</h3>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
-                      <Store className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      Loja Parceira
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {publicStoreUrl ? publicStoreUrl.replace(`${window.location.origin}/`, '') : '/loja/seu-endereco'}
-                  </p>
-                </div>
-
-                <p className="text-sm leading-6 text-slate-600">
-                  {formData.description || 'Apresente sua empresa, especialidades e diferenciais para aumentar a confiança dos compradores que chegarem pela BWAGRO.'}
-                </p>
-
-                <div className="grid gap-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                  <div className="flex items-center justify-between gap-3">
-                    <span>Localização</span>
-                    <span className="font-semibold text-slate-800">{[formData.city, formData.state].filter(Boolean).join(' - ') || 'Não informada'}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span>E-mail</span>
-                    <span className="font-semibold text-slate-800">{formData.email || 'Não informado'}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span>Status público</span>
-                    <span className={`font-semibold ${formData.isActive ? 'text-emerald-700' : 'text-slate-500'}`}>
-                      {formData.isActive ? 'Página publicada' : 'Página oculta'}
-                    </span>
-                  </div>
-                </div>
-
-                {publicStoreUrl ? (
-                  <a
-                    href={publicStoreUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-800 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
-                  >
-                    <ExternalLink className="h-4 w-4" strokeWidth={1.5} />
-                    Abrir página pública
-                  </a>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
           <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-black text-slate-900">Estratégia recomendada</h3>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
@@ -957,6 +1017,82 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
           </div>
         </aside>
       </section>
+
+      <SellerStoreCatalogPanel
+        hasStoreAccess={hasStoreAccess}
+        ownerUserId={user?.id}
+        store={store}
+        announcements={orderedAnnouncements}
+        isLoadingAnnouncements={isLoadingAnnouncements}
+      />
+
+      {isPreviewOpen ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setIsPreviewOpen(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="store-preview-title"
+            className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-white/20 bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-700">Prévia da loja</p>
+                <h2 id="store-preview-title" className="mt-1 text-lg font-black text-slate-900">Como sua página está se apresentando</h2>
+              </div>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setIsPreviewOpen(false)}
+                aria-label="Fechar prévia"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              >
+                <X className="h-5 w-5" strokeWidth={1.7} />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6">
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                <div
+                  className="h-44 bg-cover sm:h-56"
+                  style={{
+                    backgroundImage: formData.coverUrl
+                      ? `linear-gradient(90deg, rgba(9,15,25,.4), rgba(9,15,25,.08)), url(${formData.coverUrl})`
+                      : 'linear-gradient(135deg, #022c22 0%, #064e3b 45%, #0f172a 100%)',
+                    backgroundPosition: `${formData.coverPositionX}% ${formData.coverPositionY}%`,
+                  }}
+                />
+                <div className="relative px-5 pb-6 sm:px-7">
+                  <div className="-mt-10 flex h-20 w-24 items-center justify-center overflow-hidden rounded-3xl border-4 border-white bg-white text-slate-500 shadow-sm">
+                    {formData.logoUrl ? (
+                      <img src={formData.logoUrl} alt={formData.storeName || 'Logo da loja'} className="h-full w-full object-contain p-2.5" />
+                    ) : (
+                      <ShoppingBag className="h-8 w-8" strokeWidth={1.5} />
+                    )}
+                  </div>
+                  <div className="mt-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-2xl font-black text-slate-900">{formData.storeName || 'Sua loja parceira'}</h3>
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700">Loja Parceira</span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-500">{[formData.city, formData.state].filter(Boolean).join(' - ') || 'Localização não informada'}</p>
+                    <p className="mt-4 text-sm leading-6 text-slate-600">{formData.description || 'Adicione uma apresentação curta da empresa nos dados da loja.'}</p>
+                    <div className="mt-5 flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-semibold text-slate-700">{orderedAnnouncements.length} anúncio(s) ativo(s)</span>
+                      <span className={`font-bold ${formData.isActive ? 'text-emerald-700' : 'text-slate-500'}`}>{formData.isActive ? 'Página publicada' : 'Página oculta'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
