@@ -39,6 +39,7 @@ type SellerStoreCatalogPanelProps = {
 
 const CATALOG_PRODUCT_LIMIT = 200;
 const CATALOG_PRODUCTS_PER_PAGE = 10;
+const CATALOG_HISTORY_PER_PAGE = 4;
 
 const PRICE_OPTIONS: Array<{
   value: SellerStoreCatalogPriceMode;
@@ -126,8 +127,10 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
   const [coverAlignment, setCoverAlignment] = useState<SellerStoreCatalogCoverAlignment>('center');
   const [productSearch, setProductSearch] = useState('');
   const [productPage, setProductPage] = useState(1);
+  const [catalogPage, setCatalogPage] = useState(1);
   const selectionInitialized = useRef(false);
   const titleInitializedForStore = useRef<string | null>(null);
+  const latestCatalogIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const availableIds = new Set(announcements.map((announcement) => announcement.id));
@@ -182,6 +185,19 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
     filteredAnnouncements.length,
   );
   const latestOpenExport = catalogExports.find((item) => item.status === 'queued' || item.status === 'processing');
+  const catalogPageCount = Math.max(1, Math.ceil(catalogExports.length / CATALOG_HISTORY_PER_PAGE));
+  const currentCatalogPage = Math.min(catalogPage, catalogPageCount);
+  const paginatedCatalogExports = catalogExports.slice(
+    (currentCatalogPage - 1) * CATALOG_HISTORY_PER_PAGE,
+    currentCatalogPage * CATALOG_HISTORY_PER_PAGE,
+  );
+  const catalogResultStart = catalogExports.length === 0
+    ? 0
+    : (currentCatalogPage - 1) * CATALOG_HISTORY_PER_PAGE + 1;
+  const catalogResultEnd = Math.min(
+    currentCatalogPage * CATALOG_HISTORY_PER_PAGE,
+    catalogExports.length,
+  );
   const coverImageUrl = store?.coverUrl || store?.coverMobileUrl || null;
   const coverObjectPosition = `${coverAlignment} center`;
   const readyCatalogCount = catalogExports.filter((item) => getEffectiveCatalogStatus(item) === 'ready').length;
@@ -191,6 +207,18 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
   useEffect(() => {
     if (productPage > productPageCount) setProductPage(productPageCount);
   }, [productPage, productPageCount]);
+
+  useEffect(() => {
+    if (catalogPage > catalogPageCount) setCatalogPage(catalogPageCount);
+  }, [catalogPage, catalogPageCount]);
+
+  useEffect(() => {
+    const latestCatalogId = catalogExports[0]?.id ?? null;
+    if (latestCatalogId && latestCatalogId !== latestCatalogIdRef.current) {
+      setCatalogPage(1);
+    }
+    latestCatalogIdRef.current = latestCatalogId;
+  }, [catalogExports]);
 
   const toggleAnnouncement = (announcementId: string) => {
     setSelectedIds((current) => (
@@ -453,12 +481,22 @@ const SellerStoreCatalogPanel: React.FC<SellerStoreCatalogPanelProps> = ({
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3"><div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><Clock3 className="h-4 w-4" /></span><div><h3 className="text-base font-black text-slate-900">Seus catálogos</h3><p className="mt-0.5 text-xs text-slate-500">Histórico dos últimos 12 arquivos gerados.</p></div></div><button type="button" onClick={() => void refresh().catch((refreshError) => toast.error(refreshError.message))} disabled={isRefreshing} aria-label="Atualizar histórico de catálogos" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} /></button></div>
+            <div className="flex items-center justify-between gap-3"><div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><Clock3 className="h-4 w-4" /></span><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-base font-black text-slate-900">Seus catálogos</h3><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">{catalogExports.length} catálogo(s)</span></div><p className="mt-0.5 text-xs text-slate-500">Histórico dos últimos 12 arquivos gerados.</p></div></div><button type="button" onClick={() => void refresh().catch((refreshError) => toast.error(refreshError.message))} disabled={isRefreshing} aria-label="Atualizar histórico de catálogos" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} /></button></div>
              {latestOpenExport ? <div aria-live="polite" className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3"><div className="flex items-start gap-2.5"><Loader2 className="mt-0.5 h-4 w-4 animate-spin text-sky-700" /><div><p className="text-xs font-black text-sky-950">{latestOpenExport.status === 'queued' ? 'Seu catálogo está na fila' : 'Estamos montando seu PDF'}</p><p className="mt-1 text-[11px] leading-4 text-sky-800">Você pode continuar usando a plataforma. O status é atualizado automaticamente.</p></div></div></div> : null}
             {error ? <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">{error}</div> : null}
-            <div className="mt-4 max-h-[520px] space-y-3 overflow-y-auto pr-1">
-              {isLoading ? Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-xl bg-slate-100" />) : catalogExports.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-7 text-center"><BookOpen className="mx-auto h-7 w-7 text-slate-300" /><p className="mt-3 text-sm font-bold text-slate-700">Nenhum catálogo gerado ainda</p><p className="mt-1 text-xs leading-5 text-slate-500">Sua primeira versão aparecerá aqui com acesso privado por 30 dias.</p></div> : catalogExports.map((catalog) => { const effectiveStatus = getEffectiveCatalogStatus(catalog); const isBusy = busyExportId === catalog.id; const fileSize = formatFileSize(catalog.fileSizeBytes); return <article key={catalog.id} className="rounded-xl border border-slate-200 bg-white p-3.5"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-xs font-black text-slate-900">{catalog.catalogTitle}</p><p className="mt-1 text-[10px] text-slate-500">{formatDateTime(catalog.createdAt)}</p></div><span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black ring-1 ring-inset ${STATUS_STYLES[effectiveStatus]}`}><CatalogStatusIcon status={effectiveStatus} />{STATUS_LABELS[effectiveStatus]}</span></div><div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500"><span>{catalog.announcementIds.length} anúncio(s)</span><span>Capa: {COVER_ALIGNMENT_OPTIONS.find((option) => option.value === catalog.coverAlignment)?.label ?? 'Centro'}</span>{catalog.pageCount ? <span>{catalog.pageCount} página(s)</span> : null}{fileSize ? <span>{fileSize}</span> : null}{catalog.attempts > 0 ? <span>Tentativa {catalog.attempts}/{catalog.maxAttempts}</span> : null}</div>{effectiveStatus === 'failed' ? <p className="mt-2 rounded-lg bg-rose-50 px-2.5 py-2 text-[11px] leading-4 text-rose-800">Não foi possível concluir este arquivo. Gere uma nova versão ou tente novamente mais tarde.</p> : null}{effectiveStatus === 'ready' ? <p className="mt-2 text-[10px] text-slate-500">Download disponível até {formatDateTime(catalog.expiresAt)}.</p> : null}<div className="mt-3 flex gap-2">{effectiveStatus === 'ready' ? <button type="button" onClick={() => void handleDownload(catalog)} disabled={isBusy} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-[11px] font-black text-white transition hover:bg-emerald-700 disabled:opacity-50">{isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}Baixar PDF</button> : null}{catalog.status === 'queued' ? <button type="button" onClick={() => void handleCancel(catalog.id)} disabled={isBusy} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">{isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}Cancelar</button> : null}</div></article>; })}
+            <div className="mt-4 space-y-3">
+              {isLoading ? Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-xl bg-slate-100" />) : catalogExports.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-7 text-center"><BookOpen className="mx-auto h-7 w-7 text-slate-300" /><p className="mt-3 text-sm font-bold text-slate-700">Nenhum catálogo gerado ainda</p><p className="mt-1 text-xs leading-5 text-slate-500">Sua primeira versão aparecerá aqui com acesso privado por 30 dias.</p></div> : paginatedCatalogExports.map((catalog) => { const effectiveStatus = getEffectiveCatalogStatus(catalog); const isBusy = busyExportId === catalog.id; const fileSize = formatFileSize(catalog.fileSizeBytes); return <article key={catalog.id} className="rounded-xl border border-slate-200 bg-white p-3.5"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate text-xs font-black text-slate-900">{catalog.catalogTitle}</p><p className="mt-1 text-[10px] text-slate-500">{formatDateTime(catalog.createdAt)}</p></div><span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black ring-1 ring-inset ${STATUS_STYLES[effectiveStatus]}`}><CatalogStatusIcon status={effectiveStatus} />{STATUS_LABELS[effectiveStatus]}</span></div><div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500"><span>{catalog.announcementIds.length} anúncio(s)</span><span>Capa: {COVER_ALIGNMENT_OPTIONS.find((option) => option.value === catalog.coverAlignment)?.label ?? 'Centro'}</span>{catalog.pageCount ? <span>{catalog.pageCount} página(s)</span> : null}{fileSize ? <span>{fileSize}</span> : null}{catalog.attempts > 0 ? <span>Tentativa {catalog.attempts}/{catalog.maxAttempts}</span> : null}</div>{effectiveStatus === 'failed' ? <p className="mt-2 rounded-lg bg-rose-50 px-2.5 py-2 text-[11px] leading-4 text-rose-800">Não foi possível concluir este arquivo. Gere uma nova versão ou tente novamente mais tarde.</p> : null}{effectiveStatus === 'ready' ? <p className="mt-2 text-[10px] text-slate-500">Download disponível até {formatDateTime(catalog.expiresAt)}.</p> : null}<div className="mt-3 flex gap-2">{effectiveStatus === 'ready' ? <button type="button" onClick={() => void handleDownload(catalog)} disabled={isBusy} className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-[11px] font-black text-white transition hover:bg-emerald-700 disabled:opacity-50">{isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}Baixar PDF</button> : null}{catalog.status === 'queued' ? <button type="button" onClick={() => void handleCancel(catalog.id)} disabled={isBusy} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-bold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50">{isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}Cancelar</button> : null}</div></article>; })}
             </div>
+            {!isLoading && catalogExports.length > 0 ? (
+              <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-[11px] text-slate-500">Exibindo {catalogResultStart}-{catalogResultEnd} de {catalogExports.length}</p>
+                <nav className="flex items-center gap-2" aria-label="Paginação do histórico de catálogos">
+                  <button type="button" onClick={() => setCatalogPage((current) => Math.max(1, current - 1))} disabled={currentCatalogPage === 1} aria-label="Página anterior do histórico" className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+                  <span className="min-w-[92px] text-center text-xs font-bold text-slate-700">Página {currentCatalogPage} de {catalogPageCount}</span>
+                  <button type="button" onClick={() => setCatalogPage((current) => Math.min(catalogPageCount, current + 1))} disabled={currentCatalogPage === catalogPageCount} aria-label="Próxima página do histórico" className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+                </nav>
+              </div>
+            ) : null}
           </section>
         </aside>
       </div>

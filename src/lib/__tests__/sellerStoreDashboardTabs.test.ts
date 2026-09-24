@@ -90,4 +90,14 @@ describe('Seller Store dashboard tabbed experience', () => {
     expect(catalogPanel).toContain('current.length < CATALOG_PRODUCT_LIMIT');
     expect(catalogPanel).not.toContain('current.length < 100');
   });
+
+  it('paginates the catalog history and reports the visible range', () => {
+    expect(catalogPanel).toContain('const CATALOG_HISTORY_PER_PAGE = 4');
+    expect(catalogPanel).toContain('paginatedCatalogExports');
+    expect(catalogPanel).toContain('{catalogExports.length} catálogo(s)');
+    expect(catalogPanel).toContain('Exibindo {catalogResultStart}-{catalogResultEnd} de {catalogExports.length}');
+    expect(catalogPanel).toContain('Página {currentCatalogPage} de {catalogPageCount}');
+    expect(catalogPanel).toContain('Paginação do histórico de catálogos');
+    expect(catalogPanel).not.toContain('max-h-[520px]');
+  });
 });
