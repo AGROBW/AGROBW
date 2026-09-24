@@ -25,7 +25,8 @@ describe('Seller Store PDF Catalog experience', () => {
     expect(panel).toContain("value: 'show'");
     expect(panel).toContain("value: 'consult'");
     expect(panel).toContain("value: 'hide'");
-    expect(panel).toContain('announcements.slice(0, 200)');
+    expect(panel).toContain('const CATALOG_PRODUCT_LIMIT = 200');
+    expect(panel).toContain('announcements.slice(0, CATALOG_PRODUCT_LIMIT)');
     expect(panel).toContain('aria-pressed={selected}');
     expect(hook).toContain('p_announcement_ids: input.announcementIds');
   });
