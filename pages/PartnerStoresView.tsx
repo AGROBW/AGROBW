@@ -347,7 +347,7 @@ const PartnerStoresView: React.FC = () => {
                 {filteredStores.map((store) => (
                   <Link
                     key={store.id}
-                    to={`/loja/${store.slug}`}
+                    to={`/loja/${store.slug}?store_source=internal`}
                     className="group flex w-[210px] flex-col overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:border-slate-300 hover:shadow-lg"
                   >
                     <div className="flex h-[170px] items-center justify-center overflow-hidden rounded-[1.25rem] border border-slate-100 bg-[radial-gradient(circle_at_top,#ffffff_0%,#f8fafc_55%,#eef2f7_100%)] p-5">

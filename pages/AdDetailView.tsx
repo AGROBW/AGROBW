@@ -18,6 +18,8 @@ import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
 import { useCategoryGroupCatalog } from '../src/hooks/useCategoryGroupCatalog';
 import { useFavorites } from '../src/hooks/useFavorites';
 import { getAnnouncementPath, isAnnouncementUuid } from '../src/lib/announcementUrl';
+import { readSellerStoreAttribution } from '../src/lib/sellerStoreInsights/attribution';
+import { recordSellerStoreInsightEvent } from '../src/lib/sellerStoreInsights/tracking';
 
 // Mapa de ícones para renderizar dinamicamente
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -50,6 +52,7 @@ const AdDetailView: React.FC = () => {
   const hasAutoOpenedContactModalRef = useRef(false);
   const touchStartXRef = useRef<number | null>(null);
   const touchCurrentXRef = useRef<number | null>(null);
+  const sellerStoreAttribution = readSellerStoreAttribution(location.search);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -782,7 +785,7 @@ const AdDetailView: React.FC = () => {
                 )}
                 {ad.seller?.store?.slug && (
                   <Link
-                    to={`/loja/${ad.seller.store.slug}`}
+                    to={`/loja/${ad.seller.store.slug}?store_source=internal`}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
                   >
                     Ver loja parceira
@@ -863,6 +866,14 @@ const AdDetailView: React.FC = () => {
           announcementId={ad.id}
           announcementTitle={ad.title}
           sellerId={ad.userId}
+          onContactSent={sellerStoreAttribution ? () => {
+            void recordSellerStoreInsightEvent({
+              storeSlug: sellerStoreAttribution.storeSlug,
+              eventType: 'contact_platform',
+              sourceChannel: sellerStoreAttribution.sourceChannel,
+              announcementId: ad.id,
+            });
+          } : undefined}
         />
       )}
       {ad && (

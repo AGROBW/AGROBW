@@ -67,6 +67,13 @@ announcement included in that catalog.
 
 ## Delivery phases
 
-Stage 1 establishes this contract, storage and authorization. Instrumentation,
-aggregation, dashboard UI, catalog attribution and production rollout are separate
-stages and must preserve these definitions.
+Stage 1 establishes this contract, storage and authorization.
+
+Stage 2 instruments browser actions from the public storefront. It reuses the
+existing site analytics session, normalizes traffic sources before transmission,
+propagates only the store slug and source channel to announcement pages, and
+records platform contact only after a message is successfully sent. Analytics
+failures never block navigation or contact flows.
+
+Aggregation, dashboard UI, catalog attribution and production rollout remain
+separate stages and must preserve these definitions.

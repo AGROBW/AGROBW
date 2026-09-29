@@ -1,12 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy, Facebook, Link as LinkIcon, Mail, MessageCircle, Search, Share2, ShieldCheck, SlidersHorizontal, Store, X } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import AdCard from '../components/AdCard';
 import SeoHead from '../components/SeoHead';
 import StructuredData from '../components/StructuredData';
 import { usePublicSellerStore } from '../src/hooks/useSellerStore';
 import { useAuth } from '../src/contexts/AuthContext';
 import { buildAbsoluteSiteUrl } from '../src/lib/siteConfig';
+import {
+  buildAttributedStoreUrl,
+  resolveSellerStoreInsightSource,
+} from '../src/lib/sellerStoreInsights/attribution';
+import { recordSellerStoreInsightEvent } from '../src/lib/sellerStoreInsights/tracking';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', {
@@ -31,8 +36,17 @@ const formatStorePhone = (value?: string | null) => {
   return value;
 };
 
+const buildStoreWhatsAppUrl = (value?: string | null) => {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  const internationalNumber = digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
+  return `https://wa.me/${internationalNumber}`;
+};
+
 const StorefrontView: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
   const { store, announcements, isLoading, error, locationLabel } = usePublicSellerStore(slug);
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,6 +62,14 @@ const StorefrontView: React.FC = () => {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const shareRef = useRef<HTMLDivElement | null>(null);
+  const sourceChannel = useMemo(
+    () => resolveSellerStoreInsightSource({
+      search: location.search,
+      referrer: typeof document !== 'undefined' ? document.referrer : '',
+      currentOrigin: typeof window !== 'undefined' ? window.location.origin : '',
+    }),
+    [location.search],
+  );
 
   useEffect(() => {
     if (!isShareOpen) return;
@@ -287,22 +309,22 @@ const StorefrontView: React.FC = () => {
     [store],
   );
   const shareTitle = store ? `${store.storeName} | Loja Parceira AGRO BW` : '';
+  const storeWhatsAppUrl = store ? buildStoreWhatsAppUrl(store.whatsapp) : '';
 
   const shareTargets = useMemo(() => {
     if (!store || !shareUrl) return [];
 
-    const encodedUrl = encodeURIComponent(shareUrl);
     const encodedTitle = encodeURIComponent(shareTitle);
+    const socialUrl = encodeURIComponent(buildAttributedStoreUrl(shareUrl, 'social'));
+    const whatsappUrl = encodeURIComponent(buildAttributedStoreUrl(shareUrl, 'whatsapp'));
+    const otherUrl = encodeURIComponent(buildAttributedStoreUrl(shareUrl, 'other'));
 
     return [
-      store.websiteUrl
-        ? { id: 'site', label: 'Site da loja', href: store.websiteUrl, icon: LinkIcon, color: '#16a34a' }
-        : null,
-      { id: 'facebook', label: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`, icon: Facebook, color: '#1877F2' },
-      { id: 'x', label: 'X', href: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}`, icon: X, color: '#0f172a' },
-      { id: 'whatsapp', label: 'WhatsApp', href: `https://wa.me/?text=${encodedTitle}%20${encodedUrl}`, icon: MessageCircle, color: '#25D366' },
-      { id: 'email', label: 'E-mail', href: `mailto:?subject=${encodedTitle}&body=${encodedUrl}`, icon: Mail, color: '#64748b' },
-    ].filter(Boolean) as Array<{
+      { id: 'facebook', label: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${socialUrl}`, icon: Facebook, color: '#1877F2' },
+      { id: 'x', label: 'X', href: `https://twitter.com/intent/tweet?url=${socialUrl}&text=${encodedTitle}`, icon: X, color: '#0f172a' },
+      { id: 'whatsapp', label: 'WhatsApp', href: `https://wa.me/?text=${encodedTitle}%20${whatsappUrl}`, icon: MessageCircle, color: '#25D366' },
+      { id: 'email', label: 'E-mail', href: `mailto:?subject=${encodedTitle}&body=${otherUrl}`, icon: Mail, color: '#64748b' },
+    ] as Array<{
       id: string;
       label: string;
       href: string;
@@ -314,7 +336,14 @@ const StorefrontView: React.FC = () => {
   const handleCopyShareLink = async () => {
     if (!shareUrl) return;
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(buildAttributedStoreUrl(shareUrl, 'other'));
+      if (store) {
+        void recordSellerStoreInsightEvent({
+          storeSlug: store.slug,
+          eventType: 'store_share',
+          sourceChannel,
+        });
+      }
       setShareCopied(true);
       window.setTimeout(() => setShareCopied(false), 2000);
     } catch {
@@ -377,6 +406,44 @@ const StorefrontView: React.FC = () => {
               </span>
             </div>
             <div className="relative mt-4 inline-block" ref={shareRef}>
+              <div className="mb-3 flex flex-wrap gap-2">
+                {storeWhatsAppUrl ? (
+                  <a
+                    href={storeWhatsAppUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => {
+                      void recordSellerStoreInsightEvent({
+                        storeSlug: store.slug,
+                        eventType: 'contact_whatsapp',
+                        sourceChannel,
+                      });
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#1fbd59]"
+                  >
+                    <MessageCircle className="h-4 w-4" strokeWidth={2} />
+                    WhatsApp
+                  </a>
+                ) : null}
+                {store.websiteUrl ? (
+                  <a
+                    href={store.websiteUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => {
+                      void recordSellerStoreInsightEvent({
+                        storeSlug: store.slug,
+                        eventType: 'website_click',
+                        sourceChannel,
+                      });
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-white/20"
+                  >
+                    <LinkIcon className="h-4 w-4" strokeWidth={2} />
+                    Site
+                  </a>
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={() => setIsShareOpen((prev) => !prev)}
@@ -402,7 +469,14 @@ const StorefrontView: React.FC = () => {
                           rel="noreferrer"
                           aria-label={target.label}
                           title={target.label}
-                          onClick={() => setIsShareOpen(false)}
+                          onClick={() => {
+                            void recordSellerStoreInsightEvent({
+                              storeSlug: store.slug,
+                              eventType: 'store_share',
+                              sourceChannel,
+                            });
+                            setIsShareOpen(false);
+                          }}
                           className="inline-flex h-10 w-10 items-center justify-center rounded-xl transition hover:bg-slate-100"
                           style={{ color: target.color }}
                         >
@@ -583,7 +657,11 @@ const StorefrontView: React.FC = () => {
             {filteredAnnouncements.length > 0 ? (
               <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                 {filteredAnnouncements.map((announcement) => (
-                  <AdCard key={announcement.id} ad={announcement} />
+                  <AdCard
+                    key={announcement.id}
+                    ad={announcement}
+                    sellerStoreAttribution={{ storeSlug: store.slug, sourceChannel }}
+                  />
                 ))}
               </div>
             ) : (

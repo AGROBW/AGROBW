@@ -61,7 +61,7 @@ const HomeStoresCarousel: React.FC = () => {
             : visibleStores.map((store) => (
                 <Link
                   key={store.id}
-                  to={`/loja/${store.slug}`}
+                  to={`/loja/${store.slug}?store_source=internal`}
                   className="group flex h-36 min-w-[155px] flex-col items-center justify-center rounded-2xl border border-slate-200/80 bg-white p-4 text-center shadow-[0_18px_45px_-36px_rgba(15,23,42,0.45)] transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-[0_24px_55px_-34px_rgba(15,23,42,0.4)] sm:min-w-[180px]"
                   aria-label={`Abrir loja ${store.storeName}`}
                 >

@@ -14,14 +14,25 @@ import { debugLog } from '../src/utils/debugLog';
 import { appWarn } from '../src/utils/appLogger';
 import VerifiedBadge from './VerifiedBadge';
 import { getAnnouncementPath } from '../src/lib/announcementUrl';
+import {
+  appendSellerStoreAttribution,
+  type SellerStoreAttribution,
+} from '../src/lib/sellerStoreInsights/attribution';
+import { recordSellerStoreInsightEvent } from '../src/lib/sellerStoreInsights/tracking';
 
 interface AdCardProps {
   ad: Ad;
   highlightDisplayMode?: 'auto' | 'home' | 'category' | 'none';
   variant?: 'default' | 'compact';
+  sellerStoreAttribution?: SellerStoreAttribution;
 }
 
-const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto', variant = 'default' }) => {
+const AdCard: React.FC<AdCardProps> = ({
+  ad,
+  highlightDisplayMode = 'auto',
+  variant = 'default',
+  sellerStoreAttribution,
+}) => {
   const { user } = useAuth();
   const { toggleFavorite, isFavorited } = useFavorites();
   const { settings } = useLayout();
@@ -88,6 +99,9 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto', vari
   }).format(priceValue);
   const displayPrice = isPriceOnRequest ? 'Sob consulta' : formattedPrice;
   const primaryImage = getPrimaryImageFromList(ad.images, settings.defaultAdImageUrl);
+  const announcementPath = sellerStoreAttribution
+    ? appendSellerStoreAttribution(getAnnouncementPath(ad), sellerStoreAttribution)
+    : getAnnouncementPath(ad);
 
   // Verificar se o destaque está ativo (não expirado)
   const isCategoryHighlightActive = Boolean(ad.highlightCategory) && isTimestampActive(ad.highlightCategoryUntil);
@@ -225,8 +239,17 @@ const AdCard: React.FC<AdCardProps> = ({ ad, highlightDisplayMode = 'auto', vari
       
       <div className={`mt-auto ${isCompact ? 'px-3.5 pb-3.5' : 'px-5 pb-5'}`}>
         <Link 
-          to={getAnnouncementPath(ad)}
+          to={announcementPath}
           onClick={() => {
+            if (sellerStoreAttribution) {
+              void recordSellerStoreInsightEvent({
+                storeSlug: sellerStoreAttribution.storeSlug,
+                eventType: 'announcement_open',
+                sourceChannel: sellerStoreAttribution.sourceChannel,
+                announcementId: ad.id,
+              });
+            }
+
             // Captura de cliques por estado para analytics (fire-and-forget)
             detectUserState().then(userState => {
               if (userState) {
