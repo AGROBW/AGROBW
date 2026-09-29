@@ -84,3 +84,9 @@ Stage 3 provides owner-only aggregation for 7, 30 and 90 civil-day periods in
 normalized visit sources and top announcements. Store visits still come from
 `site_page_views`; `store_visit_attribution` is used only for their source
 breakdown. Raw rows and session identifiers remain unavailable to the browser.
+
+Stage 4 adds the on-demand `Desempenho` workspace to `Minha Loja`. The UI is
+exclusive to an active Seller Store entitlement, consumes only the aggregate
+RPC, and includes period comparisons, daily trends, normalized sources, top
+announcements, commercial actions and privacy-aware loading, empty and error
+states.

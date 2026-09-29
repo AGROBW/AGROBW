@@ -102,13 +102,22 @@ export const fetchSellerStoreInsights = async (
 export const useSellerStoreInsights = (
   periodDays: SellerStoreInsightsPeriod,
   topLimit = 5,
+  enabled = true,
 ) => {
   const [data, setData] = useState<SellerStoreInsightsData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    if (!enabled) {
+      requestIdRef.current += 1;
+      setData(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
     setIsLoading(true);
@@ -128,7 +137,7 @@ export const useSellerStoreInsights = (
     } finally {
       if (requestIdRef.current === requestId) setIsLoading(false);
     }
-  }, [periodDays, topLimit]);
+  }, [enabled, periodDays, topLimit]);
 
   useEffect(() => {
     void refresh();
