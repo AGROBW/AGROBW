@@ -98,3 +98,8 @@ QR Codes carry only the store slug, normalized `catalog_pdf` source and catalog
 export UUID. The browser records `catalog_qr_open`; the database validates that
 the active announcement belongs to that exact store and catalog. Analytics
 failures never block PDF completion, download or announcement navigation.
+
+Stage 6 closes implementation with a read-only readiness validator and a
+controlled production runbook. The release must prove entitlement isolation,
+raw-event privacy, catalog attribution integrity, server-side retention and safe
+degradation before observation is considered complete.
