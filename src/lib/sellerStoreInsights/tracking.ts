@@ -4,6 +4,7 @@ import { appWarn } from '../../utils/appLogger';
 import type { SellerStoreInsightSourceChannel } from './attribution';
 
 export type SellerStoreInsightBrowserEventType =
+  | 'store_visit_attribution'
   | 'announcement_open'
   | 'contact_whatsapp'
   | 'contact_platform'
@@ -21,11 +22,18 @@ type RecordSellerStoreInsightEventInput = {
 };
 
 const createEventKey = () => {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  const cryptoApi = typeof globalThis.crypto !== 'undefined'
+    ? globalThis.crypto as {
+        randomUUID?: () => string;
+        getRandomValues?: (array: Uint8Array) => Uint8Array;
+      }
+    : undefined;
+
+  if (cryptoApi?.randomUUID) return cryptoApi.randomUUID();
 
   const bytes = new Uint8Array(16);
-  if (typeof crypto !== 'undefined' && 'getRandomValues' in crypto) {
-    crypto.getRandomValues(bytes);
+  if (cryptoApi?.getRandomValues) {
+    cryptoApi.getRandomValues(bytes);
   } else {
     for (let index = 0; index < bytes.length; index += 1) {
       bytes[index] = Math.floor(Math.random() * 256);

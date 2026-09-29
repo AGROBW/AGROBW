@@ -37,6 +37,7 @@ the Seller Store Insights event table.
 
 Browser events:
 
+- `store_visit_attribution` (source breakdown only; it does not replace the visit metric)
 - `announcement_open`
 - `contact_whatsapp`
 - `contact_platform`
@@ -75,5 +76,11 @@ propagates only the store slug and source channel to announcement pages, and
 records platform contact only after a message is successfully sent. Analytics
 failures never block navigation or contact flows.
 
-Aggregation, dashboard UI, catalog attribution and production rollout remain
-separate stages and must preserve these definitions.
+Dashboard UI, catalog attribution and production rollout remain separate stages
+and must preserve these definitions.
+
+Stage 3 provides owner-only aggregation for 7, 30 and 90 civil-day periods in
+`America/Sao_Paulo`, including previous-period comparisons, daily series,
+normalized visit sources and top announcements. Store visits still come from
+`site_page_views`; `store_visit_attribution` is used only for their source
+breakdown. Raw rows and session identifiers remain unavailable to the browser.

@@ -62,6 +62,7 @@ const StorefrontView: React.FC = () => {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const shareRef = useRef<HTMLDivElement | null>(null);
+  const attributedVisitRef = useRef('');
   const sourceChannel = useMemo(
     () => resolveSellerStoreInsightSource({
       search: location.search,
@@ -90,6 +91,19 @@ const StorefrontView: React.FC = () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isShareOpen]);
+
+  useEffect(() => {
+    if (!store) return;
+    const attributionKey = `${store.slug}:${sourceChannel}`;
+    if (attributedVisitRef.current === attributionKey) return;
+
+    attributedVisitRef.current = attributionKey;
+    void recordSellerStoreInsightEvent({
+      storeSlug: store.slug,
+      eventType: 'store_visit_attribution',
+      sourceChannel,
+    });
+  }, [sourceChannel, store]);
 
   const categoryOptions = useMemo(() => {
     const options = new Map<string, string>();
