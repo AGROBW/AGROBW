@@ -13,11 +13,14 @@ export type SellerStoreInsightSourceChannel = (typeof SELLER_STORE_INSIGHT_SOURC
 export type SellerStoreAttribution = {
   storeSlug: string;
   sourceChannel: SellerStoreInsightSourceChannel;
+  catalogExportId?: string;
 };
 
 const SOURCE_QUERY_PARAM = 'store_source';
 const STORE_QUERY_PARAM = 'store';
+const CATALOG_QUERY_PARAM = 'catalog';
 const STORE_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const isSourceChannel = (value: string | null): value is SellerStoreInsightSourceChannel =>
   Boolean(value && SELLER_STORE_INSIGHT_SOURCE_CHANNELS.includes(value as SellerStoreInsightSourceChannel));
@@ -93,6 +96,9 @@ export const appendSellerStoreAttribution = (
 
   params.set(STORE_QUERY_PARAM, attribution.storeSlug);
   params.set(SOURCE_QUERY_PARAM, attribution.sourceChannel);
+  if (attribution.catalogExportId && UUID_PATTERN.test(attribution.catalogExportId)) {
+    params.set(CATALOG_QUERY_PARAM, attribution.catalogExportId);
+  }
 
   const nextSearch = params.toString();
   return `${pathname}${nextSearch ? `?${nextSearch}` : ''}${hash ? `#${hash}` : ''}`;
@@ -102,9 +108,14 @@ export const readSellerStoreAttribution = (search: string): SellerStoreAttributi
   const params = new URLSearchParams(search);
   const storeSlug = params.get(STORE_QUERY_PARAM)?.trim().toLowerCase() || '';
   const sourceChannel = params.get(SOURCE_QUERY_PARAM);
+  const catalogExportId = params.get(CATALOG_QUERY_PARAM)?.trim() || '';
 
   if (!STORE_SLUG_PATTERN.test(storeSlug) || !isSourceChannel(sourceChannel)) return null;
-  return { storeSlug, sourceChannel };
+  return {
+    storeSlug,
+    sourceChannel,
+    ...(UUID_PATTERN.test(catalogExportId) ? { catalogExportId } : {}),
+  };
 };
 
 export const buildAttributedStoreUrl = (

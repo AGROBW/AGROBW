@@ -47,6 +47,30 @@ describe('Seller Store Insights stage 2', () => {
     expect(readSellerStoreAttribution('?store=evolucao-metalurgica&store_source=raw-referrer')).toBeNull();
   });
 
+  it('accepts only valid catalog export identifiers in attributed announcement URLs', () => {
+    const catalogExportId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const path = appendSellerStoreAttribution('/anuncio/trator-bovino', {
+      storeSlug: 'evolucao-metalurgica',
+      sourceChannel: 'catalog_pdf',
+      catalogExportId,
+    });
+
+    expect(path).toBe(
+      `/anuncio/trator-bovino?store=evolucao-metalurgica&store_source=catalog_pdf&catalog=${catalogExportId}`,
+    );
+    expect(readSellerStoreAttribution(path.split('?')[1])).toEqual({
+      storeSlug: 'evolucao-metalurgica',
+      sourceChannel: 'catalog_pdf',
+      catalogExportId,
+    });
+    expect(readSellerStoreAttribution(
+      '?store=evolucao-metalurgica&store_source=catalog_pdf&catalog=not-a-uuid',
+    )).toEqual({
+      storeSlug: 'evolucao-metalurgica',
+      sourceChannel: 'catalog_pdf',
+    });
+  });
+
   it('marks outbound shared storefront URLs without exposing a raw referrer', () => {
     expect(buildAttributedStoreUrl('https://agrobw.com.br/loja/evolucao-metalurgica', 'whatsapp')).toBe(
       'https://agrobw.com.br/loja/evolucao-metalurgica?store_source=whatsapp',
@@ -66,6 +90,7 @@ describe('Seller Store Insights stage 2', () => {
   it('records product opens and successful platform contacts as fire-and-forget events', () => {
     expect(adCard).toContain("eventType: 'announcement_open'");
     expect(adDetail).toContain("eventType: 'contact_platform'");
+    expect(adDetail).toContain("eventType: 'catalog_qr_open'");
     expect(contactModal).toContain('onContactSent?.();');
     expect(tracking).toContain("supabase.rpc('record_seller_store_insight_event'");
     expect(tracking).toContain('ensureSiteAnalyticsSessionId()');

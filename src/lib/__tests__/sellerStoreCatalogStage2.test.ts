@@ -26,7 +26,7 @@ const announcement = (index: number) => ({
 });
 
 const input = (count = 3): SellerStoreCatalogBuildInput => ({
-  exportId: 'export-1',
+  exportId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   catalogTitle: 'Catalogo Safra 2026',
   catalogSubtitle: 'Oportunidades selecionadas para o produtor rural',
   priceMode: 'show',
@@ -181,7 +181,12 @@ describe('Seller Store PDF Catalog premium document', () => {
       },
     });
 
-    expect(calls).toEqual([...document.products.map((product) => product.publicUrl), document.store.publicUrl]);
+    expect(calls).toEqual([
+      ...document.products.map((product) => (
+        `${product.publicUrl}?store=${document.store.slug}&store_source=catalog_pdf&catalog=${document.exportId}`
+      )),
+      `${document.store.publicUrl}?store_source=catalog_pdf`,
+    ]);
     expect(html).toContain('@page { size: A4 portrait; margin: 0; }');
     expect(html).toContain(`data-layout-version="${SELLER_STORE_CATALOG_LAYOUT_VERSION}"`);
     expect(html.match(/class="catalog-page/g)).toHaveLength(document.totalPages);

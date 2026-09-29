@@ -57,7 +57,7 @@ serve(async (req) => {
   });
   const { data: catalog, error: catalogError } = await supabaseAdmin
     .from('seller_store_catalog_exports')
-    .select('id,user_id,status,storage_path,catalog_title,expires_at')
+    .select('id,user_id,store_id,status,storage_path,catalog_title,expires_at')
     .eq('id', exportId)
     .eq('user_id', authData.user.id)
     .maybeSingle();
@@ -75,6 +75,22 @@ serve(async (req) => {
     });
   if (signedError || !signed?.signedUrl) {
     return jsonResponse({ success: false, error: 'Nao foi possivel preparar o download.' }, 500);
+  }
+
+  try {
+    const { error: insightError } = await supabaseAdmin.rpc('record_seller_store_insight_system_event', {
+      p_store_id: catalog.store_id,
+      p_event_type: 'catalog_download',
+      p_event_key: crypto.randomUUID(),
+      p_catalog_export_id: catalog.id,
+      p_announcement_id: null,
+      p_source_channel: 'internal',
+    });
+    if (insightError) {
+      console.warn('[SellerStoreCatalog] Catalog download insight was not recorded', insightError.code || 'FAILED');
+    }
+  } catch (insightError) {
+    console.warn('[SellerStoreCatalog] Catalog download insight failed', insightError);
   }
 
   return jsonResponse({

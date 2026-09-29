@@ -90,3 +90,11 @@ exclusive to an active Seller Store entitlement, consumes only the aggregate
 RPC, and includes period comparisons, daily trends, normalized sources, top
 announcements, commercial actions and privacy-aware loading, empty and error
 states.
+
+Stage 5 completes catalog attribution. A successful worker completion records
+one idempotent `catalog_generated` event, while each successful owner-bound
+signed-download request records `catalog_download` on a best-effort basis. Product
+QR Codes carry only the store slug, normalized `catalog_pdf` source and catalog
+export UUID. The browser records `catalog_qr_open`; the database validates that
+the active announcement belongs to that exact store and catalog. Analytics
+failures never block PDF completion, download or announcement navigation.

@@ -60,6 +60,7 @@ export type SellerStoreCatalogBuildInput = {
 
 export type SellerStoreCatalogStore = {
   id: string;
+  slug: string;
   name: string;
   description: string;
   logoUrl: string | null;
@@ -267,6 +268,7 @@ export const buildSellerStoreCatalogDocument = (
     priceMode: input.priceMode,
     store: {
       id: input.store.id,
+      slug: input.store.slug,
       name: storeName,
       description: truncate(stripMarkup(input.store.description), 680),
       logoUrl: safeImageUrl(input.store.logo_url),
