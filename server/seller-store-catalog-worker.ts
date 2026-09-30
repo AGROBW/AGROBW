@@ -64,6 +64,7 @@ const LOGO_IMAGE_OPTIMIZATION: CatalogImageOptimizationOptions = {
 type CatalogExportRow = {
   id: string;
   user_id: string;
+  store_id: string;
   catalog_title: string;
   catalog_subtitle: string | null;
   price_mode: 'show' | 'hide' | 'consult';
@@ -595,6 +596,21 @@ export const processSellerStoreCatalogJobs = async (options: {
       });
       if (completeError || completed !== true) {
         throw new Error(`CATALOG_EXPORT_COMPLETE_${completeError?.code || 'LEASE_LOST'}`);
+      }
+      try {
+        const { error: insightError } = await supabase.rpc('record_seller_store_insight_system_event', {
+          p_store_id: job.store_id,
+          p_event_type: 'catalog_generated',
+          p_event_key: job.id,
+          p_catalog_export_id: job.id,
+          p_announcement_id: null,
+          p_source_channel: 'internal',
+        });
+        if (insightError) {
+          console.warn('[SellerStoreCatalog] Catalog generated insight was not recorded', insightError.code || 'FAILED');
+        }
+      } catch (insightError) {
+        console.warn('[SellerStoreCatalog] Catalog generated insight failed', safeErrorCode(insightError));
       }
       summary.ready += 1;
     } catch (error) {

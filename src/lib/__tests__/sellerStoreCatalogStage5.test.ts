@@ -13,6 +13,7 @@ const worker = read('server/seller-store-catalog-worker.ts');
 const job = (id: string) => ({
   id,
   user_id: '11111111-1111-4111-8111-111111111111',
+  store_id: '33333333-3333-4333-8333-333333333333',
   catalog_title: 'Catalogo operacional',
   catalog_subtitle: null,
   price_mode: 'show',
@@ -39,6 +40,7 @@ const createFakeSupabase = (options: {
   failureStatus?: 'queued' | 'failed';
   completeError?: boolean;
   completeCommitted?: boolean;
+  insightError?: boolean;
 } = {}) => {
   const remove = vi.fn(async () => ({ error: null }));
   const upload = vi.fn(async () => ({ error: null }));
@@ -54,6 +56,11 @@ const createFakeSupabase = (options: {
     if (name === 'complete_seller_store_catalog_export') {
       return options.completeError
         ? { data: false, error: { code: 'COMPLETE_FAILED' } }
+        : { data: true, error: null };
+    }
+    if (name === 'record_seller_store_insight_system_event') {
+      return options.insightError
+        ? { data: false, error: { code: 'INSIGHT_UNAVAILABLE' } }
         : { data: true, error: null };
     }
     if (name === 'fail_seller_store_catalog_export') {
@@ -132,6 +139,14 @@ describe('Seller Store PDF Catalog operational hardening', () => {
     expect(fake.rpc).toHaveBeenCalledWith('complete_seller_store_catalog_export', expect.objectContaining({
       p_export_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     }));
+    expect(fake.rpc).toHaveBeenCalledWith('record_seller_store_insight_system_event', {
+      p_store_id: '33333333-3333-4333-8333-333333333333',
+      p_event_type: 'catalog_generated',
+      p_event_key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      p_catalog_export_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      p_announcement_id: null,
+      p_source_channel: 'internal',
+    });
   });
 
   it('retries a transient render failure without changing the job identity', async () => {
@@ -151,6 +166,33 @@ describe('Seller Store PDF Catalog operational hardening', () => {
       p_export_id: catalogJob.id,
       p_retryable: true,
     }));
+  });
+
+  it('keeps a completed catalog ready when insight recording is unavailable', async () => {
+    const fake = createFakeSupabase({
+      jobs: [job('ffffffff-ffff-4fff-8fff-ffffffffffff')],
+      insightError: true,
+    });
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    try {
+      const summary = await processSellerStoreCatalogJobs({
+        supabaseUrl: 'http://localhost',
+        serviceRoleKey: 'test',
+        supabaseClient: fake.client,
+        workerId: '22222222-2222-4222-8222-222222222222',
+        fetchImpl: vi.fn(async () => new Response('missing', { status: 404 })) as typeof fetch,
+        renderPdf: vi.fn(async () => Buffer.from('%PDF-1.4 test')),
+      });
+
+      expect(summary).toMatchObject({ ready: 1, retried: 0, failed: 0, transitionErrors: 0 });
+      expect(consoleWarn).toHaveBeenCalledWith(
+        '[SellerStoreCatalog] Catalog generated insight was not recorded',
+        'INSIGHT_UNAVAILABLE',
+      );
+    } finally {
+      consoleWarn.mockRestore();
+    }
   });
 
   it('preserves an uploaded PDF when the completion response is ambiguous', async () => {

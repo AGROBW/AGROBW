@@ -45,6 +45,7 @@ interface ContactSellerModalProps {
   announcementId: string;
   announcementTitle: string;
   sellerId: string;
+  onContactSent?: () => void;
 }
 
 const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
@@ -53,6 +54,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
   announcementId,
   announcementTitle,
   sellerId,
+  onContactSent,
 }) => {
   const { user } = useAuth();
   const { settings } = useLayout();
@@ -149,6 +151,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
           description: 'O vendedor recebera sua mensagem por e-mail e podera responder diretamente.',
         },
       );
+      onContactSent?.();
       onClose();
       setFormData({ name: '', email: '', phone: '', cep: '', message: '' });
       setAcceptedTerms(false);
@@ -483,6 +486,7 @@ const ContactSellerModal: React.FC<ContactSellerModalProps> = ({
         description: 'O vendedor recebeu seu contato e a conversa foi iniciada com sucesso.',
       });
 
+      onContactSent?.();
       onClose();
 
       setTimeout(() => {

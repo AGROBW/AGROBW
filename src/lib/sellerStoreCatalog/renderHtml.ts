@@ -4,6 +4,7 @@ import type {
   SellerStoreCatalogPage,
   SellerStoreCatalogProduct,
 } from './documentModel.js';
+import { appendSellerStoreAttribution, buildAttributedStoreUrl } from '../sellerStoreInsights/attribution.js';
 
 export type SellerStoreCatalogHtmlOptions = {
   platformLogoUrl?: string;
@@ -254,10 +255,14 @@ export const renderSellerStoreCatalogHtml = async (
   }));
   const productQrEntries = await Promise.all(document.products.map(async (product) => [
     product.id,
-    await qrCodeFactory(product.publicUrl),
+    await qrCodeFactory(appendSellerStoreAttribution(product.publicUrl, {
+      storeSlug: document.store.slug,
+      sourceChannel: 'catalog_pdf',
+      catalogExportId: document.exportId,
+    })),
   ] as const));
   const qrCodes = new Map(productQrEntries);
-  const storeQrCode = await qrCodeFactory(document.store.publicUrl);
+  const storeQrCode = await qrCodeFactory(buildAttributedStoreUrl(document.store.publicUrl, 'catalog_pdf'));
 
   const pages = document.pages.map((page) => {
     if (page.kind === 'cover') return cover(document, platformLogoUrl, institutionalBackgroundUrl);

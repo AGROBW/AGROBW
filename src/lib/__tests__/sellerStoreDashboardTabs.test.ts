@@ -10,11 +10,16 @@ const catalogPanel = readFileSync(
   resolve(process.cwd(), 'components/dashboard/SellerStoreCatalogPanel.tsx'),
   'utf8',
 );
+const insightsPanel = readFileSync(
+  resolve(process.cwd(), 'components/dashboard/SellerStoreInsightsPanel.tsx'),
+  'utf8',
+);
 
 describe('Seller Store dashboard tabbed experience', () => {
-  it('defines the five expected navigation categories with overview as the default', () => {
+  it('defines the six expected navigation categories with overview as the default', () => {
     expect(dashboard).toContain("useState<StoreDashboardTab>('overview')");
     expect(dashboard).toContain("label: 'Visão geral'");
+    expect(dashboard).toContain("label: 'Desempenho'");
     expect(dashboard).toContain("label: 'Vitrine'");
     expect(dashboard).toContain("label: 'Catálogo'");
     expect(dashboard).toContain("label: 'Aparência'");
@@ -29,10 +34,18 @@ describe('Seller Store dashboard tabbed experience', () => {
     expect(dashboard).toContain("['ArrowLeft', 'ArrowRight', 'Home', 'End']");
     expect(dashboard).toContain('overflow-x-auto');
 
-    for (const panel of ['overview', 'showcase', 'catalog', 'appearance', 'publication']) {
+    for (const panel of ['overview', 'insights', 'showcase', 'catalog', 'appearance', 'publication']) {
       expect(dashboard).toContain(`id="store-panel-${panel}"`);
       expect(dashboard).toContain(`hidden={activeTab !== '${panel}'}`);
     }
+  });
+
+  it('mounts the insights workspace on demand and keeps it exclusive to store access', () => {
+    expect(dashboard).toContain("activeTab === 'insights'");
+    expect(dashboard).toContain('<SellerStoreInsightsPanel hasStoreAccess={hasStoreAccess} store={store} />');
+    expect(insightsPanel).toContain('hasStoreAccess &&');
+    expect(insightsPanel).toContain('!store?.isPausedDueToPlan');
+    expect(insightsPanel).toContain('Recurso Loja Parceira');
   });
 
   it('keeps critical status and pending information outside the active panel', () => {

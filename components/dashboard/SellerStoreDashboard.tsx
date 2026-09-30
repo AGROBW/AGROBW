@@ -4,6 +4,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities';
 import {
   AlertTriangle,
+  BarChart3,
   ExternalLink,
   Eye,
   FileText,
@@ -28,13 +29,15 @@ import { supabase } from '../../src/lib/supabaseClient';
 import { optimizeStoreCoverImage } from '../../src/utils/storeCoverImage';
 import SellerStoreCatalogPanel from './SellerStoreCatalogPanel';
 
+const SellerStoreInsightsPanel = React.lazy(() => import('./SellerStoreInsightsPanel'));
+
 type SellerStoreDashboardProps = {
   hasStoreAccess: boolean;
 };
 
 const STORE_DESCRIPTION_MAX_LENGTH = 280;
 
-type StoreDashboardTab = 'overview' | 'showcase' | 'catalog' | 'appearance' | 'publication';
+type StoreDashboardTab = 'overview' | 'insights' | 'showcase' | 'catalog' | 'appearance' | 'publication';
 
 const STORE_DASHBOARD_TABS: Array<{
   id: StoreDashboardTab;
@@ -42,6 +45,7 @@ const STORE_DASHBOARD_TABS: Array<{
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
 }> = [
   { id: 'overview', label: 'Visão geral', icon: LayoutDashboard },
+  { id: 'insights', label: 'Desempenho', icon: BarChart3 },
   { id: 'showcase', label: 'Vitrine', icon: ShoppingBag },
   { id: 'catalog', label: 'Catálogo', icon: FileText },
   { id: 'appearance', label: 'Aparência', icon: Palette },
@@ -605,6 +609,14 @@ const SellerStoreDashboard: React.FC<SellerStoreDashboardProps> = ({ hasStoreAcc
                 </p>
               </div>
             </div>
+          </div>
+
+          <div id="store-panel-insights" role="tabpanel" aria-labelledby="store-tab-insights" hidden={activeTab !== 'insights'}>
+            {activeTab === 'insights' ? (
+              <React.Suspense fallback={<div className="h-80 animate-pulse rounded-3xl bg-slate-100" aria-label="Carregando painel de desempenho" />}>
+                <SellerStoreInsightsPanel hasStoreAccess={hasStoreAccess} store={store} />
+              </React.Suspense>
+            ) : null}
           </div>
 
           <div id="store-panel-showcase" role="tabpanel" aria-labelledby="store-tab-showcase" hidden={activeTab !== 'showcase'}>
