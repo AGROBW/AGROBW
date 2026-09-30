@@ -17,11 +17,13 @@ returns table (
   highlight_home boolean,
   highlight_home_until timestamptz,
   highlight_category boolean,
-  highlight_category_until timestamptz
+  highlight_category_until timestamptz,
+  leads_count bigint,
+  messages_count bigint
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_actor_id uuid := auth.uid();
@@ -58,10 +60,25 @@ begin
     coalesce(a.highlight_home, false) as highlight_home,
     a.highlight_home_until as highlight_home_until,
     coalesce(a.highlight_category, false) as highlight_category,
-    a.highlight_category_until as highlight_category_until
+    a.highlight_category_until as highlight_category_until,
+    (
+      select count(*) from public.leads leads
+      where leads.announcement_id = a.id
+    ) + (
+      select count(*) from public.guest_announcement_contacts contacts
+      where contacts.announcement_id = a.id
+    ) as leads_count,
+    (
+      select count(*) from public.chats chats
+      where chats.announcement_id = a.id
+    ) + (
+      select count(*) from public.guest_announcement_contacts contacts
+      where contacts.announcement_id = a.id
+    ) as messages_count
   from public.announcements a
   order by a.created_at desc;
 end;
 $$;
 
+revoke all on function public.admin_list_announcements_monitoring() from public, anon, authenticated;
 grant execute on function public.admin_list_announcements_monitoring() to authenticated;

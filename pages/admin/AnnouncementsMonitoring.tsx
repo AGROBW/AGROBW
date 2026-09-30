@@ -61,6 +61,11 @@ type MonitoringAnnouncement = {
   isOfficialStore?: boolean;
 };
 
+type MonitoringAnnouncementRpcRow = MonitoringAnnouncement & {
+  leads_count?: number | string | null;
+  messages_count?: number | string | null;
+};
+
 type OwnerSummary = {
   name: string;
   email: string;
@@ -186,7 +191,11 @@ const AnnouncementsMonitoring: React.FC = () => {
       const { data, error } = await supabase.rpc('admin_list_announcements_monitoring');
       if (error) throw error;
 
-      let rows = (data || []) as MonitoringAnnouncement[];
+      let rows = ((data || []) as MonitoringAnnouncementRpcRow[]).map((row) => ({
+        ...row,
+        leadsCount: Number(row.leads_count || 0),
+        messagesCount: Number(row.messages_count || 0),
+      }));
 
       setSummary({
         active: rows.filter((item) => item.status === 'ACTIVE').length,
@@ -221,18 +230,11 @@ const AnnouncementsMonitoring: React.FC = () => {
         );
       }
 
-      const announcementIds = rows.map((item) => item.id);
       const userIds = Array.from(new Set(rows.map((item) => item.user_id).filter(Boolean)));
 
-      const [ownersResponse, leadsResponse, chatsResponse, storesResponse] = await Promise.all([
+      const [ownersResponse, storesResponse] = await Promise.all([
         userIds.length
           ? supabase.from('users').select('id,name,email').in('id', userIds)
-          : Promise.resolve({ data: [], error: null } as any),
-        announcementIds.length
-          ? supabase.from('leads').select('announcement_id').in('announcement_id', announcementIds)
-          : Promise.resolve({ data: [], error: null } as any),
-        announcementIds.length
-          ? supabase.from('chats').select('announcement_id').in('announcement_id', announcementIds)
           : Promise.resolve({ data: [], error: null } as any),
         userIds.length
           ? supabase
@@ -243,8 +245,6 @@ const AnnouncementsMonitoring: React.FC = () => {
       ]);
 
       if (ownersResponse.error) throw ownersResponse.error;
-      if (leadsResponse.error) throw leadsResponse.error;
-      if (chatsResponse.error) throw chatsResponse.error;
       if (storesResponse.error) throw storesResponse.error;
 
       const ownersMap = new Map<string, OwnerSummary>(
@@ -253,18 +253,6 @@ const AnnouncementsMonitoring: React.FC = () => {
           { name: owner.name, email: owner.email },
         ])
       );
-
-      const leadsCountMap = new Map<string, number>();
-      (leadsResponse.data || []).forEach((lead: any) => {
-        const key = lead.announcement_id;
-        leadsCountMap.set(key, (leadsCountMap.get(key) || 0) + 1);
-      });
-
-      const messagesCountMap = new Map<string, number>();
-      (chatsResponse.data || []).forEach((chat: any) => {
-        const key = chat.announcement_id;
-        messagesCountMap.set(key, (messagesCountMap.get(key) || 0) + 1);
-      });
 
       const officialStoreUserIds = new Set(
         (storesResponse.data || [])
@@ -275,8 +263,6 @@ const AnnouncementsMonitoring: React.FC = () => {
       rows = rows.map((row): MonitoringAnnouncement => ({
         ...row,
         owner: ownersMap.get(row.user_id) || undefined,
-        leadsCount: leadsCountMap.get(row.id) || 0,
-        messagesCount: messagesCountMap.get(row.id) || 0,
         isOfficialStore: officialStoreUserIds.has(row.user_id),
       }));
 
