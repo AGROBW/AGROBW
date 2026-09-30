@@ -32,6 +32,8 @@ describe('Seller Store Insights stage 3', () => {
     expect(migration).toContain('count(distinct views.session_id)');
     expect(migration).toContain('views.user_id is distinct from v_user_id');
     expect(migration).toContain("events.event_type = 'store_visit_attribution'");
+    expect(migration).toContain('current_converted_visitors');
+    expect(migration).toContain("events.event_type in ('announcement_open', 'catalog_qr_open')");
     expect(storefront).toContain("eventType: 'store_visit_attribution'");
   });
 
@@ -49,11 +51,14 @@ describe('Seller Store Insights stage 3', () => {
     expect(validation).toContain('periodos_limitados');
     expect(transactionalValidation).toContain('SOURCE_BREAKDOWN_MISSING_GOOGLE');
     expect(transactionalValidation).toContain('EXPIRED_PLAN_RECEIVED_AGGREGATED_INSIGHTS');
+    expect(transactionalValidation).toContain('STORE_CONVERSION_EXCEEDED_100_PERCENT');
+    expect(transactionalValidation).toContain('DIRECT_ANNOUNCEMENT_CONTACT_WAS_NOT_RECORDED');
     expect(transactionalValidation.trimEnd()).toMatch(/rollback;$/);
   });
 
   it('provides a typed client hook that only calls the aggregate RPC', () => {
     expect(hook).toContain("supabase.rpc('get_my_seller_store_insights'");
+    expect(hook).toContain("supabase.rpc('get_my_seller_store_insights_availability'");
     expect(hook).toContain('SellerStoreInsightsPeriod = 7 | 30 | 90');
     expect(hook).not.toContain(".from('seller_store_insight_events')");
     expect(hook).not.toContain(".from('site_page_views')");

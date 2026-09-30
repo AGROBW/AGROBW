@@ -1,6 +1,7 @@
 with object_checks as (
   select
     to_regclass('public.seller_store_insight_events') is not null as tabela_eventos,
+    to_regclass('public.seller_store_insight_retention_runs') is not null as historico_retencao,
     to_regclass('public.site_page_views') is not null as tabela_visitas,
     to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)') is not null as rpc_browser,
     to_regprocedure('public.record_seller_store_insight_system_event(uuid,text,uuid,uuid,uuid,text,timestamp with time zone)') is not null as rpc_sistema,
@@ -26,7 +27,12 @@ security_checks as (
       and not has_function_privilege('anon', 'public.record_seller_store_insight_system_event(uuid,text,uuid,uuid,uuid,text,timestamp with time zone)', 'EXECUTE')
       and not has_function_privilege('authenticated', 'public.record_seller_store_insight_system_event(uuid,text,uuid,uuid,uuid,text,timestamp with time zone)', 'EXECUTE') as evento_sistema_protegido,
     has_function_privilege('authenticated', 'public.get_my_seller_store_insights(integer,integer)', 'EXECUTE')
-      and not has_function_privilege('anon', 'public.get_my_seller_store_insights(integer,integer)', 'EXECUTE') as painel_so_autenticado
+      and not has_function_privilege('anon', 'public.get_my_seller_store_insights(integer,integer)', 'EXECUTE') as painel_so_autenticado,
+    has_function_privilege('service_role', 'public.purge_seller_store_insight_events(integer)', 'EXECUTE')
+      and not has_function_privilege('anon', 'public.purge_seller_store_insight_events(integer)', 'EXECUTE')
+      and not has_function_privilege('authenticated', 'public.purge_seller_store_insight_events(integer)', 'EXECUTE') as retencao_so_service_role,
+    not has_table_privilege('anon', 'public.seller_store_insight_retention_runs', 'SELECT')
+      and not has_table_privilege('authenticated', 'public.seller_store_insight_retention_runs', 'SELECT') as historico_retencao_privado
 ),
 contract_checks as (
   select
@@ -36,6 +42,9 @@ contract_checks as (
     pg_get_functiondef(to_regprocedure('public.get_my_seller_store_insights(integer,integer)')) ilike '%count(distinct views.session_id)%' as visitas_unicas,
     pg_get_functiondef(to_regprocedure('public.get_my_seller_store_insights(integer,integer)')) ilike '%topAnnouncements%' as ranking_anuncios,
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%catalog_qr_open%' as qr_validado,
+    pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%pg_advisory_xact_lock%'
+      and pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%>= 60%' as limite_global_loja,
+    pg_get_functiondef(to_regprocedure('public.get_my_seller_store_insights(integer,integer)')) ilike '%current_converted_visitors%' as conversao_intersecta_visitantes,
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_system_event(uuid,text,uuid,uuid,uuid,text,timestamp with time zone)')) ilike '%catalog_generated%'
       and pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_system_event(uuid,text,uuid,uuid,uuid,text,timestamp with time zone)')) ilike '%catalog_download%' as eventos_catalogo_protegidos
 ),
@@ -47,7 +56,15 @@ schema_checks as (
       and pg_get_constraintdef(constraints.oid) ilike '%catalog_qr_open%'
       and pg_get_constraintdef(constraints.oid) ilike '%catalog_generated%'
       and pg_get_constraintdef(constraints.oid) ilike '%catalog_download%'
-    ), false) as tipos_completos
+    ), false) as tipos_completos,
+    exists (
+      select 1
+      from information_schema.columns columns
+      where columns.table_schema = 'public'
+        and columns.table_name = 'seller_store_insight_events'
+        and columns.column_name = 'dedupe_scope'
+        and columns.is_nullable = 'NO'
+    ) as escopo_deduplicacao_imutavel
   from pg_constraint constraints
   where constraints.conrelid = to_regclass('public.seller_store_insight_events')
 ),
@@ -62,7 +79,7 @@ privacy_checks as (
 ),
 data_checks as (
   select
-    count(*) filter (where events.occurred_at < now() - interval '180 days') = 0 as retencao_em_dia,
+    count(*) filter (where events.created_at < now() - interval '180 days') = 0 as retencao_em_dia,
     count(*) filter (
       where events.event_type = 'catalog_qr_open'
         and (events.catalog_export_id is null or events.announcement_id is null)
@@ -71,6 +88,10 @@ data_checks as (
       where events.event_type in ('catalog_generated', 'catalog_download')
         and events.catalog_export_id is null
     ) = 0 as catalogo_sem_referencia_invalida,
+    count(*) filter (
+      where events.event_type in ('store_visit_attribution', 'website_click', 'store_share')
+        and events.announcement_id is not null
+    ) = 0 as associacoes_evento_validas,
     count(*) filter (where events.occurred_at >= now() - interval '24 hours') as eventos_24h,
     count(*) filter (
       where events.event_type in ('contact_whatsapp', 'contact_platform')
@@ -90,9 +111,17 @@ data_checks as (
     ) as qr_abertos_24h,
     max(events.occurred_at) as ultimo_evento
   from public.seller_store_insight_events events
+),
+retention_checks as (
+  select
+    coalesce(max(runs.completed_at) >= now() - interval '26 hours', false) as retencao_executada_recentemente,
+    max(runs.completed_at) as ultima_retencao,
+    coalesce((array_agg(runs.deleted_count order by runs.completed_at desc))[1], 0) as ultima_retencao_excluiu
+  from public.seller_store_insight_retention_runs runs
 )
 select
   object_checks.tabela_eventos
+    and object_checks.historico_retencao
     and object_checks.tabela_visitas
     and object_checks.rpc_browser
     and object_checks.rpc_sistema
@@ -104,27 +133,70 @@ select
   security_checks.browser_so_por_rpc,
   security_checks.evento_sistema_protegido,
   security_checks.painel_so_autenticado,
+  security_checks.retencao_so_service_role,
+  security_checks.historico_retencao_privado,
   contract_checks.periodos_fixos,
   contract_checks.exige_plano_loja,
   contract_checks.fuso_civil,
   contract_checks.visitas_unicas,
   contract_checks.ranking_anuncios,
   contract_checks.qr_validado,
+  contract_checks.limite_global_loja,
+  contract_checks.conversao_intersecta_visitantes,
   contract_checks.eventos_catalogo_protegidos,
   schema_checks.tipos_completos,
+  schema_checks.escopo_deduplicacao_imutavel,
   privacy_checks.sem_dados_sensiveis,
   data_checks.retencao_em_dia,
   data_checks.qr_sem_referencia_invalida,
   data_checks.catalogo_sem_referencia_invalida,
+  data_checks.associacoes_evento_validas,
+  retention_checks.retencao_executada_recentemente,
+  (
+    object_checks.tabela_eventos
+    and object_checks.historico_retencao
+    and object_checks.tabela_visitas
+    and object_checks.rpc_browser
+    and object_checks.rpc_sistema
+    and object_checks.rpc_agregacao
+    and object_checks.rpc_retencao
+    and security_checks.rls_forcada
+    and security_checks.eventos_privados
+    and security_checks.cliente_sem_escrita_direta
+    and security_checks.evento_sistema_protegido
+    and security_checks.painel_so_autenticado
+    and security_checks.retencao_so_service_role
+    and security_checks.historico_retencao_privado
+    and contract_checks.periodos_fixos
+    and contract_checks.exige_plano_loja
+    and contract_checks.fuso_civil
+    and contract_checks.visitas_unicas
+    and contract_checks.ranking_anuncios
+    and contract_checks.qr_validado
+    and contract_checks.limite_global_loja
+    and contract_checks.conversao_intersecta_visitantes
+    and contract_checks.eventos_catalogo_protegidos
+    and schema_checks.tipos_completos
+    and schema_checks.escopo_deduplicacao_imutavel
+    and privacy_checks.sem_dados_sensiveis
+    and data_checks.retencao_em_dia
+    and data_checks.qr_sem_referencia_invalida
+    and data_checks.catalogo_sem_referencia_invalida
+    and data_checks.associacoes_evento_validas
+    and retention_checks.retencao_executada_recentemente
+  ) as pronto_para_operar,
   data_checks.eventos_24h,
   data_checks.contatos_24h,
   data_checks.catalogos_gerados_24h,
   data_checks.downloads_24h,
   data_checks.qr_abertos_24h,
-  data_checks.ultimo_evento
+  data_checks.ultimo_evento,
+  retention_checks.ultima_retencao,
+  retention_checks.ultima_retencao_excluiu
 from object_checks
 cross join security_checks
 cross join contract_checks
 cross join schema_checks
 cross join privacy_checks
-cross join data_checks;
+cross join data_checks
+cross join retention_checks;

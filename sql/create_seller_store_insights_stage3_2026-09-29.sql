@@ -58,7 +58,8 @@ declare
   v_dedupe_bucket timestamptz;
   v_inserted integer := 0;
 begin
-  if coalesce(trim(p_store_slug), '') = ''
+  if (coalesce(trim(p_store_slug), '') = ''
+      and not (p_event_type = 'contact_platform' and p_announcement_id is not null))
      or coalesce(trim(p_session_id), '') = ''
      or p_event_key is null then
     return false;
@@ -76,15 +77,29 @@ begin
     return false;
   end if;
 
-  select stores.*
-  into v_store
-  from public.seller_stores stores
-  where stores.slug = left(trim(p_store_slug), 160)
-    and stores.is_active = true
-    and stores.is_store_feature_enabled = true
-    and coalesce(stores.is_paused_due_to_plan, false) = false
-    and public.seller_store_insights_has_active_plan(stores.user_id)
-  limit 1;
+  if coalesce(trim(p_store_slug), '') <> '' then
+    select stores.*
+    into v_store
+    from public.seller_stores stores
+    where stores.slug = left(trim(p_store_slug), 160)
+      and stores.is_active = true
+      and stores.is_store_feature_enabled = true
+      and coalesce(stores.is_paused_due_to_plan, false) = false
+      and public.seller_store_insights_has_active_plan(stores.user_id)
+    limit 1;
+  elsif p_event_type = 'contact_platform' and p_announcement_id is not null then
+    select stores.*
+    into v_store
+    from public.seller_stores stores
+    join public.announcements announcements on announcements.user_id = stores.user_id
+    where announcements.id = p_announcement_id
+      and announcements.status = 'ACTIVE'
+      and stores.is_active = true
+      and stores.is_store_feature_enabled = true
+      and coalesce(stores.is_paused_due_to_plan, false) = false
+      and public.seller_store_insights_has_active_plan(stores.user_id)
+    limit 1;
+  end if;
 
   if not found or auth.uid() = v_store.user_id then
     return false;
@@ -92,6 +107,11 @@ begin
 
   if p_event_type in ('announcement_open', 'contact_platform', 'catalog_qr_open')
      and p_announcement_id is null then
+    return false;
+  end if;
+
+  if p_event_type in ('store_visit_attribution', 'website_click', 'store_share')
+     and p_announcement_id is not null then
     return false;
   end if;
 
@@ -129,6 +149,17 @@ begin
 
   v_session_hash := md5(v_store.id::text || ':' || left(p_session_id, 160));
   v_dedupe_bucket := to_timestamp(floor(extract(epoch from v_now) / 300) * 300);
+
+  perform pg_advisory_xact_lock(hashtextextended('seller-store-insights:' || v_store.id::text, 0));
+
+  if (
+    select count(*)
+    from public.seller_store_insight_events events
+    where events.store_id = v_store.id
+      and events.created_at >= v_now - interval '1 minute'
+  ) >= 60 then
+    return false;
+  end if;
 
   if (
     select count(*)
@@ -232,14 +263,13 @@ begin
     raise exception 'SELLER_STORE_INSIGHTS_STORE_FEATURE_PAUSED' using errcode = '42501';
   end if;
 
-  with visit_summary as (
-    select
-      count(distinct views.session_id) filter (
-        where views.created_at >= v_current_start and views.created_at < v_current_end
-      )::bigint as current_visits,
-      count(distinct views.session_id) filter (
-        where views.created_at >= v_previous_start and views.created_at < v_current_start
-      )::bigint as previous_visits
+  with visit_sessions as (
+    select distinct
+      md5(v_store.id::text || ':' || left(views.session_id, 160)) as session_hash,
+      case
+        when views.created_at >= v_current_start then 'current'
+        else 'previous'
+      end as period_key
     from public.site_page_views views
     where views.page_type = 'storefront'
       and views.entity_key = v_store.slug
@@ -248,15 +278,21 @@ begin
       and views.created_at < v_current_end
       and views.user_id is distinct from v_user_id
   ),
+  visit_summary as (
+    select
+      count(*) filter (where visit_sessions.period_key = 'current')::bigint as current_visits,
+      count(*) filter (where visit_sessions.period_key = 'previous')::bigint as previous_visits
+    from visit_sessions
+  ),
   event_summary as (
     select
       count(distinct events.session_hash) filter (
         where events.occurred_at >= v_current_start
-          and events.event_type = 'announcement_open'
+          and events.event_type in ('announcement_open', 'catalog_qr_open')
       )::bigint as current_opens,
       count(distinct events.session_hash) filter (
         where events.occurred_at >= v_previous_start and events.occurred_at < v_current_start
-          and events.event_type = 'announcement_open'
+          and events.event_type in ('announcement_open', 'catalog_qr_open')
       )::bigint as previous_opens,
       count(distinct events.session_hash) filter (
         where events.occurred_at >= v_current_start
@@ -266,6 +302,26 @@ begin
         where events.occurred_at >= v_previous_start and events.occurred_at < v_current_start
           and events.event_type in ('contact_whatsapp', 'contact_platform')
       )::bigint as previous_contacts,
+      count(distinct events.session_hash) filter (
+        where events.occurred_at >= v_current_start
+          and events.event_type in ('contact_whatsapp', 'contact_platform')
+          and exists (
+            select 1
+            from visit_sessions visits
+            where visits.period_key = 'current'
+              and visits.session_hash = events.session_hash
+          )
+      )::bigint as current_converted_visitors,
+      count(distinct events.session_hash) filter (
+        where events.occurred_at >= v_previous_start and events.occurred_at < v_current_start
+          and events.event_type in ('contact_whatsapp', 'contact_platform')
+          and exists (
+            select 1
+            from visit_sessions visits
+            where visits.period_key = 'previous'
+              and visits.session_hash = events.session_hash
+          )
+      )::bigint as previous_converted_visitors,
       count(*) filter (
         where events.occurred_at >= v_current_start and events.event_type = 'contact_whatsapp'
       )::bigint as whatsapp_clicks,
@@ -333,10 +389,10 @@ begin
       events.announcement_id,
       max(announcements.title) as title,
       count(distinct events.session_hash) filter (
-        where events.event_type = 'announcement_open'
+        where events.event_type in ('announcement_open', 'catalog_qr_open')
       )::bigint as opens,
       count(distinct events.session_hash) filter (
-        where events.event_type in ('contact_platform', 'catalog_qr_open')
+        where events.event_type in ('contact_whatsapp', 'contact_platform')
       )::bigint as contacts
     from public.seller_store_insight_events events
     join public.announcements announcements
@@ -347,6 +403,11 @@ begin
       and events.occurred_at >= v_current_start
       and events.occurred_at < v_current_end
     group by events.announcement_id
+    having count(*) filter (
+      where events.event_type in (
+        'announcement_open', 'catalog_qr_open', 'contact_whatsapp', 'contact_platform'
+      )
+    ) > 0
   ),
   top_payload as (
     select coalesce(
@@ -358,7 +419,7 @@ begin
           'contacts', ranked.contacts,
           'conversionRate', case
             when ranked.opens = 0 then 0
-            else round(ranked.contacts * 100.0 / ranked.opens, 2)
+            else least(100::numeric, round(ranked.contacts * 100.0 / ranked.opens, 2))
           end
         ) order by ranked.opens desc, ranked.contacts desc, ranked.title
       ),
@@ -391,7 +452,7 @@ begin
     select
       (events.occurred_at at time zone 'America/Sao_Paulo')::date as day,
       count(distinct events.session_hash) filter (
-        where events.event_type = 'announcement_open'
+        where events.event_type in ('announcement_open', 'catalog_qr_open')
       )::bigint as opens,
       count(distinct events.session_hash) filter (
         where events.event_type in ('contact_whatsapp', 'contact_platform')
@@ -433,7 +494,10 @@ begin
       'contactActions', event_summary.current_contacts,
       'conversionRate', case
         when visit_summary.current_visits = 0 then 0
-        else round(event_summary.current_contacts * 100.0 / visit_summary.current_visits, 2)
+        else least(
+          100::numeric,
+          round(event_summary.current_converted_visitors * 100.0 / visit_summary.current_visits, 2)
+        )
       end,
       'whatsappClicks', event_summary.whatsapp_clicks,
       'platformContacts', event_summary.platform_contacts,
@@ -448,7 +512,7 @@ begin
         'current', visit_summary.current_visits,
         'previous', visit_summary.previous_visits,
         'changePercent', case
-          when visit_summary.previous_visits = 0 then case when visit_summary.current_visits = 0 then 0 else 100 end
+          when visit_summary.previous_visits = 0 then case when visit_summary.current_visits = 0 then 0 else null end
           else round((visit_summary.current_visits - visit_summary.previous_visits) * 100.0 / visit_summary.previous_visits, 2)
         end
       ),
@@ -456,7 +520,7 @@ begin
         'current', event_summary.current_opens,
         'previous', event_summary.previous_opens,
         'changePercent', case
-          when event_summary.previous_opens = 0 then case when event_summary.current_opens = 0 then 0 else 100 end
+          when event_summary.previous_opens = 0 then case when event_summary.current_opens = 0 then 0 else null end
           else round((event_summary.current_opens - event_summary.previous_opens) * 100.0 / event_summary.previous_opens, 2)
         end
       ),
@@ -464,22 +528,34 @@ begin
         'current', event_summary.current_contacts,
         'previous', event_summary.previous_contacts,
         'changePercent', case
-          when event_summary.previous_contacts = 0 then case when event_summary.current_contacts = 0 then 0 else 100 end
+          when event_summary.previous_contacts = 0 then case when event_summary.current_contacts = 0 then 0 else null end
           else round((event_summary.current_contacts - event_summary.previous_contacts) * 100.0 / event_summary.previous_contacts, 2)
         end
       ),
       'conversionRate', jsonb_build_object(
         'current', case
           when visit_summary.current_visits = 0 then 0
-          else round(event_summary.current_contacts * 100.0 / visit_summary.current_visits, 2)
+          else least(
+            100::numeric,
+            round(event_summary.current_converted_visitors * 100.0 / visit_summary.current_visits, 2)
+          )
         end,
         'previous', case
           when visit_summary.previous_visits = 0 then 0
-          else round(event_summary.previous_contacts * 100.0 / visit_summary.previous_visits, 2)
+          else least(
+            100::numeric,
+            round(event_summary.previous_converted_visitors * 100.0 / visit_summary.previous_visits, 2)
+          )
         end,
         'changePercentagePoints', round(
-          (case when visit_summary.current_visits = 0 then 0 else event_summary.current_contacts * 100.0 / visit_summary.current_visits end)
-          - (case when visit_summary.previous_visits = 0 then 0 else event_summary.previous_contacts * 100.0 / visit_summary.previous_visits end),
+          (case
+            when visit_summary.current_visits = 0 then 0
+            else least(100::numeric, event_summary.current_converted_visitors * 100.0 / visit_summary.current_visits)
+          end)
+          - (case
+            when visit_summary.previous_visits = 0 then 0
+            else least(100::numeric, event_summary.previous_converted_visitors * 100.0 / visit_summary.previous_visits)
+          end),
           2
         )
       )

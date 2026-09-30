@@ -895,14 +895,14 @@ const AdDetailView: React.FC = () => {
           announcementId={ad.id}
           announcementTitle={ad.title}
           sellerId={ad.userId}
-          onContactSent={sellerStoreAttribution ? () => {
+          onContactSent={() => {
             void recordSellerStoreInsightEvent({
-              storeSlug: sellerStoreAttribution.storeSlug,
+              storeSlug: sellerStoreAttribution?.storeSlug || '',
               eventType: 'contact_platform',
-              sourceChannel: sellerStoreAttribution.sourceChannel,
+              sourceChannel: sellerStoreAttribution?.sourceChannel || 'direct',
               announcementId: ad.id,
             });
-          } : undefined}
+          }}
         />
       )}
       {ad && (

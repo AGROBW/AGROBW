@@ -15,7 +15,13 @@ definition_checks as (
     pg_get_functiondef(to_regprocedure('public.get_my_seller_store_insights(integer,integer)')) ilike '%previousStart%' as compara_periodo_anterior,
     pg_get_functiondef(to_regprocedure('public.get_my_seller_store_insights(integer,integer)')) ilike '%topAnnouncements%' as ranking_anuncios,
     pg_get_functiondef(to_regprocedure('public.get_my_seller_store_insights(integer,integer)')) ilike '%generate_series%' as serie_diaria,
-    pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%store_visit_attribution%' as registra_origem_visita
+    pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%store_visit_attribution%' as registra_origem_visita,
+    pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%pg_advisory_xact_lock%'
+      and pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%>= 60%' as limite_global_loja,
+    pg_get_functiondef(to_regprocedure('public.get_my_seller_store_insights(integer,integer)')) ilike '%current_converted_visitors%' as conversao_intersecta_visitantes,
+    pg_get_functiondef(to_regprocedure('public.get_my_seller_store_insights(integer,integer)')) ilike '%announcement_open'', ''catalog_qr_open%' as qr_conta_como_abertura,
+    pg_get_functiondef(to_regprocedure('public.get_my_seller_store_insights(integer,integer)')) ilike '%contact_whatsapp'', ''contact_platform%' as contatos_corretos,
+    pg_get_functiondef(to_regprocedure('public.get_my_seller_store_insights(integer,integer)')) ilike '%having count(*) filter%' as ranking_sem_interacao_vazia
 ),
 constraint_checks as (
   select coalesce(bool_or(
@@ -56,6 +62,11 @@ select
   definition_checks.ranking_anuncios,
   definition_checks.serie_diaria,
   definition_checks.registra_origem_visita,
+  definition_checks.limite_global_loja,
+  definition_checks.conversao_intersecta_visitantes,
+  definition_checks.qr_conta_como_abertura,
+  definition_checks.contatos_corretos,
+  definition_checks.ranking_sem_interacao_vazia,
   privilege_checks.autenticado_consulta,
   privilege_checks.anon_sem_consulta,
   privilege_checks.eventos_continuam_privados

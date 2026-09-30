@@ -3,8 +3,9 @@
 ## Scope
 
 This stage closes Seller Store Insights with a controlled, observable and
-reversible production rollout. It adds no database object and does not expose raw
-analytics data. The final SQL validator is read-only.
+reversible production rollout. The corrected Stage 1 migration adds the private
+retention execution ledger; the Stage 6 SQL validator itself is read-only and no
+raw analytics data is exposed.
 
 The release includes:
 
@@ -21,10 +22,15 @@ The release includes:
    Stage 3 migrations, in that order.
 2. Run both structural validators. Run the transactional validators in a safe
    maintenance window and require a successful `ROLLBACK`.
-3. Run `VALIDATE_seller_store_insights_rollout_stage6_2026-09-29.sql`. Every
-   boolean column must be `true`. Numeric counters may be zero before traffic.
-4. Deploy the web application and catalog worker endpoint from the same commit.
-5. Deploy the `seller-store-catalog-download` Edge Function from the same commit.
+3. Deploy `purge-seller-store-insights` with `verify_jwt=false`, configure the
+   server-only `SELLER_STORE_INSIGHTS_CRON_SECRET`, and schedule exactly one
+   daily `POST` with that value in `x-cron-secret`. Run it once. Never expose the
+   service-role key or cron secret in a browser variable.
+4. Run `VALIDATE_seller_store_insights_rollout_stage6_2026-09-29.sql`. Every
+   boolean column, including `pronto_para_operar`, must be `true`. Numeric
+   counters may be zero before traffic.
+5. Deploy the web application, catalog worker endpoint and
+   `seller-store-catalog-download` Edge Function from the same commit.
 6. Open `Minha Loja > Desempenho` with an active Seller Store account. Validate
    the 7, 30 and 90-day filters, empty state and previous-period comparison.
 7. From a non-owner session, visit the storefront, open one announcement and
@@ -33,9 +39,6 @@ The release includes:
    Confirm the generated, downloaded and QR metrics without exposing a storage
    URL or raw session.
 9. Execute the final validator again and preserve its output as release evidence.
-10. Run `select public.purge_seller_store_insight_events(180);` with a trusted
-    service context, then configure that same call as one daily server-side job.
-    Never expose the service-role key in a browser variable.
 
 ## Acceptance evidence
 
@@ -49,6 +52,7 @@ Record without secrets, visitor identifiers or signed URLs:
 - one catalog generated, one download and one QR open reflected in totals;
 - confirmation that the owner activity is ignored;
 - confirmation that the retention job is server-side and scheduled once.
+- latest retention execution timestamp and deleted-row count.
 
 ## Stop conditions
 

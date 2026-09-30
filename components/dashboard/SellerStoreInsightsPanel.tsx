@@ -66,7 +66,15 @@ const formatShortDate = (value: string) => {
   return month && day ? `${day}/${month}` : value;
 };
 
-const ComparisonBadge: React.FC<{ value: number; suffix?: string }> = ({ value, suffix = '%' }) => {
+const ComparisonBadge: React.FC<{ value: number | null; suffix?: string }> = ({ value, suffix = '%' }) => {
+  if (value === null) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-700">
+        Novo
+      </span>
+    );
+  }
+
   const isPositive = value > 0;
   const isNegative = value < 0;
   const Icon = isPositive ? ArrowUpRight : isNegative ? ArrowDownRight : Minus;
@@ -88,7 +96,7 @@ const MetricCard: React.FC<{
   label: string;
   value: string;
   helper: string;
-  change: number;
+  change: number | null;
   changeSuffix?: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   tone: 'emerald' | 'blue' | 'amber' | 'slate';
@@ -137,7 +145,7 @@ const SellerStoreInsightsPanel: React.FC<SellerStoreInsightsPanelProps> = ({ has
     store?.isStoreFeatureEnabled &&
     !store?.isPausedDueToPlan,
   );
-  const { data, isLoading, error, refresh } = useSellerStoreInsights(period, 5, insightsEnabled);
+  const { data, isLoading, error, availabilityReason, refresh } = useSellerStoreInsights(period, 5, insightsEnabled);
 
   if (!insightsEnabled) {
     return (
@@ -159,6 +167,22 @@ const SellerStoreInsightsPanel: React.FC<SellerStoreInsightsPanelProps> = ({ has
   }
 
   if (isLoading && !data) return <InsightsSkeleton />;
+
+  if (availabilityReason) {
+    const availabilityMessages = {
+      STORE_NOT_FOUND: 'Configure sua Loja Parceira antes de consultar os indicadores.',
+      PLAN_REQUIRED: 'Este painel está disponível somente com uma assinatura Loja Parceira ativa.',
+      STORE_FEATURE_PAUSED: 'Os indicadores estão pausados enquanto a publicação da loja estiver indisponível.',
+      AVAILABLE: 'Os indicadores estão disponíveis.',
+    };
+    return (
+      <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center sm:p-8">
+        <BarChart3 className="mx-auto h-8 w-8 text-amber-600" strokeWidth={1.6} />
+        <h2 className="mt-3 text-xl font-black text-slate-950">Indicadores indisponíveis</h2>
+        <p className="mt-2 text-sm text-slate-600">{availabilityMessages[availabilityReason]}</p>
+      </div>
+    );
+  }
 
   if (error || !data) {
     return (
@@ -289,7 +313,11 @@ const SellerStoreInsightsPanel: React.FC<SellerStoreInsightsPanelProps> = ({ has
               <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-500" /> Contatos</span>
             </div>
           </div>
-          <div className="mt-6 h-72 w-full">
+          <div
+            className="mt-6 h-72 w-full"
+            role="img"
+            aria-label={`Evolução diária de visitas, produtos abertos e contatos nos últimos ${period} dias`}
+          >
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data.daily} margin={{ top: 8, right: 6, left: -24, bottom: 0 }}>
                 <defs>
@@ -314,7 +342,11 @@ const SellerStoreInsightsPanel: React.FC<SellerStoreInsightsPanelProps> = ({ has
           <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-700">Origem das visitas</p>
           <h3 className="mt-1 text-xl font-black text-slate-950">Como encontram sua loja</h3>
           {data.sources.length > 0 ? (
-            <div className="mt-6 h-52">
+            <div
+              className="mt-6 h-52"
+              role="img"
+              aria-label="Distribuição das visitas por canal de origem"
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.sources.map((source) => ({ ...source, label: SOURCE_LABELS[source.sourceChannel] || source.sourceChannel }))} layout="vertical" margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
@@ -335,7 +367,14 @@ const SellerStoreInsightsPanel: React.FC<SellerStoreInsightsPanelProps> = ({ has
               <span>Cobertura de atribuição</span>
               <span>{percentFormatter.format(attributedCoverage)}%</span>
             </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"
+              role="progressbar"
+              aria-label="Cobertura de atribuição das visitas"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(attributedCoverage)}
+            >
               <div className="h-full rounded-full bg-emerald-500" style={{ width: `${attributedCoverage}%` }} />
             </div>
           </div>

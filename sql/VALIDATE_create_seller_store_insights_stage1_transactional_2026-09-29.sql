@@ -12,6 +12,7 @@ declare
   v_available boolean;
   v_reason text;
   v_session_hash text;
+  v_rate_limited boolean := false;
 begin
   select
     stores.user_id,
@@ -86,6 +87,37 @@ begin
   if v_session_hash = 'stage1-validation-session'
      or v_session_hash <> md5(v_store_id::text || ':stage1-validation-session') then
     raise exception 'SESSION_WAS_NOT_STORE_SCOPED_AND_HASHED';
+  end if;
+
+  if public.record_seller_store_insight_event(
+    v_store_slug,
+    'website_click',
+    'stage1-invalid-association',
+    gen_random_uuid(),
+    v_announcement_id,
+    null,
+    'internal'
+  ) then
+    raise exception 'STORE_EVENT_ACCEPTED_ANNOUNCEMENT_ID';
+  end if;
+
+  for v_index in 1..65 loop
+    if not public.record_seller_store_insight_event(
+      v_store_slug,
+      'website_click',
+      'stage1-rotating-session-' || v_index::text,
+      gen_random_uuid(),
+      null,
+      null,
+      'internal'
+    ) then
+      v_rate_limited := true;
+      exit;
+    end if;
+  end loop;
+
+  if not v_rate_limited then
+    raise exception 'ROTATING_SESSIONS_BYPASSED_STORE_RATE_LIMIT';
   end if;
 
   perform set_config(

@@ -26,6 +26,10 @@ describe('Seller Store Insights stage 1', () => {
     expect(migration).toContain('force row level security');
     expect(migration).toContain('revoke all on table public.seller_store_insight_events from public, anon, authenticated');
     expect(migration).toContain('idx_seller_store_insight_events_five_minute_dedupe');
+    expect(migration).toContain('seller_store_insight_retention_runs');
+    expect(migration).toContain('on delete set null');
+    expect(migration).toContain('dedupe_scope text not null');
+    expect(migration).toMatch(/idx_seller_store_insight_events_five_minute_dedupe[\s\S]*dedupe_scope/);
   });
 
   it('enforces the active Seller Store entitlement in the database', () => {
@@ -40,6 +44,8 @@ describe('Seller Store Insights stage 1', () => {
     expect(migration).toContain('record_seller_store_insight_event');
     expect(migration).toContain('auth.uid() = v_store.user_id');
     expect(migration).toContain("events.created_at >= v_now - interval '1 minute'");
+    expect(migration).toContain("pg_advisory_xact_lock(hashtextextended('seller-store-insights:'");
+    expect(migration).toContain(') >= 60 then');
     expect(migration).toContain('on conflict do nothing');
     expect(migration).toContain('md5(v_store.id::text');
   });
@@ -57,14 +63,17 @@ describe('Seller Store Insights stage 1', () => {
     expect(contract).toContain('Raw session identifiers are transformed');
     expect(contract).toContain('180-day retention contract');
     expect(migration).toContain('purge_seller_store_insight_events');
+    expect(migration).toContain('insert into public.seller_store_insight_retention_runs');
   });
 
   it('ships structural and rollback-safe validation', () => {
     expect(validation).toContain('deduplicacao_cinco_minutos');
+    expect(validation).toContain("indexdef ilike '%dedupe_scope%'");
     expect(validation).toContain('sem_dados_sensiveis');
     expect(validation).toContain('evento_sistema_so_service_role');
     expect(transactionalValidation).toContain('IDEMPOTENCY_KEY_DID_NOT_DEDUPLICATE');
     expect(transactionalValidation).toContain('OWNER_EVENT_WAS_NOT_IGNORED');
+    expect(transactionalValidation).toContain('ROTATING_SESSIONS_BYPASSED_STORE_RATE_LIMIT');
     expect(transactionalValidation.trimEnd()).toMatch(/rollback;$/);
   });
 });

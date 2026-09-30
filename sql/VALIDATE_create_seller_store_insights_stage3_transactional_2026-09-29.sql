@@ -87,6 +87,20 @@ begin
     raise exception 'CONTACT_WAS_NOT_RECORDED';
   end if;
 
+  for v_index in 1..5 loop
+    if not public.record_seller_store_insight_event(
+      '',
+      'contact_platform',
+      'stage3-direct-contact-' || v_index::text,
+      gen_random_uuid(),
+      v_announcement_id,
+      null,
+      'direct'
+    ) then
+      raise exception 'DIRECT_ANNOUNCEMENT_CONTACT_WAS_NOT_RECORDED';
+    end if;
+  end loop;
+
   insert into public.site_page_views (
     session_id,
     page_path,
@@ -122,8 +136,12 @@ begin
 
   if (v_result #>> '{summary,storeVisits}')::bigint < 1
      or (v_result #>> '{summary,announcementOpens}')::bigint < 1
-     or (v_result #>> '{summary,contactActions}')::bigint < 1 then
+     or (v_result #>> '{summary,contactActions}')::bigint < 6 then
     raise exception 'SUMMARY_DID_NOT_INCLUDE_VALIDATION_EVENTS';
+  end if;
+
+  if (v_result #>> '{summary,conversionRate}')::numeric > 100 then
+    raise exception 'STORE_CONVERSION_EXCEEDED_100_PERCENT';
   end if;
 
   if jsonb_array_length(v_result -> 'daily') <> 7 then
@@ -144,6 +162,14 @@ begin
     where announcement ->> 'announcementId' = v_announcement_id::text
   ) then
     raise exception 'TOP_ANNOUNCEMENTS_MISSING_EVENT';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(v_result -> 'topAnnouncements') announcement
+    where (announcement ->> 'conversionRate')::numeric > 100
+  ) then
+    raise exception 'ANNOUNCEMENT_CONVERSION_EXCEEDED_100_PERCENT';
   end if;
 
   begin

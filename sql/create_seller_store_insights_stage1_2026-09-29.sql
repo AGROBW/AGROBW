@@ -16,11 +16,12 @@ create table if not exists public.seller_store_insight_events (
   id uuid primary key default gen_random_uuid(),
   event_key uuid not null unique,
   store_id uuid not null references public.seller_stores(id) on delete cascade,
-  announcement_id uuid references public.announcements(id) on delete cascade,
-  catalog_export_id uuid references public.seller_store_catalog_exports(id) on delete cascade,
+  announcement_id uuid references public.announcements(id) on delete set null,
+  catalog_export_id uuid references public.seller_store_catalog_exports(id) on delete set null,
   event_type text not null,
   source_channel text not null default 'direct',
   session_hash text not null,
+  dedupe_scope text not null,
   dedupe_bucket timestamptz not null,
   occurred_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
@@ -52,12 +53,43 @@ create table if not exists public.seller_store_insight_events (
   )
 );
 
+alter table public.seller_store_insight_events
+  add column if not exists dedupe_scope text;
+
+update public.seller_store_insight_events
+set dedupe_scope = coalesce(catalog_export_id::text, '-') || ':' || coalesce(announcement_id::text, '-')
+where dedupe_scope is null;
+
+alter table public.seller_store_insight_events
+  alter column dedupe_scope set not null;
+
+alter table public.seller_store_insight_events
+  drop constraint if exists seller_store_insight_events_announcement_id_fkey,
+  add constraint seller_store_insight_events_announcement_id_fkey
+    foreign key (announcement_id) references public.announcements(id) on delete set null,
+  drop constraint if exists seller_store_insight_events_catalog_export_id_fkey,
+  add constraint seller_store_insight_events_catalog_export_id_fkey
+    foreign key (catalog_export_id) references public.seller_store_catalog_exports(id) on delete set null;
+
+create table if not exists public.seller_store_insight_retention_runs (
+  id bigint generated always as identity primary key,
+  retention_days integer not null,
+  deleted_count bigint not null,
+  completed_at timestamptz not null default now(),
+  constraint seller_store_insight_retention_runs_days_check
+    check (retention_days between 30 and 730),
+  constraint seller_store_insight_retention_runs_deleted_check
+    check (deleted_count >= 0)
+);
+
 comment on table public.seller_store_insight_events is
   'Private, deduplicated engagement events for Seller Store Insights. Store visits remain sourced from site_page_views.';
 comment on column public.seller_store_insight_events.session_hash is
   'Store-scoped hash of the analytics session. The raw session identifier is never stored here.';
 comment on column public.seller_store_insight_events.dedupe_bucket is
   'Five-minute UTC bucket used to suppress equivalent browser events.';
+comment on column public.seller_store_insight_events.dedupe_scope is
+  'Immutable catalog and announcement scope used for deduplication after referenced records are deleted.';
 
 create index if not exists idx_seller_store_insight_events_store_recent
   on public.seller_store_insight_events (store_id, occurred_at desc);
@@ -71,21 +103,25 @@ create index if not exists idx_seller_store_insight_events_catalog_recent
   where catalog_export_id is not null;
 create index if not exists idx_seller_store_insight_events_session_recent
   on public.seller_store_insight_events (session_hash, created_at desc);
-create unique index if not exists idx_seller_store_insight_events_five_minute_dedupe
+drop index if exists public.idx_seller_store_insight_events_five_minute_dedupe;
+create unique index idx_seller_store_insight_events_five_minute_dedupe
   on public.seller_store_insight_events (
     store_id,
     event_type,
     session_hash,
-    coalesce(announcement_id, '00000000-0000-0000-0000-000000000000'::uuid),
-    coalesce(catalog_export_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    dedupe_scope,
     dedupe_bucket
   );
 
 alter table public.seller_store_insight_events enable row level security;
 alter table public.seller_store_insight_events force row level security;
+alter table public.seller_store_insight_retention_runs enable row level security;
+alter table public.seller_store_insight_retention_runs force row level security;
 
 revoke all on table public.seller_store_insight_events from public, anon, authenticated;
 grant select, insert, delete on table public.seller_store_insight_events to service_role;
+revoke all on table public.seller_store_insight_retention_runs from public, anon, authenticated;
+grant select, insert on table public.seller_store_insight_retention_runs to service_role;
 
 create or replace function public.seller_store_insights_has_active_plan(p_user_id uuid)
 returns boolean
@@ -182,7 +218,8 @@ declare
   v_dedupe_bucket timestamptz;
   v_inserted integer := 0;
 begin
-  if coalesce(trim(p_store_slug), '') = ''
+  if (coalesce(trim(p_store_slug), '') = ''
+      and not (p_event_type = 'contact_platform' and p_announcement_id is not null))
      or coalesce(trim(p_session_id), '') = ''
      or p_event_key is null then
     return false;
@@ -199,15 +236,29 @@ begin
     return false;
   end if;
 
-  select stores.*
-  into v_store
-  from public.seller_stores stores
-  where stores.slug = left(trim(p_store_slug), 160)
-    and stores.is_active = true
-    and stores.is_store_feature_enabled = true
-    and coalesce(stores.is_paused_due_to_plan, false) = false
-    and public.seller_store_insights_has_active_plan(stores.user_id)
-  limit 1;
+  if coalesce(trim(p_store_slug), '') <> '' then
+    select stores.*
+    into v_store
+    from public.seller_stores stores
+    where stores.slug = left(trim(p_store_slug), 160)
+      and stores.is_active = true
+      and stores.is_store_feature_enabled = true
+      and coalesce(stores.is_paused_due_to_plan, false) = false
+      and public.seller_store_insights_has_active_plan(stores.user_id)
+    limit 1;
+  elsif p_event_type = 'contact_platform' and p_announcement_id is not null then
+    select stores.*
+    into v_store
+    from public.seller_stores stores
+    join public.announcements announcements on announcements.user_id = stores.user_id
+    where announcements.id = p_announcement_id
+      and announcements.status = 'ACTIVE'
+      and stores.is_active = true
+      and stores.is_store_feature_enabled = true
+      and coalesce(stores.is_paused_due_to_plan, false) = false
+      and public.seller_store_insights_has_active_plan(stores.user_id)
+    limit 1;
+  end if;
 
   if not found or auth.uid() = v_store.user_id then
     return false;
@@ -215,6 +266,10 @@ begin
 
   if p_event_type in ('announcement_open', 'contact_platform', 'catalog_qr_open')
      and p_announcement_id is null then
+    return false;
+  end if;
+
+  if p_event_type in ('website_click', 'store_share') and p_announcement_id is not null then
     return false;
   end if;
 
@@ -255,6 +310,17 @@ begin
     floor(extract(epoch from v_now) / 300) * 300
   );
 
+  perform pg_advisory_xact_lock(hashtextextended('seller-store-insights:' || v_store.id::text, 0));
+
+  if (
+    select count(*)
+    from public.seller_store_insight_events events
+    where events.store_id = v_store.id
+      and events.created_at >= v_now - interval '1 minute'
+  ) >= 60 then
+    return false;
+  end if;
+
   if (
     select count(*)
     from public.seller_store_insight_events events
@@ -273,6 +339,7 @@ begin
     event_type,
     source_channel,
     session_hash,
+    dedupe_scope,
     dedupe_bucket,
     occurred_at
   ) values (
@@ -283,6 +350,7 @@ begin
     p_event_type,
     v_source_channel,
     v_session_hash,
+    coalesce(p_catalog_export_id::text, '-') || ':' || coalesce(p_announcement_id::text, '-'),
     v_dedupe_bucket,
     v_now
   )
@@ -359,6 +427,7 @@ begin
     event_type,
     source_channel,
     session_hash,
+    dedupe_scope,
     dedupe_bucket,
     occurred_at
   ) values (
@@ -372,6 +441,7 @@ begin
       else 'internal'
     end,
     md5(p_store_id::text || ':system:' || p_event_type || ':' || p_catalog_export_id::text),
+    p_catalog_export_id::text || ':' || coalesce(p_announcement_id::text, '-'),
     to_timestamp(floor(extract(epoch from v_occurred_at) / 300) * 300),
     v_occurred_at
   )
@@ -405,6 +475,17 @@ begin
   where events.created_at < now() - make_interval(days => v_retention_days);
 
   get diagnostics v_deleted = row_count;
+
+  insert into public.seller_store_insight_retention_runs (
+    retention_days,
+    deleted_count,
+    completed_at
+  ) values (
+    v_retention_days,
+    v_deleted,
+    now()
+  );
+
   return v_deleted;
 end;
 $$;

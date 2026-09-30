@@ -55,7 +55,8 @@ export const recordSellerStoreInsightEvent = async ({
   eventKey = createEventKey(),
 }: RecordSellerStoreInsightEventInput) => {
   const sessionId = ensureSiteAnalyticsSessionId();
-  if (!storeSlug || !sessionId) return false;
+  const canResolveStoreFromAnnouncement = eventType === 'contact_platform' && Boolean(announcementId);
+  if ((!storeSlug && !canResolveStoreFromAnnouncement) || !sessionId) return false;
 
   try {
     const { data, error } = await supabase.rpc('record_seller_store_insight_event', {

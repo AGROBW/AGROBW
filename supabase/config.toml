@@ -125,6 +125,11 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/purge-contextual-upsell-data/index.ts"
 
+[functions.purge-seller-store-insights]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/purge-seller-store-insights/index.ts"
+
 [functions.seller-store-catalog-download]
 enabled = true
 verify_jwt = false

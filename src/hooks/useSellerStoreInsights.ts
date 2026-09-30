@@ -8,8 +8,14 @@ export type SellerStoreInsightsPeriod = 7 | 30 | 90;
 type MetricComparison = {
   current: number;
   previous: number;
-  changePercent: number;
+  changePercent: number | null;
 };
+
+export type SellerStoreInsightsAvailabilityReason =
+  | 'AVAILABLE'
+  | 'STORE_NOT_FOUND'
+  | 'PLAN_REQUIRED'
+  | 'STORE_FEATURE_PAUSED';
 
 export type SellerStoreInsightsData = {
   storeId: string;
@@ -99,6 +105,21 @@ export const fetchSellerStoreInsights = async (
   return data;
 };
 
+export const fetchSellerStoreInsightsAvailability = async () => {
+  const { data, error } = await supabase.rpc('get_my_seller_store_insights_availability');
+  if (error) throw error;
+
+  const value = Array.isArray(data) ? data[0] : data;
+  if (!value || typeof value.available !== 'boolean' || typeof value.reason !== 'string') {
+    throw new Error('SELLER_STORE_INSIGHTS_INVALID_AVAILABILITY_RESPONSE');
+  }
+
+  return {
+    available: value.available,
+    reason: value.reason as SellerStoreInsightsAvailabilityReason,
+  };
+};
+
 export const useSellerStoreInsights = (
   periodDays: SellerStoreInsightsPeriod,
   topLimit = 5,
@@ -107,6 +128,7 @@ export const useSellerStoreInsights = (
   const [data, setData] = useState<SellerStoreInsightsData | null>(null);
   const [isLoading, setIsLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
+  const [availabilityReason, setAvailabilityReason] = useState<SellerStoreInsightsAvailabilityReason | null>(null);
   const requestIdRef = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -114,6 +136,7 @@ export const useSellerStoreInsights = (
       requestIdRef.current += 1;
       setData(null);
       setError(null);
+      setAvailabilityReason(null);
       setIsLoading(false);
       return;
     }
@@ -122,8 +145,17 @@ export const useSellerStoreInsights = (
     requestIdRef.current = requestId;
     setIsLoading(true);
     setError(null);
+    setAvailabilityReason(null);
 
     try {
+      const availability = await fetchSellerStoreInsightsAvailability();
+      if (requestIdRef.current !== requestId) return;
+      if (!availability.available) {
+        setData(null);
+        setAvailabilityReason(availability.reason);
+        return;
+      }
+
       const response = await fetchSellerStoreInsights(periodDays, topLimit);
       if (requestIdRef.current === requestId) setData(response);
     } catch (requestError) {
@@ -146,5 +178,5 @@ export const useSellerStoreInsights = (
     };
   }, [refresh]);
 
-  return { data, isLoading, error, refresh };
+  return { data, isLoading, error, availabilityReason, refresh };
 };

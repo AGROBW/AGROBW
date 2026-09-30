@@ -6,6 +6,8 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8'
 const validator = read('sql/VALIDATE_seller_store_insights_rollout_stage6_2026-09-29.sql');
 const runbook = read('docs/SELLER_STORE_INSIGHTS_STAGE6_2026-09-29.md');
 const contract = read('docs/seller-store-insights-metric-contract.md');
+const retentionFunction = read('supabase/functions/purge-seller-store-insights/index.ts');
+const supabaseConfig = read('supabase/config.toml');
 
 describe('Seller Store Insights stage 6', () => {
   it('combines structural, authorization and privacy readiness', () => {
@@ -16,6 +18,9 @@ describe('Seller Store Insights stage 6', () => {
     expect(validator).toContain('evento_sistema_protegido');
     expect(validator).toContain('painel_so_autenticado');
     expect(validator).toContain('sem_dados_sensiveis');
+    expect(validator).toContain('pronto_para_operar');
+    expect(validator).toContain('escopo_deduplicacao_imutavel');
+    expect(validator).toContain('retencao_executada_recentemente');
   });
 
   it('checks the complete metric and catalog attribution contracts', () => {
@@ -43,7 +48,11 @@ describe('Seller Store Insights stage 6', () => {
     expect(runbook).toContain('Stop conditions');
     expect(runbook).toContain('Rollback');
     expect(runbook).toContain('seller-store-catalog-download');
-    expect(runbook).toContain('purge_seller_store_insight_events(180)');
+    expect(runbook).toContain('purge-seller-store-insights');
+    expect(retentionFunction).toContain("supabaseAdmin.rpc('purge_seller_store_insight_events'");
+    expect(retentionFunction).toContain('SELLER_STORE_INSIGHTS_CRON_SECRET');
+    expect(retentionFunction).toContain('timingSafeEqual');
+    expect(supabaseConfig).toContain('[functions.purge-seller-store-insights]');
     expect(runbook).toContain('final implementation stage');
     expect(contract).toContain('Stage 6');
   });

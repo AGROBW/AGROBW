@@ -20,30 +20,6 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value || 0);
 
-const formatStorePhone = (value?: string | null) => {
-  if (!value) return '';
-
-  const digits = value.replace(/\D/g, '');
-
-  if (digits.length === 11) {
-    return digits.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-  }
-
-  if (digits.length === 10) {
-    return digits.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
-  }
-
-  return value;
-};
-
-const buildStoreWhatsAppUrl = (value?: string | null) => {
-  if (!value) return '';
-  const digits = value.replace(/\D/g, '');
-  if (!digits) return '';
-  const internationalNumber = digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
-  return `https://wa.me/${internationalNumber}`;
-};
-
 const StorefrontView: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const location = useLocation();
@@ -323,7 +299,6 @@ const StorefrontView: React.FC = () => {
     [store],
   );
   const shareTitle = store ? `${store.storeName} | Loja Parceira AGRO BW` : '';
-  const storeWhatsAppUrl = store ? buildStoreWhatsAppUrl(store.whatsapp) : '';
 
   const shareTargets = useMemo(() => {
     if (!store || !shareUrl) return [];
@@ -421,24 +396,6 @@ const StorefrontView: React.FC = () => {
             </div>
             <div className="relative mt-4 inline-block" ref={shareRef}>
               <div className="mb-3 flex flex-wrap gap-2">
-                {storeWhatsAppUrl ? (
-                  <a
-                    href={storeWhatsAppUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => {
-                      void recordSellerStoreInsightEvent({
-                        storeSlug: store.slug,
-                        eventType: 'contact_whatsapp',
-                        sourceChannel,
-                      });
-                    }}
-                    className="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-[#1fbd59]"
-                  >
-                    <MessageCircle className="h-4 w-4" strokeWidth={2} />
-                    WhatsApp
-                  </a>
-                ) : null}
                 {store.websiteUrl ? (
                   <a
                     href={store.websiteUrl}

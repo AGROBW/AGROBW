@@ -78,7 +78,8 @@ describe('Seller Store Insights stage 2', () => {
   });
 
   it('instruments storefront commercial actions without replacing existing visit analytics', () => {
-    expect(storefront).toContain("eventType: 'contact_whatsapp'");
+    expect(storefront).not.toContain("eventType: 'contact_whatsapp'");
+    expect(storefront).not.toContain('buildStoreWhatsAppUrl');
     expect(storefront).toContain("eventType: 'website_click'");
     expect(storefront).toContain("eventType: 'store_share'");
     expect(storefront).toContain('sellerStoreAttribution={{ storeSlug: store.slug, sourceChannel }}');
@@ -90,6 +91,7 @@ describe('Seller Store Insights stage 2', () => {
   it('records product opens and successful platform contacts as fire-and-forget events', () => {
     expect(adCard).toContain("eventType: 'announcement_open'");
     expect(adDetail).toContain("eventType: 'contact_platform'");
+    expect(adDetail).toContain("storeSlug: sellerStoreAttribution?.storeSlug || ''");
     expect(adDetail).toContain("eventType: 'catalog_qr_open'");
     expect(contactModal).toContain('onContactSent?.();');
     expect(tracking).toContain("supabase.rpc('record_seller_store_insight_event'");

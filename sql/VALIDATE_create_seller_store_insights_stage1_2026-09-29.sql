@@ -1,11 +1,19 @@
 with table_checks as (
   select
     to_regclass('public.seller_store_insight_events') is not null as tabela_criada,
+    to_regclass('public.seller_store_insight_retention_runs') is not null as historico_retencao_criado,
     coalesce((
       select classes.relrowsecurity and classes.relforcerowsecurity
       from pg_class classes
       where classes.oid = to_regclass('public.seller_store_insight_events')
     ), false) as rls_forcada
+),
+retention_table_checks as (
+  select coalesce((
+    select classes.relrowsecurity and classes.relforcerowsecurity
+    from pg_class classes
+    where classes.oid = to_regclass('public.seller_store_insight_retention_runs')
+  ), false) as historico_retencao_rls_forcada
 ),
 index_checks as (
   select
@@ -14,6 +22,7 @@ index_checks as (
     coalesce(bool_or(
       indexname = 'idx_seller_store_insight_events_five_minute_dedupe'
       and indexdef ilike '%unique%'
+      and indexdef ilike '%dedupe_scope%'
     ), false) as deduplicacao_cinco_minutos
   from pg_indexes
   where schemaname = 'public'
@@ -32,6 +41,8 @@ definition_checks as (
     pg_get_functiondef(to_regprocedure('public.seller_store_insights_has_active_plan(uuid)')) ilike '%current_period_end > now()%' as exige_plano_vigente,
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%auth.uid() = v_store.user_id%' as exclui_proprietario,
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%interval ''1 minute''%' as limita_abuso,
+    pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%pg_advisory_xact_lock%'
+      and pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%>= 60%' as limita_abuso_por_loja,
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%/ 300%' as janela_deduplicacao,
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%md5(v_store.id::text%' as sessao_anonimizada,
     pg_get_functiondef(to_regprocedure('public.purge_seller_store_insight_events(integer)')) ilike '%180%' as retencao_180_dias
@@ -69,11 +80,18 @@ privilege_checks as (
     has_function_privilege('service_role', 'public.record_seller_store_insight_system_event(uuid,text,uuid,uuid,uuid,text,timestamp with time zone)', 'EXECUTE')
       and not has_function_privilege('authenticated', 'public.record_seller_store_insight_system_event(uuid,text,uuid,uuid,uuid,text,timestamp with time zone)', 'EXECUTE') as evento_sistema_so_service_role,
     has_function_privilege('service_role', 'public.purge_seller_store_insight_events(integer)', 'EXECUTE')
-      and not has_function_privilege('authenticated', 'public.purge_seller_store_insight_events(integer)', 'EXECUTE') as retencao_so_service_role
+      and not has_function_privilege('anon', 'public.purge_seller_store_insight_events(integer)', 'EXECUTE')
+      and not has_function_privilege('authenticated', 'public.purge_seller_store_insight_events(integer)', 'EXECUTE') as retencao_so_service_role,
+    has_table_privilege('service_role', 'public.seller_store_insight_retention_runs', 'SELECT')
+      and has_table_privilege('service_role', 'public.seller_store_insight_retention_runs', 'INSERT')
+      and not has_table_privilege('anon', 'public.seller_store_insight_retention_runs', 'SELECT')
+      and not has_table_privilege('authenticated', 'public.seller_store_insight_retention_runs', 'SELECT') as historico_retencao_privado
 )
 select
   table_checks.tabela_criada,
+  table_checks.historico_retencao_criado,
   table_checks.rls_forcada,
+  retention_table_checks.historico_retencao_rls_forcada,
   index_checks.indice_loja,
   index_checks.indice_tipo,
   index_checks.deduplicacao_cinco_minutos,
@@ -85,6 +103,7 @@ select
   definition_checks.exige_plano_vigente,
   definition_checks.exclui_proprietario,
   definition_checks.limita_abuso,
+  definition_checks.limita_abuso_por_loja,
   definition_checks.janela_deduplicacao,
   definition_checks.sessao_anonimizada,
   definition_checks.retencao_180_dias,
@@ -96,8 +115,10 @@ select
   privilege_checks.browser_registra_por_rpc,
   privilege_checks.disponibilidade_so_autenticado,
   privilege_checks.evento_sistema_so_service_role,
-  privilege_checks.retencao_so_service_role
+  privilege_checks.retencao_so_service_role,
+  privilege_checks.historico_retencao_privado
 from table_checks
+cross join retention_table_checks
 cross join index_checks
 cross join function_checks
 cross join definition_checks
