@@ -34,6 +34,9 @@ describe('Seller Store Insights stage 3', () => {
     expect(migration).toContain("events.event_type = 'store_visit_attribution'");
     expect(migration).toContain('current_converted_visitors');
     expect(migration).toContain("events.event_type in ('announcement_open', 'catalog_qr_open')");
+    expect(migration).toMatch(/insert into public\.seller_store_insight_events \([\s\S]*dedupe_scope[\s\S]*coalesce\(p_catalog_export_id::text/);
+    expect(validation).toContain('grava_escopo_deduplicacao');
+    expect(validation).toContain('registra_saturacao_loja');
     expect(storefront).toContain("eventType: 'store_visit_attribution'");
   });
 
@@ -44,6 +47,7 @@ describe('Seller Store Insights stage 3', () => {
     expect(migration).toContain("'daily'");
     expect(migration).not.toContain("'sessionHash'");
     expect(migration).not.toContain("'sessionId'");
+    expect(migration).toContain("events.event_type = 'contact_platform'");
   });
 
   it('ships structural and rollback-safe transactional validation', () => {

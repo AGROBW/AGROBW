@@ -2,6 +2,7 @@ with table_checks as (
   select
     to_regclass('public.seller_store_insight_events') is not null as tabela_criada,
     to_regclass('public.seller_store_insight_retention_runs') is not null as historico_retencao_criado,
+    to_regclass('public.seller_store_insight_rate_limit_windows') is not null as observabilidade_limite_criada,
     coalesce((
       select classes.relrowsecurity and classes.relforcerowsecurity
       from pg_class classes
@@ -19,6 +20,10 @@ index_checks as (
   select
     coalesce(bool_or(indexname = 'idx_seller_store_insight_events_store_recent'), false) as indice_loja,
     coalesce(bool_or(indexname = 'idx_seller_store_insight_events_store_type_recent'), false) as indice_tipo,
+    coalesce(bool_or(
+      indexname = 'idx_seller_store_insight_events_store_created'
+      and indexdef ilike '%store_id%created_at%'
+    ), false) as indice_limite_global,
     coalesce(bool_or(
       indexname = 'idx_seller_store_insight_events_five_minute_dedupe'
       and indexdef ilike '%unique%'
@@ -43,6 +48,7 @@ definition_checks as (
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%interval ''1 minute''%' as limita_abuso,
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%pg_advisory_xact_lock%'
       and pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%>= 60%' as limita_abuso_por_loja,
+    pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%seller_store_insight_rate_limit_windows%' as registra_saturacao_loja,
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%/ 300%' as janela_deduplicacao,
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%md5(v_store.id::text%' as sessao_anonimizada,
     pg_get_functiondef(to_regprocedure('public.purge_seller_store_insight_events(integer)')) ilike '%180%' as retencao_180_dias
@@ -85,15 +91,20 @@ privilege_checks as (
     has_table_privilege('service_role', 'public.seller_store_insight_retention_runs', 'SELECT')
       and has_table_privilege('service_role', 'public.seller_store_insight_retention_runs', 'INSERT')
       and not has_table_privilege('anon', 'public.seller_store_insight_retention_runs', 'SELECT')
-      and not has_table_privilege('authenticated', 'public.seller_store_insight_retention_runs', 'SELECT') as historico_retencao_privado
+      and not has_table_privilege('authenticated', 'public.seller_store_insight_retention_runs', 'SELECT') as historico_retencao_privado,
+    has_table_privilege('service_role', 'public.seller_store_insight_rate_limit_windows', 'SELECT')
+      and not has_table_privilege('anon', 'public.seller_store_insight_rate_limit_windows', 'SELECT')
+      and not has_table_privilege('authenticated', 'public.seller_store_insight_rate_limit_windows', 'SELECT') as observabilidade_limite_privada
 )
 select
   table_checks.tabela_criada,
   table_checks.historico_retencao_criado,
+  table_checks.observabilidade_limite_criada,
   table_checks.rls_forcada,
   retention_table_checks.historico_retencao_rls_forcada,
   index_checks.indice_loja,
   index_checks.indice_tipo,
+  index_checks.indice_limite_global,
   index_checks.deduplicacao_cinco_minutos,
   function_checks.rpc_disponibilidade,
   function_checks.rpc_evento_publico,
@@ -104,6 +115,7 @@ select
   definition_checks.exclui_proprietario,
   definition_checks.limita_abuso,
   definition_checks.limita_abuso_por_loja,
+  definition_checks.registra_saturacao_loja,
   definition_checks.janela_deduplicacao,
   definition_checks.sessao_anonimizada,
   definition_checks.retencao_180_dias,
@@ -116,7 +128,8 @@ select
   privilege_checks.disponibilidade_so_autenticado,
   privilege_checks.evento_sistema_so_service_role,
   privilege_checks.retencao_so_service_role,
-  privilege_checks.historico_retencao_privado
+  privilege_checks.historico_retencao_privado,
+  privilege_checks.observabilidade_limite_privada
 from table_checks
 cross join retention_table_checks
 cross join index_checks

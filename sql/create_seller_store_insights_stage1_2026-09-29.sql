@@ -82,6 +82,13 @@ create table if not exists public.seller_store_insight_retention_runs (
     check (deleted_count >= 0)
 );
 
+create table if not exists public.seller_store_insight_rate_limit_windows (
+  store_id uuid not null references public.seller_stores(id) on delete cascade,
+  window_started_at timestamptz not null,
+  first_dropped_at timestamptz not null default now(),
+  primary key (store_id, window_started_at)
+);
+
 comment on table public.seller_store_insight_events is
   'Private, deduplicated engagement events for Seller Store Insights. Store visits remain sourced from site_page_views.';
 comment on column public.seller_store_insight_events.session_hash is
@@ -103,6 +110,8 @@ create index if not exists idx_seller_store_insight_events_catalog_recent
   where catalog_export_id is not null;
 create index if not exists idx_seller_store_insight_events_session_recent
   on public.seller_store_insight_events (session_hash, created_at desc);
+create index if not exists idx_seller_store_insight_events_store_created
+  on public.seller_store_insight_events (store_id, created_at desc);
 drop index if exists public.idx_seller_store_insight_events_five_minute_dedupe;
 create unique index idx_seller_store_insight_events_five_minute_dedupe
   on public.seller_store_insight_events (
@@ -117,11 +126,15 @@ alter table public.seller_store_insight_events enable row level security;
 alter table public.seller_store_insight_events force row level security;
 alter table public.seller_store_insight_retention_runs enable row level security;
 alter table public.seller_store_insight_retention_runs force row level security;
+alter table public.seller_store_insight_rate_limit_windows enable row level security;
+alter table public.seller_store_insight_rate_limit_windows force row level security;
 
 revoke all on table public.seller_store_insight_events from public, anon, authenticated;
 grant select, insert, delete on table public.seller_store_insight_events to service_role;
 revoke all on table public.seller_store_insight_retention_runs from public, anon, authenticated;
 grant select, insert on table public.seller_store_insight_retention_runs to service_role;
+revoke all on table public.seller_store_insight_rate_limit_windows from public, anon, authenticated;
+grant select, delete on table public.seller_store_insight_rate_limit_windows to service_role;
 
 create or replace function public.seller_store_insights_has_active_plan(p_user_id uuid)
 returns boolean
@@ -318,6 +331,15 @@ begin
     where events.store_id = v_store.id
       and events.created_at >= v_now - interval '1 minute'
   ) >= 60 then
+    insert into public.seller_store_insight_rate_limit_windows (
+      store_id,
+      window_started_at,
+      first_dropped_at
+    ) values (
+      v_store.id,
+      date_trunc('minute', v_now),
+      v_now
+    ) on conflict do nothing;
     return false;
   end if;
 
@@ -475,6 +497,9 @@ begin
   where events.created_at < now() - make_interval(days => v_retention_days);
 
   get diagnostics v_deleted = row_count;
+
+  delete from public.seller_store_insight_rate_limit_windows windows
+  where windows.window_started_at < now() - make_interval(days => v_retention_days);
 
   insert into public.seller_store_insight_retention_runs (
     retention_days,

@@ -158,6 +158,15 @@ begin
     where events.store_id = v_store.id
       and events.created_at >= v_now - interval '1 minute'
   ) >= 60 then
+    insert into public.seller_store_insight_rate_limit_windows (
+      store_id,
+      window_started_at,
+      first_dropped_at
+    ) values (
+      v_store.id,
+      date_trunc('minute', v_now),
+      v_now
+    ) on conflict do nothing;
     return false;
   end if;
 
@@ -179,6 +188,7 @@ begin
     event_type,
     source_channel,
     session_hash,
+    dedupe_scope,
     dedupe_bucket,
     occurred_at
   ) values (
@@ -189,6 +199,7 @@ begin
     p_event_type,
     v_source_channel,
     v_session_hash,
+    coalesce(p_catalog_export_id::text, '-') || ':' || coalesce(p_announcement_id::text, '-'),
     v_dedupe_bucket,
     v_now
   )
@@ -296,15 +307,15 @@ begin
       )::bigint as previous_opens,
       count(distinct events.session_hash) filter (
         where events.occurred_at >= v_current_start
-          and events.event_type in ('contact_whatsapp', 'contact_platform')
+          and events.event_type = 'contact_platform'
       )::bigint as current_contacts,
       count(distinct events.session_hash) filter (
         where events.occurred_at >= v_previous_start and events.occurred_at < v_current_start
-          and events.event_type in ('contact_whatsapp', 'contact_platform')
+          and events.event_type = 'contact_platform'
       )::bigint as previous_contacts,
       count(distinct events.session_hash) filter (
         where events.occurred_at >= v_current_start
-          and events.event_type in ('contact_whatsapp', 'contact_platform')
+          and events.event_type = 'contact_platform'
           and exists (
             select 1
             from visit_sessions visits
@@ -314,7 +325,7 @@ begin
       )::bigint as current_converted_visitors,
       count(distinct events.session_hash) filter (
         where events.occurred_at >= v_previous_start and events.occurred_at < v_current_start
-          and events.event_type in ('contact_whatsapp', 'contact_platform')
+          and events.event_type = 'contact_platform'
           and exists (
             select 1
             from visit_sessions visits
@@ -392,7 +403,7 @@ begin
         where events.event_type in ('announcement_open', 'catalog_qr_open')
       )::bigint as opens,
       count(distinct events.session_hash) filter (
-        where events.event_type in ('contact_whatsapp', 'contact_platform')
+        where events.event_type = 'contact_platform'
       )::bigint as contacts
     from public.seller_store_insight_events events
     join public.announcements announcements
@@ -405,7 +416,7 @@ begin
     group by events.announcement_id
     having count(*) filter (
       where events.event_type in (
-        'announcement_open', 'catalog_qr_open', 'contact_whatsapp', 'contact_platform'
+        'announcement_open', 'catalog_qr_open', 'contact_platform'
       )
     ) > 0
   ),
@@ -455,7 +466,7 @@ begin
         where events.event_type in ('announcement_open', 'catalog_qr_open')
       )::bigint as opens,
       count(distinct events.session_hash) filter (
-        where events.event_type in ('contact_whatsapp', 'contact_platform')
+        where events.event_type = 'contact_platform'
       )::bigint as contacts
     from public.seller_store_insight_events events
     where events.store_id = v_store.id

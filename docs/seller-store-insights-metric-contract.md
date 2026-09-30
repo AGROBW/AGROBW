@@ -15,7 +15,7 @@ Raw analytics rows are never readable by browser roles.
 | --- | --- |
 | Store visits | Distinct `site_page_views.session_id` values for the store slug and period. |
 | Product opens | Distinct sessions with `announcement_open` or a validated `catalog_qr_open`. |
-| Contact actions | Distinct sessions with `contact_whatsapp` or `contact_platform`, including direct announcement contacts resolved to an eligible store. |
+| Contact actions | Distinct sessions with `contact_platform`, including direct announcement contacts resolved to an eligible store. `contact_whatsapp` remains reserved for a future approved emitter. |
 | Conversion rate | Distinct contact sessions that also visited the storefront in the same period, divided by distinct store visitors and capped at 100%. |
 | Website clicks | Accepted `website_click` events. |
 | Store shares | Accepted `store_share` events. Sharing is not a contact action. |
@@ -68,6 +68,7 @@ announcement-level contacts; QR opens never count as contacts.
 - The immutable `dedupe_scope` preserves the original catalog and announcement scope when foreign keys are cleared after deletion.
 - Each session is limited to 30 accepted attempts per minute.
 - Each store is limited to 60 accepted browser events per minute, serialized independently of the client-provided session.
+- The first global-limit rejection in each store/minute window is recorded privately for operational visibility without amplifying attacker-controlled writes.
 - Raw events have a 180-day retention contract enforced by the protected `purge-seller-store-insights` daily job.
 - Deleting an announcement or catalog clears its optional reference but preserves aggregate store history; deleting the store removes its events.
 - `anon` and `authenticated` cannot read or mutate the raw table directly.

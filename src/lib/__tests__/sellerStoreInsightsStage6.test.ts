@@ -21,6 +21,9 @@ describe('Seller Store Insights stage 6', () => {
     expect(validator).toContain('pronto_para_operar');
     expect(validator).toContain('escopo_deduplicacao_imutavel');
     expect(validator).toContain('retencao_executada_recentemente');
+    expect(validator).toContain('escrita_browser_completa');
+    expect(validator).toContain('indice_limite_global');
+    expect(validator).toContain('janelas_saturadas_24h');
   });
 
   it('checks the complete metric and catalog attribution contracts', () => {

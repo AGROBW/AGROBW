@@ -2,6 +2,7 @@ with object_checks as (
   select
     to_regclass('public.seller_store_insight_events') is not null as tabela_eventos,
     to_regclass('public.seller_store_insight_retention_runs') is not null as historico_retencao,
+    to_regclass('public.seller_store_insight_rate_limit_windows') is not null as observabilidade_limite,
     to_regclass('public.site_page_views') is not null as tabela_visitas,
     to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)') is not null as rpc_browser,
     to_regprocedure('public.record_seller_store_insight_system_event(uuid,text,uuid,uuid,uuid,text,timestamp with time zone)') is not null as rpc_sistema,
@@ -32,7 +33,10 @@ security_checks as (
       and not has_function_privilege('anon', 'public.purge_seller_store_insight_events(integer)', 'EXECUTE')
       and not has_function_privilege('authenticated', 'public.purge_seller_store_insight_events(integer)', 'EXECUTE') as retencao_so_service_role,
     not has_table_privilege('anon', 'public.seller_store_insight_retention_runs', 'SELECT')
-      and not has_table_privilege('authenticated', 'public.seller_store_insight_retention_runs', 'SELECT') as historico_retencao_privado
+      and not has_table_privilege('authenticated', 'public.seller_store_insight_retention_runs', 'SELECT') as historico_retencao_privado,
+    has_table_privilege('service_role', 'public.seller_store_insight_rate_limit_windows', 'SELECT')
+      and not has_table_privilege('anon', 'public.seller_store_insight_rate_limit_windows', 'SELECT')
+      and not has_table_privilege('authenticated', 'public.seller_store_insight_rate_limit_windows', 'SELECT') as observabilidade_limite_privada
 ),
 contract_checks as (
   select
@@ -44,6 +48,16 @@ contract_checks as (
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%catalog_qr_open%' as qr_validado,
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%pg_advisory_xact_lock%'
       and pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%>= 60%' as limite_global_loja,
+    pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%dedupe_scope%'
+      and pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_event(text,text,text,uuid,uuid,uuid,text)')) ilike '%seller_store_insight_rate_limit_windows%' as escrita_browser_completa,
+    exists (
+      select 1
+      from pg_indexes indexes
+      where indexes.schemaname = 'public'
+        and indexes.tablename = 'seller_store_insight_events'
+        and indexes.indexname = 'idx_seller_store_insight_events_store_created'
+        and indexes.indexdef ilike '%store_id%created_at%'
+    ) as indice_limite_global,
     pg_get_functiondef(to_regprocedure('public.get_my_seller_store_insights(integer,integer)')) ilike '%current_converted_visitors%' as conversao_intersecta_visitantes,
     pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_system_event(uuid,text,uuid,uuid,uuid,text,timestamp with time zone)')) ilike '%catalog_generated%'
       and pg_get_functiondef(to_regprocedure('public.record_seller_store_insight_system_event(uuid,text,uuid,uuid,uuid,text,timestamp with time zone)')) ilike '%catalog_download%' as eventos_catalogo_protegidos
@@ -94,7 +108,7 @@ data_checks as (
     ) = 0 as associacoes_evento_validas,
     count(*) filter (where events.occurred_at >= now() - interval '24 hours') as eventos_24h,
     count(*) filter (
-      where events.event_type in ('contact_whatsapp', 'contact_platform')
+      where events.event_type = 'contact_platform'
         and events.occurred_at >= now() - interval '24 hours'
     ) as contatos_24h,
     count(*) filter (
@@ -122,6 +136,7 @@ retention_checks as (
 select
   object_checks.tabela_eventos
     and object_checks.historico_retencao
+    and object_checks.observabilidade_limite
     and object_checks.tabela_visitas
     and object_checks.rpc_browser
     and object_checks.rpc_sistema
@@ -135,6 +150,7 @@ select
   security_checks.painel_so_autenticado,
   security_checks.retencao_so_service_role,
   security_checks.historico_retencao_privado,
+  security_checks.observabilidade_limite_privada,
   contract_checks.periodos_fixos,
   contract_checks.exige_plano_loja,
   contract_checks.fuso_civil,
@@ -142,6 +158,8 @@ select
   contract_checks.ranking_anuncios,
   contract_checks.qr_validado,
   contract_checks.limite_global_loja,
+  contract_checks.escrita_browser_completa,
+  contract_checks.indice_limite_global,
   contract_checks.conversao_intersecta_visitantes,
   contract_checks.eventos_catalogo_protegidos,
   schema_checks.tipos_completos,
@@ -155,6 +173,7 @@ select
   (
     object_checks.tabela_eventos
     and object_checks.historico_retencao
+    and object_checks.observabilidade_limite
     and object_checks.tabela_visitas
     and object_checks.rpc_browser
     and object_checks.rpc_sistema
@@ -167,6 +186,7 @@ select
     and security_checks.painel_so_autenticado
     and security_checks.retencao_so_service_role
     and security_checks.historico_retencao_privado
+    and security_checks.observabilidade_limite_privada
     and contract_checks.periodos_fixos
     and contract_checks.exige_plano_loja
     and contract_checks.fuso_civil
@@ -174,6 +194,8 @@ select
     and contract_checks.ranking_anuncios
     and contract_checks.qr_validado
     and contract_checks.limite_global_loja
+    and contract_checks.escrita_browser_completa
+    and contract_checks.indice_limite_global
     and contract_checks.conversao_intersecta_visitantes
     and contract_checks.eventos_catalogo_protegidos
     and schema_checks.tipos_completos
@@ -192,7 +214,12 @@ select
   data_checks.qr_abertos_24h,
   data_checks.ultimo_evento,
   retention_checks.ultima_retencao,
-  retention_checks.ultima_retencao_excluiu
+  retention_checks.ultima_retencao_excluiu,
+  (
+    select count(*)
+    from public.seller_store_insight_rate_limit_windows windows
+    where windows.window_started_at >= now() - interval '24 hours'
+  ) as janelas_saturadas_24h
 from object_checks
 cross join security_checks
 cross join contract_checks

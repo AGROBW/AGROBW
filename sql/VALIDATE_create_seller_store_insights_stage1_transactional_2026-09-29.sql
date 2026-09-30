@@ -120,6 +120,15 @@ begin
     raise exception 'ROTATING_SESSIONS_BYPASSED_STORE_RATE_LIMIT';
   end if;
 
+  if not exists (
+    select 1
+    from public.seller_store_insight_rate_limit_windows windows
+    where windows.store_id = v_store_id
+      and windows.window_started_at >= date_trunc('minute', now())
+  ) then
+    raise exception 'STORE_RATE_LIMIT_SATURATION_WAS_NOT_RECORDED';
+  end if;
+
   perform set_config(
     'request.jwt.claims',
     json_build_object('sub', v_user_id::text, 'role', 'authenticated')::text,

@@ -45,6 +45,8 @@ describe('Seller Store Insights stage 4', () => {
     }
     expect(panel).toContain('ComparisonBadge');
     expect(panel).toContain('changePercentagePoints');
+    expect(panel).not.toContain("label: 'WhatsApp'");
+    expect(panel).toContain('Sessões que enviaram contato pela plataforma');
   });
 
   it('renders responsive charts, privacy guidance and empty states', () => {

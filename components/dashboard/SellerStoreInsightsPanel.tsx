@@ -209,7 +209,6 @@ const SellerStoreInsightsPanel: React.FC<SellerStoreInsightsPanelProps> = ({ has
     : 0;
 
   const activityCards = [
-    { label: 'WhatsApp', value: summary.whatsappClicks, icon: MessageCircle, color: 'text-emerald-700 bg-emerald-50' },
     { label: 'Contato AGRO BW', value: summary.platformContacts, icon: MousePointerClick, color: 'text-sky-700 bg-sky-50' },
     { label: 'Cliques no site', value: summary.websiteClicks, icon: Globe2, color: 'text-cyan-700 bg-cyan-50' },
     { label: 'Compartilhamentos', value: summary.storeShares, icon: Share2, color: 'text-amber-700 bg-amber-50' },
@@ -284,7 +283,7 @@ const SellerStoreInsightsPanel: React.FC<SellerStoreInsightsPanelProps> = ({ has
         <MetricCard
           label="Ações de contato"
           value={numberFormatter.format(summary.contactActions)}
-          helper="Sessões com contato por WhatsApp ou plataforma"
+          helper="Sessões que enviaram contato pela plataforma"
           change={comparison.contactActions.changePercent}
           icon={MessageCircle}
           tone="amber"
